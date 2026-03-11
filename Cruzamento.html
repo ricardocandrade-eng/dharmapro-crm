@@ -1,0 +1,766 @@
+<style>
+  #pageCruzamento.ativa {
+    display: block !important;
+    position: fixed;
+    top: 49px; left: 230px; right: 0; bottom: 0;
+    overflow: hidden; z-index: 10;
+  }
+  #pageCruzamento.ativa .cruz-body {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    overflow-y: auto;
+    margin-top: 108px;
+    background: var(--bg);
+  }
+  #pageCruzamento.ativa .cruz-body::-webkit-scrollbar { width: 4px; }
+  #pageCruzamento.ativa .cruz-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .cruz-toolbar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0; flex-wrap: wrap;
+  }
+  .cruz-toolbar h2 { font-size: 16px; font-weight: 800; }
+  .cruz-upload-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px;
+    background: rgba(230,62,109,.1); border: 1.5px solid rgba(230,62,109,.4);
+    color: var(--accent); border-radius: 8px;
+    font-size: 12px; font-weight: 700; font-family: 'Sora', sans-serif;
+    cursor: pointer; transition: all .2s;
+  }
+  .cruz-upload-btn:hover { background: rgba(230,62,109,.2); }
+  #cruzInputFile { display: none; }
+  .cruz-status { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); flex: 1; }
+  .cruz-status.ok  { color: var(--green); }
+  .cruz-status.err { color: var(--accent); }
+
+  .cruz-tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface); padding: 0 24px;
+  }
+  .cruz-tab {
+    padding: 10px 18px; font-size: 12px; font-weight: 700;
+    color: var(--muted); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all .15s;
+    display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .cruz-tab:hover { color: var(--text); }
+  .cruz-tab.ativo { color: var(--accent); border-bottom-color: var(--accent); }
+  .cruz-tab-badge {
+    font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 20px;
+    font-family: 'DM Mono', monospace; background: var(--surface2); color: var(--muted);
+  }
+  .cruz-tab.ativo .cruz-tab-badge { background: rgba(230,62,109,.15); color: var(--accent); }
+
+  .cruz-empty {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; min-height: 300px; color: var(--muted); text-align: center; padding: 40px; gap: 12px;
+  }
+  .cruz-empty-icon { font-size: 48px; opacity: .4; }
+  .cruz-empty h3 { font-size: 16px; font-weight: 700; color: var(--text); }
+  .cruz-empty p  { font-size: 13px; line-height: 1.6; max-width: 360px; }
+
+  /* Kanban 3 colunas */
+  .cruz-container-kanban {
+    padding: 24px; height: 100%; box-sizing: border-box;
+  }
+  .cruz-kanban {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px; height: 100%;
+  }
+  .cruz-col {
+    display: flex; flex-direction: column;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden;
+  }
+  .cruz-col-head {
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface2); flex-shrink: 0;
+  }
+  .cruz-col-stripe { width: 4px; height: 32px; border-radius: 3px; flex-shrink: 0; }
+  .cruz-col-title  { font-size: 13px; font-weight: 800; flex: 1; }
+  .cruz-col-count  { font-size: 18px; font-weight: 800; font-family: 'DM Mono', monospace; color: var(--muted); }
+  
+  .cruz-col-cards  { 
+    flex: 1; overflow-y: auto; padding: 12px; 
+    display: flex; flex-direction: column; gap: 8px; 
+  }
+  .cruz-col-cards::-webkit-scrollbar { width: 3px; }
+  .cruz-col-cards::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* Card do kanban */
+  .cruz-card {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 9px; padding: 12px 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .cruz-card-nome  { font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+  .cruz-card-row   { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 3px; }
+  .cruz-card.vermelho { border-left: 3px solid var(--accent); }
+  .cruz-card.amarelo  { border-left: 3px solid var(--yellow); }
+  .cruz-card.verde    { border-left: 3px solid var(--green); }
+
+  .cruz-col-empty {
+    text-align: center; padding: 24px 12px; color: var(--muted);
+    font-size: 11px; font-family: 'DM Mono', monospace;
+    border: 1.5px dashed var(--border); border-radius: 9px; margin: 4px;
+  }
+</style>
+
+<div id="pageCruzamento" class="page">
+  <div class="cruz-toolbar">
+    <h2>🔀 Cruzamento Vero</h2>
+    <label class="cruz-upload-btn" for="cruzInputFile">
+      📂 Importar Relatório XLS
+    </label>
+    <input type="file" id="cruzInputFile" accept=".xlsx,.xls" onchange="_cruzamentoImportar(this)">
+    <span class="cruz-status" id="cruzStatus">Nenhum arquivo importado</span>
+    <button class="btn btn-ghost btn-sm" onclick="_cruzamentoLimpar()" id="cruzBtnLimpar" style="display:none">✕ Limpar</button>
+  </div>
+
+  <div class="cruz-tabs" id="cruzTabs" style="display:none">
+    <div class="cruz-tab ativo" onclick="_cruzTab('vendas', this)">
+      📦 Venda Bruta <span class="cruz-tab-badge" id="cruzBadgeVendas">—</span>
+    </div>
+    <div class="cruz-tab" onclick="_cruzTab('instalacoes', this)">
+      ✅ Instalações <span class="cruz-tab-badge" id="cruzBadgeInstalacoes">—</span>
+    </div>
+    <div class="cruz-tab" onclick="_cruzTab('cancelamentos', this)">
+      ❌ Cancelamentos <span class="cruz-tab-badge" id="cruzBadgeCancelamentos">—</span>
+    </div>
+  </div>
+
+  <div class="cruz-body" id="cruzBody">
+    <div class="cruz-empty">
+      <div class="cruz-empty-icon">📊</div>
+      <h3>Nenhum relatório importado</h3>
+      <p>Importe o arquivo XLS enviado pela Vero para cruzar com sua base de dados.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ══════════════════════════════════════════════════════════════
+//  CRUZAMENTO VERO
+// ══════════════════════════════════════════════════════════════
+
+var _cruzDados = null; 
+var _cruzTabAtiva = 'vendas'; 
+var _cruzDadosCRM = [];
+
+// ── IMPORTAR XLS ──────────────────────────────────────────────
+function _cruzamentoImportar(inputEl) {
+  var file = inputEl.files[0];
+  if (!file) return;
+
+  var status = document.getElementById('cruzStatus');
+  status.className = 'cruz-status';
+  status.textContent = '⏳ Lendo arquivo...';
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var data = new Uint8Array(e.target.result);
+      
+      // Verificar se XLSX está disponível
+      if (typeof XLSX === 'undefined') {
+        status.className = 'cruz-status err';
+        status.textContent = '❌ Biblioteca XLSX não carregada. Recarregue a página.';
+        console.error('XLSX library not loaded');
+        return;
+      }
+
+      var wb = XLSX.read(data, { type: 'array' });
+      
+      console.log('Planilha carregada. Abas disponíveis:', wb.SheetNames);
+
+      var vendas = _cruzLerAba(wb, 'VENDAS');
+      var instalacoes = _cruzLerAba(wb, 'INSTALAÇÕES');
+      var cancelamentos = _cruzLerAba(wb, 'CANCELAMENTO');
+
+      console.log('Dados lidos:', {
+        vendas: vendas ? vendas.length : 0,
+        instalacoes: instalacoes ? instalacoes.length : 0,
+        cancelamentos: cancelamentos ? cancelamentos.length : 0
+      });
+
+      if (!vendas && !instalacoes && !cancelamentos) {
+        status.className = 'cruz-status err';
+        status.textContent = '❌ Nenhuma aba válida encontrada. Abas disponíveis: ' + wb.SheetNames.join(', ');
+        return;
+      }
+
+      _cruzDados = { 
+        vendas: vendas || [], 
+        instalacoes: instalacoes || [], 
+        cancelamentos: cancelamentos || [] 
+      };
+
+      status.className = 'cruz-status';
+      status.textContent = '⏳ Carregando dados do CRM...';
+
+      // Verificar se google.script está disponível
+      if (typeof google !== 'undefined' && google.script && google.script.run) {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            _cruzDadosCRM = res && res.dados ? res.dados : [];
+            console.log('Dados CRM carregados:', _cruzDadosCRM.length);
+            
+            status.className = 'cruz-status ok';
+            status.textContent = '✅ ' + file.name + ' importado! Total CRM: ' + _cruzDadosCRM.length;
+              
+            document.getElementById('cruzTabs').style.display = 'flex';
+            document.getElementById('cruzBtnLimpar').style.display = '';
+            _cruzRenderizar();
+          })
+          .withFailureHandler(function(err) {
+            console.error('Erro ao carregar CRM:', err);
+            status.className = 'cruz-status err';
+            status.textContent = '❌ Erro ao carregar CRM: ' + (err && err.message ? err.message : 'tente novamente');
+          })
+          .getContratosParaCruzamento();
+      } else {
+        // Modo desenvolvimento/teste - usar dados vazios
+        console.warn('Google Apps Script não disponível - modo teste');
+        _cruzDadosCRM = [];
+        status.className = 'cruz-status ok';
+        status.textContent = '✅ ' + file.name + ' importado (modo teste - sem dados CRM)';
+        document.getElementById('cruzTabs').style.display = 'flex';
+        document.getElementById('cruzBtnLimpar').style.display = '';
+        _cruzRenderizar();
+      }
+    } catch(err) {
+      console.error('Erro ao processar arquivo:', err);
+      status.className = 'cruz-status err';
+      status.textContent = '❌ Erro ao ler arquivo: ' + err.message;
+    }
+  };
+  
+  reader.onerror = function(err) {
+    console.error('Erro ao ler arquivo:', err);
+    status.className = 'cruz-status err';
+    status.textContent = '❌ Erro ao ler arquivo';
+  };
+  
+  reader.readAsArrayBuffer(file);
+  inputEl.value = '';
+}
+
+function _cruzLerAba(wb, nomeBase) {
+  console.log('Procurando aba:', nomeBase);
+  
+  // Tentar várias variações do nome
+  var variacoes = [
+    nomeBase,
+    nomeBase.toUpperCase(),
+    nomeBase.toLowerCase(),
+    nomeBase.normalize('NFD').replace(/[\u0300-\u036f]/g, ''), // Remove acentos
+    nomeBase.replace('Ç', 'C').replace('ç', 'c')
+  ];
+  
+  // Adicionar variações específicas
+  if (nomeBase === 'INSTALAÇÕES') {
+    variacoes.push('INSTALACOES', 'Instalações', 'Instalacoes', 'instalações', 'instalacoes');
+  }
+  if (nomeBase === 'CANCELAMENTO') {
+    variacoes.push('CANCELAMENTOS', 'Cancelamento', 'Cancelamentos', 'cancelamento', 'cancelamentos');
+  }
+  
+  // Procurar aba exata
+  for (var i = 0; i < variacoes.length; i++) {
+    if (wb.Sheets[variacoes[i]]) {
+      console.log('Aba encontrada:', variacoes[i]);
+      var data = XLSX.utils.sheet_to_json(wb.Sheets[variacoes[i]], { defval: '', raw: false });
+      console.log('Registros lidos:', data.length);
+      if (data.length > 0) {
+        console.log('Exemplo de registro:', data[0]);
+      }
+      return data;
+    }
+  }
+  
+  // Procurar por semelhança parcial
+  for (var j = 0; j < wb.SheetNames.length; j++) {
+    var sheetName = wb.SheetNames[j];
+    var sheetUpper = sheetName.toUpperCase();
+    var baseUpper = nomeBase.substring(0, 5).toUpperCase();
+    
+    if (sheetUpper.indexOf(baseUpper) > -1) {
+      console.log('Aba similar encontrada:', sheetName);
+      var data = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '', raw: false });
+      console.log('Registros lidos:', data.length);
+      return data;
+    }
+  }
+  
+  console.log('Aba não encontrada:', nomeBase);
+  return null;
+}
+
+function _cruzamentoLimpar() {
+  _cruzDados = null;
+  _cruzDadosCRM = [];
+  _cruzRemoverIconesLista();
+  document.getElementById('cruzStatus').className = 'cruz-status';
+  document.getElementById('cruzStatus').textContent = 'Nenhum arquivo importado';
+  document.getElementById('cruzTabs').style.display = 'none';
+  document.getElementById('cruzBtnLimpar').style.display = 'none';
+  document.getElementById('cruzBody').innerHTML =
+    '<div class="cruz-empty">' +
+      '<div class="cruz-empty-icon">📊</div>' +
+      '<h3>Nenhum relatório importado</h3>' +
+      '<p>Importe o arquivo XLS enviado pela Vero para cruzar com sua base de dados.</p>' +
+    '</div>';
+}
+
+function _cruzTab(nome, el) {
+  _cruzTabAtiva = nome;
+  document.querySelectorAll('.cruz-tab').forEach(function(t) { t.classList.remove('ativo'); });
+  el.classList.add('ativo');
+  _cruzRenderizar();
+}
+
+function _cruzRenderizar() {
+  var body = document.getElementById('cruzBody');
+  if (!body) return;
+
+  if (!_cruzDados) {
+    body.innerHTML = '<div class="cruz-empty"><div class="cruz-empty-icon">📊</div><h3>Nenhum relatório importado</h3></div>';
+    return;
+  }
+
+  body.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-size:14px;">⏳ Montando painel, aguarde...</div>';
+
+  setTimeout(function() {
+    try {
+      if (_cruzTabAtiva === 'vendas') _cruzRenderVendas();
+      else if (_cruzTabAtiva === 'instalacoes') _cruzRenderInstalacoes();
+      else if (_cruzTabAtiva === 'cancelamentos') _cruzRenderCancelamentos();
+    } catch (err) {
+      console.error("Erro na renderização:", err);
+      body.innerHTML = '<div class="cruz-empty" style="color:var(--accent);">❌ Erro ao renderizar: ' + err.message + '</div>';
+    }
+  }, 50);
+}
+
+// ── HELPERS DE LÓGICA ──────────────────────────────────────────
+
+function _cruzNormId(id) {
+  if (id === null || id === undefined) return '';
+  return String(id).trim().replace(/\.0$/, '').replace(/['"]/g, '');
+}
+
+function _cruzMesAno(dataStr) {
+  if (!dataStr) return null;
+  var s = String(dataStr).trim();
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+    var p = s.split('/'); 
+    return p[1] + '/' + p[2]; 
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    var p = s.substring(0,7).split('-'); 
+    return p[1] + '/' + p[0]; 
+  }
+  return null;
+}
+
+function _cruzMesVigente(veroRows, campoData) {
+  var meses = {};
+  veroRows.forEach(function(r) {
+    var ma = _cruzMesAno(r[campoData]);
+    if (ma) meses[ma] = (meses[ma] || 0) + 1;
+  });
+  var maiorQtd = 0, mesVig = null;
+  Object.keys(meses).forEach(function(ma) {
+    if (meses[ma] > maiorQtd) { 
+      maiorQtd = meses[ma]; 
+      mesVig = ma; 
+    }
+  });
+  return mesVig;
+}
+
+function _cruzMesAnoCRM(dataStr) {
+  if (!dataStr) return null;
+  var s = String(dataStr).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(5,7) + '/' + s.substring(0,4);
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) { 
+    var p = s.split('/'); 
+    return p[1] + '/' + p[2]; 
+  }
+  return null;
+}
+
+function _cruzCRMdoMes(campo, mesVig) {
+  if (!mesVig) return _cruzDadosCRM;
+  return _cruzDadosCRM.filter(function(v) {
+    return _cruzMesAnoCRM(v[campo]) === mesVig;
+  });
+}
+
+function _cruzMapear(arr) {
+  var m = {};
+  arr.forEach(function(v) { 
+    var id = _cruzNormId(v.contrato); 
+    if (id) m[id] = v; 
+  });
+  return m;
+}
+
+// ── HELPERS DE HTML (KANBAN) ──────────────────────────────────
+
+function _cruzKanban(col1, col2, col3) {
+  return '<div class="cruz-container-kanban">' +
+    '<div class="cruz-kanban">' +
+      _cruzColuna(col1) + _cruzColuna(col2) + _cruzColuna(col3) +
+    '</div></div>'; 
+}
+
+function _cruzColuna(cfg) {
+  var cards = cfg.items.length === 0
+    ? '<div class="cruz-col-empty">Nenhum registro</div>'
+    : cfg.items.map(_cruzCard).join('');
+
+  return '<div class="cruz-col">' +
+    '<div class="cruz-col-head">' +
+      '<div class="cruz-col-stripe" style="background:' + cfg.cor + '"></div>' +
+      '<div class="cruz-col-title">' + cfg.titulo + '</div>' +
+      '<div class="cruz-col-count">' + cfg.items.length + '</div>' +
+    '</div>' +
+    '<div class="cruz-col-cards">' + cards + '</div>' +
+  '</div>';
+}
+
+function _cruzCard(item) {
+  var cls = item._cls || '';
+  var rows = (item._rows || []).map(function(r) {
+    return '<div class="cruz-card-row">' + _escapeHtml(r) + '</div>';
+  }).join('');
+  return '<div class="cruz-card ' + cls + '">' +
+    '<div class="cruz-card-nome">' + _escapeHtml(item._nome) + '</div>' +
+    rows +
+  '</div>';
+}
+
+function _escapeHtml(text) {
+  if (!text) return '';
+  var div = document.createElement('div');
+  div.textContent = String(text);
+  return div.innerHTML;
+}
+
+function _fmtData(dataStr) {
+  if (!dataStr) return '';
+  var s = String(dataStr);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    return s.substring(8,10) + '/' + s.substring(5,7) + '/' + s.substring(0,4);
+  }
+  return s;
+}
+
+// ── ABA VENDA BRUTA ───────────────────────────────────────────
+function _cruzRenderVendas() {
+  var rows = _cruzDados.vendas;
+  var mesVig = _cruzMesVigente(rows, 'DATA_CADASTRO');
+  var crmMes = _cruzCRMdoMes('dataAtiv', mesVig);
+  var mapaCRM = _cruzMapear(crmMes);
+
+  console.log('Renderizando vendas:', {
+    totalVendas: rows.length,
+    mesVigente: mesVig,
+    totalCRM: crmMes.length
+  });
+
+  document.getElementById('cruzBadgeVendas').textContent = rows.length;
+
+  var idsVero = {};
+  var soVero = [], bateu = [], soCRM = [];
+
+  rows.forEach(function(r) {
+    var id = _cruzNormId(r.ID_CONTRATO || r.CONTRATO || r.Contrato);
+    if (!id) return;
+    idsVero[id] = true;
+    if (mapaCRM[id]) bateu.push({ vero: r, crm: mapaCRM[id] });
+    else soVero.push(r);
+  });
+
+  crmMes.forEach(function(v) {
+    var id = _cruzNormId(v.contrato);
+    if (!id) return;
+    if (v.status !== '2- Aguardando Instalação' && v.status !== '3 - Finalizada/Instalada') return;
+    if (!idsVero[id]) soCRM.push(v);
+  });
+
+  console.log('Resultado cruzamento vendas:', {
+    match: bateu.length,
+    soVero: soVero.length,
+    soCRM: soCRM.length
+  });
+
+  var html = _cruzKanban(
+    {
+      titulo: '✅ Match',
+      cor: 'var(--green)',
+      items: bateu.map(function(x) { 
+        var idVero = x.vero.ID_CONTRATO || x.vero.CONTRATO || x.vero.Contrato;
+        return {
+          _nome: x.crm.cliente || idVero,
+          _cls: 'verde',
+          _rows: ['ID: ' + idVero, x.crm.status, '📅 Ativ: ' + _fmtData(x.crm.dataAtiv)]
+        }; 
+      })
+    },
+    {
+      titulo: '⚠️ Relatório Vero',
+      cor: 'var(--yellow)',
+      items: soVero.map(function(r) { 
+        var idVero = r.ID_CONTRATO || r.CONTRATO || r.Contrato || 'Sem ID';
+        return {
+          _nome: idVero,
+          _cls: 'amarelo',
+          _rows: [r.NOME_PLANO_ATUAL || '', r.CIDADE_HIERARQUIA || '', '📅 Cad: ' + (r.DATA_CADASTRO || '')]
+        }; 
+      })
+    },
+    {
+      titulo: '❌ DharmaPro',
+      cor: 'var(--accent)',
+      items: soCRM.map(function(v) { 
+        return {
+          _nome: v.cliente || v.contrato,
+          _cls: 'vermelho',
+          _rows: ['ID: ' + v.contrato, v.status, '📅 Ativ: ' + _fmtData(v.dataAtiv)]
+        }; 
+      })
+    }
+  );
+
+  document.getElementById('cruzBody').innerHTML = html;
+}
+
+// ── ABA INSTALAÇÕES ───────────────────────────────────────────
+function _cruzRenderInstalacoes() {
+  var rows = _cruzDados.instalacoes;
+  var mesVig = _cruzMesVigente(rows, 'DATA_HABILITAÇÃO') || _cruzMesVigente(rows, 'DATA_HABILITACAO');
+  var crmMes = _cruzCRMdoMes('instal', mesVig);
+  var mapaCRM = _cruzMapear(crmMes);
+
+  console.log('Renderizando instalações:', {
+    totalInstalacoes: rows.length,
+    mesVigente: mesVig,
+    totalCRM: crmMes.length
+  });
+
+  document.getElementById('cruzBadgeInstalacoes').textContent = rows.length;
+
+  var idsVero = {};
+  var pendente = [], bateu = [], soCRM = [];
+
+  rows.forEach(function(r) {
+    var id = _cruzNormId(r.ID_CONTRATO || r.CONTRATO || r.Contrato);
+    if (!id) return;
+    idsVero[id] = true;
+    var crm = mapaCRM[id];
+    if (crm) {
+      if (crm.status === '3 - Finalizada/Instalada') bateu.push({ vero: r, crm: crm });
+      else pendente.push({ vero: r, crm: crm });
+    } else {
+      pendente.push({ vero: r, crm: null });
+    }
+  });
+
+  crmMes.forEach(function(v) {
+    if (v.status !== '3 - Finalizada/Instalada') return;
+    var id = _cruzNormId(v.contrato);
+    if (id && !idsVero[id]) soCRM.push(v);
+  });
+
+  var html = _cruzKanban(
+    {
+      titulo: '✅ Match',
+      cor: 'var(--green)',
+      items: bateu.map(function(x) {
+        var dataHab = x.vero['DATA_HABILITAÇÃO'] || x.vero['DATA_HABILITACAO'] || '';
+        var idVero = x.vero.ID_CONTRATO || x.vero.CONTRATO || x.vero.Contrato;
+        return {
+          _nome: x.crm.cliente || idVero,
+          _cls: 'verde',
+          _rows: ['ID: ' + idVero, '📅 Hab: ' + dataHab, 'R$ ' + (x.vero.VALOR_CONTRATO || '')]
+        };
+      })
+    },
+    {
+      titulo: '⚠️ Relatório Vero',
+      cor: 'var(--yellow)',
+      items: pendente.map(function(x) {
+        var dataHab = x.vero['DATA_HABILITAÇÃO'] || x.vero['DATA_HABILITACAO'] || '';
+        var idVero = x.vero.ID_CONTRATO || x.vero.CONTRATO || x.vero.Contrato;
+        return {
+          _nome: x.crm ? (x.crm.cliente || idVero) : idVero,
+          _cls: 'amarelo',
+          _rows: [
+            'ID: ' + idVero,
+            x.crm ? 'Status CRM: ' + x.crm.status : 'Não achou no CRM',
+            '📅 Hab: ' + dataHab
+          ]
+        };
+      })
+    },
+    {
+      titulo: '❌ DharmaPro',
+      cor: 'var(--accent)',
+      items: soCRM.map(function(v) { 
+        return {
+          _nome: v.cliente || v.contrato,
+          _cls: 'vermelho',
+          _rows: ['ID: ' + v.contrato, '📅 Instal: ' + _fmtData(v.instal)]
+        }; 
+      })
+    }
+  );
+
+  document.getElementById('cruzBody').innerHTML = html;
+}
+
+// ── ABA CANCELAMENTOS ─────────────────────────────────────────
+function _cruzRenderCancelamentos() {
+  var rows = _cruzDados.cancelamentos;
+  var mapaCRM = _cruzMapear(_cruzDadosCRM);
+
+  console.log('Renderizando cancelamentos:', {
+    totalCancelamentos: rows.length,
+    totalCRM: _cruzDadosCRM.length
+  });
+
+  document.getElementById('cruzBadgeCancelamentos').textContent = rows.length;
+
+  var STATUS_CANCEL = {
+    'Cancelado': 1,
+    'Cancelamento Técnico': 1,
+    'Cancelamento Comercial': 1,
+    'Churn': 1,
+    'Devolvido': 1
+  };
+  
+  var soVero = [], match = [], soCRM = [];
+  var idsVero = {};
+
+  rows.forEach(function(r) {
+    var id = _cruzNormId(r.ID_CONTRATO || r.CONTRATO || r.Contrato);
+    if (!id) return;
+    idsVero[id] = true;
+    var crm = mapaCRM[id];
+    
+    if (crm && STATUS_CANCEL[crm.status]) { 
+      match.push({ vero: r, crm: crm }); 
+    } else {
+      soVero.push({ vero: r, crm: crm }); 
+    }
+  });
+
+  _cruzDadosCRM.forEach(function(v) {
+    if (!STATUS_CANCEL[v.status]) return;
+    var id = _cruzNormId(v.contrato);
+    if (id && !idsVero[id]) {
+      soCRM.push(v);
+    }
+  });
+
+  var html = _cruzKanban(
+    {
+      titulo: '✅ Match',
+      cor: 'var(--green)',
+      items: match.map(function(x) { 
+        var idVero = x.vero.ID_CONTRATO || x.vero.CONTRATO || x.vero.Contrato;
+        return {
+          _nome: x.crm.cliente || idVero,
+          _cls: 'verde',
+          _rows: ['ID: ' + idVero, x.crm.status, '📅 Canc: ' + (x.vero.DATA_CANCELAMENTO || '')]
+        }; 
+      })
+    },
+    {
+      titulo: '⚠️ Relatório Vero',
+      cor: 'var(--yellow)',
+      items: soVero.map(function(x) { 
+        var idVero = x.vero.ID_CONTRATO || x.vero.CONTRATO || x.vero.Contrato;
+        return {
+          _nome: x.crm ? x.crm.cliente : 'Sem CRM',
+          _cls: 'amarelo',
+          _rows: [
+            'ID: ' + idVero, 
+            x.crm ? 'Status Atual: ' + x.crm.status : 'Não achou no CRM', 
+            x.vero.MOTIVO_CANCELAMENTO || ''
+          ]
+        }; 
+      })
+    },
+    {
+      titulo: '❌ DharmaPro',
+      cor: 'var(--accent)',
+      items: soCRM.map(function(v) { 
+        return {
+          _nome: v.cliente || v.contrato,
+          _cls: 'vermelho',
+          _rows: ['ID: ' + v.contrato, v.status, '📅 ' + _fmtData(v.dataAtiv)]
+        }; 
+      })
+    }
+  );
+
+  document.getElementById('cruzBody').innerHTML = html;
+}
+
+// ── ÍCONES NA LISTA DE VENDAS ─────────────────────────────────
+function _cruzAtualizarIconesLista(bateu, soVero, soCRM) {
+  if (typeof _paginaAtual === 'undefined') return;
+  
+  var setBateu = {};
+  bateu.forEach(function(x) { 
+    setBateu[String(x.crm.contrato || '')] = true; 
+  });
+  
+  var setSoCRM = {};
+  soCRM.forEach(function(v) { 
+    setSoCRM[String(v.contrato || '')] = true; 
+  });
+
+  (_paginaAtual || []).forEach(function(v, i) {
+    var id = String(v.contrato || '');
+    var el = document.getElementById('item_' + i);
+    if (!el) return;
+
+    var old = el.querySelector('.cruz-icone');
+    if (old) old.remove();
+
+    var icone = document.createElement('span');
+    icone.className = 'cruz-icone';
+    icone.style.cssText = 'font-size:11px;margin-left:6px;';
+
+    if (setBateu[id]) {
+      icone.textContent = '✅';
+      icone.title = 'Encontrado no relatório da Vero';
+    } else if (setSoCRM[id]) {
+      icone.textContent = '⚠️';
+      icone.title = 'Não encontrado no relatório da Vero';
+    } else {
+      return;
+    }
+
+    var nomeEl = el.querySelector('.venda-nome-linha h4');
+    if (nomeEl) nomeEl.parentNode.insertBefore(icone, nomeEl.nextSibling);
+  });
+}
+
+function _cruzRemoverIconesLista() {
+  document.querySelectorAll('.cruz-icone').forEach(function(el) { 
+    el.remove(); 
+  });
+}
+</script>

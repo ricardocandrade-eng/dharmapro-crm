@@ -1,0 +1,2858 @@
+<script>
+'use strict';
+
+// ─── ESTADO ────────────────────────────────────────────────────────────────
+var AppState = (function () {
+  var _s = { paginaAtual: 1, filtroAtual: '', modoEdicao: false, nomeUsuario: '', vendaSelecionada: null };
+  return {
+    get:   function (k)    { return _s[k]; },
+    set:   function (k, v) { _s[k] = v; },
+    reset: function ()     { _s.paginaAtual = 1; _s.filtroAtual = ''; _s.modoEdicao = false; _s.vendaSelecionada = null; }
+  };
+})();
+
+// ─── DADOS DA PÁGINA ATUAL (substituiu _dadosRenderizados) ─────────────────
+var _paginaAtual = [];
+
+// ─── STATUS → CORES ────────────────────────────────────────────────────────
+var STATUS_CORES = {
+  '1- Conferencia/Ativação':  { bg: 'transparent', text: '#EEEEEE', border: '#EEEEEE' },
+  '2- Aguardando Instalação': { bg: 'transparent', text: '#26C9FF', border: '#26C9FF' },
+  '2- Aguardando Entrega':    { bg: 'transparent', text: '#00FFFF', border: '#00FFFF' },
+  '3 - Finalizada/Instalada': { bg: 'transparent', text: '#40FF00', border: '#40FF00' },
+  '5 - Finalizado':           { bg: 'transparent', text: '#008C23', border: '#008C23' },
+  'Pendencia Vero':           { bg: 'transparent', text: '#FFBF00', border: '#FFBF00' },
+  '3- Aguardando Retirada':   { bg: 'transparent', text: '#FF8000', border: '#FF8000' },
+  '4- Entregue':              { bg: '#c8f0e0', text: '#155e38' },
+  '5- Finalizado':            { bg: '#e2e8f0', text: '#4a5568' },
+  'Pendencia Vero':           { bg: '#fef9c3', text: '#7a6800' },
+  'Cancelado':                { bg: '#fde8ec', text: '#9b1c2e' },
+  'Cancelamento Técnico':     { bg: '#fde8ec', text: '#9b1c2e' },
+  'Cancelamento Comercial':   { bg: '#c0392b', text: '#ffffff' },
+  'Churn':                    { bg: '#7b241c', text: '#ffffff' },
+  'Devolvido':                { bg: '#922b21', text: '#ffffff' }
+};
+
+// ─── CAMPOS DO FORMULÁRIO ──────────────────────────────────────────────────
+var CAMPOS_FORM = [
+  'linha','status','dataAtiv','canal','cliente','cpf',
+  'whats','tel','codCli','resp','cep','cidade',
+  'bairro','rua','num','complemento','uf','sistema','produto',
+  'plano','valor','venc','fat','agenda','turno',
+  'contrato','instal','linhaMovel','statusPAP'
+];
+
+// ─── XSS ───────────────────────────────────────────────────────────────────
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  var d = document.createElement('div');
+  d.appendChild(document.createTextNode(String(str)));
+  return d.innerHTML;
+}
+
+// Converte qualquer formato de data para DD/MM/AAAA
+function _fmtData(val) {
+  if (!val) return '';
+  var s = String(val).trim();
+  // Já está em DD/MM/AAAA
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+  // Formato yyyy-MM-dd
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    var p = s.substring(0,10).split('-');
+    return p[2] + '/' + p[1] + '/' + p[0];
+  }
+  // Tenta via Date
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return String(d.getDate()).padStart(2,'0') + '/' +
+           String(d.getMonth()+1).padStart(2,'0') + '/' +
+           d.getFullYear();
+  }
+  return s;
+}
+
+// ─── UI ────────────────────────────────────────────────────────────────────
+function mostrarLoading(v) {
+  document.getElementById('loading').classList.toggle('ativo', v);
+}
+
+function _iniciais(nome) {
+  var partes = String(nome || '').trim().split(/[\s.]+/).filter(Boolean);
+  if (partes.length >= 2) return (partes[0][0] + partes[1][0]).toUpperCase();
+  return partes[0] ? partes[0].slice(0, 2).toUpperCase() : '??';
+}
+
+function mostrarToast(msg, tipo) {
+  tipo = tipo || 'success';
+  var t = document.createElement('div');
+  t.className = 'toast ' + tipo;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function () {
+    t.style.opacity = '0';
+    t.style.transform = 'translateX(110%)';
+    t.style.transition = 'all 0.3s';
+    setTimeout(function () { if (t.parentNode) t.remove(); }, 320);
+  }, 3200);
+}
+
+function setFieldError(id, msg) {
+  var g = document.getElementById('grp_' + id);
+  if (!g) return;
+  g.classList.add('error');
+  var e = g.querySelector('.err-msg');
+  if (e && msg) e.textContent = msg;
+}
+function clearFieldError(id) {
+  var g = document.getElementById('grp_' + id);
+  if (g) g.classList.remove('error');
+}
+
+// ─── SINCRONIZAÇÃO AO LOGAR ────────────────────────────────────────────────
+var _syncTimer = null;
+
+function _syncProgresso(pct, etapa) {
+  var bar  = document.getElementById('syncBar');
+  var pctEl= document.getElementById('syncPct');
+  var etEl = document.getElementById('syncEtapa');
+  if (bar)  bar.style.width  = pct + '%';
+  if (pctEl) pctEl.textContent = pct + '%';
+  if (etEl && etapa) etEl.textContent = etapa;
+}
+
+function _sincronizarAoLogar(nomeUsuario) {
+  var syncEl = document.getElementById('syncContainer');
+  if (syncEl) syncEl.style.display = 'flex';
+
+  // Progresso simulado — avança até 85% enquanto aguarda o backend
+  var pct = 0;
+  var etapas = [
+    { ate: 15, msg: 'Conectando ao servidor...' },
+    { ate: 35, msg: 'Lendo planilha...' },
+    { ate: 60, msg: 'Processando registros...' },
+    { ate: 80, msg: 'Preparando dados...' },
+    { ate: 85, msg: 'Quase lá...' }
+  ];
+  var etapaIdx = 0;
+  _syncProgresso(0, 'Iniciando...');
+
+  _syncTimer = setInterval(function() {
+    var limite = etapas[etapaIdx] ? etapas[etapaIdx].ate : 85;
+    if (pct < limite) {
+      pct += 1;
+      var msg = etapas[etapaIdx] ? etapas[etapaIdx].msg : 'Quase lá...';
+      _syncProgresso(pct, msg);
+    } else if (etapaIdx < etapas.length - 1) {
+      etapaIdx++;
+    }
+  }, 150); // avança 1% a cada 150ms → ~13s para chegar em 85%
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      try {
+        clearInterval(_syncTimer);
+        _syncProgresso(100, 'Concluído!');
+        if (res && res.dados) {
+          AppState.set('_dadosPreCarregados', res);
+          _dadosSincronizados = res.dados;
+        }
+      } catch(e) {}
+      setTimeout(function() {
+        try {
+          if (syncEl) syncEl.style.display = 'none';
+          document.getElementById('loginContainer').style.display = 'none';
+          document.getElementById('sistema').style.display = 'flex';
+          document.getElementById('rodapeSistema').style.display = 'flex';
+          mostrarToast('Bem-vindo, ' + nomeUsuario + '!', 'success');
+          navegar('dash');
+        } catch(e) { location.reload(); }
+      }, 400);
+    })
+    .withFailureHandler(function() {
+      clearInterval(_syncTimer);
+      _syncProgresso(100, 'Entrando sem sync...');
+      setTimeout(function() {
+        if (syncEl) syncEl.style.display = 'none';
+        document.getElementById('loginContainer').style.display = 'none';
+        document.getElementById('sistema').style.display = 'flex';
+        document.getElementById('rodapeSistema').style.display = 'flex';
+        mostrarToast('Bem-vindo, ' + nomeUsuario + '!');
+        navegar('dash');
+      }, 400);
+    })
+    .getContratosParaCruzamento();
+}
+
+// ─── AUTH ──────────────────────────────────────────────────────────────────
+function fazerLogin() {
+  var usuario  = document.getElementById('loginUsuario').value.trim();
+  var senha    = document.getElementById('loginSenha').value;
+  var errDiv   = document.getElementById('loginError');
+  var btnLogin = document.getElementById('btnLogin');
+  errDiv.style.display = 'none';
+  if (!usuario || !senha) {
+    errDiv.textContent = 'Preencha usuário e senha.';
+    errDiv.style.display = 'block';
+    return;
+  }
+  mostrarLoading(true);
+  btnLogin.disabled = true;
+  google.script.run
+    .withSuccessHandler(function (res) {
+      mostrarLoading(false);
+      btnLogin.disabled = false;
+      if (res.autorizado) {
+        AppState.set('nomeUsuario', res.nome || usuario);
+        document.getElementById('nomeUsuario').textContent = res.nome || usuario;
+
+        // Avatar: foto do usuário ou iniciais como fallback
+        var avatarEl = document.getElementById('userAvatar');
+        if (avatarEl) {
+          if (res.foto) {
+            var img = document.createElement('img');
+            img.src = res.foto;
+            img.alt = res.nome || usuario;
+            img.onerror = function() {
+              // Se foto falhar, exibe iniciais
+              avatarEl.innerHTML = '<span class="initials">' + _iniciais(res.nome || usuario) + '</span>';
+            };
+            avatarEl.innerHTML = '';
+            avatarEl.appendChild(img);
+          } else {
+            avatarEl.innerHTML = '<span class="initials">' + _iniciais(res.nome || usuario) + '</span>';
+          }
+        }
+
+        AppState.set('perfil', res.perfil || 'backoffice');
+        _aplicarMenus(res.menus || []);
+        _carregarResponsaveis();
+        _sincronizarAoLogar(res.nome || usuario);
+
+      } else {
+        errDiv.textContent = res.mensagem || 'Credenciais inválidas.';
+        errDiv.style.display = 'block';
+        document.getElementById('loginSenha').value = '';
+        document.getElementById('loginSenha').focus();
+      }
+    })
+    .withFailureHandler(function () {
+      mostrarLoading(false);
+      btnLogin.disabled = false;
+      errDiv.textContent = 'Erro de conexão.';
+      errDiv.style.display = 'block';
+    })
+    .validarLogin(usuario, senha);
+}
+
+function sair() {
+  if (confirm('Deseja realmente sair?')) location.reload();
+}
+
+// ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','docs','cruzamento']; // default: tudo
+
+var _menuMap = {
+  'dash':        'menuDash',
+  'formulario':  'menuNovo',
+  'lista':       'menuLista',
+  'funil':       'menuFunil',
+  'leads':       'menuLeads',
+  'pap':         'menuPAP',
+  'docs':        'menuDocs',
+  'cruzamento':  'menuCruzamento'
+};
+
+function _aplicarMenus(menus) {
+  _menusPermitidos = menus && menus.length ? menus : Object.keys(_menuMap);
+  Object.keys(_menuMap).forEach(function(pagina) {
+    var el = document.getElementById(_menuMap[pagina]);
+    if (!el) return;
+    el.style.display = _menusPermitidos.indexOf(pagina) > -1 ? '' : 'none';
+  });
+}
+
+function _podeAcessar(pagina) {
+  return _menusPermitidos.indexOf(pagina) > -1;
+}
+
+// ─── NAVEGAÇÃO ─────────────────────────────────────────────────────────────
+function navegar(pagina) {
+  // Bloqueia acesso a páginas não permitidas para o perfil
+  if (!_podeAcessar(pagina)) {
+    mostrarToast('⛔ Você não tem permissão para acessar esta página.', 'error');
+    return;
+  }
+  document.querySelectorAll('.nav-item').forEach(function (m) { m.classList.remove('ativo'); });
+  document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('ativa'); });
+
+  if (pagina === 'dash') {
+    document.getElementById('menuDash').classList.add('ativo');
+    document.getElementById('pageDash').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Dashboard';
+    var container = document.getElementById('dashContainer');
+    if (!container.getAttribute('data-loaded')) {
+      container.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          if (!html) {
+            container.innerHTML = '<div style="padding:60px;text-align:center;color:#ff4570;font-family:monospace">Erro: HTML vazio</div>';
+            return;
+          }
+          // Dashboard.html já vem sem html/head/body e com CSS escopado em #dashContainer
+          container.innerHTML = html;
+          // Executa o script inline do dashboard
+          container.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+        })
+        .withFailureHandler(function(err) {
+          container.innerHTML = '<div style="padding:60px;text-align:center;color:#ff4570;font-family:monospace">Erro: ' + err.message + '</div>';
+        })
+        .getDashboardHtml();
+    }
+
+  } else if (pagina === 'formulario') {
+    document.getElementById('menuNovo').classList.add('ativo');
+    document.getElementById('pageFormulario').classList.add('ativa');
+    if (typeof wizInit === 'function') wizInit();
+    var ed = AppState.get('modoEdicao');
+    document.getElementById('breadcrumbTexto').textContent = ed ? 'Editando Venda' : 'Nova Venda';
+    document.getElementById('formTitulo').textContent      = ed ? 'Editar Cadastro' : 'Novo Cadastro';
+    document.getElementById('formSubtitulo').textContent   = ed ? 'Atualize os dados e salve' : 'Preencha os dados do cliente e do plano';
+    if (!ed) limparFormulario();
+
+  } else if (pagina === 'lista') {
+    document.getElementById('menuLista').classList.add('ativo');
+    document.getElementById('pageLista').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Lista de Vendas';
+    var dadosPre = AppState.get('_dadosPreCarregados');
+    if (dadosPre) {
+      AppState.set('_dadosPreCarregados', null); // usa só uma vez
+      _renderizarLista(dadosPre);
+    } else {
+      carregarVendas(1, '');
+    }
+
+  } else if (pagina === 'funil') {
+    document.getElementById('menuFunil').classList.add('ativo');
+    document.getElementById('pageFunil').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Funil de Instalações';
+    carregarFunil();
+
+  } else if (pagina === 'leads') {
+    document.getElementById('menuLeads').classList.add('ativo');
+    document.getElementById('pageLeads').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Tratamento de Leads';
+    carregarLeads();
+
+  } else if (pagina === 'pap') {
+    document.getElementById('menuPAP').classList.add('ativo');
+    document.getElementById('pagePAP').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Pagamentos PAP';
+    carregarPAP();
+
+  } else if (pagina === 'cruzamento') {
+    document.getElementById('menuCruzamento').classList.add('ativo');
+    document.getElementById('pageCruzamento').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Cruzamento Vero';
+
+  } else if (pagina === 'docs') {
+    document.getElementById('menuDocs').classList.add('ativo');
+    document.getElementById('pageDocs').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Documentos';
+    var dc = document.getElementById('docsContainer');
+    if (!dc.getAttribute('data-loaded')) {
+      dc.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          dc.innerHTML = html;
+          dc.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+        })
+        .withFailureHandler(function(e) {
+          dc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro: ' + e.message + '</div>';
+        })
+        .getDocsHtml();
+    }
+  }
+}
+
+// Salva Status Pagamento PAP direto do painel lateral
+function _salvarStatusPAP(linha, selectEl) {
+  var novoStatus = selectEl.value;
+  var original   = selectEl.dataset.original || selectEl.value;
+  selectEl.dataset.original = selectEl.value;
+  selectEl.disabled = true;
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      selectEl.disabled = false;
+      if (res && res.sucesso) {
+        // Atualiza dado em memória na lista de vendas
+        var venda = AppState.get('vendaSelecionada');
+        if (venda) venda.statusPAP = novoStatus;
+        mostrarToast('✅ Status PAP atualizado: ' + (novoStatus || '—'), 'success');
+        // Invalida cache para que Pagamentos PAP recarregue corretamente
+      } else {
+        selectEl.value    = original;
+        selectEl.disabled = false;
+        mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
+      }
+    })
+    .withFailureHandler(function(err) {
+      selectEl.value    = original;
+      selectEl.disabled = false;
+      mostrarToast('❌ Falha: ' + err.message, 'error');
+    })
+    .salvarStatusPAP(linha, novoStatus);
+}
+
+
+function _carregarResponsaveis() {
+  google.script.run
+    .withSuccessHandler(function(res) {
+      var sel = document.getElementById('f_resp');
+      if (!sel) return;
+      var valorAtual = sel.value; // preserva valor se estiver editando
+      sel.innerHTML = '<option value="">Selecione...</option>';
+      if (res && !res.erro && res.lista) {
+        res.lista.forEach(function(nome) {
+          var opt = document.createElement('option');
+          opt.value = nome;
+          opt.textContent = nome;
+          sel.appendChild(opt);
+        });
+      } else {
+        // Fallback: campo livre se der erro
+        sel.innerHTML = '<option value="">Não foi possível carregar</option>';
+        Logger.log && Logger.log('Responsáveis: ' + (res ? res.mensagem : 'erro'));
+      }
+      if (valorAtual) sel.value = valorAtual;
+    })
+    .withFailureHandler(function() {
+      var sel = document.getElementById('f_resp');
+      if (sel) sel.innerHTML = '<option value="">Erro ao carregar</option>';
+    })
+    .getResponsaveis();
+}
+
+// ─── FORMULÁRIO ────────────────────────────────────────────────────────────
+function limparFormulario() {
+  document.getElementById('formVendas').reset();
+  document.getElementById('f_linha').value = '';
+  document.getElementById('cepHint').textContent = '';
+  AppState.set('modoEdicao', false);
+  CAMPOS_FORM.forEach(function (c) { clearFieldError(c); });
+  if (typeof _wizResetar === 'function') _wizResetar();
+}
+
+function preencherFormulario(v) {
+  CAMPOS_FORM.forEach(function (campo) {
+    var el = document.getElementById('f_' + campo);
+    if (!el) return;
+    if (campo === 'resp') {
+      // Se o valor não existe como opção, adiciona temporariamente
+      var existe = Array.from(el.options).some(function(o) { return o.value === (v[campo] || ''); });
+      if (!existe && v[campo]) {
+        var opt = document.createElement('option');
+        opt.value = v[campo]; opt.textContent = v[campo] + ' (atual)';
+        el.appendChild(opt);
+      }
+      el.value = v[campo] || '';
+    } else {
+      el.value = v[campo] || '';
+    }
+  });
+  if (!v.turno) document.getElementById('f_turno').value = 'Manhã (08h às 12h)';
+  var _bs = document.getElementById('wizBtnSave'); if (_bs) _bs.textContent = '🔄 Atualizar';
+  document.getElementById('formTitulo').textContent = 'Editar Cadastro';
+  AppState.set('modoEdicao', true);
+}
+
+function coletarDados() {
+  var dados = { linhaReferencia: document.getElementById('f_linha').value };
+  CAMPOS_FORM.forEach(function (campo) {
+    if (campo === 'linha') return;
+    var el = document.getElementById('f_' + campo);
+    dados[campo] = el ? el.value.trim() : '';
+  });
+  if (dados.uf) dados.uf = dados.uf.toUpperCase();
+  // PAP sempre Em Aberto quando não definido
+  if (!dados.statusPAP) dados.statusPAP = 'Em Aberto';
+  return dados;
+}
+
+function validarFormulario(dados) {
+  var ok = true;
+  ['cliente','status','cpf'].forEach(function (f) { clearFieldError(f); });
+  if (!dados.cliente) { setFieldError('cliente', 'Nome é obrigatório.'); ok = false; }
+  if (!dados.status)  { setFieldError('status',  'Selecione um status.'); ok = false; }
+  if (dados.cpf) {
+    var l = dados.cpf.replace(/\D/g, '');
+    if (l.length !== 11 && l.length !== 14) { setFieldError('cpf', 'CPF 11 dígitos ou CNPJ 14.'); ok = false; }
+  }
+  return ok;
+}
+
+function salvar() {
+  var dados = coletarDados();
+  if (!validarFormulario(dados)) return;
+  var btnSave = document.getElementById('wizBtnSave');
+  mostrarLoading(true);
+  if (btnSave) { btnSave.disabled = true; btnSave.textContent = '⏳ Salvando...'; }
+  google.script.run
+    .withSuccessHandler(function (res) {
+      mostrarLoading(false);
+      if (btnSave) { btnSave.disabled = false; btnSave.textContent = '💾 Salvar'; }
+      mostrarToast(res.mensagem, res.sucesso ? 'success' : 'error');
+      if (res.sucesso) {
+        limparFormulario();
+        if (AppState.get('modoEdicao')) setTimeout(function () { navegar('lista'); }, 800);
+        AppState.set('modoEdicao', false);
+      } else {
+        // Se erro de validação, volta ao step com problema
+        if (res.mensagem && res.mensagem.indexOf('status') > -1) wizMostrarErroStep(0, res.mensagem);
+        else if (res.mensagem && res.mensagem.indexOf('nome') > -1) wizMostrarErroStep(1, res.mensagem);
+      }
+    })
+    .withFailureHandler(function (erro) {
+      mostrarLoading(false);
+      if (btnSave) { btnSave.disabled = false; btnSave.textContent = '💾 Salvar'; }
+      mostrarToast('Erro: ' + erro.message, 'error');
+    })
+    .salvarVenda(dados);
+}
+
+// ─── LISTA ─────────────────────────────────────────────────────────────────
+function _coletarOpcoesFiltro() {
+  try {
+    var elStatus   = document.getElementById('filtroStatus');
+    var elPreVenda = document.getElementById('filtroPreVenda');
+    var elProduto  = document.getElementById('filtroProduto');
+    var elVeroHub  = document.getElementById('filtroVeroHub');
+    var status   = elStatus   ? (elStatus.value   || '') : '';
+    var preVenda = elPreVenda ? (elPreVenda.value  || '') : '';
+    var produto  = elProduto  ? (elProduto.value   || '') : '';
+    var verohub  = elVeroHub  ? (elVeroHub.checked || false) : false;
+    ['filtroStatus','filtroPreVenda','filtroProduto'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.toggle('ativo', !!el.value);
+    });
+    var toggleLabel = document.getElementById('filtroVeroHub');
+    if (toggleLabel && toggleLabel.closest) toggleLabel.closest('label') && toggleLabel.closest('label').classList.toggle('ativo', verohub);
+    return { status: status, preVenda: preVenda, produto: produto, verohub: verohub };
+  } catch(e) {
+    return {};
+  }
+}
+
+function aplicarFiltros() {
+  var termo = document.getElementById('campoBusca') ? document.getElementById('campoBusca').value.trim() : '';
+  if (_dadosSincronizados.length > 0) {
+    _filtrarDadosSincronizados(termo);
+    return;
+  }
+  carregarVendas(1, AppState.get('filtroAtual'));
+}
+
+function limparFiltros() {
+  var ids = ['filtroStatus','filtroPreVenda','filtroProduto'];
+  ids.forEach(function(id){ var el = document.getElementById(id); if(el){ el.value=''; el.classList.remove('ativo'); }});
+  var cb = document.getElementById('filtroVeroHub'); if(cb) cb.checked = false;
+  var tgl = cb ? cb.closest('label') : null; if(tgl) tgl.classList.remove('ativo');
+  document.getElementById('campoBusca').value = '';
+  if (_dadosSincronizados.length > 0) {
+    _filtrarDadosSincronizados('');
+    return;
+  }
+  carregarVendas(1, '');
+}
+
+
+
+
+
+
+function carregarVendas(pagina, filtro) {
+  pagina = (pagina !== undefined) ? pagina : AppState.get('paginaAtual');
+  filtro = (filtro !== undefined) ? filtro : AppState.get('filtroAtual');
+  AppState.set('paginaAtual', pagina);
+  AppState.set('filtroAtual', filtro);
+
+  document.getElementById('listaVendas').innerHTML =
+    '<div class="empty"><div class="empty-icon" style="font-size:20px;animation:spin 1s linear infinite;display:inline-block;">⏳</div>' +
+    '<p style="margin-top:10px;font-size:12px;">Carregando vendas...</p></div>';
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res) {
+        document.getElementById('listaVendas').innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><h3>Erro</h3><p>Resposta vazia do servidor.</p></div>';
+        return;
+      }
+      if (res.erro) {
+        document.getElementById('listaVendas').innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><h3>Erro ao carregar</h3><p style="font-family:monospace;font-size:11px;color:#ff4570">' + esc(res.erro) + '</p></div>';
+        return;
+      }
+      _renderizarLista(res);
+    })
+    .withFailureHandler(function (erro) {
+      var msg = erro && erro.message ? erro.message : String(erro);
+      document.getElementById('listaVendas').innerHTML =
+        '<div class="empty"><div class="empty-icon">⚠️</div>' +
+        '<h3>Erro ao carregar</h3><p style="font-family:monospace;font-size:11px;color:#ff4570">' + esc(msg) + '</p></div>';
+    })
+    .getVendasPaginadas(pagina, filtro, JSON.stringify(_coletarOpcoesFiltro()));
+}
+
+
+function _renderizarLista(res) {
+  // Guarda dados da página para o painel lateral
+  _paginaAtual = res.dados || [];
+
+  var container = document.getElementById('listaVendas');
+
+  // Atualiza contador
+  document.getElementById('totalRegistros').textContent =
+    res.total + ' registro' + (res.total !== 1 ? 's' : '');
+
+  // Sem dados
+  if (!_paginaAtual.length) {
+    container.innerHTML =
+      '<div class="empty"><div class="empty-icon">🔍</div>' +
+      '<h3>Nenhuma venda encontrada</h3><p>Tente outro filtro.</p></div>';
+    document.getElementById('paginacao').style.display = 'none';
+    fecharPainel();
+    return;
+  }
+
+  // Renderiza itens
+  var html = '';
+  for (var i = 0; i < _paginaAtual.length; i++) {
+    html += _criarItemVenda(_paginaAtual[i], i);
+  }
+  container.innerHTML = html;
+
+  // Paginação
+  var temPag = res.total > CONFIG_JS.MAX_RESULTS || res.pagina > 1;
+  document.getElementById('paginacao').style.display  = temPag ? 'flex' : 'none';
+  document.getElementById('infoPagina').textContent   = 'Pág. ' + res.pagina;
+  document.getElementById('btnAnterior').disabled     = res.pagina === 1;
+  document.getElementById('btnProximo').disabled      = !res.temMais;
+}
+
+// Configurações do lado cliente
+var CONFIG_JS = { MAX_RESULTS: 50 };
+
+// ─── PAINEL LATERAL ────────────────────────────────────────────────────────
+
+
+// ─── VEROHUB ───────────────────────────────────────────────────────────────
+function _veroHubVencido(verohub) {
+  if (!verohub) return false;
+  var s = String(verohub).trim();
+  var d;
+  if (s.indexOf('/') > -1) {
+    var p = s.split('/');
+    d = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+  } else {
+    d = new Date(s);
+  }
+  if (isNaN(d.getTime())) return false;
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  return d < hoje;
+}
+
+function _veroHubToInputDate(verohub) {
+  if (!verohub) return '';
+  var s = String(verohub).trim();
+  if (s.indexOf('/') > -1) {
+    var p = s.split('/');
+    return p[2] + '-' + ('0'+p[1]).slice(-2) + '-' + ('0'+p[0]).slice(-2);
+  }
+  return s.substring(0,10);
+}
+
+function _veroHubHtml(v, index) {
+  var vencido   = _veroHubVencido(v.verohub);
+  var semData   = !v.verohub;
+  var inputDate = _veroHubToInputDate(v.verohub);
+  // Pisca se vencido OU se sem data
+  var piscar = vencido || semData;
+  var tit = vencido ? 'Analise vencida! Reblindar no VeroHub.' : (semData ? 'Sem data — preencha a blindagem' : 'Blindagem OK');
+  var dot = piscar ? '<span class="verohub-dot"></span>' : '';
+  var ok  = (!semData && !vencido) ? '<span class="verohub-ok">✓</span>' : '';
+  return '<div class="verohub-wrap" onclick="event.stopPropagation()">' +
+    dot +
+    '<span class="verohub-label">VeroHub:</span>' +
+    '<input type="date" class="verohub-input" value="' + inputDate + '" title="' + tit + '" onchange="_salvarVeroHub(' + v.linha + ',this,' + index + ')">' +
+    ok +
+  '</div>';
+}
+
+function _salvarVeroHub(linha, inputEl, index) {
+  var val = inputEl.value;
+  var dataSalvar = '';
+  if (val) {
+    var p = val.split('-');
+    dataSalvar = p[2] + '/' + p[1] + '/' + p[0];
+  }
+  inputEl.style.opacity = '.5';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      inputEl.style.opacity = '1';
+      var ok = !res || res.sucesso !== false;
+      if (ok) {
+        // Atualiza dado em memória
+        if (_paginaAtual[index]) _paginaAtual[index].verohub = dataSalvar;
+        // Atualiza bolinha em tempo real — sem recarregar
+        var wrap = inputEl.closest('.verohub-wrap');
+        if (wrap) {
+          var dot = wrap.querySelector('.verohub-dot');
+          var vencido = dataSalvar ? _veroHubVencido(dataSalvar) : true; // sem data = pisca
+          if (vencido || !dataSalvar) {
+            if (!dot) {
+              dot = document.createElement('span');
+              dot.className = 'verohub-dot';
+              wrap.insertBefore(dot, wrap.firstChild);
+            }
+          } else {
+            if (dot) dot.remove();
+          }
+          // Atualiza ok
+          var okEl = wrap.querySelector('.verohub-ok');
+          if (!dataSalvar || vencido) {
+            if (okEl) okEl.remove();
+          } else {
+            if (!okEl) {
+              okEl = document.createElement('span');
+              okEl.className = 'verohub-ok';
+              okEl.textContent = '✓';
+              wrap.appendChild(okEl);
+            }
+          }
+        }
+        mostrarToast(dataSalvar ? '✅ VeroHub: ' + dataSalvar : 'VeroHub removido', 'success');
+      } else {
+        mostrarToast('Erro ao salvar VeroHub: ' + (res && res.mensagem ? res.mensagem : ''), 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      inputEl.style.opacity = '1';
+      mostrarToast('Erro: ' + (e && e.message ? e.message : 'desconhecido'), 'error');
+    })
+    .salvarVeroHub(linha, dataSalvar);
+}
+
+// ─── CRIAR ITEM DA LISTA ───────────────────────────────────────────────────
+function _criarItemVenda(v, index) {
+  var cores      = STATUS_CORES[v.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
+  var badgeStyle = 'background:' + cores.bg + ';color:' + cores.text + ';border:1.5px solid ' + (cores.border || cores.text) + ';';
+
+  return '<div class="venda-item" id="item_' + index + '" onclick="selecionarVenda(' + index + ',this)">' +
+    '<div class="venda-row">' +
+      '<div class="venda-info">' +
+        '<div class="venda-nome-linha">' +
+          '<h4>' + esc(v.cliente || 'Sem nome') + '</h4>' +
+          (v.cpf      ? '<span class="venda-cpf">' + esc(v.cpf) + '</span>' : '') +
+          (v.codCli   ? '<span class="venda-cpf" style="color:var(--muted);font-size:10px">Cód: ' + esc(v.codCli) + '</span>' : '') +
+          (v.contrato ? '<span class="venda-cpf" style="color:var(--muted);font-size:10px">ID: ' + esc(v.contrato) + '</span>' : '') +
+        '</div>' +
+        '<div class="venda-badges">' +
+          '<span class="badge badge-status" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
+          (v.produto ? '<span class="badge badge-produto">📦 ' + esc(v.produto) + '</span>' : '') +
+          (v.plano   ? '<span class="badge badge-plano">🗂 '   + esc(v.plano)   + '</span>' : '') +
+        '</div>' +
+        (v.status === '1- Conferencia/Ativação' ? _veroHubHtml(v, index) : '') +
+      '</div>' +
+      '<div class="venda-right">' +
+        '<span class="venda-date">' + esc(_fmtData(v.dataAtiv)) + '</span>' +
+        '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
+        '<span class="venda-arrow">›</span>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function selecionarVenda(index, el) {
+  document.querySelectorAll('.venda-item').forEach(function (i) { i.classList.remove('selecionado'); });
+  el.classList.add('selecionado');
+  var v = _paginaAtual[index];
+  if (!v) return;
+  AppState.set('vendaSelecionada', v);
+  mostrarPainel(v);
+}
+
+function mostrarPainel(v) {
+  var cores      = STATUS_CORES[v.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
+  var badgeStyle = 'background:' + cores.bg + ';color:' + cores.text + ';border:1.5px solid ' + (cores.border || cores.text) + ';';
+
+  document.getElementById('pNome').textContent = v.cliente || 'Sem nome';
+  document.getElementById('pCpf').textContent  = v.cpf ? 'CPF/CNPJ: ' + v.cpf : '';
+  document.getElementById('pStatusWrap').innerHTML =
+    '<span class="badge badge-status" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
+    '<span class="badge badge-meta" style="margin-left:4px;">Linha ' + esc(v.linha) + '</span>';
+
+  var html =
+    _secaoPainel('👤 Cliente', [
+      ['WhatsApp',    v.whats],
+      ['Telefone',    v.tel],
+      ['Responsável', v.resp],
+      ['Código',      v.codCli]
+    ]) +
+    _secaoPainel('📍 Endereço', [
+      ['Cidade / UF', (v.cidade || '') + (v.uf ? ' / ' + v.uf : '')],
+      ['Bairro',      v.bairro],
+      ['Rua',         (v.rua || '') + (v.num ? ', ' + v.num : '') + (v.complemento ? ' — ' + v.complemento : '')],
+      ['CEP',         v.cep]
+    ]) +
+    (v.mapsLink ? '<div class="painel-secao"><div class="painel-linha"><span class="painel-lbl">📍 Maps</span><span class="painel-val"><a href="' + v.mapsLink + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;font-size:12px;">Abrir no Google Maps ↗</a></span></div></div>' : '') +
+    _secaoPainel('📦 Plano', [
+      ['Produto',    v.produto],
+      ['Plano',      v.plano],
+      ['Valor',      v.valor],
+      ['Sistema',    v.sistema],
+      ['Vencimento', v.venc],
+      ['Pagamento',  v.fat]
+    ]) +
+    _secaoPainel('📅 Datas', [
+      ['Ativação',    _fmtData(v.dataAtiv)],
+      ['Agendamento', _fmtData(v.agenda)],
+      ['Turno',       v.turno],
+      ['Instalação',  _fmtData(v.instal)]
+    ]) +
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📋 Contrato</div>' +
+      (v.codCli     ? _linhaPainelHtml('Cód. Cliente',  esc(v.codCli))     : '') +
+      (v.canal      ? _linhaPainelHtml('Canal',          esc(v.canal))      : '') +
+      (v.contrato   ? _linhaPainelHtml('ID Contrato/OS', esc(v.contrato))   : '') +
+      (v.linhaMovel ? _linhaPainelHtml('Linha Móvel',    esc(v.linhaMovel)) : '') +
+      _linhaPainelHtml('Pgto PAP',
+        '<select onchange="_salvarStatusPAP(' + v.linha + ', this)" ' +
+        'style="background:var(--surface2);border:1px solid var(--border);color:var(--text);' +
+        'border-radius:6px;padding:3px 8px;font-size:12px;font-family:\'Sora\',sans-serif;cursor:pointer;">' +
+          '<option value=""'         + (!v.statusPAP || v.statusPAP === ''         ? ' selected' : '') + '>—</option>' +
+          '<option value="Em aberto"'+ (v.statusPAP === 'Em Aberto' ? ' selected' : '') + '>🔴 Em aberto</option>' +
+          '<option value="Pago"'     + (v.statusPAP === 'Pago'      ? ' selected' : '') + '>✅ Pago</option>' +
+        '</select>'
+      ) +
+    '</div>' +
+    (v.observacao ?
+      '<div class="painel-secao">' +
+        '<div class="painel-secao-titulo">📝 Observação</div>' +
+        '<div class="painel-linha" style="display:block;padding:8px 0">' +
+          '<span class="painel-val" style="color:var(--muted);font-size:12px;line-height:1.6;white-space:pre-wrap">' + esc(v.observacao) + '</span>' +
+        '</div>' +
+      '</div>'
+    : '');
+
+  document.getElementById('painelScroll').innerHTML = html;
+
+  var whatsBtn = document.getElementById('pBtnWhats');
+  whatsBtn.style.display = v.whats ? 'flex' : 'none';
+  var excluirBtn = document.getElementById('pBtnExcluir');
+  if (excluirBtn) {
+    var perfil       = AppState.get('perfil') || '';
+    var podeExcluir  = (perfil === 'admin' || perfil === 'supervisor') &&
+                       (v.status === '1- Conferencia/Ativação');
+    excluirBtn.style.display = podeExcluir ? 'flex' : 'none';
+  }
+
+  document.getElementById('painelVazio').style.display = 'none';
+  document.getElementById('painelConteudo').classList.add('ativo');
+  var listaCol = document.getElementById('listaCol');
+  if (listaCol) listaCol.classList.add('painel-aberto');
+}
+
+function _secaoPainel(titulo, linhas) {
+  var rows = '';
+  for (var i = 0; i < linhas.length; i++) {
+    var lbl = linhas[i][0];
+    var val = linhas[i][1];
+    if (!val || String(val).trim() === '') continue;
+    rows += '<div class="painel-linha">' +
+      '<span class="painel-lbl">' + esc(lbl) + '</span>' +
+      '<span class="painel-val">' + esc(val) + '</span>' +
+    '</div>';
+  }
+  if (!rows) return '';
+  return '<div class="painel-secao">' +
+    '<div class="painel-secao-titulo">' + titulo + '</div>' +
+    rows +
+  '</div>';
+}
+
+function _linhaPainelHtml(lbl, htmlVal) {
+  return '<div class="painel-linha">' +
+    '<span class="painel-lbl">' + esc(lbl) + '</span>' +
+    '<span class="painel-val">' + htmlVal + '</span>' +
+  '</div>';
+}
+
+function fecharPainel() {
+  var listaCol = document.getElementById('listaCol');
+  if (listaCol) listaCol.classList.remove('painel-aberto');
+  document.getElementById('painelVazio').style.display = 'flex';
+  document.getElementById('painelConteudo').classList.remove('ativo');
+  AppState.set('vendaSelecionada', null);
+  document.querySelectorAll('.venda-item').forEach(function (i) { i.classList.remove('selecionado'); });
+}
+
+// ─── AÇÕES DO PAINEL ───────────────────────────────────────────────────────
+// Abre uma venda na Lista pelo número da linha
+function _abrirVendaNoLista(linha) {
+  mostrarLoading(true);
+  google.script.run
+    .withSuccessHandler(function(v) {
+      mostrarLoading(false);
+      if (!v) { mostrarToast('Venda não encontrada.', 'error'); return; }
+      navegar('lista');
+      setTimeout(function() {
+        AppState.set('vendaSelecionada', v);
+        mostrarPainel(v);
+      }, 300);
+    })
+    .withFailureHandler(function(e) {
+      mostrarLoading(false);
+      mostrarToast('Erro: ' + e.message, 'error');
+    })
+    .getVendaPorLinha(linha);
+}
+
+function excluirVendaPanel() {
+  var v = AppState.get('vendaSelecionada');
+  if (!v || !v.linha) return;
+  // Preenche e abre o modal de confirmação
+  document.getElementById('modalExcluirNome').textContent = v.cliente || 'Sem nome';
+  document.getElementById('modalExcluirInfo').textContent =
+    (v.cpf ? 'CPF: ' + v.cpf + ' · ' : '') +
+    (v.contrato ? 'ID Contrato: ' + v.contrato + ' · ' : '') +
+    'Linha ' + v.linha;
+  document.getElementById('modalConfirmExcluir').classList.add('ativo');
+}
+
+function _fecharModalExcluir() {
+  document.getElementById('modalConfirmExcluir').classList.remove('ativo');
+}
+
+function _confirmarExclusao() {
+  var v = AppState.get('vendaSelecionada');
+  if (!v || !v.linha) return;
+  var btnConf = document.getElementById('modalExcluirConfirmar');
+  if (btnConf) { btnConf.disabled = true; btnConf.textContent = '⏳ Excluindo...'; }
+  mostrarLoading(true);
+  google.script.run
+    .withSuccessHandler(function(res) {
+      mostrarLoading(false);
+      if (btnConf) { btnConf.disabled = false; btnConf.textContent = '🗑️ Confirmar Exclusão'; }
+      _fecharModalExcluir();
+      if (res.sucesso) {
+        mostrarToast('✅ Venda excluída com sucesso.', 'success');
+        fecharPainel();
+        carregarVendas(AppState.get('paginaAtual'), AppState.get('filtroAtual'));
+      } else {
+        mostrarToast('❌ ' + (res.mensagem || 'Erro ao excluir.'), 'error');
+      }
+    })
+    .withFailureHandler(function(erro) {
+      mostrarLoading(false);
+      if (btnConf) { btnConf.disabled = false; btnConf.textContent = '🗑️ Confirmar Exclusão'; }
+      _fecharModalExcluir();
+      mostrarToast('Erro: ' + erro.message, 'error');
+    })
+    .excluirVenda(v.linha);
+}
+
+function editarDoPanel() {
+  var v = AppState.get('vendaSelecionada');
+  if (!v) return;
+  mostrarLoading(true);
+  google.script.run
+    .withSuccessHandler(function (dados) {
+      mostrarLoading(false);
+      preencherFormulario(dados);
+      navegar('formulario');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    })
+    .withFailureHandler(function (erro) {
+      mostrarLoading(false);
+      mostrarToast('Erro: ' + erro.message, 'error');
+    })
+    .getVendaPorLinha(v.linha);
+}
+
+function abrirWhatsPanel() {
+  var v = AppState.get('vendaSelecionada');
+  if (!v || !v.whats) return;
+  var num = String(v.whats).replace(/\D/g, '');
+  if (num) window.open('https://wa.me/55' + num, '_blank');
+}
+
+function copiarDadosPanel() {
+  var v = AppState.get('vendaSelecionada');
+  if (!v) { mostrarToast('Nenhuma venda selecionada.', 'warning'); return; }
+  _copiarTextoVenda(v);
+}
+
+function copiarVenda(index) {
+  // Seleciona a venda no painel E copia
+  var el = document.getElementById('item_' + index);
+  if (el) selecionarVenda(index, el);
+  var v = _paginaAtual[index];
+  if (v) _copiarTextoVenda(v);
+}
+
+function _copiarTextoVenda(v) {
+  var texto =
+    '📄 Contrato: '     + (v.contrato  || '-') + '\n' +
+    '🙍 Cliente: '      + (v.cliente   || '-') + '\n' +
+    '📱 WhatsApp: '     + (v.whats     || '-') + '\n' +
+    '🆔 CPF: '          + (v.cpf       || '-') + '\n' +
+    '📌 Status: '       + (v.status    || '-') + '\n' +
+    '👨‍💼 Responsável: ' + (v.resp      || '-') + '   |   🏷️ Canal: ' + (v.canal || '-') + '\n' +
+    '🏙️ Cidade: '       + (v.cidade    || '-') + (v.uf ? ' / ' + v.uf : '') + '\n' +
+    '⚡ Ativação: '     + (_fmtData(v.dataAtiv)  || '-') + '\n' +
+    '📅 Agendamento: '  + (_fmtData(v.agenda)    || '-') + '\n' +
+    '✅ Instalação: '   + (_fmtData(v.instal)    || '-') + '\n' +
+    '📦 Produto: '      + (v.produto   || '-') + '\n' +
+    '🗂 Plano: '        + (v.plano     || '-') + '\n' +
+    '💰 Valor: '        + (v.valor     || '-');
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(texto)
+      .then(function () { mostrarToast('✅ Resumo copiado!', 'success'); })
+      .catch(function () { _copiarFallback(texto); });
+  } else {
+    _copiarFallback(texto);
+  }
+}
+
+function _copiarFallback(texto) {
+  var ta = document.createElement('textarea');
+  ta.value = texto;
+  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    mostrarToast('✅ Resumo copiado!', 'success');
+  } catch (e) {
+    mostrarToast('Não foi possível copiar.', 'error');
+  }
+  document.body.removeChild(ta);
+}
+
+// ─── BUSCA E PAGINAÇÃO ─────────────────────────────────────────────────────
+function buscar() {
+  carregarVendas(1, document.getElementById('campoBusca').value.trim());
+}
+
+function limparBusca() {
+  document.getElementById('campoBusca').value = '';
+  carregarVendas(1, '');
+}
+// buscaListaInstantanea já existente — preservada
+
+function mudarPagina(dir) {
+  fecharPainel();
+  if (_dadosSincronizados.length > 0) {
+    var novaPag = _paginaSync + dir;
+    var termo   = document.getElementById('campoBusca') ? document.getElementById('campoBusca').value.trim() : '';
+    _filtrarDadosSincronizados(termo, novaPag);
+    return;
+  }
+  carregarVendas(AppState.get('paginaAtual') + dir, AppState.get('filtroAtual'));
+}
+
+function editar(linha) {
+  mostrarLoading(true);
+  google.script.run
+    .withSuccessHandler(function (v) {
+      mostrarLoading(false);
+      preencherFormulario(v);
+      navegar('formulario');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    })
+    .withFailureHandler(function (erro) {
+      mostrarLoading(false);
+      mostrarToast('Erro: ' + erro.message, 'error');
+    })
+    .getVendaPorLinha(linha);
+}
+
+// ─── CEP ───────────────────────────────────────────────────────────────────
+function _atualizarLinkMaps() {
+  var rua    = (document.getElementById('f_rua')    || {}).value || '';
+  var num    = (document.getElementById('f_num')    || {}).value || '';
+  var cidade = (document.getElementById('f_cidade') || {}).value || '';
+  var uf     = (document.getElementById('f_uf')     || {}).value || '';
+  var wrap   = document.getElementById('mapsLinkWrap');
+  var anchor = document.getElementById('mapsLinkAnchor');
+  var texto  = document.getElementById('mapsLinkTexto');
+  if (!wrap) return;
+  if (!rua || !cidade) { wrap.style.display = 'none'; return; }
+  var endereco = [rua.trim(), num.trim(), cidade.trim(), uf.trim()].filter(Boolean).join(', ');
+  var url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(endereco);
+  anchor.href = url;
+  texto.textContent = endereco;
+  wrap.style.display = 'block';
+}
+
+function buscarCEP(cep) {
+  var limpo = cep.replace(/\D/g, '');
+  if (limpo.length !== 8) return;
+
+  var hint = document.getElementById('cepHint');
+  hint.textContent = '⏳ Buscando endereço...';
+  hint.style.color = 'var(--muted)';
+
+  // CEP via browser (fetch direto — não depende de autorização do backend)
+  fetch('https://brasilapi.com.br/api/cep/v1/' + limpo)
+    .then(function(r) {
+      if (!r.ok) throw new Error('BrasilAPI HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(j) {
+      if (!j.city) throw new Error('CEP sem cidade na BrasilAPI');
+      _preencherEndereco({
+        logradouro: (j.street        || '').toUpperCase(),
+        bairro:     (j.neighborhood  || '').toUpperCase(),
+        cidade:     (j.city          || '').toUpperCase(),
+        uf:         (j.state         || '').toUpperCase()
+      });
+      _aoEnderecoPreenchido(hint);
+    })
+    .catch(function() {
+      // Fallback: ViaCEP
+      fetch('https://viacep.com.br/ws/' + limpo + '/json/')
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+          if (j.erro) throw new Error('CEP inválido');
+          _preencherEndereco({
+            logradouro: (j.logradouro || '').toUpperCase(),
+            bairro:     (j.bairro     || '').toUpperCase(),
+            cidade:     (j.localidade || '').toUpperCase(),
+            uf:         (j.uf         || '').toUpperCase()
+          });
+          _aoEnderecoPreenchido(hint);
+        })
+        .catch(function() {
+          hint.textContent = '❌ CEP não encontrado.';
+          hint.style.color = 'var(--accent)';
+        });
+    });
+}
+
+// Chamado após endereço preenchido com sucesso
+function _aoEnderecoPreenchido(hint) {
+  hint.textContent = '✅ Endereço preenchido · Selecione o Produto para ver os planos';
+  hint.style.color = 'var(--green)';
+  document.getElementById('f_num').focus();
+  // Se produto já estava selecionado (ex: edição), carrega planos imediatamente
+  var produto = document.getElementById('f_produto').value;
+  if (produto) onProdutoChange();
+}
+
+// Disparado ao selecionar/trocar o Produto
+// Usa a cidade já preenchida pelo CEP — não precisa mais de UrlFetchApp
+function onProdutoChange() {
+  var cidade  = (document.getElementById('f_cidade').value || '').trim();
+  var produto = document.getElementById('f_produto').value;
+  var hint    = document.getElementById('produtoHint');
+
+  // Limpa planos anteriores
+  _preencherPlanos([]);
+
+  if (!produto) return;
+
+  if (!cidade) {
+    hint.textContent   = '⚠️ Preencha o CEP primeiro para ver os planos.';
+    hint.style.color   = 'var(--yellow)';
+    hint.style.display = 'block';
+    setTimeout(function() { hint.style.display = 'none'; }, 3000);
+    return;
+  }
+
+  hint.textContent   = '⏳ Carregando planos para ' + produto + '...';
+  hint.style.color   = 'var(--muted)';
+  hint.style.display = 'block';
+
+  var selPlano = document.getElementById('f_plano');
+  selPlano.disabled  = true;
+  selPlano.innerHTML = '<option>⏳ Carregando...</option>';
+
+  // Passa cidade (já preenchida pelo browser) + produto — sem UrlFetchApp
+  google.script.run
+    .withSuccessHandler(function(d) {
+      selPlano.disabled = false;
+      if (d.erro) {
+        hint.textContent = '⚠️ ' + d.mensagem;
+        hint.style.color = 'var(--yellow)';
+        _preencherPlanos([]);
+        return;
+      }
+      if (d.planos && d.planos.length > 0) {
+        _preencherPlanos(d.planos);
+        var qtd = _contarPlanos(d.planos);
+        hint.textContent = '✅ ' + qtd + ' plano' + (qtd !== 1 ? 's' : '') + ' disponível' + (qtd !== 1 ? 'is' : '') + ' em ' + d.cidade;
+        hint.style.color = 'var(--green)';
+        mostrarToast('📦 ' + qtd + ' planos carregados para ' + d.cidade, 'info');
+      } else {
+        _preencherPlanos([]);
+        hint.textContent = '⚠️ Nenhum plano encontrado para ' + produto + ' em ' + cidade + (d.mensagem ? ' (' + d.mensagem + ')' : '');
+        hint.style.color = 'var(--yellow)';
+      }
+    })
+    .withFailureHandler(function(err) {
+      selPlano.disabled = false;
+      _preencherPlanos([]);
+      hint.textContent = '❌ Erro: ' + (err && err.message ? err.message : 'tente novamente');
+      hint.style.color = 'var(--accent)';
+    })
+    .getPlanosPorCidadeProduto(cidade, produto);
+}
+
+// ─── Helpers CEP/Planos ────────────────────────────────────────────────────
+
+function _preencherEndereco(d) {
+  document.getElementById('f_rua').value    = d.logradouro || '';
+  document.getElementById('f_bairro').value = d.bairro     || '';
+  document.getElementById('f_cidade').value = d.cidade     || '';
+  document.getElementById('f_uf').value     = d.uf         || '';
+  _atualizarLinkMaps();
+  if (d.sistema) {
+    document.getElementById('f_sistema').value = d.sistema;
+  } else if (d.cidade) {
+    // Busca sistema na aba CIDADES via backend (leitura leve, sem UrlFetchApp)
+    google.script.run
+      .withSuccessHandler(function(s) {
+        if (s) document.getElementById('f_sistema').value = s;
+      })
+      .getSistemaPorCidade(d.cidade);
+  }
+}
+
+function _preencherPlanos(planos, produto) {
+  var sel = document.getElementById('f_plano');
+  sel.innerHTML = '';
+
+  if (!planos || planos.length === 0) {
+    sel.innerHTML = '<option value="">— Nenhum plano encontrado para esta cidade —</option>';
+    return;
+  }
+
+  // Primeiro option vazio de instrução
+  var optDefault = document.createElement('option');
+  optDefault.value = '';
+  optDefault.textContent = '— Selecione o plano —';
+  sel.appendChild(optDefault);
+
+  planos.forEach(function (item) {
+    var opt = document.createElement('option');
+    if (item.indexOf('▶️') === 0) {
+      // Linha de cabeçalho de categoria — desabilitada, estilizada
+      opt.value    = '';
+      opt.disabled = true;
+      opt.textContent = item;
+      opt.style.fontWeight = '700';
+      opt.style.color      = '#a78bfa';
+    } else {
+      opt.value       = item;
+      opt.textContent = item;
+    }
+    sel.appendChild(opt);
+  });
+
+  // Se só há 1 plano real, seleciona automaticamente e extrai o valor
+  var reais = planos.filter(function (p) { return p.indexOf('▶️') !== 0; });
+  if (reais.length === 1) {
+    sel.value = reais[0];
+    _extrairValorPlano(reais[0]);
+  }
+}
+
+// Quando o usuário escolhe um plano, extrai e preenche o campo Valor
+function _extrairValorPlano(texto) {
+  if (!texto) return;
+  var partes = texto.split('|');
+  if (partes.length >= 2) {
+    var val = partes[partes.length - 1].trim().replace(',', '.');
+    var num = parseFloat(val);
+    if (!isNaN(num)) {
+      document.getElementById('f_valor').value = 'R$ ' + num.toFixed(2).replace('.', ',');
+      document.getElementById('f_plano').setAttribute('data-valor', num.toFixed(2));
+    }
+  }
+}
+
+function _contarPlanos(planos) {
+  if (!planos) return 0;
+  return planos.filter(function (p) { return p.indexOf('▶️') !== 0; }).length;
+}
+
+// Listener: ao escolher plano, extrai o valor automaticamente
+document.addEventListener('DOMContentLoaded', function () {
+  var selPlano = document.getElementById('f_plano');
+  if (selPlano) {
+    selPlano.addEventListener('change', function () {
+      _extrairValorPlano(this.value);
+    });
+  }
+});
+
+</script>
+
+<script>
+'use strict';
+'use strict';
+// ══════════════════════════════════════════════════════════════
+//  FUNIL DE INSTALAÇÕES
+// ══════════════════════════════════════════════════════════════
+
+var _funilDados    = [];   // todas as vendas carregadas
+var _funilDragCard = null;
+var _funilDragLinha= null;
+var _funilDragOrigem = null;
+
+// Configuração fixa das 3 colunas
+var FUNIL_COLUNAS = [
+  {
+    status:  '2- Aguardando Instalação',
+    cor:     '#f7a23b',
+    id:      'funilCards0',
+    countId: 'funilCount0'
+  },
+  {
+    status:  '3 - Finalizada/Instalada',
+    cor:     '#22d98a',
+    id:      'funilCards1',
+    countId: 'funilCount1',
+    campo: {
+      tipo:        'date',
+      label:       'Data de Instalação *',
+      placeholder: '',
+      hint:        'Informe a data em que a instalação foi concluída.',
+      obrigatorio: true,
+      chave:       'instal'   // campo do objeto venda
+    }
+  },
+  {
+    status:  'Pendencia Vero',
+    cor:     '#f7e23b',
+    id:      'funilCards2',
+    countId: 'funilCount2',
+    campo: {
+      tipo:        'textarea',
+      label:       'Motivo da Pendência *',
+      placeholder: 'Descreva o motivo da pendência...',
+      hint:        'Será salvo como observação da venda.',
+      obrigatorio: true,
+      chave:       'observacao'
+    }
+  }
+];
+
+// Pendência de move (aguarda confirmação no modal)
+var _funilMovePendente = null;
+
+// ── CARREGAR DADOS ────────────────────────────────────────────
+function carregarFunil() {
+  // Reseta colunas com loading
+  FUNIL_COLUNAS.forEach(function(col) {
+    var el = document.getElementById(col.id);
+    if (el) el.innerHTML = '<div class="funil-empty">⏳ Carregando...</div>';
+    var cnt = document.getElementById(col.countId);
+    if (cnt) cnt.textContent = '—';
+  });
+  document.getElementById('funilCount').textContent = '⏳ Carregando...';
+
+  // Usa função dedicada que filtra só os 3 status do funil
+  google.script.run
+    .withSuccessHandler(function(res) {
+      try {
+        // Trata erro retornado pelo backend
+        if (!res) {
+          throw new Error('Servidor retornou resposta vazia.');
+        }
+        if (res.erro) {
+          throw new Error(res.erro);
+        }
+        _funilDados = res.dados || [];
+        if (_funilDados.length === 0) {
+          FUNIL_COLUNAS.forEach(function(col) {
+            var el = document.getElementById(col.id);
+            if (el) el.innerHTML = '<div class="funil-empty">Nenhuma venda encontrada.</div>';
+            var cnt = document.getElementById(col.countId);
+            if (cnt) cnt.textContent = '0';
+          });
+          document.getElementById('funilCount').textContent = '0 vendas no funil';
+          return;
+        }
+        _renderizarFunil();
+      } catch(jsErr) {
+        FUNIL_COLUNAS.forEach(function(col) {
+          var el = document.getElementById(col.id);
+          if (el) el.innerHTML = '<div class="funil-empty" style="color:var(--accent);">❌ ' + esc(jsErr.message) + '</div>';
+          var cnt = document.getElementById(col.countId);
+          if (cnt) cnt.textContent = '!';
+        });
+        document.getElementById('funilCount').textContent = 'Erro';
+        mostrarToast('❌ ' + jsErr.message, 'error');
+      }
+    })
+    .withFailureHandler(function(err) {
+      var msg = (err && err.message) ? err.message : 'Erro desconhecido. Verifique o Apps Script.';
+      FUNIL_COLUNAS.forEach(function(col) {
+        var el = document.getElementById(col.id);
+        if (el) el.innerHTML = '<div class="funil-empty" style="color:var(--accent);">❌ ' + esc(msg) + '</div>';
+        var cnt = document.getElementById(col.countId);
+        if (cnt) cnt.textContent = '!';
+      });
+      document.getElementById('funilCount').textContent = 'Erro ao carregar';
+      mostrarToast('❌ Funil: ' + msg, 'error');
+    })
+    .getVendasFunil();
+}
+
+// ── RENDERIZAR FUNIL ──────────────────────────────────────────
+function _renderizarFunil() {
+  var totalFunil = 0;
+
+  // Verifica filtro Hoje na coluna Aguardando Instalação
+  var filtroHoje = document.getElementById('funilFiltroHoje');
+  var apenasHoje = filtroHoje && filtroHoje.checked;
+  var labelHoje  = document.getElementById('funilHojeLabel');
+  if (labelHoje) labelHoje.classList.toggle('ativo', apenasHoje);
+
+  // Data de hoje nos dois formatos usados pelo sistema
+  var agora = new Date();
+  var dd  = String(agora.getDate()).padStart(2,'0');
+  var mm  = String(agora.getMonth()+1).padStart(2,'0');
+  var aaaa = agora.getFullYear();
+  var hojeISO = aaaa + '-' + mm + '-' + dd;       // yyyy-MM-dd
+  var hojeBR  = dd + '/' + mm + '/' + aaaa;       // dd/MM/yyyy
+
+  FUNIL_COLUNAS.forEach(function(col) {
+    var cards = _funilDados.filter(function(v) {
+      if (v.status !== col.status) return false;
+      // Aplica filtro Hoje apenas na coluna Aguardando Instalação
+      if (apenasHoje && col.status === '2- Aguardando Instalação') {
+        var ag = v.agenda || '';
+        return ag === hojeBR || ag === hojeISO || ag.indexOf(hojeISO) === 0;
+      }
+      return true;
+    });
+    totalFunil += cards.length;
+
+    var container = document.getElementById(col.id);
+    var contador  = document.getElementById(col.countId);
+    if (contador) contador.textContent = cards.length;
+
+    if (cards.length === 0) {
+      container.innerHTML = '<div class="funil-empty">Nenhuma venda aqui.<br>Arraste um card para cá.</div>';
+    } else {
+      container.innerHTML = cards.map(function(v) { return _criarFunilCard(v, col); }).join('');
+    }
+  });
+
+  document.getElementById('funilCount').textContent =
+    totalFunil + ' venda' + (totalFunil !== 1 ? 's' : '') + ' no funil';
+
+  _iniciarDragFunil();
+}
+
+// ── CRIAR CARD DO FUNIL ───────────────────────────────────────
+function _criarFunilCard(v, col) {
+  var hoje       = new Date(); hoje.setHours(0,0,0,0);
+  var agendaStr  = _fmtData(v.agenda) || '';
+  var agendaBadge = '';
+
+  if (agendaStr) {
+    var partes = agendaStr.split('/');
+    var agendaDate = partes.length === 3
+      ? new Date(partes[2], partes[1]-1, partes[0])
+      : new Date(agendaStr);
+    var vencido = !isNaN(agendaDate) && agendaDate < hoje;
+    agendaBadge =
+      '<div class="funil-badge-agenda' + (vencido ? ' vencido' : '') + '">' +
+        (vencido ? '⚠️' : '📅') + ' ' + esc(agendaStr) +
+        (v.turno ? ' · ' + esc(v.turno.split(' ')[0]) : '') +
+      '</div>';
+  }
+
+  return (
+    '<div class="funil-card" draggable="true"' +
+        ' data-linha="' + esc(String(v.linha)) + '"' +
+        ' data-status="' + esc(v.status) + '">' +
+      '<div class="funil-card-nome">' + esc(v.cliente || 'Sem nome') + '</div>' +
+      (v.produto || v.plano
+        ? '<div class="funil-card-row">📦 ' + esc((v.produto||'') + (v.plano?' · '+v.plano:'')) + '</div>'
+        : '') +
+      (v.resp
+        ? '<div class="funil-card-row">👤 ' + esc(v.resp) + '</div>'
+        : '') +
+      (v.dataAtiv
+        ? '<div class="funil-card-row">⚡ Ativação: ' + esc(_fmtData(v.dataAtiv)) + '</div>'
+        : '') +
+      (v.codCli
+        ? '<div class="funil-card-row" style="font-size:10px;color:var(--muted)">Cód: ' + esc(v.codCli) + '</div>'
+        : '') +
+      (v.contrato
+        ? '<div class="funil-card-row" style="font-size:10px;color:var(--muted)">ID Contrato: ' + esc(v.contrato) + '</div>'
+        : '') +
+      (v.whats
+        ? '<div class="funil-card-row">📱 ' + esc(v.whats) + '</div>'
+        : '') +
+      agendaBadge +
+      '<div style="text-align:right;margin-top:6px"><button onclick="event.stopPropagation();event.preventDefault();_abrirVendaNoLista(' + v.linha + ')" title="Ver na Lista de Vendas" style="background:rgba(230,62,109,.12);border:1px solid rgba(230,62,109,.3);color:var(--accent);border-radius:6px;padding:3px 8px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;letter-spacing:.5px;">↗ Lista</button></div>' +
+    '</div>'
+  );
+}
+
+// ── DRAG & DROP DO FUNIL ──────────────────────────────────────
+function _iniciarDragFunil() {
+  document.querySelectorAll('.funil-card').forEach(function(card) {
+    card.addEventListener('dragstart', _funilDragStart);
+    card.addEventListener('dragend',   _funilDragEnd);
+  });
+  // Impede que botão ↗ Lista dispare o drag
+  document.querySelectorAll('.funil-card button').forEach(function(btn) {
+    btn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+  });
+  document.querySelectorAll('.funil-col-cards').forEach(function(zone) {
+    zone.addEventListener('dragover',  _funilDragOver);
+    zone.addEventListener('dragleave', _funilDragLeave);
+    zone.addEventListener('drop',      _funilDrop);
+  });
+}
+
+function _funilDragStart(e) {
+  _funilDragCard   = this;
+  _funilDragLinha  = this.dataset.linha;
+  _funilDragOrigem = this.dataset.status;
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', _funilDragLinha);
+}
+
+function _funilDragEnd() {
+  this.classList.remove('dragging');
+  document.querySelectorAll('.funil-col').forEach(function(c) { c.classList.remove('drag-over'); });
+  document.querySelectorAll('.funil-placeholder').forEach(function(p) { p.remove(); });
+  _funilDragCard = null;
+}
+
+function _funilDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  var col = this.closest('.funil-col');
+  if (!col.classList.contains('drag-over')) {
+    col.classList.add('drag-over');
+    var ph = document.createElement('div');
+    ph.className = 'funil-placeholder';
+    this.appendChild(ph);
+  }
+}
+
+function _funilDragLeave(e) {
+  if (!this.contains(e.relatedTarget)) {
+    this.closest('.funil-col').classList.remove('drag-over');
+    this.querySelectorAll('.funil-placeholder').forEach(function(p) { p.remove(); });
+  }
+}
+
+function _funilDrop(e) {
+  e.preventDefault();
+  var col        = this.closest('.funil-col');
+  var destStatus = col.dataset.status;
+  col.classList.remove('drag-over');
+  this.querySelectorAll('.funil-placeholder').forEach(function(p) { p.remove(); });
+
+  if (!_funilDragLinha) return;
+  if (destStatus === _funilDragOrigem) return; // mesma coluna — ignora
+
+  // Encontra config da coluna de destino
+  var colCfg = FUNIL_COLUNAS.find(function(c) { return c.status === destStatus; });
+  var venda  = _funilDados.find(function(v) { return String(v.linha) === String(_funilDragLinha); });
+  if (!venda) return;
+
+  // Abre modal de confirmação com campo extra se necessário
+  _abrirModalMoveFunil(venda, colCfg);
+}
+
+// ── MODAL DE CONFIRMAÇÃO ──────────────────────────────────────
+function _abrirModalMoveFunil(venda, colCfg) {
+  _funilMovePendente = { venda: venda, colCfg: colCfg };
+
+  document.getElementById('modalFunilTitulo').textContent =
+    'Mover para "' + colCfg.status + '"';
+  document.getElementById('modalFunilStripe').style.background = colCfg.cor;
+  document.getElementById('modalFunilDestino').textContent = colCfg.status;
+  document.getElementById('modalFunilCliente').textContent = venda.cliente || 'Sem nome';
+
+  // Monta campo extra
+  var campoCont = document.getElementById('modalFunilCampo');
+  campoCont.innerHTML = '';
+
+  if (colCfg.campo) {
+    var c = colCfg.campo;
+    var inputHTML = c.tipo === 'textarea'
+      ? '<textarea id="funilCampoValor" placeholder="' + esc(c.placeholder) + '"></textarea>'
+      : '<input type="' + c.tipo + '" id="funilCampoValor">';
+
+    campoCont.innerHTML =
+      '<label>' + esc(c.label) + '</label>' +
+      inputHTML +
+      '<div class="hint-campo">' + esc(c.hint) + '</div>';
+  }
+
+  document.getElementById('modalFunilMove').classList.add('ativo');
+  // Foca no campo extra
+  setTimeout(function() {
+    var inp = document.getElementById('funilCampoValor');
+    if (inp) inp.focus();
+  }, 120);
+}
+
+function _cancelarMoveFunil() {
+  document.getElementById('modalFunilMove').classList.remove('ativo');
+  _funilMovePendente = null;
+}
+
+function _confirmarMoveFunil() {
+  if (!_funilMovePendente) return;
+
+  var venda  = _funilMovePendente.venda;
+  var colCfg = _funilMovePendente.colCfg;
+  var campoVal = '';
+
+  if (colCfg.campo) {
+    var inp = document.getElementById('funilCampoValor');
+    campoVal = inp ? inp.value.trim() : '';
+    if (colCfg.campo.obrigatorio && !campoVal) {
+      inp.style.borderColor = 'var(--accent)';
+      inp.focus();
+      mostrarToast('⚠️ ' + colCfg.campo.label.replace(' *','') + ' é obrigatório.', 'warning');
+      return;
+    }
+  }
+
+  document.getElementById('modalFunilMove').classList.remove('ativo');
+
+  // Monta payload para o backend
+  var payload = {
+    linha:      venda.linha,
+    novoStatus: colCfg.status,
+    campoExtra: colCfg.campo ? colCfg.campo.chave : null,
+    valorExtra: campoVal
+  };
+
+  // Move o card visualmente já (otimista)
+  _moverCardFunilVisual(venda, colCfg);
+
+  // Persiste na planilha
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.sucesso) {
+        mostrarToast('✅ Movido para "' + colCfg.status + '"', 'success');
+        // Atualiza dado em memória
+        venda.status = colCfg.status;
+        if (payload.campoExtra) venda[payload.campoExtra] = payload.valorExtra;
+        _atualizarContadoresFunil();
+      } else {
+        mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
+        _renderizarFunil(); // reverte
+      }
+    })
+    .withFailureHandler(function(err) {
+      mostrarToast('❌ Falha: ' + err.message, 'error');
+      _renderizarFunil(); // reverte
+    })
+    .moverVendaFunil(payload);
+
+  _funilMovePendente = null;
+}
+
+// Move visualmente sem re-renderizar tudo
+function _moverCardFunilVisual(venda, colCfg) {
+  // Remove o card da coluna de origem
+  var cardEl = document.querySelector('.funil-card[data-linha="' + venda.linha + '"]');
+  if (cardEl) cardEl.remove();
+
+  // Adiciona na coluna de destino
+  var destContainer = document.getElementById(colCfg.id);
+  // Remove empty state se existir
+  var empty = destContainer.querySelector('.funil-empty');
+  if (empty) empty.remove();
+
+  var novoCardHTML = _criarFunilCard(Object.assign({}, venda, { status: colCfg.status }), colCfg);
+  var tmp = document.createElement('div');
+  tmp.innerHTML = novoCardHTML;
+  var novoCard = tmp.firstChild;
+  novoCard.addEventListener('dragstart', _funilDragStart);
+  novoCard.addEventListener('dragend',   _funilDragEnd);
+  destContainer.appendChild(novoCard);
+
+  // Verifica se coluna de origem ficou vazia
+  var origemCfg = FUNIL_COLUNAS.find(function(c) { return c.status === venda.status; });
+  if (origemCfg) {
+    var origemContainer = document.getElementById(origemCfg.id);
+    if (origemContainer && origemContainer.querySelectorAll('.funil-card').length === 0) {
+      origemContainer.innerHTML = '<div class="funil-empty">Nenhuma venda aqui.<br>Arraste um card para cá.</div>';
+    }
+  }
+
+  _atualizarContadoresFunil();
+}
+
+function _atualizarContadoresFunil() {
+  FUNIL_COLUNAS.forEach(function(col) {
+    var container = document.getElementById(col.id);
+    var cnt       = document.getElementById(col.countId);
+    if (container && cnt) {
+      cnt.textContent = container.querySelectorAll('.funil-card').length;
+    }
+  });
+  var total = document.querySelectorAll('.funil-card').length;
+  document.getElementById('funilCount').textContent =
+    total + ' venda' + (total !== 1 ? 's' : '') + ' no funil';
+}
+</script>
+
+<script>
+'use strict';
+// ══════════════════════════════════════════════════════════════
+//  MODAL DE OFERTAS — BOTÃO FLUTUANTE
+// ══════════════════════════════════════════════════════════════
+
+var _ofertasWhatsText = '';   // texto para copiar
+
+var CAT_ICONS = {
+  'VERO MAIS':       '🚀',
+  'MUNDO FIBRA':     '⭐',
+  'GAMER':           '🎮',
+  'ENTRETENIMENTO':  '🎬',
+  'COMPLETO':        '💎',
+  'NAKED':           '🌐',
+  'Móvel Alone':           '📱',
+  'MOVEL':           '📱'
+};
+
+function _catIcon(cat) {
+  var upper = cat.toUpperCase();
+  for (var key in CAT_ICONS) {
+    if (upper.indexOf(key) > -1) return CAT_ICONS[key];
+  }
+  return '🔹';
+}
+
+// ── ABRIR MODAL ───────────────────────────────────────────────
+function abrirModalOfertas() {
+  var overlay = document.getElementById('modalOfertas');
+  var body    = document.getElementById('modalOfertasBody');
+  var foot    = document.getElementById('modalOfertasFoot');
+  var titulo  = document.getElementById('modalOfertasTitulo');
+
+  titulo.textContent = '🔍 Consultar Ofertas';
+  body.innerHTML = '<div class="ofertas-loading">⏳ Carregando cidades...</div>';
+  foot.style.display = 'none';
+  overlay.classList.add('ativo');
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.erro) {
+        body.innerHTML = '<div class="ofertas-loading" style="color:var(--accent);">❌ ' + esc(res.mensagem) + '</div>';
+        return;
+      }
+      _renderizarSelecaoCidade(res.cidades);
+    })
+    .withFailureHandler(function(err) {
+      body.innerHTML = '<div class="ofertas-loading" style="color:var(--accent);">❌ ' + esc(err.message) + '</div>';
+    })
+    .getCidadesOfertas();
+}
+
+function fecharModalOfertas() {
+  document.getElementById('modalOfertas').classList.remove('ativo');
+}
+
+// ── STEP 1: LISTA DE CIDADES ──────────────────────────────────
+function _renderizarSelecaoCidade(cidades) {
+  var titulo = document.getElementById('modalOfertasTitulo');
+  var foot   = document.getElementById('modalOfertasFoot');
+  titulo.textContent = '🔍 Consultar Ofertas';
+  foot.style.display = 'none';
+
+  var html =
+    '<input class="ofertas-search" type="text" id="ofertasBusca"' +
+    ' placeholder="🔎 Buscar cidade..." oninput="_filtrarCidades(this.value)">' +
+    '<div class="ofertas-cidade-list" id="ofertasCidadeList">' +
+    cidades.map(function(c) {
+      return '<div class="ofertas-cidade-item" onclick="_selecionarCidade(\'' +
+        c.replace(/'/g, "\\'") + '\')">📍 ' + esc(c) + '</div>';
+    }).join('') +
+    '</div>';
+
+  document.getElementById('modalOfertasBody').innerHTML = html;
+  setTimeout(function() {
+    var inp = document.getElementById('ofertasBusca');
+    if (inp) inp.focus();
+  }, 80);
+}
+
+function _filtrarCidades(q) {
+  var list  = document.getElementById('ofertasCidadeList');
+  var items = list.querySelectorAll('.ofertas-cidade-item');
+  var norm  = q.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  items.forEach(function(item) {
+    var txt = item.textContent.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    item.style.display = txt.indexOf(norm) > -1 ? '' : 'none';
+  });
+}
+
+// ── STEP 2: OFERTAS DA CIDADE ─────────────────────────────────
+function _selecionarCidade(cidade) {
+  var body   = document.getElementById('modalOfertasBody');
+  var titulo = document.getElementById('modalOfertasTitulo');
+  body.innerHTML = '<div class="ofertas-loading">⏳ Buscando ofertas de ' + esc(cidade) + '...</div>';
+  titulo.textContent = '📍 ' + cidade;
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.erro) {
+        body.innerHTML = '<div class="ofertas-loading" style="color:var(--accent);">❌ ' + esc(res.mensagem) + '</div>';
+        return;
+      }
+      _renderizarOfertas(res);
+    })
+    .withFailureHandler(function(err) {
+      body.innerHTML = '<div class="ofertas-loading" style="color:var(--accent);">❌ ' + esc(err.message) + '</div>';
+    })
+    .getOfertasCidade(cidade);
+}
+
+function _renderizarOfertas(res) {
+  var foot = document.getElementById('modalOfertasFoot');
+  foot.style.display = 'flex';
+
+  // Monta texto WhatsApp para o botão copiar
+  _ofertasWhatsText = '*📍 OFERTAS: ' + res.cidade + '*\n';
+  _ofertasWhatsText += '📱 Móvel: ' + res.telMovel + '\n';
+  _ofertasWhatsText += '🌐 Mesh: '  + res.comboMesh + '\n';
+  _ofertasWhatsText += '🎬 Roku: '  + res.roku + '\n';
+  _ofertasWhatsText += '_Sistema: ' + res.sistema + '_\n\n';
+
+  // Header
+  var html =
+    '<div class="ofertas-header">' +
+      '<div class="ofertas-header-cidade">📍 ' + esc(res.cidade) + '</div>' +
+      '<div class="ofertas-header-info">' +
+        '<span class="ofertas-header-tag">📱 Móvel: ' + esc(res.telMovel) + '</span>' +
+        '<span class="ofertas-header-tag">🌐 Mesh: '  + esc(res.comboMesh) + '</span>' +
+        '<span class="ofertas-header-tag">🎬 Roku: '  + esc(res.roku) + '</span>' +
+      '</div>' +
+      '<div class="ofertas-header-meta">SISTEMA: ' + esc(res.sistema) + ' · SEGMENTO: ' + esc(res.segmentacao) + '</div>' +
+    '</div>';
+
+  // Grupos de planos
+  res.grupos.forEach(function(grupo) {
+    if (!grupo.planos || grupo.planos.length === 0) return;
+
+    var icon = _catIcon(grupo.categoria);
+    html +=
+      '<div class="ofertas-grupo">' +
+        '<div class="ofertas-grupo-titulo">' +
+          '<span class="cat-icon">' + icon + '</span>' +
+          esc(grupo.categoria.toUpperCase()) +
+        '</div>';
+
+    // Whats
+    _ofertasWhatsText += icon + ' *' + grupo.categoria.toUpperCase() + '*\n';
+
+    grupo.planos.forEach(function(p) {
+      html +=
+        '<div class="ofertas-plano-row">' +
+          '<span class="ofertas-plano-nome">' + esc(p.nome) + '</span>' +
+          '<span class="ofertas-plano-valor">R$ ' + esc(p.valor) + '</span>' +
+        '</div>';
+      _ofertasWhatsText += '• ' + p.nome + ' — *R$ ' + p.valor + '*\n';
+    });
+
+    html += '</div>';
+    _ofertasWhatsText += '\n';
+  });
+
+  _ofertasWhatsText += '_*Valores para cartão, pix automático e débito em conta. Boleto +R$10,00.*_\n';
+  _ofertasWhatsText += '_Sujeito a viabilidade técnica e análise de crédito._';
+
+  html += '<div style="font-size:10px;color:var(--muted);margin-top:8px;font-family:\'DM Mono\',monospace;line-height:1.5;">' +
+    '* Valores para cartão, pix automático e débito em conta. Boleto bancário +R$10,00.' +
+    '</div>';
+
+  document.getElementById('modalOfertasBody').innerHTML = html;
+}
+
+function _ofertasVoltar() {
+  // Volta para seleção de cidade
+  var body   = document.getElementById('modalOfertasBody');
+  var foot   = document.getElementById('modalOfertasFoot');
+  var titulo = document.getElementById('modalOfertasTitulo');
+  titulo.textContent = '🔍 Consultar Ofertas';
+  foot.style.display = 'none';
+  body.innerHTML = '<div class="ofertas-loading">⏳ Carregando cidades...</div>';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res.erro) _renderizarSelecaoCidade(res.cidades);
+    })
+    .withFailureHandler(function() {})
+    .getCidadesOfertas();
+}
+
+function _copiarOfertasWhats() {
+  if (!_ofertasWhatsText) return;
+  var btn = document.getElementById('btnOfertasWhats');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(_ofertasWhatsText).then(function() {
+      btn.innerHTML = '✅ Copiado!';
+      setTimeout(function() { btn.innerHTML = '🟢 Copiar WhatsApp'; }, 2000);
+    });
+  } else {
+    // Fallback para browsers sem clipboard API
+    var ta = document.createElement('textarea');
+    ta.value = _ofertasWhatsText;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+    btn.innerHTML = '✅ Copiado!';
+    setTimeout(function() { btn.innerHTML = '🟢 Copiar WhatsApp'; }, 2000);
+  }
+}
+</script>
+
+<script>
+'use strict';
+// ══════════════════════════════════════════════════════════════
+//  KANBAN TRATAMENTO DE LEADS
+// ══════════════════════════════════════════════════════════════
+
+var _leadsDados       = [];
+var _leadsDragCard    = null;
+var _leadsDragLinha   = null;
+var _leadsDragOrigem  = null;
+var _leadsMovePendente= null;
+
+// Configuração das 4 colunas
+var LEADS_COLUNAS = [
+  { temp: 'quente',     cardsId: 'leadsCards0', countId: 'leadsCount0', cor: '#e63e6d' },
+  { temp: 'morno',      cardsId: 'leadsCards1', countId: 'leadsCount1', cor: '#f7a23b' },
+  { temp: 'frio',       cardsId: 'leadsCards2', countId: 'leadsCount2', cor: '#4f9eff' },
+  { temp: 'aguardando', cardsId: 'leadsCards3', countId: 'leadsCount3', cor: '#22d98a' }
+];
+
+var LEADS_TEMP_LABEL = {
+  quente:     { emoji: '🔥', label: 'Quente' },
+  morno:      { emoji: '🕑', label: 'Morno' },
+  frio:       { emoji: '❄️', label: 'Frio' },
+  aguardando: { emoji: '✅', label: 'Ag. Instalação' }
+};
+
+// ── CARREGAR ──────────────────────────────────────────────────
+function carregarLeads() {
+  LEADS_COLUNAS.forEach(function(col) {
+    var el = document.getElementById(col.cardsId);
+    if (el) el.innerHTML = '<div class="leads-empty">⏳ Carregando...</div>';
+    var cnt = document.getElementById(col.countId);
+    if (cnt) cnt.textContent = '—';
+  });
+  document.getElementById('leadsCount').textContent = '⏳';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      try {
+        if (!res || res.erro) throw new Error(res ? res.erro : 'Resposta vazia');
+        _leadsDados = res.dados || [];
+        _renderizarLeads();
+      } catch(e) {
+        _leadsErro(e.message);
+      }
+    })
+    .withFailureHandler(function(err) {
+      _leadsErro(err && err.message ? err.message : 'Erro desconhecido');
+    })
+    .getVendasLeads();
+}
+
+function _leadsErro(msg) {
+  LEADS_COLUNAS.forEach(function(col) {
+    var el = document.getElementById(col.cardsId);
+    if (el) el.innerHTML = '<div class="leads-empty" style="color:var(--accent);">❌ ' + esc(msg) + '</div>';
+    var cnt = document.getElementById(col.countId);
+    if (cnt) cnt.textContent = '!';
+  });
+  document.getElementById('leadsCount').textContent = 'Erro';
+  mostrarToast('❌ Leads: ' + msg, 'error');
+}
+
+// ── RENDERIZAR ────────────────────────────────────────────────
+function _renderizarLeads() {
+  var total = 0;
+  LEADS_COLUNAS.forEach(function(col) {
+    var cards = _leadsDados.filter(function(v) { return v.temperatura === col.temp; });
+    total += cards.length;
+    var container = document.getElementById(col.cardsId);
+    var contador  = document.getElementById(col.countId);
+    if (contador) contador.textContent = cards.length;
+    if (cards.length === 0) {
+      container.innerHTML = '<div class="leads-empty">Nenhum lead aqui.</div>';
+    } else {
+      container.innerHTML = cards.map(function(v) { return _criarLeadCard(v); }).join('');
+    }
+  });
+  document.getElementById('leadsCount').textContent =
+    total + ' lead' + (total !== 1 ? 's' : '');
+  _iniciarDragLeads();
+}
+
+// ── CARD ──────────────────────────────────────────────────────
+function _criarLeadCard(v) {
+  var t = LEADS_TEMP_LABEL[v.temperatura] || { emoji: '', label: v.temperatura };
+  return (
+    '<div class="leads-card" draggable="true"' +
+        ' data-linha="' + esc(String(v.linha)) + '"' +
+        ' data-temp="'  + esc(v.temperatura)   + '">' +
+      '<div class="leads-card-nome">' + esc(v.cliente || 'Sem nome') + '</div>' +
+      (v.produto ? '<div class="leads-card-row"><span class="leads-produto-badge">' + esc(v.produto) + '</span>' +
+        (v.plano ? ' <span style="font-size:10px;color:var(--muted);">' + esc(v.plano) + '</span>' : '') + '</div>' : '') +
+      (v.resp     ? '<div class="leads-card-row">👤 ' + esc(v.resp) + '</div>' : '') +
+      (v.whats    ? '<div class="leads-card-row">📱 ' + esc(v.whats) + '</div>' : '') +
+      (v.agenda   ? '<div class="leads-card-row">📅 ' + esc(v.agenda) + (v.turno ? ' · ' + esc(v.turno.split(' ')[0]) : '') + '</div>' : '') +
+      (v.preVenda && v.temperatura !== 'aguardando'
+        ? '<div class="leads-temp-badge ' + esc(v.temperatura) + '">' + t.emoji + ' ' + esc(v.preVenda) + '</div>'
+        : '') +
+      (v.codCli
+        ? '<div class="leads-card-row" style="font-size:10px;color:var(--muted)">Cód: ' + esc(v.codCli) + '</div>'
+        : '') +
+      (v.contrato
+        ? '<div class="leads-card-row" style="font-size:10px;color:var(--muted)">ID Contrato: ' + esc(v.contrato) + '</div>'
+        : '') +
+      '<div style="text-align:right;margin-top:6px"><button onclick="event.stopPropagation();event.preventDefault();_abrirVendaNoLista(' + v.linha + ')" title="Ver na Lista de Vendas" style="background:rgba(230,62,109,.12);border:1px solid rgba(230,62,109,.3);color:var(--accent);border-radius:6px;padding:3px 8px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;letter-spacing:.5px;">↗ Lista</button></div>' +
+    '</div>'
+  );
+}
+
+// ── DRAG & DROP ───────────────────────────────────────────────
+function _iniciarDragLeads() {
+  document.querySelectorAll('.leads-card').forEach(function(card) {
+    card.addEventListener('dragstart', _leadsDragStart);
+    card.addEventListener('dragend',   _leadsDragEnd);
+  });
+  document.querySelectorAll('.leads-card button').forEach(function(btn) {
+    btn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+  });
+  document.querySelectorAll('#pageLeads .leads-col-cards').forEach(function(zone) {
+    zone.addEventListener('dragover',  _leadsDragOver);
+    zone.addEventListener('dragleave', _leadsDragLeave);
+    zone.addEventListener('drop',      _leadsDrop);
+  });
+}
+
+function _leadsDragStart(e) {
+  _leadsDragCard  = this;
+  _leadsDragLinha = this.dataset.linha;
+  _leadsDragOrigem= this.dataset.temp;
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', _leadsDragLinha);
+}
+
+function _leadsDragEnd() {
+  this.classList.remove('dragging');
+  document.querySelectorAll('#pageLeads .leads-col').forEach(function(c) { c.classList.remove('drag-over'); });
+  document.querySelectorAll('.leads-placeholder').forEach(function(p) { p.remove(); });
+  _leadsDragCard = null;
+}
+
+function _leadsDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  var col = this.closest('.leads-col');
+  if (!col.classList.contains('drag-over')) {
+    col.classList.add('drag-over');
+    var ph = document.createElement('div');
+    ph.className = 'leads-placeholder';
+    this.appendChild(ph);
+  }
+}
+
+function _leadsDragLeave(e) {
+  if (!this.contains(e.relatedTarget)) {
+    this.closest('.leads-col').classList.remove('drag-over');
+    this.querySelectorAll('.leads-placeholder').forEach(function(p) { p.remove(); });
+  }
+}
+
+function _leadsDrop(e) {
+  e.preventDefault();
+  var col      = this.closest('.leads-col');
+  var destTemp = col.dataset.temp;
+  col.classList.remove('drag-over');
+  this.querySelectorAll('.leads-placeholder').forEach(function(p) { p.remove(); });
+
+  if (!_leadsDragLinha) return;
+  if (destTemp === _leadsDragOrigem) return;
+
+  // Só permite arrastar PARA aguardando (da esquerda)
+  // Dentro das colunas de temperatura permite reordenar livremente
+  var venda = _leadsDados.find(function(v) { return String(v.linha) === String(_leadsDragLinha); });
+  if (!venda) return;
+
+  if (destTemp === 'aguardando') {
+    // Abre modal pedindo os campos
+    _abrirModalMoveLeads(venda);
+  } else if (_leadsDragOrigem !== 'aguardando') {
+    // Move entre colunas de temperatura — só visual, sem salvar no backend
+    _moverLeadVisual(venda, destTemp);
+    venda.temperatura = destTemp;
+    _atualizarContadoresLeads();
+    mostrarToast('🔀 Lead movido para ' + (LEADS_TEMP_LABEL[destTemp] || {}).label, 'success');
+  }
+  // Não permite arrastar de Aguardando de volta
+}
+
+// ── MODAL AGUARDANDO ──────────────────────────────────────────
+function _abrirModalMoveLeads(venda) {
+  _leadsMovePendente = venda;
+  document.getElementById('leadsMoviendoCliente').textContent = venda.cliente || 'Sem nome';
+  // Limpa campos
+  document.getElementById('leadsF_agenda').value   = '';
+  document.getElementById('leadsF_turno').value    = '';
+  document.getElementById('leadsF_contrato').value = venda.contrato || '';
+  document.getElementById('leadsF_obs').value      = '';
+  document.getElementById('modalLeadsMove').classList.add('ativo');
+  setTimeout(function() { document.getElementById('leadsF_agenda').focus(); }, 100);
+}
+
+function _cancelarMoveLeads() {
+  document.getElementById('modalLeadsMove').classList.remove('ativo');
+  _leadsMovePendente = null;
+}
+
+function _confirmarMoveLeads() {
+  if (!_leadsMovePendente) return;
+  var venda   = _leadsMovePendente;
+  var agenda  = document.getElementById('leadsF_agenda').value.trim();
+  var turno   = document.getElementById('leadsF_turno').value.trim();
+  var contrato= document.getElementById('leadsF_contrato').value.trim();
+  var obs     = document.getElementById('leadsF_obs').value.trim();
+
+  if (!agenda) {
+    document.getElementById('leadsF_agenda').style.borderColor = 'var(--accent)';
+    document.getElementById('leadsF_agenda').focus();
+    mostrarToast('⚠️ Data de Agendamento é obrigatória.', 'warning');
+    return;
+  }
+  if (!turno) {
+    document.getElementById('leadsF_turno').style.borderColor = 'var(--accent)';
+    document.getElementById('leadsF_turno').focus();
+    mostrarToast('⚠️ Turno é obrigatório.', 'warning');
+    return;
+  }
+
+  document.getElementById('modalLeadsMove').classList.remove('ativo');
+
+  // Move visualmente já
+  _moverLeadVisual(venda, 'aguardando');
+  venda.temperatura = 'aguardando';
+  venda.status      = '2- Aguardando Instalação';
+  venda.agenda      = agenda;
+  venda.turno       = turno;
+  _atualizarContadoresLeads();
+
+  var payload = {
+    linha:    venda.linha,
+    agenda:   agenda,
+    turno:    turno,
+    contrato: contrato,
+    obs:      obs
+  };
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.sucesso) {
+        mostrarToast('✅ Lead movido para Ag. Instalação!', 'success');
+      } else {
+        mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
+        _renderizarLeads();
+      }
+    })
+    .withFailureHandler(function(err) {
+      mostrarToast('❌ Falha: ' + err.message, 'error');
+      _renderizarLeads();
+    })
+    .moverLeadAguardando(payload);
+
+  _leadsMovePendente = null;
+}
+
+// ── MOVE VISUAL ───────────────────────────────────────────────
+function _moverLeadVisual(venda, novaTemp) {
+  var cardEl = document.querySelector('.leads-card[data-linha="' + venda.linha + '"]');
+  if (cardEl) cardEl.remove();
+
+  var destCol = LEADS_COLUNAS.find(function(c) { return c.temp === novaTemp; });
+  if (!destCol) return;
+  var container = document.getElementById(destCol.cardsId);
+  var empty = container.querySelector('.leads-empty');
+  if (empty) empty.remove();
+
+  var novoHTML = _criarLeadCard(Object.assign({}, venda, { temperatura: novaTemp }));
+  var tmp = document.createElement('div');
+  tmp.innerHTML = novoHTML;
+  var novoCard = tmp.firstChild;
+  novoCard.addEventListener('dragstart', _leadsDragStart);
+  novoCard.addEventListener('dragend',   _leadsDragEnd);
+  container.appendChild(novoCard);
+
+  // Verifica se origem ficou vazia
+  var origemCol = LEADS_COLUNAS.find(function(c) { return c.temp === venda.temperatura; });
+  if (origemCol) {
+    var origemContainer = document.getElementById(origemCol.cardsId);
+    if (origemContainer && origemContainer.querySelectorAll('.leads-card').length === 0) {
+      origemContainer.innerHTML = '<div class="leads-empty">Nenhum lead aqui.</div>';
+    }
+  }
+}
+
+function _atualizarContadoresLeads() {
+  LEADS_COLUNAS.forEach(function(col) {
+    var container = document.getElementById(col.cardsId);
+    var cnt       = document.getElementById(col.countId);
+    if (container && cnt) cnt.textContent = container.querySelectorAll('.leads-card').length;
+  });
+  var total = document.querySelectorAll('#pageLeads .leads-card').length;
+  document.getElementById('leadsCount').textContent = total + ' lead' + (total !== 1 ? 's' : '');
+}
+</script>
+
+<script>
+'use strict';
+// ══════════════════════════════════════════════════════════════
+//  PAGAMENTOS PAP
+// ══════════════════════════════════════════════════════════════
+
+var _papDados  = [];   // todos os registros
+var _papFiltro = '';   // vendedor selecionado no filtro
+
+// ── CARREGAR ──────────────────────────────────────────────────
+function carregarPAP() {
+  document.getElementById('papTbody').innerHTML =
+    '<tr><td colspan="8" class="pap-empty">⏳ Carregando pagamentos...</td></tr>';
+  document.getElementById('papResumo').innerHTML =
+    '<div style="padding:14px;color:var(--muted);font-size:12px;">⏳</div>';
+  document.getElementById('papCount').textContent = '—';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res || res.erro) {
+        document.getElementById('papTbody').innerHTML =
+          '<tr><td colspan="8" class="pap-empty" style="color:var(--accent);">❌ ' +
+          esc((res && res.erro) || 'Erro ao carregar') + '</td></tr>';
+        return;
+      }
+      _papDados  = res.dados || [];
+      _papFiltro = '';
+      _renderizarResumoPAP(res.resumo || [], res.totalValor || 0);
+      _popularFiltroPAP(res.resumo || []);
+      _filtrarPAP();
+    })
+    .withFailureHandler(function(err) {
+      document.getElementById('papTbody').innerHTML =
+        '<tr><td colspan="8" class="pap-empty" style="color:var(--accent);">❌ ' +
+        esc(err.message) + '</td></tr>';
+      mostrarToast('❌ PAP: ' + err.message, 'error');
+    })
+    .getPagamentosPAP();
+}
+
+// ── RESUMO ────────────────────────────────────────────────────
+function _renderizarResumoPAP(resumo, totalValor) {
+  var html =
+    '<div class="pap-resumo-card total">' +
+      '<div class="pap-resumo-label">Total Geral</div>' +
+      '<div class="pap-resumo-valor">R$ ' + _fmtVal(totalValor) + '</div>' +
+      '<div class="pap-resumo-sub">' + _papDados.length + ' pagamento' + (_papDados.length !== 1 ? 's' : '') + ' em aberto</div>' +
+    '</div>';
+
+  resumo.forEach(function(v) {
+    html +=
+      '<div class="pap-resumo-card" onclick="_selecionarVendedorPAP(\'' + esc(v.nome.replace(/'/g,"\\'")) + '\')" style="cursor:pointer;">' +
+        '<div class="pap-resumo-label">' + esc(v.nome) + '</div>' +
+        '<div class="pap-resumo-valor">R$ ' + _fmtVal(v.total) + '</div>' +
+        '<div class="pap-resumo-sub">' + v.qtd + ' venda' + (v.qtd !== 1 ? 's' : '') +
+          (v.chavePix ? ' · PIX: ' + esc(v.chavePix) : '') +
+        '</div>' +
+      '</div>';
+  });
+
+  document.getElementById('papResumo').innerHTML = html;
+}
+
+function _selecionarVendedorPAP(nome) {
+  document.getElementById('papFiltroVendedor').value = nome;
+  _filtrarPAP();
+}
+
+function _popularFiltroPAP(resumo) {
+  var sel = document.getElementById('papFiltroVendedor');
+  sel.innerHTML = '<option value="">Todos os vendedores</option>';
+  resumo.forEach(function(v) {
+    var opt = document.createElement('option');
+    opt.value = v.nome; opt.textContent = v.nome + ' (' + v.qtd + ')';
+    sel.appendChild(opt);
+  });
+}
+
+// ── FILTRAR + RENDERIZAR TABELA ───────────────────────────────
+function _filtrarPAP() {
+  var filtro = document.getElementById('papFiltroVendedor').value;
+  _papFiltro = filtro;
+  var lista = filtro
+    ? _papDados.filter(function(v) { return v.resp === filtro; })
+    : _papDados;
+  _renderizarTabelaPAP(lista);
+}
+
+function _renderizarTabelaPAP(lista) {
+  var count = document.getElementById('papCount');
+  count.textContent = lista.length + ' registro' + (lista.length !== 1 ? 's' : '');
+
+  if (lista.length === 0) {
+    document.getElementById('papTbody').innerHTML =
+      '<tr><td colspan="8" class="pap-empty">✅ Nenhum pagamento em aberto.</td></tr>';
+    return;
+  }
+
+  var html = lista.map(function(v) {
+    return (
+      '<tr id="papRow_' + v.linha + '">' +
+        '<td class="pap-data">'     + esc(v.dataInstal || '—') + '</td>' +
+        '<td><div class="pap-cliente">' + esc(v.cliente || '—') + '</div></td>' +
+        '<td class="pap-vendedor">' + esc(v.resp || '—') + '</td>' +
+        '<td class="pap-contrato">' + esc(v.contrato || '—') + '</td>' +
+        '<td style="font-size:11px;">' +
+          '<span style="font-weight:700;">' + esc(v.produto) + '</span>' +
+          (v.plano ? '<br><span style="color:var(--muted);">' + esc(v.plano) + '</span>' : '') +
+        '</td>' +
+        '<td class="pap-valor">R$ ' + _fmtVal(v.comissao) + '</td>' +
+        '<td class="pap-pix" title="' + esc(v.chavePix) + '">' + esc(v.chavePix || '—') + '</td>' +
+        '<td>' +
+          '<div class="pap-acoes">' +
+            '<button class="pap-btn pap-btn-zap" onclick="_copiarMsgPAP(' + v.linha + ')" title="Copiar mensagem WhatsApp">🟢 Copiar</button>' +
+            '<button class="pap-btn pap-btn-pago" id="papBtnPago_' + v.linha + '" onclick="_marcarPagoPAP(' + v.linha + ', this)">✅ Pago</button>' +
+          '</div>' +
+        '</td>' +
+      '</tr>'
+    );
+  }).join('');
+
+  document.getElementById('papTbody').innerHTML = html;
+}
+
+// ── COPIAR MENSAGEM WHATSAPP ──────────────────────────────────
+function _copiarMsgPAP(linha) {
+  var v = _papDados.find(function(x) { return x.linha === linha; });
+  if (!v) return;
+
+  // Formata data instalação como dd/mm
+  var dataFmt = v.dataInstal ? v.dataInstal.substring(0, 5) : '—';
+
+  var msg =
+    '🫵🏻 *Você recebeu um Pix!*\n' +
+    '💰 Termine o dia com dinheiro no bolso!\n' +
+    '🎁 E com 5 vendas você ganha bônus de R$100!\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '📌 *Detalhes do Pagamento*\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    '👤 Cliente: '   + (v.cliente  || '—') + '\n' +
+    '🙅🏻 Vendedor: ' + (v.resp     || '—') + '\n' +
+    '📄 Contrato: '  + (v.contrato || '—') + '\n' +
+    '📅 Instalação: '+ dataFmt + '\n' +
+    '📦 Produto: '   + (v.produto  || '—') + '\n' +
+    '✅ Valor Pago/Comissão: R$ ' + _fmtVal(v.comissao) + '\n';
+
+  var btn = document.querySelector('[onclick="_copiarMsgPAP(' + linha + ')"]');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(msg).then(function() {
+      if (btn) { btn.textContent = '✅ Copiado!'; setTimeout(function() { btn.innerHTML = '🟢 Copiar'; }, 2000); }
+      mostrarToast('📋 Mensagem copiada!', 'success');
+    });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = msg; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try { document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+    if (btn) { btn.textContent = '✅ Copiado!'; setTimeout(function() { btn.innerHTML = '🟢 Copiar'; }, 2000); }
+    mostrarToast('📋 Mensagem copiada!', 'success');
+  }
+}
+
+// ── MARCAR COMO PAGO ──────────────────────────────────────────
+function _marcarPagoPAP(linha, btnEl) {
+  if (!confirm('Confirmar pagamento desta comissão?')) return;
+  btnEl.disabled = true;
+  btnEl.textContent = '⏳';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.sucesso) {
+        // Remove da lista local
+        _papDados = _papDados.filter(function(v) { return v.linha !== linha; });
+        // Risca a linha visualmente antes de remover
+        var row = document.getElementById('papRow_' + linha);
+        if (row) {
+          row.classList.add('pago-ok');
+          setTimeout(function() { _filtrarPAP(); }, 800);
+        }
+        // Atualiza resumo
+        var totalAtual = _papDados.reduce(function(s, v) { return s + v.comissao; }, 0);
+        var resumoAtualizado = {};
+        _papDados.forEach(function(v) {
+          if (!resumoAtualizado[v.resp]) resumoAtualizado[v.resp] = { nome: v.resp, total: 0, qtd: 0, chavePix: v.chavePix };
+          resumoAtualizado[v.resp].total += v.comissao;
+          resumoAtualizado[v.resp].qtd++;
+        });
+        var arr = Object.keys(resumoAtualizado).map(function(k) { return resumoAtualizado[k]; });
+        arr.sort(function(a,b) { return b.total - a.total; });
+        _renderizarResumoPAP(arr, totalAtual);
+        _popularFiltroPAP(arr);
+        mostrarToast('✅ Pagamento registrado!', 'success');
+      } else {
+        btnEl.disabled = false;
+        btnEl.textContent = '✅ Pago';
+        mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
+      }
+    })
+    .withFailureHandler(function(err) {
+      btnEl.disabled = false;
+      btnEl.textContent = '✅ Pago';
+      mostrarToast('❌ Falha: ' + err.message, 'error');
+    })
+    .marcarPagoPAP(linha);
+}
+
+// ── UTIL ──────────────────────────────────────────────────────
+function _fmtVal(v) {
+  return parseFloat(v || 0).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+</script>
+
+<script>
+'use strict';
+// ══════════════════════════════════════════════════════════════════════
+//  WIZARD — Navegação do formulário de Novo Cadastro
+// ══════════════════════════════════════════════════════════════════════
+
+var _wizStep  = 0;
+var _wizTotal = 4;
+
+// Campos obrigatórios por step (id do campo → id do grupo para marcar erro)
+var _wizValidacao = {
+  0: [{ campo: 'f_status', grp: 'grp_status', msg: 'Selecione um status.' }],
+  1: [{ campo: 'f_cliente', grp: 'grp_cliente', msg: 'Nome é obrigatório.' }],
+  2: [],  // endereço não obrigatório
+  3: []   // plano/agendamento não obrigatórios
+};
+
+// Navega direto para um step clicando no ícone da barra
+function wizIr(destino) {
+  // Só valida se for avançar
+  if (destino > _wizStep) {
+    for (var s = _wizStep; s < destino; s++) {
+      if (!_wizValidarStep(s)) return;
+    }
+  }
+  // Marca steps intermediários como done
+  for (var i = 0; i < _wizTotal; i++) {
+    var dot = document.getElementById('wizDot' + i);
+    if (!dot) continue;
+    dot.classList.remove('active', 'done');
+    if (i < destino) dot.classList.add('done');
+    else if (i === destino) dot.classList.add('active');
+  }
+  _wizStep = destino;
+  _wizAtualizar();
+}
+
+function wizNav(dir) {
+  // Valida antes de avançar
+  if (dir > 0 && !_wizValidarStep(_wizStep)) return;
+
+  var proximo = _wizStep + dir;
+  if (proximo < 0 || proximo >= _wizTotal) return;
+
+  // Marca step atual como done se avançando
+  var dotAtual = document.getElementById('wizDot' + _wizStep);
+  if (dotAtual) {
+    dotAtual.classList.remove('active');
+    if (dir > 0) dotAtual.classList.add('done');
+  }
+
+  _wizStep = proximo;
+  _wizAtualizar();
+}
+
+function _wizValidarStep(step) {
+  var regras = _wizValidacao[step] || [];
+  var ok = true;
+  regras.forEach(function(r) {
+    var el  = document.getElementById(r.campo);
+    var grp = document.getElementById(r.grp);
+    var val = el ? el.value.trim() : '';
+    if (!val) {
+      ok = false;
+      if (grp) grp.classList.add('has-error');
+      // Remove o erro quando o campo for preenchido
+      if (el) el.addEventListener('input', function() {
+        if (this.value.trim()) grp && grp.classList.remove('has-error');
+      }, { once: true });
+    }
+  });
+  if (!ok) mostrarToast('⚠️ Preencha os campos obrigatórios antes de continuar.', 'warning');
+  return ok;
+}
+
+// Campos obrigatórios/importantes para calcular progresso real
+var _wizCamposProgresso = [
+  'f_status','f_canal','f_dataAtiv',           // step 0
+  'f_cliente','f_cpf','f_whats','f_resp',       // step 1
+  'f_cep','f_cidade','f_rua','f_num',           // step 2
+  'f_produto','f_plano','f_valor','f_venc','f_fat' // step 3
+];
+
+function _calcularProgresso() {
+  var total = _wizCamposProgresso.length;
+  var preenchidos = 0;
+  _wizCamposProgresso.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el && el.value && el.value.trim() !== '') preenchidos++;
+  });
+  return Math.round((preenchidos / total) * 100);
+}
+
+function _wizAtualizar() {
+  // Painéis
+  for (var i = 0; i < _wizTotal; i++) {
+    var panel = document.getElementById('wizPanel' + i);
+    if (panel) panel.classList.toggle('active', i === _wizStep);
+    var dot   = document.getElementById('wizDot' + i);
+    if (dot)  dot.classList.toggle('active', i === _wizStep);
+  }
+
+  // Barra de progresso por campos preenchidos
+  var pct  = _calcularProgresso();
+  var fill = document.getElementById('wizFill');
+  if (fill) fill.style.width = pct + '%';
+
+  // Mostrar percentual na barra
+  var infoEl = document.getElementById('wizProgressPct');
+  if (infoEl) infoEl.textContent = pct + '%';
+
+  // Info de passo
+  var info = document.getElementById('wizNavInfo');
+  if (info) info.textContent = 'Passo ' + (_wizStep + 1) + ' de ' + _wizTotal;
+
+  // Botões nav e salvar
+  var btnBack = document.getElementById('wizBtnBack');
+  var btnNext = document.getElementById('wizBtnNext');
+  var btnSave = document.getElementById('wizBtnSave');
+  if (btnBack) btnBack.style.visibility = _wizStep === 0 ? 'hidden' : 'visible';
+  if (btnNext) btnNext.style.visibility = _wizStep === _wizTotal - 1 ? 'hidden' : 'visible';
+  if (btnSave) btnSave.style.display    = _wizStep === _wizTotal - 1 ? '' : 'none';
+}
+
+// Mostra erro num step específico (chamado pelo salvar() em caso de falha)
+function wizMostrarErroStep(stepIdx, mensagem) {
+  // Navega até o step com erro
+  _wizStep = stepIdx;
+  _wizAtualizar();
+  mostrarToast('❌ ' + mensagem, 'error');
+}
+
+// Reset do wizard ao limpar formulário
+var _wizResetar = function() {
+  _wizStep = 0;
+  // Limpa estados dos dots
+  for (var i = 0; i < _wizTotal; i++) {
+    var dot = document.getElementById('wizDot' + i);
+    if (dot) { dot.classList.remove('active', 'done'); }
+  }
+  var dot0 = document.getElementById('wizDot0');
+  if (dot0) dot0.classList.add('active');
+  _wizAtualizar();
+};
+
+// Inicializa quando a página do formulário é ativada (chamado pelo navegar())
+function wizInit() {
+  _wizStep = 0;
+  for (var i = 0; i < _wizTotal; i++) {
+    var dot = document.getElementById('wizDot' + i);
+    if (dot) { dot.classList.remove('active','done'); if(i===0) dot.classList.add('active'); }
+  }
+  _wizAtualizar();
+  // Adiciona listeners para atualizar barra ao preencher campos
+  _wizCamposProgresso.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input',  _wizAtualizar);
+      el.addEventListener('change', _wizAtualizar);
+    }
+  });
+}
+</script>
+
+<script>
+function diagWiz() {
+  var back  = document.getElementById('wizBtnBack');
+  var next  = document.getElementById('wizBtnNext');
+  var nav   = document.querySelector('.wiz-nav');
+  var panel = document.getElementById('wizPanel0');
+  var msg = [
+    'wizBtnBack: ' + (back ? 'ENCONTRADO vis=' + back.style.visibility : 'NULL'),
+    'wizBtnNext: ' + (next ? 'ENCONTRADO vis=' + next.style.visibility : 'NULL'),
+    '.wiz-nav: '   + (nav  ? 'ENCONTRADO' : 'NULL'),
+    'wizPanel0: '  + (panel? 'ENCONTRADO cls=' + panel.className : 'NULL'),
+    'wizInit: '    + typeof wizInit,
+    'wizNav: '     + typeof wizNav,
+    '_wizStep: '   + (typeof _wizStep !== 'undefined' ? _wizStep : 'undefined'),
+    'wiz-nav HTML: ' + (nav ? nav.innerHTML.substring(0,120) : 'N/A'),
+  ].join('\n');
+  alert(msg);
+}
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════
+//  BUSCA GLOBAL + MENSAGEM DO SISTEMA
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── Mensagem do sistema ───────────────────────────────────────────────────
+function carregarMensagemSistema() {
+  google.script.run
+    .withSuccessHandler(function(msg) {
+      var box   = document.getElementById('msgSistema');
+      var texto = document.getElementById('msgSistemaTexto');
+      var dot   = box ? box.querySelector('.msg-sistema-dot') : null;
+      if (!box) return;
+      if (msg && msg.length > 0) {
+        texto.textContent = msg;
+        box.style.display = 'flex';
+        if (dot) dot.classList.add('piscando');
+      } else {
+        box.style.display = 'none';
+      }
+    })
+    .withFailureHandler(function() {})
+    .getMensagemSistema();
+}
+
+// ── Busca global instantânea ─────────────────────────────────────────────
+var _buscaGlobalTimer = null;
+
+function buscaGlobalInstantanea(valor) {
+  var dropdown = document.getElementById('buscaGlobalDropdown');
+  clearTimeout(_buscaGlobalTimer);
+
+  var v = valor.trim();
+  if (v.length < 2) {
+    dropdown.classList.remove('aberto');
+    dropdown.innerHTML = '';
+    return;
+  }
+
+  dropdown.innerHTML = '<div class="busca-drop-empty">🔍 Buscando...</div>';
+  dropdown.classList.add('aberto');
+
+  _buscaGlobalTimer = setTimeout(function() {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (!res || !res.dados || res.dados.length === 0) {
+          dropdown.innerHTML = '<div class="busca-drop-empty">Nenhum resultado encontrado.</div>';
+          return;
+        }
+        // Guarda resultados em array global — evita JSON.stringify no onclick
+        _buscaGlobalResultados = res.dados;
+        var html = '';
+        for (var i = 0; i < res.dados.length; i++) {
+          var v = res.dados[i];
+          var cores = STATUS_CORES[v.status] || { text: '#aaa' };
+          html += '<div class="busca-drop-item" onclick="buscaGlobalAbrirVenda(' + i + ')">' +
+            '<div class="busca-drop-nome">' + esc(v.cliente || 'Sem nome') + '</div>' +
+            '<div class="busca-drop-meta">' +
+              (v.cpf      ? '<span>' + esc(v.cpf) + '</span>' : '') +
+              (v.contrato ? '<span>ID: ' + esc(v.contrato) + '</span>' : '') +
+              (v.status   ? '<span style="color:' + cores.text + '">' + esc(v.status) + '</span>' : '') +
+              (v.produto  ? '<span>' + esc(v.produto) + '</span>' : '') +
+            '</div>' +
+          '</div>';
+        }
+        dropdown.innerHTML = html;
+      })
+      .withFailureHandler(function(e) {
+        dropdown.innerHTML = '<div class="busca-drop-empty">Erro: ' + e.message + '</div>';
+      })
+      .buscarVendaGlobal(v);
+  }, 350); // debounce 350ms
+}
+
+var _buscaGlobalResultados = [];
+
+function buscaGlobalAbrirVenda(idx) {
+  var v = _buscaGlobalResultados[idx];
+  if (!v) return;
+
+  // Fecha dropdown e limpa campo
+  var dropdown = document.getElementById('buscaGlobalDropdown');
+  dropdown.classList.remove('aberto');
+  document.getElementById('buscaGlobal').value = '';
+
+  // Navega para lista e abre painel
+  navegar('lista');
+  setTimeout(function() {
+    AppState.set('vendaSelecionada', v);
+    mostrarPainel(v);
+  }, 300);
+}
+
+// Fecha dropdown ao clicar fora
+document.addEventListener('click', function(e) {
+  var wrap = document.querySelector('.topbar-search-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    var dd = document.getElementById('buscaGlobalDropdown');
+    if (dd) { dd.classList.remove('aberto'); }
+  }
+});
+
+// ── Busca instantânea da lista ────────────────────────────────────────────
+var _buscaListaTimer = null;
+
+// Todos os dados carregados no sync — usados para filtro instantâneo
+var _dadosSincronizados = [];
+var _paginaSync = 1;  // página atual do filtro frontend
+var _listaFiltrada = []; // resultado filtrado atual
+
+function buscaListaInstantanea(valor) {
+  clearTimeout(_buscaListaTimer);
+  var v = valor.trim();
+
+  // Se tiver dados sincronizados, filtra no frontend — instantâneo
+  if (_dadosSincronizados.length > 0) {
+    _buscaListaTimer = setTimeout(function() {
+      _filtrarDadosSincronizados(v);
+    }, 60);
+    return;
+  }
+
+  // Sem dados locais — vai ao backend
+  _buscaListaTimer = setTimeout(function() {
+    carregarVendas(1, v);
+  }, 400);
+}
+
+function _filtrarDadosSincronizados(termo, pagina) {
+  pagina = pagina || 1;
+  var fonte = _dadosSincronizados;
+  var opcoes = _coletarOpcoesFiltro();
+
+  // Aplica filtros dropdown
+  var lista = fonte.filter(function(v) {
+    if (opcoes.status  && v.status  !== opcoes.status)  return false;
+    if (opcoes.produto && v.produto !== opcoes.produto)  return false;
+    if (opcoes.verohub) {
+      if (v.status !== '1- Conferencia/Ativação') return false;
+      var vhStr = String(v.verohub || '').trim();
+      if (vhStr) {
+        var pts = vhStr.split('/');
+        var vhDate = pts.length === 3
+          ? new Date(parseInt(pts[2]), parseInt(pts[1])-1, parseInt(pts[0]))
+          : new Date(vhStr);
+        vhDate.setHours(0,0,0,0);
+        var hoje = new Date(); hoje.setHours(0,0,0,0);
+        if (vhDate >= hoje) return false;
+      }
+    }
+    if (opcoes.preVenda) {
+      if (v.status !== '1- Conferencia/Ativação') return false;
+      var colD = String(v.dataAtiv || '').toUpperCase();
+      if (colD.indexOf(opcoes.preVenda) === -1) return false;
+    }
+    return true;
+  });
+
+  // Aplica busca por texto
+  if (termo) {
+    var t    = termo.toLowerCase();
+    var tNum = t.replace(/[^0-9]/g, '');
+    lista = lista.filter(function(v) {
+      var cpfNum = (v.cpf || '').replace(/[^0-9]/g, '');
+      return (v.cliente  || '').toLowerCase().indexOf(t) > -1 ||
+             (v.contrato || '').toLowerCase().indexOf(t) > -1 ||
+             (v.codCli   || '').toLowerCase().indexOf(t) > -1 ||
+             (v.resp     || '').toLowerCase().indexOf(t) > -1 ||
+             (v.status   || '').toLowerCase().indexOf(t) > -1 ||
+             (tNum.length >= 3 && cpfNum.indexOf(tNum) > -1);
+    });
+  }
+
+  // Guarda lista filtrada para paginação
+  _listaFiltrada = lista;
+  _paginaSync    = pagina;
+
+  var inicio = (pagina - 1) * CONFIG_JS.MAX_RESULTS;
+  var fim    = inicio + CONFIG_JS.MAX_RESULTS;
+
+  _renderizarLista({
+    dados:   lista.slice(inicio, fim),
+    total:   lista.length,
+    pagina:  pagina,
+    temMais: fim < lista.length
+  });
+}
+
+
+
+// ── Relógio do sidebar ────────────────────────────────────────────────────
+function _atualizarRelogio() {
+  var el = document.getElementById('sidebarRelogio');
+  if (!el) return;
+  var now = new Date();
+  var dd  = String(now.getDate()).padStart(2,'0');
+  var mm  = String(now.getMonth()+1).padStart(2,'0');
+  var aa  = now.getFullYear();
+  var hh  = String(now.getHours()).padStart(2,'0');
+  var mi  = String(now.getMinutes()).padStart(2,'0');
+  var ss  = String(now.getSeconds()).padStart(2,'0');
+  el.textContent = dd+'/'+mm+'/'+aa+' - '+hh+':'+mi+':'+ss;
+}
+
+// ── Init ao carregar ──────────────────────────────────────────────────────
+window.addEventListener('load', function() {
+  // Força favicon após renderização
+  var link = document.querySelector("link[rel='icon']") || document.createElement('link');
+  link.rel  = 'icon';
+  link.type = 'image/png';
+  link.href = 'https://img.icons8.com/stickers/96/cloud--v1.png';
+  document.head.appendChild(link);
+
+  carregarMensagemSistema();
+  _atualizarRelogio();
+  setInterval(_atualizarRelogio, 1000);
+});
+</script>

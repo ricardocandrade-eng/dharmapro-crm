@@ -1,0 +1,1900 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DharmaPro</title>
+  <link rel="icon" type="image/png" href="https://img.icons8.com/stickers/96/cloud--v1.png">
+  <meta name="msapplication-TileImage" content="https://img.icons8.com/stickers/144/cloud--v1.png">
+  <meta name="msapplication-square70x70logo" content="https://img.icons8.com/stickers/70/cloud--v1.png">
+  <meta name="msapplication-square150x150logo" content="https://img.icons8.com/stickers/150/cloud--v1.png">
+  <meta name="msapplication-square310x310logo" content="https://img.icons8.com/stickers/310/cloud--v1.png">
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DharmaPro</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #141720;
+      --surface2: #1c2030;
+      --border:   #252a3a;
+      --border2:  #353d58;
+      --accent:   #e63e6d;
+      --accent-h: #c73260;
+      --green:    #22d98a;
+      --blue:     #4f9eff;
+      --yellow:   #f7a23b;
+      --purple:   #a78bfa;
+      --text:     #e4e8f5;
+      --muted:    #7a82a0;
+      --radius:   12px;
+      --panel-w:  320px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Sora', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── Loading ── */
+    #loading { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; }
+    #loading.ativo { display: flex; }
+    .spinner { width: 44px; height: 44px; border: 3px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { color: var(--muted); margin-top: 14px; font-size: 13px; font-family: 'DM Mono', monospace; }
+
+    /* ── Login ── */
+    #loginContainer { min-height: 100vh; display: flex; justify-content: center; align-items: center; background: var(--bg); padding: 20px; position: relative; overflow: hidden; }
+    #loginContainer::before { content: ''; position: absolute; top: -120px; right: -120px; width: 500px; height: 500px; background: radial-gradient(circle, rgba(230,62,109,0.12), transparent 65%); pointer-events: none; }
+    #loginContainer::after  { content: ''; position: absolute; bottom: -100px; left: -100px; width: 400px; height: 400px; background: radial-gradient(circle, rgba(79,158,255,0.08), transparent 65%); pointer-events: none; }
+    .login-box { background: var(--surface); border: 1px solid var(--border); padding: 44px 40px; border-radius: 18px; width: 100%; max-width: 400px; position: relative; z-index: 1; box-shadow: 0 24px 60px rgba(0,0,0,0.5); }
+    .login-logo { text-align: center; margin-bottom: 32px; }
+    .login-logo .tag { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 3px; text-transform: uppercase; display: block; margin-bottom: 10px; }
+    .login-logo h1 { font-size: 26px; font-weight: 800; }
+    .login-logo h1 span { color: var(--accent); }
+    .login-logo p { color: var(--muted); font-size: 13px; margin-top: 6px; }
+    .form-field { margin-bottom: 18px; }
+    .form-field label { display: block; margin-bottom: 7px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+    .form-field input { width: 100%; padding: 12px 14px; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; color: var(--text); font-family: 'Sora', sans-serif; transition: border-color 0.2s; }
+    .form-field input:focus { outline: none; border-color: var(--accent); }
+    .form-field input::placeholder { color: var(--muted); }
+    .login-error { background: rgba(230,62,109,0.1); border: 1px solid rgba(230,62,109,0.3); border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--accent); margin-bottom: 16px; display: none; }
+
+    /* ── Botões ── */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 11px 20px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; font-family: 'Sora', sans-serif; cursor: pointer; transition: background 0.2s, transform 0.1s; text-transform: uppercase; letter-spacing: 0.5px; }
+    .btn:hover  { background: var(--accent-h); }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { background: var(--border2); cursor: not-allowed; color: var(--muted); }
+    .btn-full  { width: 100%; padding: 13px; }
+    .btn-ghost { background: transparent; border: 1.5px solid var(--border2); color: var(--muted); }
+    .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+    .btn-sm    { padding: 6px 12px; font-size: 11px; }
+
+    /* ── Shell ── */
+    #sistema { display: none; min-height: 100vh; }
+
+    .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 230px; background: var(--surface); border-right: 1px solid var(--border); z-index: 100; display: flex; flex-direction: column; }
+    .sidebar-top { padding: 28px 24px 24px; border-bottom: 1px solid var(--border); }
+    .sidebar-tag { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 6px; display: block; }
+    .sidebar-top h2 { font-size: 18px; font-weight: 800; }
+    .sidebar-top p  { font-size: 11px; color: var(--muted); margin-top: 3px; font-family: 'DM Mono', monospace; }
+    .sidebar-user { padding: 20px 24px 18px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+    .user-avatar { width: 72px; height: 72px; border-radius: 50%; border: 2px solid rgba(230,62,109,0.5); display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; background: rgba(230,62,109,0.1); box-shadow: 0 0 0 4px rgba(230,62,109,0.08); }
+    .user-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+    .user-avatar .initials { font-size: 22px; font-weight: 700; color: var(--accent); font-family: 'DM Mono', monospace; }
+    .user-info { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .user-info .name { font-size: 13px; font-weight: 700; }
+    .user-info .role { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; letter-spacing: 1px; text-transform: uppercase; }
+    .nav-section { padding: 16px 0; flex: 1; }
+    .nav-label { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; padding: 0 24px 8px; }
+    .nav-item { padding: 11px 24px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; display: flex; align-items: center; gap: 10px; border-left: 2px solid transparent; transition: all 0.15s; }
+    .nav-item:hover { color: var(--text); background: var(--surface2); }
+    .nav-item.ativo { color: var(--text); border-left-color: var(--accent); background: rgba(230,62,109,0.07); }
+    .nav-item .icon { font-size: 15px; width: 20px; text-align: center; }
+    .rodape { position: fixed; bottom: 0; left: 230px; right: 0; height: 24px; background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: center; z-index: 50; }
+    .rodape span { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: .5px; opacity: .6; }
+
+    /* ── Main area ── */
+    .main { margin-left: 230px; min-height: 100vh; display: flex; flex-direction: column; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .topbar .crumb { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+    .topbar .crumb-sep { color: var(--border2); }
+    .topbar .crumb-active { color: var(--accent); font-weight: 600; }
+
+    /* ── Pages ── */
+    .page { display: none; flex: 1; }
+    .page.ativa { display: flex; flex-direction: column; animation: fadeUp 0.25s ease; }
+    /* Dashboard page — ocupa tela toda via classe, não style inline */
+    .page-full { }
+    .page-full.ativa { display: block !important; position: fixed; top: 49px; left: 230px; right: 0; bottom: 0; overflow: hidden; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── Formulário page (scroll normal) ── */
+    #pageFormulario.ativa {
+      display: block !important;
+      position: fixed;
+      top: 49px; left: 230px; right: 0; bottom: 0;
+      overflow-y: auto;
+      padding: 20px 24px;
+    }
+    .form-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+    .form-col { display: flex; flex-direction: column; gap: 16px; }
+    .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+    .page-header h2 { font-size: 20px; font-weight: 800; }
+    .page-header p  { color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 22px; margin-bottom: 16px; }
+    .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .card-header h3 { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+    .card-icon { width: 28px; height: 28px; background: rgba(230,62,109,0.1); border: 1px solid rgba(230,62,109,0.2); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    .form-group { display: flex; flex-direction: column; }
+    .form-group.span2 { grid-column: span 2; }
+    .form-group.span3 { grid-column: 1 / -1; }
+    .form-group label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+    .form-group input, .form-group select { padding: 9px 12px; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 7px; font-size: 13px; color: var(--text); font-family: 'Sora', sans-serif; transition: border-color 0.2s; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+    .form-group input::placeholder { color: var(--muted); }
+    .form-group select option { background: var(--surface2); }
+    .form-group .hint { font-size: 10px; color: var(--muted); margin-top: 4px; font-family: 'DM Mono', monospace; }
+    .form-group.error input, .form-group.error select { border-color: var(--accent); }
+    .form-group .err-msg { font-size: 11px; color: var(--accent); margin-top: 4px; display: none; }
+    .form-group.error .err-msg { display: block; }
+    .form-actions { display: flex; gap: 12px; align-items: center; padding-top: 4px; }
+
+    /* ── Lista page — posicionada como fixed para painel 100% estável ── */
+    /* pageLista.ativa ocupa o espaço restante após sidebar+topbar via position fixed */
+    #pageLista.ativa {
+      display: block !important;
+      position: fixed;
+      top: 49px;
+      left: 230px;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    /* Wrapper interno — divide lista | painel */
+    .lista-e-painel {
+      display: flex;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Coluna lista: cresce, tem scroll próprio */
+    .lista-col {
+      flex: 1;
+      display: flex; flex-direction: column;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      min-width: 0;
+    }
+    .lista-head {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      background: var(--bg);
+    }
+    .lista-head h2 { font-size: 18px; font-weight: 800; margin-bottom: 12px; }
+    .list-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+    .search-wrap { flex: 1; min-width: 160px; position: relative; }
+    .search-wrap input { width: 100%; padding: 9px 12px 9px 34px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--text); font-family: 'Sora', sans-serif; transition: border-color 0.2s; }
+    .search-wrap input:focus { outline: none; border-color: var(--accent); }
+    .search-wrap input::placeholder { color: var(--muted); }
+    .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; }
+    .list-meta { padding: 8px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .list-meta span { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+    /* Área de scroll da lista */
+    .lista-scroll { flex: 1; overflow-y: auto; padding: 12px 16px; }
+    .lista-scroll::-webkit-scrollbar { width: 4px; }
+    .lista-scroll::-webkit-scrollbar-track { background: transparent; }
+    .lista-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* Paginação fica fora do scroll */
+    .pagination { padding: 12px; border-top: 1px solid var(--border); display: none; justify-content: center; align-items: center; gap: 10px; flex-shrink: 0; background: var(--bg); }
+    .pag-info { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+    /* ── Venda item (compacto para lista densa) ── */
+    .venda-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 7px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .venda-item:hover { border-color: var(--border2); background: var(--surface2); }
+    .venda-item.selecionado { border-color: var(--accent); background: rgba(230,62,109,0.05); }
+
+    .venda-row {
+      padding: 12px 14px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .venda-info { flex: 1; min-width: 0; }
+    .venda-nome-linha { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; flex-wrap: wrap; }
+    .venda-nome-linha h4 { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+    .venda-cpf { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; white-space: nowrap; }
+    .venda-badges { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+
+    .badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; font-family: 'DM Mono', monospace; }
+    .badge-status { background: transparent !important; border: 1.5px solid; /* cor inline via style */ }
+    .badge-meta    { background: var(--surface2); border: 1px solid var(--border2); color: var(--muted); }
+    .badge-produto { background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.3); color: var(--purple); }
+    .badge-plano   { background: rgba(79,158,255,0.12);  border: 1px solid rgba(79,158,255,0.25); color: var(--blue); }
+
+    .venda-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .venda-date  { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+    /* Botão popup "📋" */
+    .btn-popup { background: rgba(230,62,109,0.1); border: 1px solid rgba(230,62,109,0.25); color: var(--accent); border-radius: 6px; padding: 4px 8px; font-size: 13px; cursor: pointer; transition: background 0.15s; line-height: 1; }
+    .btn-popup:hover { background: rgba(230,62,109,0.22); }
+
+    /* Seta indicadora de selecionado */
+    .venda-arrow { font-size: 10px; color: var(--muted); transition: color 0.15s; }
+    .venda-item.selecionado .venda-arrow { color: var(--accent); }
+
+    /* ── Painel lateral de detalhes — largura fixa, nunca rola ── */
+    .painel-detalhes {
+      width: var(--panel-w);
+      flex-shrink: 0;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      height: 100%;
+    }
+    .painel-vazio {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      color: var(--muted); text-align: center; padding: 24px;
+    }
+    .painel-vazio .ico { font-size: 36px; margin-bottom: 12px; opacity: 0.5; }
+    .painel-vazio p { font-size: 13px; line-height: 1.6; }
+
+    /* Quando há venda selecionada */
+    .painel-conteudo { display: none; flex-direction: column; height: 100%; }
+    .painel-conteudo.ativo { display: flex; }
+
+    .painel-topo {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .painel-nome { font-size: 15px; font-weight: 800; margin-bottom: 4px; line-height: 1.2; }
+    .painel-cpf  { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 8px; }
+    .painel-status-wrap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+    /* Scroll interno do painel */
+    .painel-scroll {
+      flex: 1; overflow-y: auto; padding: 12px 16px;
+    }
+    .painel-scroll::-webkit-scrollbar { width: 3px; }
+    .painel-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* Seções dentro do painel */
+    .painel-secao { margin-bottom: 14px; }
+    .painel-secao-titulo {
+      font-size: 9px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 2px;
+      font-family: 'DM Mono', monospace;
+      margin-bottom: 7px; padding-bottom: 5px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 5px;
+    }
+    .painel-linha {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+    }
+    .painel-linha:last-child { border-bottom: none; }
+    .painel-lbl { color: var(--muted); flex-shrink: 0; margin-right: 8px; }
+    .painel-val { color: var(--text); font-weight: 600; text-align: right; word-break: break-word; max-width: 65%; }
+
+    /* Ações do painel */
+    .painel-acoes {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 8px;
+      flex-shrink: 0;
+    }
+    .painel-acoes-row { display: flex; gap: 8px; }
+    .painel-acoes .btn { flex: 1; font-size: 11px; padding: 9px 10px; }
+
+    /* ── Empty / Toast ── */
+    .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
+    .empty .empty-icon { font-size: 36px; margin-bottom: 10px; }
+    .empty h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+    .empty p  { font-size: 12px; }
+
+    .toast { position: fixed; top: 20px; right: 20px; padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 600; z-index: 10000; display: flex; align-items: center; gap: 8px; animation: toastIn 0.3s ease; max-width: 340px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+    @keyframes toastIn { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .toast.success { background: #0d2a1e; border: 1px solid #1a4a32; color: var(--green); }
+    .toast.error   { background: #2a0d15; border: 1px solid rgba(230,62,109,0.4); color: var(--accent); }
+    .toast.warning { background: #2a1e0d; border: 1px solid rgba(247,162,59,0.4); color: var(--yellow); }
+    .toast.info    { background: #0d1a2a; border: 1px solid rgba(79,158,255,0.3); color: var(--blue); }
+
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main    { margin-left: 0; }
+      #pageLista.ativa  { left: 0; top: 49px; }
+      #pageFormulario.ativa { left: 0; }
+      .painel-detalhes  { display: none; }
+      .form-layout      { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 768px) {
+      #pageLista.ativa { top: 0; }
+    }
+    @media (max-width: 768px) {
+      .sidebar { width: 100%; position: relative; height: auto; }
+      .main { margin-left: 0; }
+      .form-grid { grid-template-columns: 1fr; }
+      .form-group.span2, .form-group.span3 { grid-column: 1; }
+    }
+
+    /* ══════════════════════════════════════════════════════
+       FUNIL DE INSTALAÇÕES
+    ══════════════════════════════════════════════════════ */
+    #pageFunil.ativa {
+      display: flex !important;
+      flex-direction: column;
+      position: fixed;
+      top: 49px;
+      left: 230px;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    .funil-toolbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0; flex-wrap: wrap;
+    }
+    .funil-toolbar h2 { font-size: 16px; font-weight: 800; }
+    .funil-count { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+    /* Área das 3 colunas — scroll horizontal se necessário */
+    .funil-cols {
+      flex: 1; overflow: hidden;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0;
+    }
+
+    /* Cada coluna do funil */
+    .funil-col {
+      display: flex; flex-direction: column;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      transition: background 0.15s;
+    }
+    .funil-col:last-child { border-right: none; }
+    .funil-col.drag-over  { background: rgba(230,62,109,0.04); }
+
+    .funil-col-head {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .funil-col-stripe {
+      width: 4px; height: 36px;
+      border-radius: 3px; flex-shrink: 0;
+    }
+    .funil-col-info { flex: 1; }
+    .funil-col-title {
+      font-size: 13px; font-weight: 800;
+      margin-bottom: 2px;
+    }
+    .funil-col-sub {
+      font-size: 10px; color: var(--muted);
+      font-family: 'DM Mono', monospace;
+    }
+    .funil-col-count {
+      font-size: 22px; font-weight: 800;
+      font-family: 'DM Mono', monospace;
+      color: var(--muted);
+    }
+
+    /* Scroll dos cards */
+    .funil-col-cards {
+      flex: 1; overflow-y: auto;
+      padding: 12px;
+      display: flex; flex-direction: column; gap: 8px;
+      min-height: 80px;
+    }
+    .funil-col-cards::-webkit-scrollbar { width: 3px; }
+    .funil-col-cards::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* Card do funil */
+    .funil-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      cursor: grab;
+      user-select: none;
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+      position: relative;
+    }
+    .funil-card:hover {
+      border-color: var(--border2);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+    }
+    .funil-card.dragging { opacity: 0.4; transform: scale(0.97); cursor: grabbing; }
+    .funil-card.saving   { opacity: 0.5; pointer-events: none; }
+
+    .funil-card-nome {
+      font-size: 13px; font-weight: 700;
+      margin-bottom: 8px; line-height: 1.3;
+    }
+    .funil-card-row {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      margin-bottom: 4px;
+    }
+    .funil-card-row:last-of-type { margin-bottom: 0; }
+
+    /* Badge de agendamento */
+    .funil-badge-agenda {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(79,158,255,0.12);
+      border: 1px solid rgba(79,158,255,0.25);
+      color: var(--blue);
+      font-size: 10px; font-weight: 700;
+      padding: 2px 8px; border-radius: 20px;
+      font-family: 'DM Mono', monospace;
+      margin-top: 8px;
+    }
+    .funil-badge-agenda.vencido {
+      background: rgba(230,62,109,0.12);
+      border-color: rgba(230,62,109,0.3);
+      color: var(--accent);
+    }
+
+    /* Placeholder de drop */
+    .funil-placeholder {
+      height: 74px;
+      border: 2px dashed var(--accent);
+      border-radius: 10px;
+      background: rgba(230,62,109,0.05);
+      pointer-events: none;
+      flex-shrink: 0;
+    }
+
+    /* Empty state */
+    .funil-empty {
+      text-align: center; padding: 32px 16px;
+      color: var(--muted); font-size: 12px;
+      font-family: 'DM Mono', monospace;
+      border: 1.5px dashed var(--border);
+      border-radius: 10px; margin: 4px;
+    }
+
+    /* Modal de confirmação de move */
+    /* ══════════════════════════════════════════════════════
+       MODAIS — base compartilhada por todos os modais
+    ══════════════════════════════════════════════════════ */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 5000;
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-overlay.ativo { display: flex; }
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 520px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.6);
+    }
+    .modal-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .modal-head h3 { font-size: 15px; font-weight: 800; }
+    .modal-close {
+      background: none; border: none; color: var(--muted);
+      font-size: 18px; cursor: pointer; padding: 4px 8px;
+      border-radius: 6px; transition: background 0.15s, color 0.15s;
+    }
+    .modal-close:hover { background: var(--surface2); color: var(--text); }
+    .modal-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
+    .modal-foot {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      display: flex; gap: 10px; justify-content: flex-end;
+      flex-shrink: 0;
+    }
+
+    #modalFunilMove .modal-box { max-width: 420px; }
+    .funil-move-destino {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 16px;
+    }
+    .funil-move-destino .stripe {
+      width: 4px; height: 32px; border-radius: 3px;
+    }
+    .funil-move-destino strong { font-size: 14px; font-weight: 800; }
+    .funil-move-destino span   { font-size: 11px; color: var(--muted); display: block; margin-top: 2px; }
+    .funil-campo-extra { margin-top: 4px; }
+    .funil-campo-extra label {
+      display: block; font-size: 10px; font-weight: 700;
+      color: var(--muted); text-transform: uppercase;
+      letter-spacing: 1.5px; margin-bottom: 6px;
+    }
+    .funil-campo-extra input, .funil-campo-extra textarea {
+      width: 100%; padding: 10px 13px;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px; color: var(--text);
+      font-family: 'Sora', sans-serif;
+      transition: border-color 0.2s;
+      resize: vertical;
+    }
+    .funil-campo-extra input:focus,
+    .funil-campo-extra textarea:focus { outline: none; border-color: var(--accent); }
+    .funil-campo-extra textarea { min-height: 80px; }
+    .funil-campo-extra .hint-campo {
+      font-size: 10px; color: var(--muted);
+      margin-top: 4px; font-family: 'DM Mono', monospace;
+    }
+
+    /* ══════════════════════════════════════════════════════
+       BOTÃO FLUTUANTE + MODAL DE OFERTAS
+    ══════════════════════════════════════════════════════ */
+
+    /* Botão flutuante */
+    .fab-ofertas {
+      position: fixed;
+      bottom: 28px; right: 28px;
+      width: 56px; height: 56px;
+      background: linear-gradient(135deg, #e63e6d 0%, #c73260 100%);
+      border: none; border-radius: 50%;
+      color: white; font-size: 22px;
+      cursor: pointer; z-index: 2000;
+      box-shadow: 0 6px 20px rgba(230,62,109,0.45);
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .fab-ofertas:hover {
+      transform: scale(1.1);
+      box-shadow: 0 8px 28px rgba(230,62,109,0.6);
+    }
+    .fab-ofertas:active { transform: scale(0.95); }
+
+    /* Modal de ofertas — usa modal-overlay existente mas com estilos próprios */
+    #modalOfertas .modal-box {
+      max-width: 480px;
+      max-height: 88vh;
+    }
+
+    /* Step 1: seleção de cidade */
+    .ofertas-cidade-list {
+      display: flex; flex-direction: column; gap: 4px;
+      max-height: 340px; overflow-y: auto;
+      padding-right: 4px;
+    }
+    .ofertas-cidade-list::-webkit-scrollbar { width: 3px; }
+    .ofertas-cidade-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    .ofertas-cidade-item {
+      padding: 10px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .ofertas-cidade-item:hover {
+      border-color: var(--accent);
+      background: rgba(230,62,109,0.06);
+      color: var(--accent);
+    }
+
+    .ofertas-search {
+      width: 100%;
+      padding: 10px 13px;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px; color: var(--text);
+      font-family: 'Sora', sans-serif;
+      margin-bottom: 12px;
+      transition: border-color 0.2s;
+    }
+    .ofertas-search:focus { outline: none; border-color: var(--accent); }
+
+    /* Step 2: resultado das ofertas */
+    .ofertas-header {
+      background: linear-gradient(135deg, #e63e6d 0%, #a01845 100%);
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin-bottom: 14px;
+    }
+    .ofertas-header-cidade {
+      font-size: 18px; font-weight: 800;
+      color: white; margin-bottom: 6px;
+    }
+    .ofertas-header-info {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 8px;
+    }
+    .ofertas-header-tag {
+      font-size: 10px; font-weight: 700;
+      background: rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.9);
+      padding: 3px 8px; border-radius: 20px;
+      font-family: 'DM Mono', monospace;
+    }
+    .ofertas-header-meta {
+      font-size: 10px;
+      color: rgba(255,255,255,0.6);
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* Grupos de categorias */
+    .ofertas-grupo {
+      margin-bottom: 14px;
+    }
+    .ofertas-grupo-titulo {
+      font-size: 10px; font-weight: 800;
+      text-transform: uppercase; letter-spacing: 1.5px;
+      color: var(--muted);
+      padding: 6px 0 8px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 6px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .ofertas-plano-row {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 4px;
+      transition: border-color 0.15s;
+    }
+    .ofertas-plano-row:hover { border-color: var(--border2); }
+    .ofertas-plano-nome {
+      font-size: 12px; font-weight: 600; color: var(--text);
+    }
+    .ofertas-plano-valor {
+      font-size: 15px; font-weight: 800;
+      color: var(--green);
+      font-family: 'DM Mono', monospace;
+      white-space: nowrap;
+    }
+
+    /* Botão copiar WhatsApp */
+    .btn-whats-ofertas {
+      width: 100%;
+      background: #1fad5a;
+      border: none; border-radius: 8px;
+      color: white; font-size: 13px; font-weight: 800;
+      padding: 12px;
+      cursor: pointer;
+      font-family: 'Sora', sans-serif;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: background 0.15s;
+      margin-bottom: 4px;
+    }
+    .btn-whats-ofertas:hover { background: #17a34a; }
+
+    /* Ícones de categoria */
+    .cat-icon { font-size: 13px; }
+
+    /* Loading state */
+    .ofertas-loading {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+    }
+
+    /* ══════════════════════════════════════════════════════
+       KANBAN TRATAMENTO DE LEADS
+    ══════════════════════════════════════════════════════ */
+    #pageLeads.ativa {
+      display: flex !important;
+      flex-direction: column;
+      position: fixed;
+      top: 49px; left: 230px; right: 0; bottom: 0;
+      overflow: hidden;
+      z-index: 10;
+    }
+    .leads-toolbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0; flex-wrap: wrap;
+    }
+    .leads-toolbar h2 { font-size: 16px; font-weight: 800; }
+    .leads-count { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+    /* Grid das 4 colunas */
+    .leads-cols {
+      flex: 1; overflow: hidden;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+    }
+
+    /* Cada coluna */
+    .leads-col {
+      display: flex; flex-direction: column;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      transition: background 0.15s;
+    }
+    .leads-col:last-child { border-right: none; }
+    .leads-col.drag-over  { background: rgba(230,62,109,0.04); }
+
+    .leads-col-head {
+      padding: 12px 14px 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .leads-col-stripe {
+      width: 4px; height: 34px;
+      border-radius: 3px; flex-shrink: 0;
+    }
+    .leads-col-info { flex: 1; }
+    .leads-col-title { font-size: 13px; font-weight: 800; margin-bottom: 2px; }
+    .leads-col-sub   { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; }
+    .leads-col-count { font-size: 22px; font-weight: 800; font-family: 'DM Mono', monospace; color: var(--muted); }
+
+    .leads-col-cards {
+      flex: 1; overflow-y: auto;
+      padding: 10px;
+      display: flex; flex-direction: column; gap: 7px;
+      min-height: 60px;
+    }
+    .leads-col-cards::-webkit-scrollbar { width: 3px; }
+    .leads-col-cards::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    /* Card de lead */
+    .leads-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 10px 12px;
+      cursor: grab;
+      user-select: none;
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    .leads-card:hover { border-color: var(--border2); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    .leads-card.dragging { opacity: 0.4; transform: scale(0.97); cursor: grabbing; }
+    .leads-card.saving   { opacity: 0.5; pointer-events: none; }
+
+    .leads-card-nome  { font-size: 12px; font-weight: 700; margin-bottom: 6px; line-height: 1.3; }
+    .leads-card-row   { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 3px; display: flex; align-items: center; gap: 5px; }
+
+    /* Badge temperatura */
+    .leads-temp-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 9px; font-weight: 800;
+      padding: 2px 7px; border-radius: 20px;
+      font-family: 'DM Mono', monospace;
+      margin-top: 7px;
+    }
+    .leads-temp-badge.quente  { background: rgba(230,62,109,0.15); color: #e63e6d; border: 1px solid rgba(230,62,109,0.3); }
+    .leads-temp-badge.morno   { background: rgba(247,162,59,0.15); color: #f7a23b; border: 1px solid rgba(247,162,59,0.3); }
+    .leads-temp-badge.frio    { background: rgba(79,158,255,0.12); color: var(--blue); border: 1px solid rgba(79,158,255,0.25); }
+    .leads-temp-badge.aguardando { background: rgba(34,217,138,0.12); color: var(--green); border: 1px solid rgba(34,217,138,0.25); }
+
+    /* Badge de produto */
+    .leads-produto-badge {
+      font-size: 9px; font-weight: 700;
+      padding: 2px 6px; border-radius: 4px;
+      background: rgba(167,139,250,0.15);
+      color: var(--purple);
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* Placeholder drag */
+    .leads-placeholder {
+      height: 64px;
+      border: 2px dashed var(--accent);
+      border-radius: 9px;
+      background: rgba(230,62,109,0.05);
+      pointer-events: none;
+      flex-shrink: 0;
+    }
+
+    /* Empty */
+    .leads-empty {
+      text-align: center; padding: 28px 12px;
+      color: var(--muted); font-size: 11px;
+      font-family: 'DM Mono', monospace;
+      border: 1.5px dashed var(--border);
+      border-radius: 9px; margin: 4px;
+    }
+
+    /* Modal de mover para Aguardando */
+    #modalLeadsMove .modal-box { max-width: 430px; }
+    .leads-campo {
+      margin-bottom: 14px;
+    }
+    .leads-campo label {
+      display: block; font-size: 10px; font-weight: 700;
+      color: var(--muted); text-transform: uppercase;
+      letter-spacing: 1.5px; margin-bottom: 6px;
+    }
+    .leads-campo input,
+    .leads-campo select,
+    .leads-campo textarea {
+      width: 100%; padding: 10px 13px;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px; color: var(--text);
+      font-family: 'Sora', sans-serif;
+      transition: border-color 0.2s;
+    }
+    .leads-campo input:focus,
+    .leads-campo select:focus,
+    .leads-campo textarea:focus { outline: none; border-color: var(--accent); }
+    .leads-campo textarea { min-height: 70px; resize: vertical; }
+    .leads-campo select option { background: var(--surface); }
+    .leads-move-info {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      background: rgba(34,217,138,0.07);
+      border: 1px solid rgba(34,217,138,0.2);
+      border-radius: 9px;
+      margin-bottom: 16px;
+    }
+    .leads-move-info strong { font-size: 13px; font-weight: 800; color: var(--green); }
+    .leads-move-info span   { font-size: 11px; color: var(--muted); display: block; margin-top: 2px; }
+
+    /* ══════════════════════════════════════════════════════
+       PAGAMENTOS PAP
+    ══════════════════════════════════════════════════════ */
+    #pagePAP.ativa {
+      display: flex !important;
+      flex-direction: column;
+      position: fixed;
+      top: 49px; left: 230px; right: 0; bottom: 0;
+      overflow: hidden; z-index: 10;
+    }
+
+    .pap-toolbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0; flex-wrap: wrap;
+    }
+    .pap-toolbar h2 { font-size: 16px; font-weight: 800; }
+
+    /* Cards de resumo no topo */
+    .pap-resumo {
+      display: flex; gap: 10px;
+      padding: 12px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      overflow-x: auto;
+    }
+    .pap-resumo::-webkit-scrollbar { height: 3px; }
+    .pap-resumo::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    .pap-resumo-card {
+      flex-shrink: 0;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 16px;
+      min-width: 150px;
+    }
+    .pap-resumo-card.total {
+      border-color: rgba(230,62,109,0.35);
+      background: rgba(230,62,109,0.06);
+    }
+    .pap-resumo-label {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.2px; color: var(--muted);
+      margin-bottom: 4px; font-family: 'DM Mono', monospace;
+    }
+    .pap-resumo-valor {
+      font-size: 18px; font-weight: 800;
+      color: var(--green); font-family: 'DM Mono', monospace;
+    }
+    .pap-resumo-card.total .pap-resumo-valor { color: var(--accent); }
+    .pap-resumo-sub {
+      font-size: 10px; color: var(--muted);
+      font-family: 'DM Mono', monospace; margin-top: 2px;
+    }
+
+    /* Filtro por vendedor */
+    .pap-filtro-wrap {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .pap-filtro-wrap label { font-size: 11px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+    .pap-filtro-select {
+      padding: 7px 12px;
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 12px; color: var(--text);
+      font-family: 'Sora', sans-serif;
+      cursor: pointer; flex: 1; max-width: 260px;
+    }
+    .pap-filtro-select:focus { outline: none; border-color: var(--accent); }
+    .pap-count { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+    /* Tabela de pagamentos */
+    .pap-scroll {
+      flex: 1; overflow-y: auto;
+      padding: 0;
+    }
+    .pap-scroll::-webkit-scrollbar { width: 4px; }
+    .pap-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    .pap-table {
+      width: 100%; border-collapse: collapse;
+    }
+    .pap-table thead th {
+      position: sticky; top: 0; z-index: 2;
+      background: var(--surface);
+      padding: 10px 14px;
+      font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      text-align: left; white-space: nowrap;
+    }
+    .pap-table tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.12s;
+    }
+    .pap-table tbody tr:hover { background: var(--surface2); }
+    .pap-table tbody tr.pago-ok { opacity: 0.45; }
+    .pap-table td {
+      padding: 10px 14px;
+      font-size: 12px; vertical-align: middle;
+    }
+    .pap-cliente  { font-weight: 700; color: var(--text); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pap-vendedor { font-weight: 600; color: var(--purple); }
+    .pap-contrato { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); }
+    .pap-data     { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); }
+    .pap-valor    { font-family: 'DM Mono', monospace; font-weight: 800; color: var(--green); white-space: nowrap; }
+    .pap-pix      { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--blue); max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Ações */
+    .pap-acoes { display: flex; gap: 6px; align-items: center; }
+    .pap-btn {
+      padding: 5px 10px; border-radius: 6px;
+      font-size: 11px; font-weight: 700;
+      cursor: pointer; border: none;
+      font-family: 'Sora', sans-serif;
+      transition: opacity 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+    .pap-btn:hover { opacity: 0.85; }
+    .pap-btn-zap  { background: rgba(37,211,102,0.15); color: #25d366; border: 1px solid rgba(37,211,102,0.3); }
+    .pap-btn-pago { background: rgba(34,217,138,0.12); color: var(--green); border: 1px solid rgba(34,217,138,0.25); }
+    .pap-btn-pago:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .pap-empty {
+      text-align: center; padding: 60px 20px;
+      color: var(--muted); font-size: 13px;
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* ── WIZARD ───────────────────────────────────────────────────────── */
+    .wiz-progress { padding: 24px 32px 8px; }
+    .wiz-track { height: 3px; background: var(--border); border-radius: 2px; margin-bottom: 16px; position: relative; }
+    .wiz-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .4s cubic-bezier(.4,0,.2,1); width: 0%; }
+    .wiz-steps { display: flex; justify-content: space-between; }
+    .wiz-step { display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: default; }
+    .wiz-icon { width: 34px; height: 34px; border-radius: 50%; background: var(--surface2); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all .3s; }
+    .wiz-lbl { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; transition: color .3s; }
+    .wiz-step.active .wiz-icon { background: rgba(230,62,109,.15); border-color: var(--accent); box-shadow: 0 0 0 4px rgba(230,62,109,.1); }
+    .wiz-step.active .wiz-lbl { color: var(--accent); font-weight: 700; }
+    .wiz-step.done .wiz-icon { background: rgba(230,62,109,.08); border-color: rgba(230,62,109,.4); }
+    .wiz-step.done .wiz-lbl { color: var(--text); }
+    .wiz-panel { display: none; animation: wiz-in .3s ease; }
+    .wiz-panel.active { display: block; }
+    @keyframes wiz-in { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+    .wiz-nav { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 24px 0 4px; }
+    .wiz-nav-btns { display: flex; gap: 12px; align-items: center; }
+    .wiz-nav-info { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: 1px; }
+    .wiz-btn { display: inline-flex; align-items: center; padding: 9px 24px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; font-family: 'DM Mono', monospace; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: all .2s; user-select: none; }
+    .wiz-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .wiz-btn-next { background: rgba(230,62,109,.1); border-color: rgba(230,62,109,.4); color: var(--accent); }
+    .wiz-btn[style*="hidden"] { visibility: hidden; pointer-events: none; }
+    .wiz-step { cursor: pointer; }
+    .wiz-step:hover .wiz-icon { border-color: var(--accent); color: var(--accent); }
+    .wiz-panel .form-grid { grid-template-columns: 1fr 1fr; }
+    .wiz-panel .card { max-width: 680px; margin: 0 auto; }
+    .wiz-panel .form-group { min-width: 0; }
+    .wiz-panel .hint { font-size: 11px; margin-top: 4px; display: block; line-height: 1.4; white-space: normal; word-break: break-word; }
+
+    /* ── TOPBAR BUSCA GLOBAL ────────────────────────────────────────────── */
+    .topbar { justify-content: flex-start; gap: 8px; position: relative; }
+    .topbar-search-wrap { margin-left: auto; position: relative; width: 260px; flex-shrink: 0; }
+    .topbar-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; pointer-events: none; }
+    .topbar-search-input { width: 100%; padding: 7px 12px 7px 32px; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; font-size: 12px; color: var(--text); font-family: 'Sora', sans-serif; transition: border-color .2s; box-sizing: border-box; }
+    .topbar-search-input:focus { outline: none; border-color: var(--accent); }
+    .topbar-search-input::placeholder { color: var(--muted); }
+    .busca-global-dropdown { display: none; position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,.5); z-index: 999; max-height: 420px; overflow-y: auto; }
+    .busca-global-dropdown.aberto { display: block; }
+    .busca-drop-item { padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .15s; }
+    .busca-drop-item:last-child { border-bottom: none; }
+    .busca-drop-item:hover { background: var(--surface2); }
+    .busca-drop-nome { font-size: 13px; font-weight: 600; color: var(--text); }
+    .busca-drop-meta { font-size: 11px; color: var(--muted); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .busca-drop-empty { padding: 20px; text-align: center; color: var(--muted); font-size: 12px; }
+    /* ── MENSAGEM DO SISTEMA ─────────────────────────────────────────────── */
+    .msg-sistema { display: flex; align-items: center; gap: 10px; padding: 7px 16px 7px 12px; border: 1.5px solid var(--accent); border-radius: 8px; background: rgba(230,62,109,.12); cursor: default; max-width: 380px; flex-shrink: 0; animation: msg-border-pulse 2s ease-in-out infinite; }
+    .msg-sistema-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex-shrink: 0; animation: msg-dot-blink .8s ease-in-out infinite; }
+    .msg-sistema-texto { font-size: 11px; font-family: 'DM Mono', monospace; color: #fff; letter-spacing: .5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    @keyframes msg-dot-blink { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0; transform: scale(.5); } }
+    @keyframes msg-border-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(230,62,109,.5), inset 0 0 0 0 rgba(230,62,109,0); } 50% { box-shadow: 0 0 12px 3px rgba(230,62,109,.35), inset 0 0 8px 0 rgba(230,62,109,.08); } }
+
+    /* ── Lista esmaecida quando painel aberto ───────────────────────────── */
+    .lista-col { transition: opacity .25s, filter .25s; }
+    .lista-col.painel-aberto { opacity: .45; filter: brightness(.7); pointer-events: none; }
+
+    /* ── Filtros da Lista ───────────────────────────────────────────────── */
+    .list-filtros { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+    .filtro-sel { padding: 7px 10px; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; color: var(--text); font-size: 12px; font-family: 'Sora', sans-serif; cursor: pointer; transition: border-color .2s; min-width: 160px; }
+    .filtro-sel:focus { outline: none; border-color: var(--accent); }
+    .filtro-sel.ativo { border-color: var(--accent); background: rgba(230,62,109,.07); color: var(--accent); }
+    .filtro-toggle { display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 12px; color: var(--muted); transition: all .2s; user-select: none; }
+    .filtro-toggle:hover { border-color: var(--accent); color: var(--text); }
+    .filtro-toggle input { display: none; }
+    .filtro-toggle.ativo { border-color: var(--accent); background: rgba(230,62,109,.07); color: var(--accent); font-weight: 600; }
+
+    /* ── Toggle Hoje no Funil ───────────────────────────────────────────── */
+    .funil-hoje-toggle { display: flex; align-items: center; gap: 5px; padding: 4px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 11px; color: var(--muted); transition: all .2s; user-select: none; white-space: nowrap; }
+    .funil-hoje-toggle:hover { border-color: var(--accent); color: var(--text); }
+    .funil-hoje-toggle input { display: none; }
+    .funil-hoje-toggle.ativo { background: rgba(230,62,109,.1); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+
+    /* ── Link Ver na lista nos cards Funil/Leads ────────────────────────── */
+    .funil-card-link { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--accent); opacity: .7; margin-top: 6px; cursor: pointer; letter-spacing: .5px; text-align: right; }
+    .funil-card-link:hover { opacity: 1; text-decoration: underline; }
+
+    /* ── VeroHub inline ─────────────────────────────────────────────────── */
+    .verohub-wrap { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+    .verohub-label { font-size: 9px; font-family: 'DM Mono', monospace; color: #FFFF26; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; font-weight: 700; }
+    .verohub-input { font-size: 11px; font-family: 'DM Mono', monospace; background: transparent; border: 1px solid var(--border2); border-radius: 5px; color: var(--text); padding: 2px 6px; width: 120px; cursor: pointer; transition: border-color .2s; }
+    .verohub-input:focus { outline: none; border-color: var(--accent); }
+    .verohub-dot { width: 8px; height: 8px; border-radius: 50%; background: #FFFF26; flex-shrink: 0; animation: vhub-blink 0.8s ease-in-out infinite; }
+    @keyframes vhub-blink { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255,255,38,.6); } 50% { opacity: .2; box-shadow: 0 0 6px 3px rgba(255,255,38,0); } }
+    .verohub-ok { font-size: 10px; color: #22d98a; }
+  </style>
+</head>
+<body>
+
+  <div id="loading" role="status" aria-live="polite">
+    <div class="spinner" aria-hidden="true"></div>
+    <p>Processando...</p>
+  </div>
+
+  <!-- Login -->
+  <div id="loginContainer">
+    <div class="login-box">
+      <div class="login-logo">
+        <span class="tag">DharmaPro</span>
+        <h1>Dharma<span>Pro</span></h1>
+        <p>Acesse com suas credenciais</p>
+      </div>
+      <div id="loginError" class="login-error"></div>
+      <form onsubmit="event.preventDefault(); fazerLogin();">
+        <div class="form-field">
+          <label>Usuário</label>
+          <input type="text" id="loginUsuario" placeholder="Digite seu usuário" required autocomplete="username">
+        </div>
+        <div class="form-field">
+          <label>Senha</label>
+          <input type="password" id="loginSenha" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-full" id="btnLogin">Entrar no Sistema</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Sync -->
+  <div id="syncContainer" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9998;flex-direction:column;align-items:center;justify-content:center;gap:24px;">
+    <div style="text-align:center;">
+      <div style="font-size:13px;font-weight:800;letter-spacing:3px;color:var(--accent);font-family:'DM Mono',monospace;text-transform:uppercase;margin-bottom:8px;">DharmaPro</div>
+      <div style="font-size:22px;font-weight:800;margin-bottom:4px;">Sincronizando...</div>
+      <div style="font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;" id="syncMsg">Carregando dados do sistema</div>
+    </div>
+    <div style="width:320px;max-width:80vw;">
+      <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
+        <div id="syncBar" style="height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width 0.4s ease;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;">
+        <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;" id="syncPct">0%</span>
+        <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;" id="syncEtapa">Iniciando...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sistema -->
+  <div id="sistema">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <span class="sidebar-tag">CRM</span>
+        <h2>DharmaPro</h2>
+        <p id="sidebarRelogio" style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:4px;letter-spacing:.5px;">—</p>
+        <p>v3.1</p>
+      </div>
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar"><span class="initials">—</span></div>
+        <div class="user-info">
+          <div class="name" id="nomeUsuario">—</div>
+          <div class="role">Operador</div>
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Menu</div>
+        <div class="nav-item ativo" id="menuDash"   onclick="navegar('dash')">      <span class="icon">◉</span> Dashboard</div>
+        <div class="nav-item"       id="menuNovo"   onclick="navegar('formulario')"><span class="icon">✦</span> Novo Cadastro</div>
+        <div class="nav-item"       id="menuLista"  onclick="navegar('lista')">     <span class="icon">≡</span> Lista de Vendas</div>
+        <div class="nav-item"       id="menuFunil"  onclick="navegar('funil')">     <span class="icon">◈</span> Funil Instalações</div>
+        <div class="nav-item"       id="menuLeads"  onclick="navegar('leads')">     <span class="icon">◎</span> Tratamento Leads</div>
+        <div class="nav-item"       id="menuPAP"    onclick="navegar('pap')">       <span class="icon">◇</span> Pagamentos PAP</div>
+        <div class="nav-item"       id="menuDocs"      onclick="navegar('docs')">       <span class="icon">❑</span> Documentos</div>
+        <div class="nav-item"       id="menuCruzamento" onclick="navegar('cruzamento')"> <span class="icon">🔀</span> Cruzamento Vero</div>
+        <div class="nav-item" id="menuIndicacoes" onclick="navegar('indicacoes')"><span class="icon">🤝</span> Indicações</div>
+      </div>
+      <div class="sidebar-footer">
+        <div class="nav-item" onclick="sair()" style="color:var(--accent);padding-left:0;"><span class="icon">⏏</span> Sair</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <span class="crumb">Sistema</span>
+        <span class="crumb-sep">›</span>
+        <span class="crumb crumb-active" id="breadcrumbTexto">Nova Venda</span>
+        <div class="topbar-search-wrap">
+          <span class="topbar-search-icon">🔍</span>
+          <input type="text" id="buscaGlobal" class="topbar-search-input" placeholder="Buscar por nome, CPF ou contrato..." oninput="buscaGlobalInstantanea(this.value)" autocomplete="off">
+          <div class="busca-global-dropdown" id="buscaGlobalDropdown"></div>
+        </div>
+
+        <div class="msg-sistema" id="msgSistema" style="display:none">
+          <span class="msg-sistema-dot"></span>
+          <span class="msg-sistema-texto" id="msgSistemaTexto"></span>
+        </div>
+      </div>
+
+      <!-- ── FORMULÁRIO ── -->
+      <!-- ── DASHBOARD ── -->
+      <div id="pageDash" class="page page-full">
+        <div id="dashContainer" style="width:100%;height:100%;overflow-y:auto;"></div>
+      </div>
+
+      <!-- ── DOCUMENTOS ── -->
+      <div id="pageDocs" class="page page-full">
+        <div id="docsContainer" style="width:100%;height:100%;overflow-y:auto;"></div>
+      </div>
+
+      <div id="pageFormulario" class="page ativa">
+        <div class="page-header">
+          <div>
+            <h2 id="formTitulo">Novo Cadastro</h2>
+            <p id="formSubtitulo">Preencha os dados do cliente e do plano</p>
+          </div>
+        </div>
+        <form id="formVendas" onsubmit="event.preventDefault(); salvar();" novalidate>
+          <input type="hidden" id="f_linha">
+
+          <!-- ── BARRA DE PROGRESSO ─────────────────────────────── -->
+          <div class="wiz-progress">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Preenchimento</span>
+              <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);font-weight:700;" id="wizProgressPct">0%</span>
+            </div>
+            <div class="wiz-track">
+              <div class="wiz-fill" id="wizFill"></div>
+            </div>
+            <div class="wiz-steps">
+              <div class="wiz-step active" id="wizDot0" onclick="wizIr(0)"><span class="wiz-icon">⭐</span><span class="wiz-lbl">Classificação</span></div>
+              <div class="wiz-step       " id="wizDot1" onclick="wizIr(1)"><span class="wiz-icon">👤</span><span class="wiz-lbl">Cliente</span></div>
+              <div class="wiz-step       " id="wizDot2" onclick="wizIr(2)"><span class="wiz-icon">📍</span><span class="wiz-lbl">Endereço</span></div>
+              <div class="wiz-step       " id="wizDot3" onclick="wizIr(3)"><span class="wiz-icon">📦</span><span class="wiz-lbl">Plano</span></div>
+            </div>
+          </div>
+
+          <!-- ── STEP 0 — Status e Classificação ───────────────── -->
+          <div class="wiz-panel active" id="wizPanel0">
+            <div class="card">
+              <div class="card-header"><div class="card-icon">⭐</div><h3>Status e Classificação</h3></div>
+              <div class="form-grid">
+                <div class="form-group" id="grp_status">
+                  <label>Status Atual *</label>
+                  <select id="f_status" required>
+                    <option value="">Selecione...</option>
+                    <option>1- Conferencia/Ativação</option>
+                    <option>2- Aguardando Instalação</option>
+                    <option>2- Aguardando Entrega</option>
+                    <option>3 - Finalizada/Instalada</option>
+                    <option>3- Aguardando Retirada</option>
+                    <option>4- Entregue</option>
+                    <option>5 - Finalizado</option>
+                    <option>Pendencia Vero</option>
+                    <option>Cancelado</option>
+                    <option>Cancelamento Técnico</option>
+                    <option>Cancelamento Comercial</option>
+                    <option>Churn</option>
+                    <option>Devolvido</option>
+                  </select>
+                  <span class="err-msg">Selecione um status.</span>
+                </div>
+                <div class="form-group"><label>Data Ativação</label><input type="date" id="f_dataAtiv"></div>
+                <div class="form-group">
+                  <label>Canal</label>
+                  <select id="f_canal">
+                    <option value="">Selecione...</option>
+                    <option>ATIVO</option><option>INDICAÇÃO</option><option>PAP</option>
+                    <option>META ADS</option><option>GOOGLE ADS</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── STEP 1 — Dados do Cliente ─────────────────────── -->
+          <div class="wiz-panel" id="wizPanel1">
+            <div class="card">
+              <div class="card-header"><div class="card-icon">👤</div><h3>Dados do Cliente</h3></div>
+              <div class="form-grid">
+                <div class="form-group span2" id="grp_cliente">
+                  <label>Nome Completo *</label>
+                  <input type="text" id="f_cliente" placeholder="Digite o nome completo" required>
+                  <span class="err-msg">Nome é obrigatório.</span>
+                </div>
+                <div class="form-group" id="grp_cpf">
+                  <label>CPF / CNPJ</label>
+                  <input type="text" id="f_cpf" placeholder="000.000.000-00" maxlength="18">
+                  <span class="hint">11 dígitos (CPF) ou 14 (CNPJ)</span>
+                  <span class="err-msg">CPF deve ter 11 ou CNPJ 14 dígitos.</span>
+                </div>
+                <div class="form-group"><label>WhatsApp</label><input type="tel" id="f_whats" placeholder="(00) 00000-0000"></div>
+                <div class="form-group"><label>Tel. Ligação</label><input type="tel" id="f_tel" placeholder="(00) 0000-0000"></div>
+                <div class="form-group"><label>Cód. Cliente (col F)</label><input type="text" id="f_codCli" placeholder="Gerado no sistema"></div>
+                <div class="form-group">
+                  <label>Responsável</label>
+                  <select id="f_resp">
+                    <option value="">Carregando...</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── STEP 2 — Endereço ──────────────────────────────── -->
+          <div class="wiz-panel" id="wizPanel2">
+            <div class="card">
+              <div class="card-header"><div class="card-icon">📍</div><h3>Endereço</h3></div>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>CEP</label>
+                  <input type="text" id="f_cep" onblur="buscarCEP(this.value)" maxlength="9" placeholder="00000-000">
+                  <span class="hint" id="cepHint"></span>
+                </div>
+                <div class="form-group"><label>Cidade</label><input type="text" id="f_cidade" oninput="_atualizarLinkMaps()"></div>
+                <div class="form-group"><label>Bairro</label><input type="text" id="f_bairro"></div>
+                <div class="form-group span2"><label>Rua / Logradouro</label><input type="text" id="f_rua" oninput="_atualizarLinkMaps()"></div>
+                <div class="form-group"><label>Número</label><input type="text" id="f_num" oninput="_atualizarLinkMaps()"></div>
+                <div class="form-group"><label>Complemento</label><input type="text" id="f_complemento" placeholder="Apto, Bloco, Casa..."></div>
+                <div class="form-group"><label>UF</label><input type="text" id="f_uf" maxlength="2" style="text-transform:uppercase;"></div>
+              </div>
+              <div id="mapsLinkWrap" style="display:none;margin-top:14px;padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
+                <a id="mapsLinkAnchor" href="" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent);text-decoration:none;display:flex;align-items:center;gap:6px;">
+                  📍 <span id="mapsLinkTexto"></span> ↗
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── STEP 3 — Plano & Agendamento ──────────────────── -->
+          <div class="wiz-panel" id="wizPanel3">
+            <div class="card">
+              <div class="card-header"><div class="card-icon">📦</div><h3>Plano e Faturamento</h3></div>
+              <div class="form-grid">
+                <div class="form-group"><label>Sistema</label><input type="text" id="f_sistema" readonly style="background:var(--surface);color:var(--muted);cursor:default;"></div>
+                <div class="form-group">
+                  <label>Produto *</label>
+                  <select id="f_produto" onchange="onProdutoChange()">
+                    <option value="">Selecione o produto...</option>
+                    <option value="Fibra Alone">Fibra Alone</option>
+                    <option value="Fibra Combo">Fibra Combo</option>
+                    <option value="Móvel Combo">Móvel Combo</option>
+                    <option value="Móvel Alone">Móvel Alone</option>
+                  </select>
+                  <span class="hint" id="produtoHint"></span>
+                </div>
+                <div class="form-group" id="grp_plano">
+                  <label>Plano *</label>
+                  <select id="f_plano">
+                    <option value="">— Preencha o CEP e Produto primeiro —</option>
+                  </select>
+                  <span class="hint" id="planoHint" style="display:none;"></span>
+                </div>
+                <div class="form-group"><label>Valor</label><input type="text" id="f_valor" placeholder="R$ 0,00"></div>
+                <div class="form-group">
+                  <label>Vencimento</label>
+                  <select id="f_venc">
+                    <option value="">Selecione...</option>
+                    <option>01</option><option>05</option><option>08</option>
+                    <option>10</option><option>12</option><option>15</option>
+                    <option>20</option><option>25</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Pagamento</label>
+                  <select id="f_fat">
+                    <option value="">Selecione...</option>
+                    <option>Boleto Bancário</option>
+                    <option>Cartão de Crédito</option>
+                    <option>Pix Automático</option>
+                    <option>Débito em Conta</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Status Pagamento PAP</label>
+                  <select id="f_statusPAP">
+                    <option value="Em Aberto" selected>Em Aberto</option>
+                    <option value="Pago">Pago</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="margin-top:14px;">
+              <div class="card-header"><div class="card-icon">📅</div><h3>Agendamento e Instalação</h3></div>
+              <div class="form-grid">
+                <div class="form-group"><label>Data Agendamento</label><input type="date" id="f_agenda"></div>
+                <div class="form-group">
+                  <label>Turno</label>
+                  <select id="f_turno">
+                    <option value="">Selecione...</option>
+                    <option>Manhã (08h às 12h)</option>
+                    <option>Tarde (13h às 17h)</option>
+                  </select>
+                </div>
+                <div class="form-group"><label>ID Contrato / ID Móvel (col G)</label><input type="text" id="f_contrato" placeholder="Gerado no sistema"></div>
+                <div class="form-group"><label>Data Instalação</label><input type="date" id="f_instal"></div>
+                <div class="form-group"><label>Linha Móvel</label><input type="text" id="f_linhaMovel"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── NAVEGAÇÃO ──────────────────────────────────────── -->
+          <div class="wiz-nav">
+            <div class="wiz-nav-btns">
+              <button type="button" class="wiz-btn" id="wizBtnBack" onclick="wizNav(-1)">Voltar</button>
+              <button type="button" class="wiz-btn wiz-btn-next" id="wizBtnNext" onclick="wizNav(1)">Próximo</button>
+              <button type="submit" class="btn" id="wizBtnSave" style="display:none">💾 Salvar</button>
+            </div>
+            <span class="wiz-nav-info" id="wizNavInfo">Passo 1 de 4</span>
+          </div>
+
+        </form>
+      </div>
+
+      <!-- ── LISTA ── -->
+      <div id="pageLista" class="page">
+
+        <div class="lista-e-painel">
+        <!-- Coluna lista -->
+        <div class="lista-col" id="listaCol">
+          <div class="lista-head">
+            <h2>Lista de Vendas</h2>
+            <div class="list-controls">
+              <div class="search-wrap">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="campoBusca" placeholder="Nome, CPF ou contrato..." oninput="buscaListaInstantanea(this.value)" onkeydown="if(event.key==='Escape') limparBusca()">
+              </div>
+              <button class="btn btn-ghost" onclick="limparFiltros()" style="padding:9px 12px;" title="Limpar filtros">✕</button>
+            </div>
+            <div class="list-filtros" id="listFiltros">
+              <select class="filtro-sel" id="filtroStatus" onchange="aplicarFiltros()">
+                <option value="">Status da Venda</option>
+                <option>1- Conferencia/Ativação</option>
+                <option>2- Aguardando Instalação</option>
+                <option>2- Aguardando Entrega</option>
+                <option>3 - Finalizada/Instalada</option>
+                <option>3- Aguardando Retirada</option>
+                <option>4- Entregue</option>
+                <option>5 - Finalizado</option>
+                <option>Pendencia Vero</option>
+                <option>Cancelado</option>
+                <option>Cancelamento Técnico</option>
+                <option>Cancelamento Comercial</option>
+                <option>Churn</option>
+                <option>Devolvido</option>
+              </select>
+              <select class="filtro-sel" id="filtroPreVenda" onchange="aplicarFiltros()">
+                <option value="">Status Pré-Venda</option>
+                <option>EM NEGOCIACAO</option>
+                <option>AG COMPROVANTE</option>
+                <option>AG DOC</option>
+                <option>AG ACEITE</option>
+                <option>AG AUDITORIA</option>
+                <option>AG QUALIDADE</option>
+                <option>CRUZAMENTO DE CA</option>
+              </select>
+              <select class="filtro-sel" id="filtroProduto" onchange="aplicarFiltros()">
+                <option value="">Produto</option>
+                <option value="Fibra Alone">Fibra Alone</option>
+                <option value="Fibra Combo">Fibra Combo</option>
+                <option value="Móvel Combo">Móvel Combo</option>
+                <option value="Móvel Alone">Móvel Alone</option>
+              </select>
+              <label class="filtro-toggle" title="Somente vendas com VeroHub vencido ou sem data">
+                <input type="checkbox" id="filtroVeroHub" onchange="aplicarFiltros()">
+                <span>⚡ VeroHub</span>
+              </label>
+            </div>
+          </div>
+          <div class="list-meta"><span id="totalRegistros">—</span></div>
+          <div class="lista-scroll" id="listaVendas">
+            <div class="empty"><div class="empty-icon">📋</div><h3>Carregando...</h3></div>
+          </div>
+          <div class="pagination" id="paginacao">
+            <button class="btn btn-ghost btn-sm" onclick="mudarPagina(-1)" id="btnAnterior">‹ Anterior</button>
+            <span class="pag-info" id="infoPagina"></span>
+            <button class="btn btn-ghost btn-sm" onclick="mudarPagina(1)" id="btnProximo">Próximo ›</button>
+          </div>
+        </div>
+
+        <!-- Painel lateral de detalhes -->
+        <div class="painel-detalhes" id="painelDetalhes">
+          <div class="painel-vazio" id="painelVazio">
+            <div class="ico">👈</div>
+            <p>Clique em uma venda<br>para ver os detalhes aqui</p>
+          </div>
+          <div class="painel-conteudo" id="painelConteudo">
+            <div class="painel-topo">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                <div>
+                  <div class="painel-nome" id="pNome">—</div>
+                  <div class="painel-cpf"  id="pCpf"></div>
+                </div>
+                <button onclick="fecharPainel()" style="background:none;border:1px solid var(--border);color:var(--muted);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">✕</button>
+              </div>
+              <div class="painel-status-wrap" id="pStatusWrap"></div>
+            </div>
+            <div class="painel-scroll" id="painelScroll"></div>
+            <div class="painel-acoes">
+              <div class="painel-acoes-row">
+                <button class="btn" id="pBtnEditar" onclick="editarDoPanel()">✏️ Editar</button>
+                <button class="btn btn-ghost" id="pBtnWhats" onclick="abrirWhatsPanel()" style="display:none;">📲 WhatsApp</button>
+                <button class="btn btn-ghost" id="pBtnExcluir" onclick="excluirVendaPanel()" style="display:none;border-color:rgba(230,62,109,.4);color:var(--accent);">🗑️ Excluir</button>
+              </div>
+              <div class="painel-acoes-row">
+                <button class="btn btn-ghost" onclick="copiarDadosPanel()" style="background:rgba(230,62,109,0.08);border-color:rgba(230,62,109,0.25);color:var(--accent);">📋 Copiar Resumo</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        </div><!-- /lista-e-painel -->
+      </div><!-- /pageLista -->
+
+      <!-- ── FUNIL DE INSTALAÇÕES ── -->
+      <div id="pageFunil" class="page">
+
+        <div class="funil-toolbar">
+          <h2>▽ Funil de Instalações</h2>
+          <span style="color:var(--border2);">·</span>
+          <span class="funil-count" id="funilCount">—</span>
+          <button class="btn btn-ghost btn-sm" onclick="carregarFunil()" style="margin-left:auto;font-size:11px;">↺ Atualizar</button>
+        </div>
+
+        <div class="funil-cols" id="funilCols">
+
+          <!-- Coluna 1: Aguardando Instalação -->
+          <div class="funil-col" data-status="2- Aguardando Instalação" id="funilCol0">
+            <div class="funil-col-head">
+              <div class="funil-col-stripe" style="background:#f7a23b;"></div>
+              <div class="funil-col-info">
+                <div class="funil-col-title">Aguardando Instalação</div>
+                <div class="funil-col-sub">Arraste → Finalizada ou Pendência</div>
+              </div>
+              <label class="funil-hoje-toggle" title="Mostrar apenas agendados para hoje" id="funilHojeLabel">
+                <input type="checkbox" id="funilFiltroHoje" onchange="_renderizarFunil()">
+                <span>📅 Hoje</span>
+              </label>
+              <div class="funil-col-count" id="funilCount0">0</div>
+            </div>
+            <div class="funil-col-cards" id="funilCards0"></div>
+          </div>
+
+          <!-- Coluna 2: Finalizada/Instalada -->
+          <div class="funil-col" data-status="3 - Finalizada/Instalada" id="funilCol1">
+            <div class="funil-col-head">
+              <div class="funil-col-stripe" style="background:#22d98a;"></div>
+              <div class="funil-col-info">
+                <div class="funil-col-title">Finalizada / Instalada</div>
+                <div class="funil-col-sub">Pede: Data de Instalação</div>
+              </div>
+              <div class="funil-col-count" id="funilCount1">0</div>
+            </div>
+            <div class="funil-col-cards" id="funilCards1"></div>
+            <div style="padding:8px 12px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.5px;text-align:center;border-top:1px solid var(--border);opacity:.6;">Exibindo últimas 10 instaladas</div>
+          </div>
+
+          <!-- Coluna 3: Pendencia Vero -->
+          <div class="funil-col" data-status="Pendencia Vero" id="funilCol2">
+            <div class="funil-col-head">
+              <div class="funil-col-stripe" style="background:#f7e23b;"></div>
+              <div class="funil-col-info">
+                <div class="funil-col-title">Pendência Vero</div>
+                <div class="funil-col-sub">Pede: Motivo da pendência</div>
+              </div>
+              <div class="funil-col-count" id="funilCount2">0</div>
+            </div>
+            <div class="funil-col-cards" id="funilCards2"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Modal confirmação de move no funil -->
+      <div class="modal-overlay" id="modalFunilMove">
+        <div class="modal-box">
+          <div class="modal-head">
+            <h3 id="modalFunilTitulo">Mover venda</h3>
+            <button class="modal-close" onclick="_cancelarMoveFunil()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="funil-move-destino">
+              <div class="stripe" id="modalFunilStripe"></div>
+              <div>
+                <strong id="modalFunilDestino">—</strong>
+                <span id="modalFunilCliente">—</span>
+              </div>
+            </div>
+            <div class="funil-campo-extra" id="modalFunilCampo"></div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost" onclick="_cancelarMoveFunil()">Cancelar</button>
+            <button class="btn" id="btnConfirmarMove" onclick="_confirmarMoveFunil()">✅ Confirmar</button>
+          </div>
+        </div>
+      </div>
+
+    <!-- Modal Nova Indicação -->
+    <div class="modal-overlay" id="modalNovaIndicacao">
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3>🤝 Cadastrar Nova Indicação</h3>
+          <button class="modal-close" onclick="fecharModalIndicacao()">✕</button>
+        </div>
+        <div class="modal-body">
+          <form id="formIndicacao" onsubmit="event.preventDefault(); salvarIndicacao();">
+            <div class="leads-campo">
+              <label>Nome de quem está indicando (Indicador) *</label>
+              <input type="text" id="ind_nomeIndicador" required>
+            </div>
+            <div class="leads-campo">
+              <label>Telefone (Indicador) *</label>
+              <input type="text" id="ind_telefoneIndicador" placeholder="(00) 00000-0000" required>
+            </div>
+            <div style="display:flex;gap:10px;margin-bottom:14px;">
+              <div class="leads-campo" style="flex:1;margin-bottom:0;">
+                <label>Tipo de Chave PIX</label>
+                <select id="ind_tipoPix">
+                  <option value="">Selecione...</option>
+                  <option>CPF/CNPJ</option>
+                  <option>Telefone</option>
+                  <option>E-mail</option>
+                  <option>Chave Aleatória</option>
+                </select>
+              </div>
+              <div class="leads-campo" style="flex:2;margin-bottom:0;">
+                <label>Chave PIX</label>
+                <input type="text" id="ind_chavePix">
+              </div>
+            </div>
+            <hr style="border:0;border-top:1px solid var(--border);margin:10px 0 15px;">
+            <div class="leads-campo">
+              <label>Nome do Novo Cliente (Indicado) *</label>
+              <input type="text" id="ind_nomeIndicado" required>
+            </div>
+            <div class="leads-campo">
+              <label>Telefone do Novo Cliente *</label>
+              <input type="text" id="ind_telefoneIndicado" placeholder="(00) 00000-0000" required>
+            </div>
+            <div class="leads-campo">
+              <label>Status Inicial</label>
+              <select id="ind_status">
+                <option>Novo</option>
+                <option>Em Atendimento</option>
+              </select>
+            </div>
+          </form>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" onclick="fecharModalIndicacao()">Cancelar</button>
+          <button class="btn" onclick="salvarIndicacao()" id="btnSalvarInd">✅ Salvar Indicação</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- ══ BOTÃO FLUTUANTE OFERTAS ══ -->
+    <button class="fab-ofertas" onclick="abrirModalOfertas()" title="Consultar Ofertas por Cidade">
+      🔍
+    </button>
+
+    <!-- Modal de ofertas -->
+    <div class="modal-overlay" id="modalOfertas">
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3 id="modalOfertasTitulo">🔍 Consultar Ofertas</h3>
+          <button class="modal-close" onclick="fecharModalOfertas()">✕</button>
+        </div>
+        <div class="modal-body" id="modalOfertasBody">
+          <div class="ofertas-loading">⏳ Carregando cidades...</div>
+        </div>
+        <div class="modal-foot" id="modalOfertasFoot" style="display:none;">
+          <button class="btn btn-ghost" id="btnOfertasVoltar" onclick="_ofertasVoltar()">← Voltar</button>
+          <button class="btn-whats-ofertas" id="btnOfertasWhats" onclick="_copiarOfertasWhats()">
+            🟢 Copiar WhatsApp
+          </button>
+        </div>
+      </div>
+    </div>
+
+
+      <!-- ── KANBAN TRATAMENTO DE LEADS ── -->
+      <div id="pageLeads" class="page">
+
+        <div class="leads-toolbar">
+          <h2>🔥 Tratamento de Leads</h2>
+          <span style="color:var(--border2);">·</span>
+          <span class="leads-count" id="leadsCount">—</span>
+          <button class="btn btn-ghost btn-sm" onclick="carregarLeads()" style="margin-left:auto;font-size:11px;">↺ Atualizar</button>
+        </div>
+
+        <div class="leads-cols" id="leadsCols">
+          <!-- Coluna Quente -->
+          <div class="leads-col" data-temp="quente" id="leadsCol0">
+            <div class="leads-col-head">
+              <div class="leads-col-stripe" style="background:#e63e6d;"></div>
+              <div class="leads-col-info">
+                <div class="leads-col-title">🔥 Quente</div>
+                <div class="leads-col-sub">AG ACEITE · AG AUDITORIA</div>
+              </div>
+              <div class="leads-col-count" id="leadsCount0">0</div>
+            </div>
+            <div class="leads-col-cards" id="leadsCards0"></div>
+          </div>
+
+          <!-- Coluna Morno -->
+          <div class="leads-col" data-temp="morno" id="leadsCol1">
+            <div class="leads-col-head">
+              <div class="leads-col-stripe" style="background:#f7a23b;"></div>
+              <div class="leads-col-info">
+                <div class="leads-col-title">🕑 Morno</div>
+                <div class="leads-col-sub">AG COMPROVANTE · AG DOC</div>
+              </div>
+              <div class="leads-col-count" id="leadsCount1">0</div>
+            </div>
+            <div class="leads-col-cards" id="leadsCards1"></div>
+          </div>
+
+          <!-- Coluna Frio -->
+          <div class="leads-col" data-temp="frio" id="leadsCol2">
+            <div class="leads-col-head">
+              <div class="leads-col-stripe" style="background:#4f9eff;"></div>
+              <div class="leads-col-info">
+                <div class="leads-col-title">❄️ Frio</div>
+                <div class="leads-col-sub">EM NEGOCIAÇÃO · AG QUALIDADE</div>
+              </div>
+              <div class="leads-col-count" id="leadsCount2">0</div>
+            </div>
+            <div class="leads-col-cards" id="leadsCards2"></div>
+          </div>
+
+          <!-- Coluna Aguardando Instalação -->
+          <div class="leads-col" data-temp="aguardando" id="leadsCol3">
+            <div class="leads-col-head">
+              <div class="leads-col-stripe" style="background:#22d98a;"></div>
+              <div class="leads-col-info">
+                <div class="leads-col-title">✅ Ag. Instalação</div>
+                <div class="leads-col-sub">2- Aguardando Instalação</div>
+              </div>
+              <div class="leads-col-count" id="leadsCount3">0</div>
+            </div>
+            <div class="leads-col-cards" id="leadsCards3"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal mover lead para Aguardando -->
+      <div class="modal-overlay" id="modalLeadsMove">
+        <div class="modal-box">
+          <div class="modal-head">
+            <h3>✅ Mover para Ag. Instalação</h3>
+            <button class="modal-close" onclick="_cancelarMoveLeads()">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="leads-move-info">
+              <span style="font-size:20px;">✅</span>
+              <div>
+                <strong>2- Aguardando Instalação</strong>
+                <span id="leadsMoviendoCliente">—</span>
+              </div>
+            </div>
+            <div class="leads-campo">
+              <label>Data de Agendamento *</label>
+              <input type="date" id="leadsF_agenda">
+            </div>
+            <div class="leads-campo">
+              <label>Turno *</label>
+              <select id="leadsF_turno">
+                <option value="">Selecione...</option>
+                <option>Manhã (08h às 12h)</option>
+                <option>Tarde (13h às 18h)</option>
+                <option>Manhã e Tarde (08h às 18h)</option>
+              </select>
+            </div>
+            <div class="leads-campo">
+              <label>Contrato / OS</label>
+              <input type="text" id="leadsF_contrato" placeholder="Número do contrato ou OS">
+            </div>
+            <div class="leads-campo">
+              <label>Observação</label>
+              <textarea id="leadsF_obs" placeholder="Observações sobre a instalação..."></textarea>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost" onclick="_cancelarMoveLeads()">Cancelar</button>
+            <button class="btn" onclick="_confirmarMoveLeads()">✅ Confirmar</button>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ── PAGAMENTOS PAP ── -->
+      <div id="pagePAP" class="page">
+
+        <div class="pap-toolbar">
+          <h2>💰 Pagamentos PAP</h2>
+          <button class="btn btn-ghost btn-sm" onclick="carregarPAP()" style="margin-left:auto;font-size:11px;">↺ Atualizar</button>
+        </div>
+
+        <!-- Resumo por vendedor -->
+        <div class="pap-resumo" id="papResumo">
+          <div class="pap-empty" style="padding:16px;">⏳ Carregando...</div>
+        </div>
+
+        <!-- Filtro -->
+        <div class="pap-filtro-wrap">
+          <label>Vendedor:</label>
+          <select class="pap-filtro-select" id="papFiltroVendedor" onchange="_filtrarPAP()">
+            <option value="">Todos</option>
+          </select>
+          <span class="pap-count" id="papCount">—</span>
+        </div>
+
+        <!-- Tabela -->
+        <div class="pap-scroll">
+          <table class="pap-table">
+            <thead>
+              <tr>
+                <th>Instalação</th>
+                <th>Cliente</th>
+                <th>Vendedor</th>
+                <th>Contrato</th>
+                <th>Produto / Plano</th>
+                <th>Comissão</th>
+                <th>Chave PIX</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="papTbody">
+              <tr><td colspan="8" class="pap-empty">⏳ Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── INDICAÇÕES ── -->
+      <div id="pageIndicacoes" class="page">
+        <div class="pap-toolbar">
+          <h2>Indicações</h2>
+          <button class="btn btn-ghost btn-sm" onclick="carregarIndicacoes()" style="margin-left:auto;font-size:11px;">↺ Atualizar</button>
+          <button class="btn btn-sm" onclick="abrirModalIndicacao()" style="margin-left:8px;"><i class="fas fa-plus"></i> Nova Indicação</button>
+        </div>
+        
+        <div class="pap-resumo" id="indResumo">
+          <div class="pap-empty" style="padding:16px;">⏳ Carregando...</div>
+        </div>
+        
+        <div class="pap-scroll">
+          <table class="pap-table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Indicado (Novo Cliente)</th>
+                <th>Indicador (Quem indicou)</th>
+                <th>Status</th>
+                <th>Pagamento</th>
+                <th>Chave PIX</th>
+              </tr>
+            </thead>
+            <tbody id="indTbody">
+              <tr><td colspan="6" class="pap-empty">⏳ Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+
+  <!-- ── MODAL CONFIRMAÇÃO EXCLUSÃO ── -->
+  <div class="modal-overlay" id="modalConfirmExcluir">
+    <div class="modal-box" style="max-width:420px;">
+      <div class="modal-head">
+        <h3>🗑️ Confirmar Exclusão</h3>
+        <button class="modal-close" onclick="_fecharModalExcluir()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--muted);font-size:13px;line-height:1.6">Você está prestes a excluir a venda de:</p>
+        <p id="modalExcluirNome" style="font-size:15px;font-weight:700;color:var(--text);margin:12px 0 6px;"></p>
+        <p id="modalExcluirInfo" style="font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;"></p>
+        <div style="margin-top:16px;padding:12px;background:rgba(230,62,109,.08);border:1px solid rgba(230,62,109,.25);border-radius:8px;">
+          <p style="font-size:12px;color:var(--accent);line-height:1.5">⚠️ Esta ação limpará os dados da linha na planilha. Não pode ser desfeita.</p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="_fecharModalExcluir()">Cancelar</button>
+        <button class="btn" id="modalExcluirConfirmar" onclick="_confirmarExclusao()" style="background:rgba(230,62,109,.15);border-color:var(--accent);color:var(--accent);">🗑️ Confirmar Exclusão</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <div class="rodape" id="rodapeSistema" style="display:none">
+    <span>© 2026 DharmaPro — Desenvolvido pela Mobile Digital | Agente autorizado Vero</span>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <?!= include('Cruzamento'); ?>
+  <?!= include('JS'); ?>
+</body>
+</html>

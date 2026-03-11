@@ -1,0 +1,249 @@
+<style>
+  /* ── Reset escopado ────────────────────────────────────────────────────── */
+  #docsContainer * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  #docsContainer {
+    font-family: 'Sora', 'Segoe UI', sans-serif;
+    color: #e0e0e0;
+    padding: 28px 32px;
+    min-height: 100%;
+    background: transparent;
+  }
+
+  /* ── Cabeçalho ─────────────────────────────────────────────────────────── */
+  #docsContainer .docs-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  #docsContainer .docs-title { font-size: 20px; font-weight: 800; }
+  #docsContainer .docs-title span { color: #e63e6d; }
+  #docsContainer .docs-sub { font-size: 12px; color: #888; margin-top: 3px; font-family: 'DM Mono', monospace; }
+
+  #docsContainer .docs-busca-wrap { position: relative; }
+  #docsContainer .docs-busca { padding: 8px 12px 8px 34px; background: #1e1e2e; border: 1.5px solid #2a2a3a; border-radius: 8px; color: #e0e0e0; font-size: 12px; width: 220px; outline: none; font-family: 'Sora', sans-serif; transition: border-color .2s; }
+  #docsContainer .docs-busca:focus { border-color: #e63e6d; }
+  #docsContainer .docs-busca::placeholder { color: #555; }
+  #docsContainer .docs-busca-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; pointer-events: none; }
+
+  /* ── Grid de arquivos ──────────────────────────────────────────────────── */
+  #docsContainer .docs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+  }
+
+  /* ── Card de arquivo ───────────────────────────────────────────────────── */
+  #docsContainer .doc-card {
+    background: #14141f;
+    border: 1px solid #2a2a3a;
+    border-radius: 12px;
+    padding: 18px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: border-color .2s, transform .15s, box-shadow .2s;
+  }
+  #docsContainer .doc-card:hover {
+    border-color: #e63e6d;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(230,62,109,.18);
+  }
+
+  #docsContainer .doc-icon-wrap {
+    width: 48px; height: 48px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    background: #1e1e2e;
+    flex-shrink: 0;
+  }
+  #docsContainer .doc-name {
+    font-size: 13px; font-weight: 600; color: #e0e0e0;
+    line-height: 1.35;
+    word-break: break-word;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  #docsContainer .doc-meta {
+    display: flex; flex-direction: column; gap: 3px;
+    margin-top: auto;
+  }
+  #docsContainer .doc-meta span {
+    font-size: 10px; color: #666; font-family: 'DM Mono', monospace; letter-spacing: .3px;
+  }
+  #docsContainer .doc-type-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    width: fit-content;
+  }
+
+  /* ── Estado vazio / carregando ─────────────────────────────────────────── */
+  #docsContainer .docs-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    color: #555;
+  }
+  #docsContainer .docs-empty-icon { font-size: 48px; margin-bottom: 12px; }
+  #docsContainer .docs-empty h3 { font-size: 16px; color: #888; margin-bottom: 6px; }
+  #docsContainer .docs-empty p  { font-size: 12px; }
+
+  /* ── Spinner ───────────────────────────────────────────────────────────── */
+  #docsContainer .docs-spinner {
+    grid-column: 1 / -1;
+    display: flex; justify-content: center; padding: 60px;
+  }
+  #docsContainer .spinner-ring {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 3px solid #2a2a3a;
+    border-top-color: #e63e6d;
+    animation: docs-spin .8s linear infinite;
+  }
+  @keyframes docs-spin { to { transform: rotate(360deg); } }
+
+  /* ── Contagem ──────────────────────────────────────────────────────────── */
+  #docsContainer .docs-count {
+    font-size: 11px; color: #666; font-family: 'DM Mono', monospace;
+    margin-bottom: 16px;
+  }
+</style>
+
+<div id="docsContainer">
+  <div class="docs-header">
+    <div>
+      <div class="docs-title">📁 <span>Documentos</span></div>
+      <div class="docs-sub">Arquivos compartilhados da equipe</div>
+    </div>
+    <div class="docs-busca-wrap">
+      <span class="docs-busca-icon">🔍</span>
+      <input type="text" class="docs-busca" id="docsBusca" placeholder="Filtrar arquivos..." oninput="docsFlitrar(this.value)">
+    </div>
+  </div>
+
+  <div class="docs-count" id="docsCount"></div>
+  <div class="docs-grid" id="docsGrid">
+    <div class="docs-spinner"><div class="spinner-ring"></div></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  var _todosArquivos = [];
+
+  // ── Ícones e cores por tipo de arquivo ──────────────────────────────────
+  var TIPOS = {
+    // Google Workspace
+    'application/vnd.google-apps.document':     { icon: '📝', label: 'Doc',    cor: '#4285F4' },
+    'application/vnd.google-apps.spreadsheet':  { icon: '📊', label: 'Sheet',  cor: '#34A853' },
+    'application/vnd.google-apps.presentation': { icon: '📽️', label: 'Slides', cor: '#FBBC05' },
+    'application/vnd.google-apps.form':         { icon: '📋', label: 'Form',   cor: '#673AB7' },
+    'application/vnd.google-apps.folder':       { icon: '📁', label: 'Pasta',  cor: '#F4B400' },
+    // Office
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document':   { icon: '📝', label: 'DOCX', cor: '#2B579A' },
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':         { icon: '📊', label: 'XLSX', cor: '#217346' },
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': { icon: '📽️', label: 'PPTX', cor: '#D24726' },
+    'application/pdf':  { icon: '📄', label: 'PDF',  cor: '#E53935' },
+    'image/jpeg':       { icon: '🖼️', label: 'IMG',  cor: '#8E24AA' },
+    'image/png':        { icon: '🖼️', label: 'IMG',  cor: '#8E24AA' },
+    'image/gif':        { icon: '🖼️', label: 'GIF',  cor: '#8E24AA' },
+    'video/mp4':        { icon: '🎬', label: 'VID',  cor: '#E91E63' },
+    'audio/mpeg':       { icon: '🎵', label: 'MP3',  cor: '#FF5722' },
+    'text/plain':       { icon: '📃', label: 'TXT',  cor: '#607D8B' },
+    'application/zip':  { icon: '🗜️', label: 'ZIP',  cor: '#795548' },
+  };
+
+  function _tipo(mime) {
+    return TIPOS[mime] || { icon: '📎', label: 'ARQ', cor: '#555' };
+  }
+
+  function _formatarTamanho(bytes) {
+    if (!bytes || bytes === 0) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/(1024*1024)).toFixed(1) + ' MB';
+  }
+
+  function _formatarData(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    var dd = String(d.getDate()).padStart(2,'0');
+    var mm = String(d.getMonth()+1).padStart(2,'0');
+    var aa = d.getFullYear();
+    return dd+'/'+mm+'/'+aa;
+  }
+
+  function _renderArquivos(lista) {
+    var grid = document.getElementById('docsGrid');
+    var count = document.getElementById('docsCount');
+    if (!lista || lista.length === 0) {
+      grid.innerHTML = '<div class="docs-empty"><div class="docs-empty-icon">📂</div><h3>Nenhum arquivo encontrado</h3><p>A pasta está vazia ou sem permissão.</p></div>';
+      count.textContent = '';
+      return;
+    }
+    count.textContent = lista.length + ' arquivo' + (lista.length !== 1 ? 's' : '');
+    var html = '';
+    for (var i = 0; i < lista.length; i++) {
+      var f    = lista[i];
+      var t    = _tipo(f.mimeType);
+      var tam  = _formatarTamanho(f.size);
+      var data = _formatarData(f.modifiedTime);
+      html +=
+        '<a class="doc-card" href="' + f.webViewLink + '" target="_blank" rel="noopener">' +
+          '<div class="doc-icon-wrap">' + t.icon + '</div>' +
+          '<div class="doc-name">' + _esc(f.name) + '</div>' +
+          '<div class="doc-meta">' +
+            '<span class="doc-type-badge" style="background:' + t.cor + '22;color:' + t.cor + '">' + t.label + '</span>' +
+            (data ? '<span>📅 ' + data + '</span>' : '') +
+            (tam  ? '<span>💾 ' + tam  + '</span>' : '') +
+            (f.owner ? '<span>👤 ' + _esc(f.owner) + '</span>' : '') +
+          '</div>' +
+        '</a>';
+    }
+    grid.innerHTML = html;
+  }
+
+  function _esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Filtro local instantâneo ─────────────────────────────────────────────
+  window.docsFlitrar = function(valor) {
+    if (!valor.trim()) { _renderArquivos(_todosArquivos); return; }
+    var v = valor.toLowerCase();
+    var filtrado = _todosArquivos.filter(function(f) {
+      return f.name.toLowerCase().indexOf(v) > -1;
+    });
+    _renderArquivos(filtrado);
+  };
+
+  // ── Carrega os arquivos via google.script.run ────────────────────────────
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res.erro) {
+        document.getElementById('docsGrid').innerHTML =
+          '<div class="docs-empty"><div class="docs-empty-icon">⚠️</div><h3>Erro ao carregar</h3><p>' + _esc(res.erro) + '</p></div>';
+        return;
+      }
+      _todosArquivos = res.arquivos || [];
+      _renderArquivos(_todosArquivos);
+    })
+    .withFailureHandler(function(e) {
+      document.getElementById('docsGrid').innerHTML =
+        '<div class="docs-empty"><div class="docs-empty-icon">⚠️</div><h3>Erro</h3><p>' + e.message + '</p></div>';
+    })
+    .getArquivosDrive();
+})();
+</script>
