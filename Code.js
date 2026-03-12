@@ -1,4 +1,5 @@
-/**
+/*****
+ * // Versao Atualizada 1.0
  * @fileoverview CRM Mobile Digital — Versão Corrigida
  * Correções aplicadas:
  * - Autenticação real no backend (validarLogin)
