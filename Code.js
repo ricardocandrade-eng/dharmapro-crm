@@ -162,6 +162,27 @@ function getArquivosDrive() {
 }
 
 
+// ── FORÇAR AUTORIZAÇÃO DO DRIVE ───────────────────────────────────────────
+// Execute esta função UMA VEZ manualmente no editor do Apps Script
+// (menu Executar → autorizarDrive) para conceder permissão ao Drive
+function autorizarDrive() {
+  // Esta linha força o GAS a incluir o escopo do Drive no token OAuth
+  var _forcarEscopo = DriveApp.getRootFolder();
+  try {
+    var token = ScriptApp.getOAuthToken();
+    var url   = 'https://www.googleapis.com/drive/v3/files' +
+      '?q=' + encodeURIComponent('"1D3A5SbdXFjvzsTgp5Sthm_-zB531uGoR" in parents and trashed=false') +
+      '&pageSize=5&fields=files(name)';
+    var resp = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+    var data = JSON.parse(resp.getContentText());
+    Logger.log('✅ OK! Arquivos encontrados: ' + (data.files || []).length);
+    Logger.log(JSON.stringify(data.files));
+  } catch(e) {
+    Logger.log('❌ Erro: ' + e.message);
+  }
+}
+
+
 // ── EXCLUIR VENDA (limpa conteúdo da linha, não deleta) ───────────────────
 function excluirVenda(linha) {
   try {
@@ -201,6 +222,55 @@ function salvarVeroHub(linha, data) {
 }
 
 
+
+// ── SINCRONIZAÇÃO INICIAL — vendas p1 + contratos numa só chamada ─────────
+function getSincronizacaoInicial() {
+  try {
+    var sheet  = _getSheet();
+    var ultima = sheet.getLastRow();
+    var total  = ultima - 2;
+    var tz     = Session.getScriptTimeZone();
+    if (total <= 0) return { vendas: { dados: [], total: 0, pagina: 1, temMais: false }, contratos: [] };
+    var raw = sheet.getRange(3, 1, total, 43).getValues();
+
+    // Contratos (para Cruzamento Vero)
+    var contratos = [];
+    for (var i = 0; i < raw.length; i++) {
+      var r = raw[i];
+      var ct = String(r[6] || '').trim().replace(/\.0$/, '');
+      if (!ct) continue;
+      var fmtD = function(v) {
+        if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+        if (typeof v === 'number') { var d = new Date(Math.round((v-25569)*86400*1000)); return isNaN(d)?'':Utilities.formatDate(d,tz,'yyyy-MM-dd'); }
+        return String(v||'');
+      };
+      contratos.push({ linha: i+3, contrato: ct, status: String(r[2]||'').trim(),
+        cliente: String(r[14]||'').trim(), produto: String(r[1]||'').trim(),
+        dataAtiv: fmtD(r[3]), instal: fmtD(r[9]) });
+    }
+
+    // Vendas página 1 (ordem decrescente — últimas linhas primeiro)
+    var vendas = [];
+    for (var j = raw.length - 1; j >= 0; j--) {
+      var row = raw[j];
+      var cli = row[CONFIG.COLUNAS.CLIENTE] ? String(row[CONFIG.COLUNAS.CLIENTE]) : '';
+      var cpf = row[CONFIG.COLUNAS.CPF]     ? String(row[CONFIG.COLUNAS.CPF])     : '';
+      var ctr = row[CONFIG.COLUNAS.CONTRATO]? String(row[CONFIG.COLUNAS.CONTRATO]).trim().replace(/\.0$/,'') : '';
+      if (!cli && !cpf && !ctr) continue;
+      vendas.push(_mapearLinha(row, j + 3));
+    }
+    var lim = CONFIG.MAX_RESULTS;
+    return {
+      vendas:    { dados: vendas.slice(0, lim), total: vendas.length, pagina: 1, temMais: vendas.length > lim },
+      contratos: contratos
+    };
+  } catch(e) {
+    Logger.log('getSincronizacaoInicial ERRO: ' + e.message);
+    return { vendas: { dados: [], total: 0, pagina: 1, temMais: false }, contratos: [], erro: e.message };
+  }
+}
+
+// ── CRUZAMENTO VERO — retorna só contrato+status de toda a planilha ──────────
 // ─── CRUZAMENTO VERO — retorna só contrato+status de toda a planilha ──────────
 function getContratosParaCruzamento() {
   try {
@@ -348,6 +418,42 @@ function validarLogin(usuario, senha) {
     return { autorizado: false, mensagem: 'Erro ao validar. Tente novamente.' };
   }
 }
+
+
+// ─── DIAGNÓSTICO CEP (rode uma vez no editor Apps Script para testar) ────────
+// Vá em: Apps Script → selecione "diagnosticoCEP" → clique ▶ Executar
+// Veja o resultado em: Visualizar → Registros de execução
+function diagnosticoCEP() {
+  var CEP_TESTE = '01310100'; // Avenida Paulista — troque pelo seu CEP se quiser
+
+  Logger.log('=== DIAGNÓSTICO CEP ===');
+  Logger.log('CEP testado: ' + CEP_TESTE);
+
+  // Teste 1: BrasilAPI
+  try {
+    var r1 = UrlFetchApp.fetch('https://brasilapi.com.br/api/cep/v1/' + CEP_TESTE, { muteHttpExceptions: true });
+    Logger.log('[BrasilAPI] HTTP ' + r1.getResponseCode() + ' → ' + r1.getContentText().substring(0, 200));
+  } catch (e) {
+    Logger.log('[BrasilAPI] EXCEÇÃO: ' + e.message);
+  }
+
+  // Teste 2: ViaCEP
+  try {
+    var r2 = UrlFetchApp.fetch('https://viacep.com.br/ws/' + CEP_TESTE + '/json/', { muteHttpExceptions: true });
+    Logger.log('[ViaCEP]    HTTP ' + r2.getResponseCode() + ' → ' + r2.getContentText().substring(0, 200));
+  } catch (e) {
+    Logger.log('[ViaCEP]    EXCEÇÃO: ' + e.message);
+  }
+
+  // Teste 3: chama a função real e loga o retorno completo
+  try {
+    var resultado = buscarCEPBackend(CEP_TESTE, 'Fibra Alone');
+    Logger.log('[buscarCEPBackend] Retorno: ' + JSON.stringify(resultado));
+  } catch (e) {
+    Logger.log('[buscarCEPBackend] EXCEÇÃO: ' + e.message);
+  }
+}
+
 
 
 
@@ -1173,8 +1279,10 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
     var fProduto   = (opcoes.produto   || '').trim();
     var fVerohub   = opcoes.verohub === true;
 
+    // Data de hoje para filtro VeroHub
     var hoje = new Date(); hoje.setHours(0,0,0,0);
-    var sheet = _getSheet();
+
+    var sheet       = _getSheet();
     var ultimaLinha = sheet.getLastRow();
     var totalLinhas = ultimaLinha - 2;
 
@@ -1182,33 +1290,19 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
       return { dados: [], total: 0, pagina: 1, temMais: false };
     }
 
-    // 1. Pega os dados brutos
+    var ehConsultaSimples = !filtro && !fStatus && !fPreVenda && !fProduto && !fVerohub;
     var raw = sheet.getRange(3, 1, totalLinhas, 43).getValues();
-    
-    // 2. INVERSÃO REAL: Mapeamos a linha física e invertemos a lista completa aqui
-    // 2. Garante a captura da linha física e força a inversão da array
-    var dadosInvertidos = raw.map(function(r, idx) {
-      return { dados: r, linhaFisica: idx + 3 };
-    });
-    
-    // Forçamos a inversão e garantimos que a array resultante seja a base do loop
-    dadosInvertidos.sort(function(a, b) {
-      return b.linhaFisica - a.linhaFisica;
-    });
+    var offsetLinha = 3;
 
     var filtroLower = filtro ? filtro.toLowerCase() : '';
     var vendas = [];
 
-    // 3. O loop agora percorre a lista já invertida (do mais novo para o mais antigo)
-    for (var i = 0; i < dadosInvertidos.length; i++) {
-      var item = dadosInvertidos[i];
-      var row  = item.dados;
-      var numLinha = item.linhaFisica;
-
-      var cliente = row[CONFIG.COLUNAS.CLIENTE] ? String(row[CONFIG.COLUNAS.CLIENTE]) : '';
-      var cpf     = row[CONFIG.COLUNAS.CPF]     ? String(row[CONFIG.COLUNAS.CPF])      : '';
-      
-      if (!cliente && !cpf) continue;
+    for (var i = raw.length - 1; i >= 0; i--) {
+      var row      = raw[i];
+      var cliente  = row[CONFIG.COLUNAS.CLIENTE]  ? String(row[CONFIG.COLUNAS.CLIENTE])  : '';
+      var cpf      = row[CONFIG.COLUNAS.CPF]       ? String(row[CONFIG.COLUNAS.CPF])      : '';
+      var contrato = row[CONFIG.COLUNAS.CONTRATO]  ? String(row[CONFIG.COLUNAS.CONTRATO]).trim().replace(/\.0$/, '') : '';
+      if (!cliente && !cpf && !contrato) continue;
 
       var status  = row[CONFIG.COLUNAS.STATUS]   ? String(row[CONFIG.COLUNAS.STATUS])  : '';
       var produto = row[CONFIG.COLUNAS.PRODUTO]  ? String(row[CONFIG.COLUNAS.PRODUTO]) : '';
@@ -1216,12 +1310,12 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
 
       // ── Filtro de busca texto ─────────────────────────────────────────────
       if (filtroLower) {
-        var resp     = row[CONFIG.COLUNAS.RESP]      ? String(row[CONFIG.COLUNAS.RESP]).toLowerCase()     : '';
-        var contrato = row[CONFIG.COLUNAS.CONTRATO] ? String(row[CONFIG.COLUNAS.CONTRATO]).toLowerCase() : '';
+        var resp      = row[CONFIG.COLUNAS.RESP] ? String(row[CONFIG.COLUNAS.RESP]).toLowerCase() : '';
+        var contratoL = contrato.toLowerCase();
         var filtroNum = filtroLower.replace(/[^0-9]/g, '');
         var cpfNum    = cpf.replace(/[^0-9]/g, '');
         var match = cliente.toLowerCase().indexOf(filtroLower) > -1 ||
-                    contrato.indexOf(filtroLower)              > -1 ||
+                    contratoL.indexOf(filtroLower)             > -1 ||
                     status.toLowerCase().indexOf(filtroLower)  > -1 ||
                     resp.indexOf(filtroLower)                  > -1 ||
                     (filtroNum.length >= 3 && cpfNum.indexOf(filtroNum) > -1);
@@ -1229,50 +1323,67 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
       }
 
       // ── Filtro de Status da Venda ─────────────────────────────────────────
-      if (fStatus && status !== fStatus) continue;
+      if (fStatus) {
+        var sNorm  = status.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+        var fsNorm = fStatus.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+        if (sNorm !== fsNorm) continue;
+      }
 
       // ── Filtro de Produto ─────────────────────────────────────────────────
       if (fProduto) {
-        var prodNorm = produto.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-        var filtProdNorm = fProduto.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+        var prodNorm     = produto.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+        var filtProdNorm = fProduto.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
         if (prodNorm !== filtProdNorm) continue;
       }
 
-      // ── Filtro de Pré-Venda ───────────────────────────────────────────────
+      // ── Filtro de Pré-Venda (col D quando status = 1- Conferencia) ────────
       if (fPreVenda) {
-        if (status !== '1- Conferencia/Ativação') continue;
-        var colDStr = String(colD || '').trim().toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
-        if (colDStr.indexOf(fPreVenda) === -1) continue;
+        var sNormPV = status.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+        if (sNormPV !== '1- conferencia/ativacao') continue;
+        var colDStr       = String(colD || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+        var fPreVendaNorm = fPreVenda.trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+        if (colDStr.indexOf(fPreVendaNorm) === -1) continue;
       }
 
-      // ── Filtro VeroHub ────────────────────────────────────────────────────
+      // ── Filtro VeroHub vencido ou sem data (só para status 1- Conferencia) ──
       if (fVerohub) {
-        if (status !== '1- Conferencia/Ativação') continue;
-        var vhVal = row[CONFIG.COLUNAS.VEROHUB];
-        var vhStr = '';
+        var sNormVH = status.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+        if (sNormVH !== '1- conferencia/ativacao') continue;
+        var vhVal  = row[CONFIG.COLUNAS.VEROHUB];
+        var vhDate = null;
         if (vhVal instanceof Date && !isNaN(vhVal)) {
-          vhStr = Utilities.formatDate(vhVal, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+          // Data do Sheets — construir sem UTC para evitar bug de timezone
+          vhDate = new Date(vhVal.getFullYear(), vhVal.getMonth(), vhVal.getDate());
         } else {
-          vhStr = String(vhVal || '').trim();
-        }
-        if (vhStr) {
-          var vhDate = new Date(vhStr);
-          if (isNaN(vhDate.getTime())) {
+          var vhStr = String(vhVal || '').trim();
+          if (vhStr) {
             var pts = vhStr.split('/');
-            if (pts.length === 3) vhDate = new Date(parseInt(pts[2]), parseInt(pts[1])-1, parseInt(pts[0]));
+            if (pts.length === 3) {
+              // formato dd/MM/yyyy
+              vhDate = new Date(parseInt(pts[2]), parseInt(pts[1])-1, parseInt(pts[0]));
+            } else if (/^\d{4}-\d{2}-\d{2}/.test(vhStr)) {
+              // formato ISO yyyy-MM-dd — parsear manualmente (evita interpretação UTC)
+              var iso = vhStr.substring(0,10).split('-');
+              vhDate = new Date(parseInt(iso[0]), parseInt(iso[1])-1, parseInt(iso[2]));
+            } else {
+              vhDate = new Date(vhStr);
+            }
           }
-          vhDate.setHours(0,0,0,0);
-          if (vhDate >= hoje) continue; 
         }
+        if (vhDate !== null && !isNaN(vhDate.getTime())) {
+          if (vhDate >= hoje) continue; // data de hoje ou futura = OK, não incluir
+        }
+        // sem data ou data inválida = incluir (vencido por omissão)
       }
 
-      // Adiciona na lista usando a linha física correta capturada antes da inversão
-      vendas.push(_mapearLinha(row, numLinha));
+      vendas.push(_mapearLinha(row, offsetLinha + i));
     }
 
-    // 4. Paginação
+    // ── Pagina ───────────────────────────────────────────────────────────────
     var inicio = (pagina - 1) * CONFIG.MAX_RESULTS;
     var fim    = inicio + CONFIG.MAX_RESULTS;
+
+    Logger.log('getVendasPaginadas: total=' + vendas.length + ' pagina=' + pagina + ' filtro="' + filtro + '"');
 
     return {
       dados:   vendas.slice(inicio, fim),
@@ -2035,14 +2146,84 @@ function getDashboardComDados(mes, ano) {
   return html.replace('</body>', script + '</body>');
 }
 
+
+// ─── DIAGNÓSTICO DASHBOARD (rode no editor Apps Script para testar) ──────────
+// Vá em: Apps Script → selecione "diagnosticoDashboard" → clique ▶ Executar
+// Veja o resultado em: Visualizar → Registros de execução
+function diagnosticoDashboard() {
+  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet  = ss.getSheetByName('1 - Vendas');
+  var tz     = ss.getSpreadsheetTimeZone();
+  var hoje   = new Date();
+  var hStr   = Utilities.formatDate(hoje, tz, 'yyyy-MM-dd');
+
+  Logger.log('=== DIAGNÓSTICO DASHBOARD ===');
+  Logger.log('Hoje: ' + hStr);
+
+  var ultima = sheet.getLastRow();
+  var raw    = sheet.getRange(3, 1, ultima - 2, 43).getValues();
+
+  var contTotal    = 0;
+  var contHojeFibra = 0;
+  var contProblema  = 0;
+
+  for (var i = 0; i < raw.length; i++) {
+    var row     = raw[i];
+    var produto = String(row[1]  || '').trim();
+    var status  = String(row[2]  || '').trim();
+    var dAtivRaw = row[3]; // col D — valor bruto
+    var dAtiv    = null;
+
+    // Tenta converter para Date
+    if (dAtivRaw instanceof Date && !isNaN(dAtivRaw)) {
+      dAtiv = dAtivRaw;
+    } else if (typeof dAtivRaw === 'number') {
+      dAtiv = new Date(Math.round((dAtivRaw - 25569) * 86400 * 1000));
+    }
+
+    var prodNorm = produto.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    var isFibra  = prodNorm === 'FIBRA ALONE' || prodNorm === 'FIBRA COMBO';
+
+    if (!isFibra) continue; // só interessa Fibra
+
+    contTotal++;
+
+    var dAtivStr = dAtiv ? Utilities.formatDate(dAtiv, tz, 'yyyy-MM-dd') : '(não é data: ' + typeof dAtivRaw + ' = "' + dAtivRaw + '")';
+    var isHoje   = dAtivStr === hStr;
+
+    if (isHoje) contHojeFibra++;
+
+    // Loga todas as linhas Fibra com col D próxima de hoje
+    if (isHoje || (dAtiv && Math.abs(dAtiv - hoje) < 3 * 86400000)) {
+      Logger.log(
+        'Linha ' + (i + 3) +
+        ' | Produto: ' + produto +
+        ' | Status: ' + status +
+        ' | Col D raw: ' + dAtivRaw +
+        ' | Col D tipo: ' + typeof dAtivRaw +
+        ' | Col D parseada: ' + dAtivStr +
+        ' | É hoje: ' + isHoje
+      );
+    }
+
+    if (!dAtiv) contProblema++;
+  }
+
+  Logger.log('--- RESULTADO ---');
+  Logger.log('Total linhas Fibra: '        + contTotal);
+  Logger.log('Fibra com col D = hoje: '    + contHojeFibra);
+  Logger.log('Fibra com col D inválida: '  + contProblema);
+  Logger.log('=== FIM ===');
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 //  INDICAÇÕES (BACK-END DA NOVA PÁGINA)
 // ══════════════════════════════════════════════════════════════════════════
 
 function getIndicacoes() {
   try {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("#Lead Indicação");
-    if (!sheet) return { erro: true, mensagem: 'Aba "' + "#Lead Indicação" + '" não encontrada.' };
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG_INDICACOES.ABA_NOME);
+    if (!sheet) return { erro: true, mensagem: 'Aba "' + CONFIG_INDICACOES.ABA_NOME + '" não encontrada.' };
     
     var data = sheet.getDataRange().getValues();
     if (data.length <= 1) return { dados: [] };
@@ -2080,8 +2261,8 @@ function getIndicacoes() {
 
 function salvarNovaIndicacao(dados) {
   try {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("#Lead Indicação");
-    if (!sheet) return { sucesso: false, mensagem: 'Aba "' + "#Lead Indicação" + '" não encontrada.' };
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG_INDICACOES.ABA_NOME);
+    if (!sheet) return { sucesso: false, mensagem: 'Aba "' + CONFIG_INDICACOES.ABA_NOME + '" não encontrada.' };
     
     var novaLinha =[
       dados.formulario || 'Cadastro Manual CRM',
@@ -2106,4 +2287,3 @@ function salvarNovaIndicacao(dados) {
     return { sucesso: false, mensagem: e.message };
   }
 }
-

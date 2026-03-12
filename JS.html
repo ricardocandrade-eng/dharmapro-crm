@@ -152,9 +152,9 @@ function _sincronizarAoLogar(nomeUsuario) {
       try {
         clearInterval(_syncTimer);
         _syncProgresso(100, 'Concluído!');
-        if (res && res.dados) {
-          AppState.set('_dadosPreCarregados', res);
-          _dadosSincronizados = res.dados;
+        if (res) {
+          if (res.contratos) _dadosSincronizados = res.contratos;
+          if (res.vendas && !res.vendas.erro) AppState.set('_vendasPreCarregadas', res.vendas);
         }
       } catch(e) {}
       setTimeout(function() {
@@ -180,7 +180,7 @@ function _sincronizarAoLogar(nomeUsuario) {
         navegar('dash');
       }, 400);
     })
-    .getContratosParaCruzamento();
+    .getSincronizacaoInicial();
 }
 
 // ─── AUTH ──────────────────────────────────────────────────────────────────
@@ -327,10 +327,10 @@ function navegar(pagina) {
     document.getElementById('menuLista').classList.add('ativo');
     document.getElementById('pageLista').classList.add('ativa');
     document.getElementById('breadcrumbTexto').textContent = 'Lista de Vendas';
-    var dadosPre = AppState.get('_dadosPreCarregados');
-    if (dadosPre) {
-      AppState.set('_dadosPreCarregados', null); // usa só uma vez
-      _renderizarLista(dadosPre);
+    var preCarregadas = AppState.get('_vendasPreCarregadas');
+    if (preCarregadas) {
+      AppState.set('_vendasPreCarregadas', null);
+      _renderizarLista(preCarregadas);
     } else {
       carregarVendas(1, '');
     }
@@ -553,11 +553,8 @@ function _coletarOpcoesFiltro() {
 
 function aplicarFiltros() {
   var termo = document.getElementById('campoBusca') ? document.getElementById('campoBusca').value.trim() : '';
-  if (_dadosSincronizados.length > 0) {
-    _filtrarDadosSincronizados(termo);
-    return;
-  }
-  carregarVendas(1, AppState.get('filtroAtual'));
+  AppState.set('filtroAtual', termo);
+  carregarVendas(1, termo);
 }
 
 function limparFiltros() {
@@ -566,10 +563,7 @@ function limparFiltros() {
   var cb = document.getElementById('filtroVeroHub'); if(cb) cb.checked = false;
   var tgl = cb ? cb.closest('label') : null; if(tgl) tgl.classList.remove('ativo');
   document.getElementById('campoBusca').value = '';
-  if (_dadosSincronizados.length > 0) {
-    _filtrarDadosSincronizados('');
-    return;
-  }
+  AppState.set('filtroAtual', '');
   carregarVendas(1, '');
 }
 
@@ -1059,12 +1053,6 @@ function limparBusca() {
 
 function mudarPagina(dir) {
   fecharPainel();
-  if (_dadosSincronizados.length > 0) {
-    var novaPag = _paginaSync + dir;
-    var termo   = document.getElementById('campoBusca') ? document.getElementById('campoBusca').value.trim() : '';
-    _filtrarDadosSincronizados(termo, novaPag);
-    return;
-  }
   carregarVendas(AppState.get('paginaAtual') + dir, AppState.get('filtroAtual'));
 }
 
@@ -2751,19 +2739,10 @@ var _listaFiltrada = []; // resultado filtrado atual
 function buscaListaInstantanea(valor) {
   clearTimeout(_buscaListaTimer);
   var v = valor.trim();
-
-  // Se tiver dados sincronizados, filtra no frontend — instantâneo
-  if (_dadosSincronizados.length > 0) {
-    _buscaListaTimer = setTimeout(function() {
-      _filtrarDadosSincronizados(v);
-    }, 60);
-    return;
-  }
-
-  // Sem dados locais — vai ao backend
+  AppState.set('filtroAtual', v);
   _buscaListaTimer = setTimeout(function() {
     carregarVendas(1, v);
-  }, 400);
+  }, 350);
 }
 
 function _filtrarDadosSincronizados(termo, pagina) {
