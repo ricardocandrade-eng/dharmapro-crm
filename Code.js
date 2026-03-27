@@ -2465,13 +2465,11 @@ function _limparCache() {
     CONFIG.CACHE_PREFIX + 'tabela_v1',
     CONFIG.CACHE_PREFIX + 'keys'
   ];
-  // Invalida dashboards dos últimos 3 meses (cache chunked: remove meta + até 10 chunks)
+  // Invalida dashboards dos últimos 3 meses (cache simples)
   var hoje = new Date();
   for (var m = 0; m <= 2; m++) {
-    var d       = new Date(hoje.getFullYear(), hoje.getMonth() - m, 1);
-    var dashPfx = CONFIG.CACHE_PREFIX + 'dash_' + (d.getMonth()+1) + '_' + d.getFullYear();
-    toRemove.push(dashPfx + '_meta');
-    for (var c = 0; c < 10; c++) toRemove.push(dashPfx + '_' + c);
+    var d = new Date(hoje.getFullYear(), hoje.getMonth() - m, 1);
+    toRemove.push(CONFIG.CACHE_PREFIX + 'dash_' + (d.getMonth()+1) + '_' + d.getFullYear());
   }
   try { cache.removeAll(toRemove); } catch(e) { Logger.log('_limparCache removeAll erro: ' + e); }
   _limparCacheListaCompleta();
@@ -2615,15 +2613,17 @@ function getDashboard(mes, ano) {
     var anoRef = ano  || hoje.getFullYear();
     var ehHoje = (mesRef === hoje.getMonth() + 1 && anoRef === hoje.getFullYear());
 
-    // Cache chunked (suporta JSON > 100KB) — 5 min mês atual, 10 min meses anteriores
+    // Cache simples (dashboard JSON é pequeno — nunca excede 100KB)
+    // TTL 5 min mês atual, 10 min meses anteriores
     // O _warmupScript recalcula automaticamente quando expira — usuário nunca espera
+    var cache    = CacheService.getScriptCache();
     var cacheKey = CONFIG.CACHE_PREFIX + 'dash_' + mesRef + '_' + anoRef;
     var cacheTTL = ehHoje ? 300 : 600;
     try {
-      var hit = _cacheGetChunked(cacheKey);
+      var hit = cache.get(cacheKey);
       if (hit) {
-        Logger.log('getDashboard cache hit (chunked): ' + mesRef + '/' + anoRef);
-        return hit;
+        Logger.log('getDashboard cache hit: ' + mesRef + '/' + anoRef);
+        return JSON.parse(hit);
       }
     } catch(ce) {}
 
@@ -2935,9 +2935,10 @@ function getDashboard(mes, ano) {
       duMes: duMes, duPassados: duPassados
     };
 
-    // Salva no cache chunked — sem limite de tamanho, substitui o cache.put() anterior
+    // Salva no cache simples (dashboard JSON é pequeno, bem abaixo de 100KB)
     try {
-      _cachePutChunked(cacheKey, retorno, cacheTTL);
+      var jsonDash = JSON.stringify(retorno);
+      cache.put(cacheKey, jsonDash, cacheTTL);
     } catch(ce) { Logger.log('getDashboard cache save erro: ' + ce); }
 
     return retorno;
@@ -3407,8 +3408,9 @@ function salvarTickets(json) {
 
 /**
  * Função mantida pelo trigger de 1 minuto.
- * Mantém o servidor aquecido E pré-carrega o cache do dashboard do mês atual,
- * garantindo que o dashboard abra sem espera para qualquer usuário.
+ * Mantém o servidor aquecido E pré-carrega o cache do dashboard do mês atual.
+ * O dashboard usa cache.put() simples com TTL 300s — verificamos a mesma chave
+ * para só recalcular quando o cache expirou de verdade (a cada ~5 min).
  */
 function _warmupScript() {
   try {
@@ -3418,10 +3420,11 @@ function _warmupScript() {
     var cache = CacheService.getScriptCache();
     var key   = CONFIG.CACHE_PREFIX + 'dash_' + mes + '_' + ano;
 
-    // Só recalcula se o cache estiver expirado — evita trabalho desnecessário
+    // cache.get() bate exatamente com o cache.put() feito em getDashboard
+    // Só recalcula quando o cache expirou (a cada ~5 min, não todo minuto)
     if (!cache.get(key)) {
       getDashboard(mes, ano);
-      Logger.log('_warmupScript: dashboard ' + mes + '/' + ano + ' recalculado.');
+      Logger.log('_warmupScript: dashboard ' + mes + '/' + ano + ' recalculado e cacheado.');
     }
   } catch(e) {
     Logger.log('_warmupScript erro: ' + e.message);
