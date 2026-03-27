@@ -686,8 +686,21 @@ function doGet(e) {
       });
     }
 
+    // Injeta dados do dashboard no template para abertura instantânea.
+    // getDashboard é cache hit (warmup mantém quente) — retorna em <200ms.
+    // Se não houver cache ainda, retorna '{}' e o mobile fará a chamada normal.
+    var initDash = '{}';
+    if (mAuth.autorizado) {
+      try {
+        var hoje   = new Date();
+        var dashData = getDashboard(hoje.getMonth() + 1, hoje.getFullYear());
+        if (dashData && !dashData.erro) initDash = JSON.stringify(dashData);
+      } catch(de) { /* silencioso — fallback para chamada normal no client */ }
+    }
+
     var tmpl = HtmlService.createTemplateFromFile('Mobile');
     tmpl.initUser = initUser;
+    tmpl.initDash = initDash;
     return tmpl.evaluate()
       .setTitle('DharmaPro Mobile')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
