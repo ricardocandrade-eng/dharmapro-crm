@@ -2613,10 +2613,11 @@ function getDashboard(mes, ano) {
     var anoRef = ano  || hoje.getFullYear();
     var ehHoje = (mesRef === hoje.getMonth() + 1 && anoRef === hoje.getFullYear());
 
-    // Cache de 2 min para o mês atual, 10 min para meses anteriores
+    // Cache de 5 min para o mês atual (era 2 min), 10 min para meses anteriores
+    // O _warmupScript recalcula automaticamente quando expira — usuário nunca espera
     var cache    = CacheService.getScriptCache();
     var cacheKey = CONFIG.CACHE_PREFIX + 'dash_' + mesRef + '_' + anoRef;
-    var cacheTTL = ehHoje ? 120 : 600;
+    var cacheTTL = ehHoje ? 300 : 600;
     try {
       var hit = cache.get(cacheKey);
       if (hit) {
@@ -3406,12 +3407,25 @@ function salvarTickets(json) {
 
 /**
  * Função mantida pelo trigger de 1 minuto.
- * Propositalmente leve: apenas lê ScriptProperties para acordar o servidor.
+ * Mantém o servidor aquecido E pré-carrega o cache do dashboard do mês atual,
+ * garantindo que o dashboard abra sem espera para qualquer usuário.
  */
 function _warmupScript() {
   try {
-    PropertiesService.getScriptProperties().getProperty('_warmup_ping');
-  } catch(e) { /* silencioso */ }
+    var hoje  = new Date();
+    var mes   = hoje.getMonth() + 1;
+    var ano   = hoje.getFullYear();
+    var cache = CacheService.getScriptCache();
+    var key   = CONFIG.CACHE_PREFIX + 'dash_' + mes + '_' + ano;
+
+    // Só recalcula se o cache estiver expirado — evita trabalho desnecessário
+    if (!cache.get(key)) {
+      getDashboard(mes, ano);
+      Logger.log('_warmupScript: dashboard ' + mes + '/' + ano + ' recalculado.');
+    }
+  } catch(e) {
+    Logger.log('_warmupScript erro: ' + e.message);
+  }
 }
 
 /**
