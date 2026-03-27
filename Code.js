@@ -2465,11 +2465,13 @@ function _limparCache() {
     CONFIG.CACHE_PREFIX + 'tabela_v1',
     CONFIG.CACHE_PREFIX + 'keys'
   ];
-  // Invalida dashboards dos últimos 3 meses
+  // Invalida dashboards dos últimos 3 meses (cache chunked: remove meta + até 10 chunks)
   var hoje = new Date();
   for (var m = 0; m <= 2; m++) {
-    var d = new Date(hoje.getFullYear(), hoje.getMonth() - m, 1);
-    toRemove.push(CONFIG.CACHE_PREFIX + 'dash_' + (d.getMonth()+1) + '_' + d.getFullYear());
+    var d       = new Date(hoje.getFullYear(), hoje.getMonth() - m, 1);
+    var dashPfx = CONFIG.CACHE_PREFIX + 'dash_' + (d.getMonth()+1) + '_' + d.getFullYear();
+    toRemove.push(dashPfx + '_meta');
+    for (var c = 0; c < 10; c++) toRemove.push(dashPfx + '_' + c);
   }
   try { cache.removeAll(toRemove); } catch(e) { Logger.log('_limparCache removeAll erro: ' + e); }
   _limparCacheListaCompleta();
@@ -2613,16 +2615,15 @@ function getDashboard(mes, ano) {
     var anoRef = ano  || hoje.getFullYear();
     var ehHoje = (mesRef === hoje.getMonth() + 1 && anoRef === hoje.getFullYear());
 
-    // Cache de 5 min para o mês atual (era 2 min), 10 min para meses anteriores
+    // Cache chunked (suporta JSON > 100KB) — 5 min mês atual, 10 min meses anteriores
     // O _warmupScript recalcula automaticamente quando expira — usuário nunca espera
-    var cache    = CacheService.getScriptCache();
     var cacheKey = CONFIG.CACHE_PREFIX + 'dash_' + mesRef + '_' + anoRef;
     var cacheTTL = ehHoje ? 300 : 600;
     try {
-      var hit = cache.get(cacheKey);
+      var hit = _cacheGetChunked(cacheKey);
       if (hit) {
-        Logger.log('getDashboard cache hit: ' + mesRef + '/' + anoRef);
-        return JSON.parse(hit);
+        Logger.log('getDashboard cache hit (chunked): ' + mesRef + '/' + anoRef);
+        return hit;
       }
     } catch(ce) {}
 
@@ -2934,10 +2935,9 @@ function getDashboard(mes, ano) {
       duMes: duMes, duPassados: duPassados
     };
 
-    // Salva no cache
+    // Salva no cache chunked — sem limite de tamanho, substitui o cache.put() anterior
     try {
-      var jsonDash = JSON.stringify(retorno);
-      if (jsonDash.length < 95000) cache.put(cacheKey, jsonDash, cacheTTL);
+      _cachePutChunked(cacheKey, retorno, cacheTTL);
     } catch(ce) { Logger.log('getDashboard cache save erro: ' + ce); }
 
     return retorno;
