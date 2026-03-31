@@ -177,7 +177,7 @@ function cu(el,val){var s=0,dur=1000,tick=14,inc=val/(dur/tick);var t=setInterva
 
 function donut(id,data,colors){
   setTimeout(function(){
-    var c=document.getElementById(id);if(!c)return;
+    var c=document.getElementById(id);if(!c||!c.offsetParent)return;
     var ctx=c.getContext('2d'),W=c.width,H=c.height,cx=W/2,cy=H/2,R=Math.min(W,H)/2-3,ri=R*.58;
     var tot=data.reduce(function(s,d){return s+d;},0);
     ctx.clearRect(0,0,W,H);
@@ -313,6 +313,7 @@ function _render(d){
   h+='</div>';
 
   // ── RANKING FULL-WIDTH no final ──────────────────────────────────────
+  // FONTE: INTERNOS_NOMES em Config.js — manter sincronizado manualmente
   var INTERNOS = ['joysse coelho','vanessa andrade','tuany rodrigues'];
   function _isInterno(nome){ 
     var n = String(nome||'').toLowerCase().trim();

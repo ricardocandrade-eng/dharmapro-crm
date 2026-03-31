@@ -150,9 +150,16 @@
 //  CRUZAMENTO VERO
 // ══════════════════════════════════════════════════════════════
 
-var _cruzDados = null; 
-var _cruzTabAtiva = 'vendas'; 
+var _cruzDados = null;
+var _cruzTabAtiva = 'vendas';
 var _cruzDadosCRM = [];
+var _cruzMapaCRMCache = null; // cache do mapa completo; invalidado quando _cruzDadosCRM muda
+
+function _cruzGetMapaCRM() {
+  if (!_cruzMapaCRMCache) _cruzMapaCRMCache = _cruzMapear(_cruzDadosCRM);
+  return _cruzMapaCRMCache;
+}
+function _cruzInvalidarMapaCache() { _cruzMapaCRMCache = null; }
 
 // ── IMPORTAR XLS ──────────────────────────────────────────────
 function _cruzamentoImportar(inputEl) {
@@ -160,6 +167,24 @@ function _cruzamentoImportar(inputEl) {
   if (!file) return;
 
   var status = document.getElementById('cruzStatus');
+
+  // Validação de tamanho (máx 10MB) e tipo MIME
+  var MAX_SIZE_MB = 10;
+  if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+    status.className = 'cruz-status err';
+    status.textContent = '❌ Arquivo muito grande (máx ' + MAX_SIZE_MB + 'MB). Reduza o relatório.';
+    inputEl.value = '';
+    return;
+  }
+  var tiposPermitidos = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                         'application/vnd.ms-excel'];
+  if (file.type && tiposPermitidos.indexOf(file.type) === -1) {
+    status.className = 'cruz-status err';
+    status.textContent = '❌ Tipo de arquivo inválido. Use .xlsx ou .xls.';
+    inputEl.value = '';
+    return;
+  }
+
   status.className = 'cruz-status';
   status.textContent = '⏳ Lendo arquivo...';
 
@@ -177,18 +202,10 @@ function _cruzamentoImportar(inputEl) {
       }
 
       var wb = XLSX.read(data, { type: 'array' });
-      
-      console.log('Planilha carregada. Abas disponíveis:', wb.SheetNames);
 
       var vendas = _cruzLerAba(wb, 'VENDAS');
       var instalacoes = _cruzLerAba(wb, 'INSTALAÇÕES');
       var cancelamentos = _cruzLerAba(wb, 'CANCELAMENTO');
-
-      console.log('Dados lidos:', {
-        vendas: vendas ? vendas.length : 0,
-        instalacoes: instalacoes ? instalacoes.length : 0,
-        cancelamentos: cancelamentos ? cancelamentos.length : 0
-      });
 
       if (!vendas && !instalacoes && !cancelamentos) {
         status.className = 'cruz-status err';
@@ -210,8 +227,7 @@ function _cruzamentoImportar(inputEl) {
         google.script.run
           .withSuccessHandler(function(res) {
             _cruzDadosCRM = res && res.dados ? res.dados : [];
-            console.log('Dados CRM carregados:', _cruzDadosCRM.length);
-            
+            _cruzInvalidarMapaCache();
             status.className = 'cruz-status ok';
             status.textContent = '✅ ' + file.name + ' importado! Total CRM: ' + _cruzDadosCRM.length;
               
@@ -227,8 +243,8 @@ function _cruzamentoImportar(inputEl) {
           .getContratosParaCruzamento();
       } else {
         // Modo desenvolvimento/teste - usar dados vazios
-        console.warn('Google Apps Script não disponível - modo teste');
         _cruzDadosCRM = [];
+        _cruzInvalidarMapaCache();
         status.className = 'cruz-status ok';
         status.textContent = '✅ ' + file.name + ' importado (modo teste - sem dados CRM)';
         document.getElementById('cruzTabs').style.display = 'flex';
@@ -253,8 +269,6 @@ function _cruzamentoImportar(inputEl) {
 }
 
 function _cruzLerAba(wb, nomeBase) {
-  console.log('Procurando aba:', nomeBase);
-  
   // Tentar várias variações do nome
   var variacoes = [
     nomeBase,
@@ -275,12 +289,7 @@ function _cruzLerAba(wb, nomeBase) {
   // Procurar aba exata
   for (var i = 0; i < variacoes.length; i++) {
     if (wb.Sheets[variacoes[i]]) {
-      console.log('Aba encontrada:', variacoes[i]);
       var data = XLSX.utils.sheet_to_json(wb.Sheets[variacoes[i]], { defval: '', raw: false });
-      console.log('Registros lidos:', data.length);
-      if (data.length > 0) {
-        console.log('Exemplo de registro:', data[0]);
-      }
       return data;
     }
   }
@@ -292,20 +301,18 @@ function _cruzLerAba(wb, nomeBase) {
     var baseUpper = nomeBase.substring(0, 5).toUpperCase();
     
     if (sheetUpper.indexOf(baseUpper) > -1) {
-      console.log('Aba similar encontrada:', sheetName);
       var data = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '', raw: false });
-      console.log('Registros lidos:', data.length);
       return data;
     }
   }
-  
-  console.log('Aba não encontrada:', nomeBase);
+
   return null;
 }
 
 function _cruzamentoLimpar() {
   _cruzDados = null;
   _cruzDadosCRM = [];
+  _cruzInvalidarMapaCache();
   _cruzRemoverIconesLista();
   document.getElementById('cruzStatus').className = 'cruz-status';
   document.getElementById('cruzStatus').textContent = 'Nenhum arquivo importado';
@@ -344,7 +351,12 @@ function _cruzRenderizar() {
       else if (_cruzTabAtiva === 'cancelamentos') _cruzRenderCancelamentos();
     } catch (err) {
       console.error("Erro na renderização:", err);
-      body.innerHTML = '<div class="cruz-empty" style="color:var(--accent);">❌ Erro ao renderizar: ' + err.message + '</div>';
+      body.textContent = '';
+      var errDiv = document.createElement('div');
+      errDiv.className = 'cruz-empty';
+      errDiv.style.color = 'var(--accent)';
+      errDiv.textContent = '❌ Erro ao renderizar: ' + (err && err.message ? err.message : 'erro desconhecido');
+      body.appendChild(errDiv);
     }
   }, 50);
 }
@@ -471,11 +483,6 @@ function _cruzRenderVendas() {
   var crmMes = _cruzCRMdoMes('dataAtiv', mesVig);
   var mapaCRM = _cruzMapear(crmMes);
 
-  console.log('Renderizando vendas:', {
-    totalVendas: rows.length,
-    mesVigente: mesVig,
-    totalCRM: crmMes.length
-  });
 
   document.getElementById('cruzBadgeVendas').textContent = rows.length;
 
@@ -497,11 +504,6 @@ function _cruzRenderVendas() {
     if (!idsVero[id]) soCRM.push(v);
   });
 
-  console.log('Resultado cruzamento vendas:', {
-    match: bateu.length,
-    soVero: soVero.length,
-    soCRM: soCRM.length
-  });
 
   var html = _cruzKanban(
     {
@@ -551,11 +553,6 @@ function _cruzRenderInstalacoes() {
   var crmMes = _cruzCRMdoMes('instal', mesVig);
   var mapaCRM = _cruzMapear(crmMes);
 
-  console.log('Renderizando instalações:', {
-    totalInstalacoes: rows.length,
-    mesVigente: mesVig,
-    totalCRM: crmMes.length
-  });
 
   document.getElementById('cruzBadgeInstalacoes').textContent = rows.length;
 
@@ -631,12 +628,8 @@ function _cruzRenderInstalacoes() {
 // ── ABA CANCELAMENTOS ─────────────────────────────────────────
 function _cruzRenderCancelamentos() {
   var rows = _cruzDados.cancelamentos;
-  var mapaCRM = _cruzMapear(_cruzDadosCRM);
+  var mapaCRM = _cruzGetMapaCRM();
 
-  console.log('Renderizando cancelamentos:', {
-    totalCancelamentos: rows.length,
-    totalCRM: _cruzDadosCRM.length
-  });
 
   document.getElementById('cruzBadgeCancelamentos').textContent = rows.length;
 

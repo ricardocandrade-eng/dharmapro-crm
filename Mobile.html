@@ -550,13 +550,13 @@
 <body>
 
 <!-- ══ LOADING ══ -->
-<div id="mob-loading">
+<div id="mob-loading" role="status" aria-live="polite" aria-label="Carregando">
   <div class="m-spinner"></div>
   <p>Carregando...</p>
 </div>
 
 <!-- ══ TOAST ══ -->
-<div id="mob-toast"></div>
+<div id="mob-toast" role="status" aria-live="assertive" aria-atomic="true"></div>
 
 <!-- ══ LOGIN ══ -->
 <div id="mob-login">
@@ -568,7 +568,7 @@
   <div class="ml-box">
     <div id="ml-err" class="ml-err"></div>
     <!-- Form GET: credenciais vão para doGet, que valida server-side e retorna página autenticada -->
-    <form method="get" action="" onsubmit="return mlSubmit(this)">
+    <form method="get" action="" onsubmit="return mlSubmit(this)" aria-label="Login DharmaPro">
       <input type="hidden" name="view" value="mobile">
       <div class="ml-field">
         <label>Usuário</label>
@@ -606,10 +606,10 @@
     <!-- ── SCREEN: DASHBOARD ── -->
     <div id="scDash" class="mob-screen">
       <div class="dash-head">
-        <button class="dash-nav-btn" onclick="dashNavMes(-1)">◀</button>
-        <span class="dash-mes-lbl" id="dash-mes-lbl">— / —</span>
-        <button class="dash-nav-btn" onclick="dashNavMes(1)">▶</button>
-        <button class="dash-refresh" onclick="loadDash(true)">↺</button>
+        <button class="dash-nav-btn" onclick="dashNavMes(-1)" aria-label="Mês anterior">◀</button>
+        <span class="dash-mes-lbl" id="dash-mes-lbl" aria-live="polite">— / —</span>
+        <button class="dash-nav-btn" onclick="dashNavMes(1)" aria-label="Próximo mês">▶</button>
+        <button class="dash-refresh" onclick="loadDash(true)" aria-label="Atualizar dashboard">↺</button>
       </div>
 
       <div class="dash-kpis" id="dash-kpis">
@@ -632,7 +632,7 @@
       <div class="lista-search-bar">
         <div class="lista-search-wrap">
           <span class="lista-search-icon">🔍</span>
-          <input type="search" id="lista-busca" placeholder="Buscar por nome, CPF ou contrato..." oninput="onListaBusca(this.value)">
+          <input type="search" id="lista-busca" placeholder="Buscar por nome, CPF ou contrato..." oninput="onListaBusca(this.value)" aria-label="Buscar vendas">
         </div>
       </div>
       <div class="lista-filtros" id="lista-filtros">
@@ -686,7 +686,7 @@
   </div><!-- /mob-content -->
 
   <!-- BOTTOM NAV -->
-  <nav class="mob-nav">
+  <nav class="mob-nav" aria-label="Navegação principal">
     <button class="mob-nav-item ativo" id="nav-dash" onclick="navTo('dash')">
       <span class="mob-nav-icon">
         <svg class="mob-nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -795,7 +795,7 @@ window.onerror = function(msg, src, line, col, err) {
 var ST = {
   user:          null,   // {nome, perfil, menus, foto}
   screen:        'dash',
-  dash:          { mes: new Date().getMonth() + 1, ano: new Date().getFullYear(), data: null },
+  dash:          { mes: new Date().getMonth() + 1, ano: new Date().getFullYear(), data: null }, // new Date() intencional: horário local do browser (usuário em BRT)
   lista:         { dados: [], total: 0, temMais: false, offset: 0, busca: '', filtroStatus: '' },
   funil:         { dados: [], colAtiva: 0 },
   pap:           { dados: [], totalValor: 0, filtro: '' },
@@ -833,18 +833,43 @@ function loading(on, txt) {
 /* Centralizado aqui para facilitar migração futura:
    Trocar google.script.run por fetch() quando migrar para PWA+GitHub */
 var API = {
+  _TIMEOUT_MS: 30000, // 30s — evita loading infinito em caso de timeout do GAS
+
   _run: function(fn, args, onOk, onErr) {
+    var _done = false;
+    var timer = setTimeout(function() {
+      if (_done) return;
+      _done = true;
+      loading(false);
+      var msg = 'Tempo esgotado. Verifique sua conexão e tente novamente.';
+      if (onErr) onErr({ message: msg }); else toastMsg(msg, 'erro');
+    }, API._TIMEOUT_MS);
+
     var runner = google.script.run
-      .withSuccessHandler(function(r){ loading(false); if(onOk) onOk(r); })
-      .withFailureHandler(function(e){ loading(false); if(onErr) onErr(e); else toastMsg('Erro: ' + e.message, 'erro'); });
-    // Chamada direta sem .apply() — compatível com a API especial do google.script.run
+      .withSuccessHandler(function(r) {
+        if (_done) return;
+        _done = true;
+        clearTimeout(timer);
+        loading(false);
+        if (onOk) onOk(r);
+      })
+      .withFailureHandler(function(e) {
+        if (_done) return;
+        _done = true;
+        clearTimeout(timer);
+        loading(false);
+        if (onErr) onErr(e); else toastMsg('Erro: ' + (e && e.message ? e.message : 'desconhecido'), 'erro');
+      });
+
+    // Suporta qualquer número de argumentos (fix: switch anterior limitava a 4)
     var a = args || [];
     switch (a.length) {
       case 0: runner[fn](); break;
       case 1: runner[fn](a[0]); break;
       case 2: runner[fn](a[0], a[1]); break;
       case 3: runner[fn](a[0], a[1], a[2]); break;
-      default: runner[fn](a[0], a[1], a[2], a[3]); break;
+      case 4: runner[fn](a[0], a[1], a[2], a[3]); break;
+      default: runner[fn](a[0], a[1], a[2], a[3], a[4]); break;
     }
   },
 
@@ -1149,8 +1174,8 @@ function renderDash(d) {
   var CORES = ['#22d98a','#4f9eff','#e63e6d','#f7a23b','#a78bfa','#ff8c42'];
   var medals = ['🥇','🥈','🥉'];
 
-  // Filtro internos (mesmo do desktop)
-  var INTERNOS = ['joysse coelho','vanessa andrade','tuany rodrigues'];
+  // Filtro internos — injetado pelo servidor a partir de INTERNOS_NOMES (Config.js)
+  var INTERNOS = <?!= internosNomes ?>;
   function isInt(nome){ var n=String(nome||'').toLowerCase().trim(); return INTERNOS.some(function(ii){ return n.indexOf(ii)>-1; }); }
 
   var rkHoje = (d.rankingHoje||[]).filter(function(r){ return !isInt(r.nome); });
@@ -1694,12 +1719,14 @@ function renderPAP() {
 }
 
 function marcarPago(linha, btn) {
+  if (btn._emAndamento) return;
   if (!confirm('Marcar como pago?')) return;
+  btn._emAndamento = true;
   btn.disabled = true; btn.textContent = 'Salvando...';
   loading(true, 'Marcando como pago...');
   API.marcarPagoPAP(linha, function(r) {
+    btn._emAndamento = false;
     if (r && r.sucesso) {
-      // Remove da lista
       ST.pap.dados = ST.pap.dados.filter(function(v){ return v.linha !== linha; });
       toastMsg('Marcado como pago ✅', 'ok');
       renderPAP();

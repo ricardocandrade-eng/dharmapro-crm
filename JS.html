@@ -86,6 +86,9 @@ function mostrarToast(msg, tipo) {
   tipo = tipo || 'success';
   var t = document.createElement('div');
   t.className = 'toast ' + tipo;
+  t.setAttribute('role', 'status');
+  t.setAttribute('aria-live', 'assertive');
+  t.setAttribute('aria-atomic', 'true');
   t.textContent = msg;
   document.body.appendChild(t);
   setTimeout(function () {
@@ -308,7 +311,11 @@ function navegar(pagina) {
           });
         })
         .withFailureHandler(function(err) {
-          container.innerHTML = '<div style="padding:60px;text-align:center;color:#ff4570;font-family:monospace">Erro: ' + err.message + '</div>';
+          var d = document.createElement('div');
+          d.style.cssText = 'padding:60px;text-align:center;color:#ff4570;font-family:monospace';
+          d.textContent = 'Erro: ' + (err && err.message ? err.message : 'desconhecido');
+          container.textContent = '';
+          container.appendChild(d);
         })
         .getDashboardHtml();
     }
@@ -375,7 +382,11 @@ function navegar(pagina) {
           });
         })
         .withFailureHandler(function(e) {
-          dc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro: ' + e.message + '</div>';
+          var d = document.createElement('div');
+          d.style.cssText = 'padding:40px;text-align:center;color:#e63e6d;font-family:monospace';
+          d.textContent = 'Erro: ' + (e && e.message ? e.message : 'desconhecido');
+          dc.textContent = '';
+          dc.appendChild(d);
         })
         .getDocsHtml();
     }

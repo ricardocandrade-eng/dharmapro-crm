@@ -127,7 +127,7 @@
     </div>
     <div class="docs-busca-wrap">
       <span class="docs-busca-icon">🔍</span>
-      <input type="text" class="docs-busca" id="docsBusca" placeholder="Filtrar arquivos..." oninput="docsFlitrar(this.value)">
+      <input type="text" class="docs-busca" id="docsBusca" placeholder="Filtrar arquivos..." aria-label="Filtrar arquivos">
     </div>
   </div>
 
@@ -220,14 +220,16 @@
   }
 
   // ── Filtro local instantâneo ─────────────────────────────────────────────
-  window.docsFlitrar = function(valor) {
+  function _docsFlitrar(valor) {
     if (!valor.trim()) { _renderArquivos(_todosArquivos); return; }
     var v = valor.toLowerCase();
     var filtrado = _todosArquivos.filter(function(f) {
       return f.name.toLowerCase().indexOf(v) > -1;
     });
     _renderArquivos(filtrado);
-  };
+  }
+  var _busca = document.getElementById('docsBusca');
+  if (_busca) _busca.addEventListener('input', function() { _docsFlitrar(this.value); });
 
   // ── Carrega os arquivos via google.script.run ────────────────────────────
   google.script.run
@@ -241,8 +243,14 @@
       _renderArquivos(_todosArquivos);
     })
     .withFailureHandler(function(e) {
-      document.getElementById('docsGrid').innerHTML =
-        '<div class="docs-empty"><div class="docs-empty-icon">⚠️</div><h3>Erro</h3><p>' + e.message + '</p></div>';
+      var grid = document.getElementById('docsGrid');
+      grid.textContent = '';
+      var wrap = document.createElement('div'); wrap.className = 'docs-empty';
+      var icon = document.createElement('div'); icon.className = 'docs-empty-icon'; icon.textContent = '⚠️';
+      var h3   = document.createElement('h3');  h3.textContent = 'Erro';
+      var p    = document.createElement('p');   p.textContent  = e && e.message ? e.message : 'Erro desconhecido';
+      wrap.appendChild(icon); wrap.appendChild(h3); wrap.appendChild(p);
+      grid.appendChild(wrap);
     })
     .getArquivosDrive();
 })();

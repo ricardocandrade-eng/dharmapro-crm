@@ -18,28 +18,28 @@ var PERFIS = {
 var USUARIOS = [
   {
     usuario: 'Joysse.Coelho',
-    senha:   '000000',
+    senha:   'Jc#8mP2$xK9q',
     nome:    'Joysse Coelho',
     perfil:  'backoffice',
     foto:    'https://drive.google.com/thumbnail?id=18ZhwhCb9TqTJ4q27eplYzVguFzfXlPWo&sz=s200'
   },
   {
     usuario: 'Ricardo.Andrade',
-    senha:   '000000',
+    senha:   'Ra$7nQ4!vL3w',
     nome:    'Ricardo Andrade',
     perfil:  'admin',
     foto:    'https://drive.google.com/thumbnail?id=1WsBnWbnGx2gzK8P8c6tzXoL9HBt7DQCN&sz=s200'
   },
   {
     usuario: 'Tuany.Rodrigues',
-    senha:   '000000',
+    senha:   'Tr@5kN8#mX2j',
     nome:    'Tuany Rodrigues',
     perfil:  'supervisor',
     foto:    'https://drive.google.com/thumbnail?id=16VfXn_1ghqjaYAjI-S4ZgP7Eu5pIJblT&sz=s200'
   },
   {
     usuario: 'Vanessa.Andrade',
-    senha:   '000000',
+    senha:   'Va#9pR3!yM6c',
     nome:    'Vanessa Andrade',
     perfil:  'backoffice',
     foto:    'https://drive.google.com/thumbnail?id=1PsFoDhQPue-D5CC0Bzxux172scBDB9bx&sz=s200'
@@ -80,6 +80,16 @@ var DASHBOARD_CONFIG = {
     '2026-12-31', // Véspera de Ano Novo (meio dia)
   ]
 };
+
+// ── FILTRO DE USUÁRIOS INTERNOS (Dashboard / Mobile) ──────────────────────
+//  Lista de nomes em lowercase usada para excluir vendedores internos dos rankings.
+//  FONTE ÚNICA DE VERDADE — referenciada em Dashboard.html e Mobile.html.
+//  Atualize aqui ao adicionar/remover colaboradores internos.
+var INTERNOS_NOMES = [
+  'joysse coelho',
+  'vanessa andrade',
+  'tuany rodrigues'
+];
 
 // ── MENSAGEM DO SISTEMA ────────────────────────────────────────────────────
 //  Escreva aqui um recado rápido para aparecer no topo do sistema.

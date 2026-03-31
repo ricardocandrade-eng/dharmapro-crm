@@ -43,7 +43,7 @@ var CONFIG = {
     TEL:         16,  // Q  - Telefone ligação
     CEP:         17,  // R  - CEP
     RUA:         18,  // S  - Logradouro
-    NUM:         19,  // T  - NúmerogetVendasPaginadas 
+    NUM:         19,  // T  - Número
     COMPLEMENTO: 20,  // U  - Complemento
     BAIRRO:      21,  // V  - Bairro
     CIDADE:      22,  // W  - Cidade
@@ -101,10 +101,23 @@ function getMensagemSistema() {
 function buscarVendaGlobal(termo) {
   try {
     if (!termo || String(termo).trim().length < 2) return { dados: [], total: 0 };
-    var sheet = _getSheet();
-    var ult   = sheet.getLastRow();
-    if (ult < 3) return { dados: [], total: 0 };
-    var raw   = sheet.getRange(3, 1, ult - 2, 47).getValues();
+
+    // Cache de 60s: evita re-leitura completa em buscas sucessivas
+    var cache    = CacheService.getScriptCache();
+    var cacheKey = CONFIG.CACHE_PREFIX + 'raw_global';
+    var raw;
+    try {
+      var hit = cache.get(cacheKey);
+      if (hit) { raw = JSON.parse(hit); }
+    } catch(ce) {}
+
+    if (!raw) {
+      var sheet = _getSheet();
+      var ult   = sheet.getLastRow();
+      if (ult < 3) return { dados: [], total: 0 };
+      raw = sheet.getRange(3, 1, ult - 2, 47).getValues();
+      try { cache.put(cacheKey, JSON.stringify(raw), 60); } catch(ce) {}
+    }
 
     // normaliza o termo: remove pontos, traços, espaços extras, minúsculas
     var t     = String(termo).trim().toLowerCase();
@@ -206,6 +219,15 @@ function excluirVenda(linha) {
     var ult   = sheet.getLastRow();
     if (linha > ult) return { sucesso: false, mensagem: 'Linha não encontrada.' };
 
+    // Loga dados da linha antes de limpar (auditoria)
+    var dadosLinha = sheet.getRange(linha, 1, 1, 15).getValues()[0];
+    var clienteExcluido = String(dadosLinha[14] || '');
+    var contratoExcluido = String(dadosLinha[6] || '');
+    Logger.log('excluirVenda: linha=' + linha +
+               ' | cliente=' + clienteExcluido +
+               ' | contrato=' + contratoExcluido +
+               ' | executor=' + Session.getActiveUser().getEmail());
+
     // Limpa todo o conteúdo da linha (preserva a linha para não deslocar índices)
     sheet.getRange(linha, 1, 1, 43).clearContent();
 
@@ -246,8 +268,7 @@ function salvarPedidoVeroHub(linha, numeroPedido, dataHoraPedido) {
       dataHoraPedido = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm');
     }
     var sheet = _getSheet();
-    sheet.getRange(linha, 44).setValue(numeroPedido  || '');
-    sheet.getRange(linha, 45).setValue(dataHoraPedido || '');
+    sheet.getRange(linha, 44, 1, 2).setValues([[numeroPedido || '', dataHoraPedido || '']]);
     _limparCacheListaCompleta();
     return { sucesso: true, numeroPedido: numeroPedido, dataHoraPedido: dataHoraPedido };
   } catch(e) {
@@ -355,8 +376,7 @@ function criarPedidoVeroHub(dados) {
 
     if (linha >= 3) {
       var sheet = _getSheet();
-      sheet.getRange(linha, 44).setValue(String(novoId));  // AR
-      sheet.getRange(linha, 45).setValue(dtHora);           // AS
+      sheet.getRange(linha, 44, 1, 2).setValues([[String(novoId), dtHora]]); // AR + AS batch
       _limparCacheListaCompleta();
     }
 
@@ -461,14 +481,9 @@ function getSincronizacaoInicial() {
       var r  = raw[i];
       var ct = String(r[6] || '').trim().replace(/\.0$/, '');
       if (!ct) continue;
-      var fmtD = function(v) {
-        if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
-        if (typeof v === 'number') { var d = new Date(Math.round((v-25569)*86400*1000)); return isNaN(d)?'':Utilities.formatDate(d,tz,'yyyy-MM-dd'); }
-        return String(v||'');
-      };
       contratos.push({ linha: i+3, contrato: ct, status: String(r[2]||'').trim(),
         cliente: String(r[14]||'').trim(), produto: String(r[1]||'').trim(),
-        dataAtiv: fmtD(r[3]), instal: fmtD(r[9]) });
+        dataAtiv: _sheetDateToStr(r[3], tz), instal: _sheetDateToStr(r[9], tz) });
     }
 
     // ── Vendas com mapper leve — apenas as últimas 500 linhas (sort desc) ──
@@ -510,16 +525,23 @@ function getSincronizacaoInicial() {
 }
 
 // ── CRUZAMENTO VERO — retorna só contrato+status de toda a planilha ──────────
-// ─── CRUZAMENTO VERO — retorna só contrato+status de toda a planilha ──────────
 function getContratosParaCruzamento() {
   try {
+    // Cache 5 min — mesmos dados que getSincronizacaoInicial; evita re-leitura da planilha
+    var cache    = CacheService.getScriptCache();
+    var cacheKey = CONFIG.CACHE_PREFIX + 'contratos_cruzamento_v1';
+    try {
+      var hit = cache.get(cacheKey);
+      if (hit) {
+        var cached = JSON.parse(hit);
+        Logger.log('getContratosParaCruzamento cache hit: ' + cached.dados.length);
+        return cached;
+      }
+    } catch(ce) {}
+
     var sheet = _getSheet();
     var ultima = sheet.getLastRow();
-    
-    Logger.log('getContratosParaCruzamento: última linha = ' + ultima);
-    
     if (ultima < 3) {
-      Logger.log('getContratosParaCruzamento: planilha vazia');
       return { dados: [] };
     }
 
@@ -591,16 +613,10 @@ function getContratosParaCruzamento() {
       });
     }
 
-    Logger.log('getContratosParaCruzamento: retornando ' + dados.length + ' contratos');
-    
-    // Log dos primeiros 3 registros para debug
-    if (dados.length > 0) {
-      Logger.log('Exemplo 1: ' + JSON.stringify(dados[0]));
-      if (dados.length > 1) Logger.log('Exemplo 2: ' + JSON.stringify(dados[1]));
-      if (dados.length > 2) Logger.log('Exemplo 3: ' + JSON.stringify(dados[2]));
-    }
-
-    return { dados: dados };
+    Logger.log('getContratosParaCruzamento: ' + dados.length + ' contratos');
+    var retorno = { dados: dados };
+    try { cache.put(cacheKey, JSON.stringify(retorno), CONFIG.CACHE_TTL); } catch(ce) {}
+    return retorno;
     
   } catch(e) {
     Logger.log('getContratosParaCruzamento ERRO: ' + e.message + ' | Stack: ' + e.stack);
@@ -658,49 +674,16 @@ function doGet(e) {
   }
 
   if (view === 'mobile') {
-    // Login server-side: valida credenciais no doGet e injeta userData no template.
-    // Elimina dependência de google.script.run para autenticação no browser mobile.
-    var mUser = (e && e.parameter && e.parameter.u) ? String(e.parameter.u).trim() : '';
-    var mPass = (e && e.parameter && e.parameter.p) ? String(e.parameter.p) : '';
-
-    var mAuth = { autorizado: false, mensagem: '' };
-    if (mUser && mPass) {
-      try { mAuth = validarLogin(mUser, mPass); }
-      catch(ex) { mAuth = { autorizado: false, mensagem: 'Erro interno. Tente novamente.' }; }
-    }
-
-    var initUser;
-    if (mAuth.autorizado) {
-      initUser = JSON.stringify({
-        autorizado: true,
-        nome:    mAuth.nome    || mUser,
-        foto:    mAuth.foto    || '',
-        perfil:  mAuth.perfil  || 'backoffice',
-        menus:   mAuth.menus   || [],
-        usuario: mUser
-      });
-    } else {
-      initUser = JSON.stringify({
-        autorizado: false,
-        mensagem: (mUser || mPass) ? (mAuth.mensagem || 'Credenciais inválidas.') : ''
-      });
-    }
-
-    // Injeta dados do dashboard no template para abertura instantânea.
-    // getDashboard é cache hit (warmup mantém quente) — retorna em <200ms.
-    // Se não houver cache ainda, retorna '{}' e o mobile fará a chamada normal.
+    // Autenticação feita 100% via google.script.run no cliente (mlSubmit).
+    // Credenciais NUNCA passam por URL — evita exposição em logs/histórico do browser.
+    // initUser sempre começa como não-autenticado; o cliente autentica via API.login().
+    var initUser = JSON.stringify({ autorizado: false, mensagem: '' });
     var initDash = '{}';
-    if (mAuth.autorizado) {
-      try {
-        var hoje   = new Date();
-        var dashData = getDashboard(hoje.getMonth() + 1, hoje.getFullYear());
-        if (dashData && !dashData.erro) initDash = JSON.stringify(dashData);
-      } catch(de) { /* silencioso — fallback para chamada normal no client */ }
-    }
 
     var tmpl = HtmlService.createTemplateFromFile('Mobile');
     tmpl.initUser = initUser;
     tmpl.initDash = initDash;
+    tmpl.internosNomes = JSON.stringify(INTERNOS_NOMES);
     return tmpl.evaluate()
       .setTitle('DharmaPro Mobile')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
@@ -824,7 +807,7 @@ function doPost(e) {
     try { payload = JSON.parse(e.postData.contents); } catch(pe) {}
 
     // Validação do segredo — rejeita requisições sem token correto
-    if (SECRET && payload.secret !== SECRET) {
+    if (!SECRET || payload.secret !== SECRET) {
       return ContentService
         .createTextOutput(JSON.stringify({ erro: 'Não autorizado.' }))
         .setMimeType(ContentService.MimeType.JSON);
@@ -888,9 +871,9 @@ function validarLogin(usuario, senha) {
       var reg = USUARIOS[i];
       if (String(reg.usuario).trim().toLowerCase() === u && String(reg.senha) === senha) {
         var perfil = reg.perfil || 'backoffice';
-        var menus  = (typeof PERFIS_MENUS !== 'undefined' && PERFIS_MENUS[perfil])
-                       ? PERFIS_MENUS[perfil]
-                       : ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','config'];
+        var menus  = (PERFIS && PERFIS[perfil])
+                       ? PERFIS[perfil]
+                       : ['dash','formulario','lista'];
         return {
           autorizado: true,
           nome:       reg.nome   || reg.usuario,
@@ -909,8 +892,9 @@ function validarLogin(usuario, senha) {
 }
 
 
-// ─── DIAGNÓSTICO CEP (rode uma vez no editor Apps Script para testar) ────────
-// Vá em: Apps Script → selecione "diagnosticoCEP" → clique ▶ Executar
+// ─── [DEV-ONLY] DIAGNÓSTICO CEP ───────────────────────────────────────────────
+// Utilitário de diagnóstico — execute SOMENTE no editor do Apps Script.
+// NÃO é chamado pelo webapp. Vá em: Apps Script → selecione "diagnosticoCEP" → ▶
 // Veja o resultado em: Visualizar → Registros de execução
 function diagnosticoCEP() {
   var CEP_TESTE = '01310100'; // Avenida Paulista — troque pelo seu CEP se quiser
@@ -988,11 +972,15 @@ function getResponsaveis() {
 // Autenticação: header 'api-key'
 // Limite: 600 RPM
 
-// Configura a chave de API (executar UMA VEZ no editor Apps Script)
+// ─── [DEV-ONLY] SETUP BOTCONVERSA ────────────────────────────────────────────
+// Utilitário de setup — execute UMA VEZ no editor do Apps Script.
+// NÃO é chamado pelo webapp.
+// Execute no console do editor:
+//   PropertiesService.getScriptProperties().setProperty('botconversa_api_key', 'SUA_CHAVE_AQUI');
+// Nunca armazene a chave diretamente no código-fonte.
 function configurarBotConversa() {
-  PropertiesService.getScriptProperties()
-    .setProperty('botconversa_api_key', '12f06fd2-c949-4923-8c2c-2a30dec207a5');
-  Logger.log('Chave BotConversa configurada.');
+  Logger.log('⚠️ Configure a chave manualmente via PropertiesService no editor do Apps Script.');
+  Logger.log('Execute: PropertiesService.getScriptProperties().setProperty(\'botconversa_api_key\', \'SUA_CHAVE\')');
 }
 
 // Lista os fluxos disponíveis na conta (cache 5 min)
@@ -1082,7 +1070,8 @@ function dispararFluxoCliente(payload) {
     if (!sheet) return { sucesso: false, mensagem: 'Planilha não encontrada.' };
     var linha = parseInt(payload.linha);
     if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
-    var whats = String(sheet.getRange(linha, CONFIG.COLUNAS.WHATS + 1).getValue() || '').trim();
+    var whats = payload.whats ? String(payload.whats).trim()
+                              : String(sheet.getRange(linha, CONFIG.COLUNAS.WHATS + 1).getValue() || '').trim();
     if (!whats) return { sucesso: false, mensagem: 'Cliente sem WhatsApp cadastrado.' };
     var sid = _bcGetSubscriberPorTelefone(whats);
     if (!sid) return { sucesso: false, mensagem: 'Contato não encontrado no BotConversa.' };
@@ -1188,6 +1177,9 @@ function sincronizarTagsBotConversa(forcar) {
     var j           = cursorJ; // posição dentro de janela[]
     var amostraFone = '';
 
+    // Lê as duas colunas (tags + status) de uma vez — batch write ao final
+    var batchData = sheet.getRange(3, colTags, totalLinhas, 2).getValues();
+
     while (j < totalJanela && chamadas < LOTE_MAX) {
       var absIdx  = janela[j];          // índice 0-based dentro de todosW
       var foneRaw = String(todosW[absIdx][0] || '').replace(/\D/g, '');
@@ -1206,16 +1198,12 @@ function sincronizarTagsBotConversa(forcar) {
         var httpCode = resp.getResponseCode();
 
         if (httpCode === 200) {
-          var sub        = JSON.parse(resp.getContentText());
-          var tags       = (sub.tags && sub.tags.length) ? sub.tags.join(' | ') : '';
-          // Loga objeto completo para diagnóstico (apenas os 5 primeiros)
-          if (atualizados < 5) {
-            Logger.log('BC subscriber raw: ' + JSON.stringify(sub) + ' | fone=' + foneRaw);
-          }
-          var status     = sub.live_chat ? 'Aberto' : 'Concluído';
-          var linhaSheet = absIdx + 3; // linha real na planilha (dados começam na row 3)
-          sheet.getRange(linhaSheet, colTags).setValue(tags);
-          sheet.getRange(linhaSheet, colStatus).setValue(status);
+          var sub    = JSON.parse(resp.getContentText());
+          var tags   = (sub.tags && sub.tags.length) ? sub.tags.join(' | ') : '';
+          var status = sub.live_chat ? 'Aberto' : 'Concluído';
+          // Acumula em memória — sem chamada ao Sheets aqui
+          batchData[absIdx][0] = tags;
+          batchData[absIdx][1] = status;
           atualizados++;
         } else {
           if (naoAchado < 3) {
@@ -1232,6 +1220,11 @@ function sincronizarTagsBotConversa(forcar) {
 
       Utilities.sleep(DELAY_MS);
       j++;
+    }
+
+    // Grava todas as atualizações de uma vez (1 chamada RPC vs. 2×N anteriores)
+    if (atualizados > 0) {
+      sheet.getRange(3, colTags, totalLinhas, 2).setValues(batchData);
     }
 
     lock.releaseLock();
@@ -1554,20 +1547,14 @@ function moverLeadAguardando(payload) {
 
     var linha = parseInt(payload.linha);
 
-    // Status → col C (índice 2 = coluna 3)
-    sheet.getRange(linha, 3).setValue('2- Aguardando Instalação');
-
-    // Agenda → col H (índice 7 = coluna 8)
-    if (payload.agenda) sheet.getRange(linha, 8).setValue(payload.agenda);
-
-    // Turno → col I (índice 8 = coluna 9)
-    if (payload.turno) sheet.getRange(linha, 9).setValue(payload.turno);
-
-    // Contrato/OS → col G (índice 6 = coluna 7)
-    if (payload.contrato) sheet.getRange(linha, 7).setValue(payload.contrato);
-
-    // Observação → col AK (coluna 37)
-    if (payload.obs) sheet.getRange(linha, 37).setValue(payload.obs);
+    // Lê a linha completa, atualiza em memória e escreve de volta em 1 chamada
+    var rowData = sheet.getRange(linha, 1, 1, 45).getValues()[0];
+    rowData[2]  = '2- Aguardando Instalação';        // C
+    if (payload.contrato) rowData[6]  = payload.contrato; // G
+    if (payload.agenda)   rowData[7]  = payload.agenda;   // H
+    if (payload.turno)    rowData[8]  = payload.turno;    // I
+    if (payload.obs)      rowData[36] = payload.obs;      // AK
+    sheet.getRange(linha, 1, 1, 45).setValues([rowData]);
 
     _limparCache();
 
@@ -2031,6 +2018,21 @@ function _normalizarTexto(s) {
   return s ? s.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase() : '';
 }
 
+// Converte valor de célula do Sheets para Date JS — serial numérico ou Date
+// Fonte única: substitui o padrão new Date(Math.round((v-25569)*86400*1000)) duplicado
+function _sheetDateToJs(v) {
+  if (v instanceof Date && !isNaN(v)) return v;
+  if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400 * 1000));
+  return null;
+}
+
+// Converte valor de célula do Sheets para string formatada (yyyy-MM-dd)
+function _sheetDateToStr(v, tz) {
+  var d = _sheetDateToJs(v);
+  if (!d || isNaN(d)) return String(v || '');
+  return Utilities.formatDate(d, tz || Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
 // ── Cache de abas auxiliares ───────────────────────────────────────────────
 // Evita múltiplas leituras completas da aba CIDADES/TABELA por requisição.
 // TTL 10 min — invalidado automaticamente por _limparCache().
@@ -2040,13 +2042,14 @@ function _getCidades() {
   try {
     var hit = cache.get(key);
     if (hit) return JSON.parse(hit);
-  } catch(e) {}
-  var rows = SpreadsheetApp.getActiveSpreadsheet()
-               .getSheetByName('CIDADES').getDataRange().getValues();
+  } catch(e) { /* cache miss ou JSON inválido — re-lê da planilha */ }
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('CIDADES');
+  if (!sh) { Logger.log('_getCidades: aba CIDADES não encontrada'); return []; }
+  var rows = sh.getDataRange().getValues();
   try {
     var json = JSON.stringify(rows);
     if (json.length < 95000) cache.put(key, json, 600);
-  } catch(e) {}
+  } catch(e) { Logger.log('_getCidades cache.put falhou: ' + e.message); }
   return rows;
 }
 
@@ -2056,13 +2059,14 @@ function _getTabela() {
   try {
     var hit = cache.get(key);
     if (hit) return JSON.parse(hit);
-  } catch(e) {}
-  var rows = SpreadsheetApp.getActiveSpreadsheet()
-               .getSheetByName('TABELA').getDataRange().getValues();
+  } catch(e) { /* cache miss ou JSON inválido — re-lê da planilha */ }
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('TABELA');
+  if (!sh) { Logger.log('_getTabela: aba TABELA não encontrada'); return []; }
+  var rows = sh.getDataRange().getValues();
   try {
     var json = JSON.stringify(rows);
     if (json.length < 95000) cache.put(key, json, 600);
-  } catch(e) {}
+  } catch(e) { Logger.log('_getTabela cache.put falhou: ' + e.message); }
   return rows;
 }
 
@@ -2476,6 +2480,8 @@ function _limparCache() {
     CONFIG.CACHE_PREFIX + 'responsaveis_v1',
     CONFIG.CACHE_PREFIX + 'cidades_v1',
     CONFIG.CACHE_PREFIX + 'tabela_v1',
+    CONFIG.CACHE_PREFIX + 'raw_global',              // cache de buscarVendaGlobal
+    CONFIG.CACHE_PREFIX + 'contratos_cruzamento_v1', // cache de getContratosParaCruzamento
     CONFIG.CACHE_PREFIX + 'keys'
   ];
   // Invalida dashboards dos últimos 3 meses (cache simples)
@@ -2640,14 +2646,17 @@ function getDashboard(mes, ano) {
       }
     } catch(ce) {}
 
+    var _t0      = Date.now(); // guard de tempo de execução (limite GAS: 6 min)
     var sheet    = _getSheet();
     var tz       = Session.getScriptTimeZone();
     var cfg      = DASHBOARD_CONFIG;
 
-    // ── Lê planilha completa (43 colunas) ─────────────────────────────────
+    // ── Lê colunas A-AK (37) — dashboard usa até VALOR(AJ=35) e PRE_STATUS(AK=36)
     var ultima = sheet.getLastRow();
     if (ultima < 3) return { erro: false, vazio: true };
-    var raw = sheet.getRange(3, 1, ultima - 2, 43).getValues();
+    // Guard: se a planilha for muito grande, avisa nos logs antes de ler
+    if (ultima > 5000) Logger.log('getDashboard: planilha grande (' + ultima + ' linhas) — risco de timeout');
+    var raw = sheet.getRange(3, 1, ultima - 2, 37).getValues();
 
     // ── Helpers ────────────────────────────────────────────────────────────
     function isMesAno(d) {
@@ -2954,6 +2963,7 @@ function getDashboard(mes, ano) {
       cache.put(cacheKey, jsonDash, cacheTTL);
     } catch(ce) { Logger.log('getDashboard cache save erro: ' + ce); }
 
+    Logger.log('getDashboard: concluído em ' + Math.round((Date.now() - _t0) / 1000) + 's | ' + raw.length + ' linhas | ' + mesRef + '/' + anoRef);
     return retorno;
 
   } catch(e) {
@@ -3107,6 +3117,12 @@ function getIndicacoes() {
 
 function salvarIndicacao(payload) {
   try {
+    if (!payload || !String(payload.nomeIndicado || '').trim())
+      return { sucesso: false, erro: 'Nome do indicado é obrigatório.' };
+    if (!String(payload.telIndicado || '').trim())
+      return { sucesso: false, erro: 'Telefone do indicado é obrigatório.' };
+    if (!String(payload.nomeIndicador || '').trim())
+      return { sucesso: false, erro: 'Nome do indicador é obrigatório.' };
     var sh   = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(_ABA_IND);
     if (!sh) return { sucesso: false, erro: 'Aba "' + _ABA_IND + '" não encontrada.' };
     var tz   = Session.getScriptTimeZone();
@@ -3149,6 +3165,20 @@ function atualizarDataPgtoInd(linha, dataBR) {
     return { sucesso: true };
   } catch(e) {
     Logger.log('atualizarDataPgtoInd ERRO: ' + e.message);
+    return { sucesso: false, erro: e.message };
+  }
+}
+
+// Atualiza Status + Data de pagamento em uma única chamada (batch: 1 setValues em vez de 2)
+// Preferir esta função quando ambos os campos forem atualizados simultaneamente.
+function atualizarPagamentoInd(linha, novoStatus, dataBR) {
+  try {
+    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(_ABA_IND);
+    if (!sh) return { sucesso: false, erro: 'Aba não encontrada.' };
+    sh.getRange(linha, 13, 1, 2).setValues([[novoStatus || '', dataBR || '']]);
+    return { sucesso: true };
+  } catch(e) {
+    Logger.log('atualizarPagamentoInd ERRO: ' + e.message);
     return { sucesso: false, erro: e.message };
   }
 }
@@ -3325,10 +3355,11 @@ function exibirAgendamentosDoDiaWeb() {
 
   if (!dashboard || !abaVendas) return '<div style="padding:12px;color:red;">Abas não encontradas.</div>';
 
-  var totalInstalacoes = Math.round(_num(dashboard.getRange('K6').getValue()));
-  var instalado        = Math.round(_num(dashboard.getRange('K7').getValue()));
-  var pendenciado      = Math.round(_num(dashboard.getRange('K10').getValue()));
-  var emCampo          = Math.round(_num(dashboard.getRange('K8').getValue()));
+  var kVals = dashboard.getRange('K6:K10').getValues(); // K6,K7,K8,K9,K10
+  var totalInstalacoes = Math.round(_num(kVals[0][0]));
+  var instalado        = Math.round(_num(kVals[1][0]));
+  var emCampo          = Math.round(_num(kVals[2][0]));
+  var pendenciado      = Math.round(_num(kVals[4][0]));
 
   var ultimaLinha = abaVendas.getLastRow();
   var listaAguardando = '';
