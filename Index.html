@@ -1,15 +1,23 @@
+<!-- ══════════════════════════════════════════════════════════════════════════
+     Versão mais recente: 16/03/2026
+     Atualizado em: 16/03/2026 | Implementado painelToggleEdicao() — edição inline no painel lateral
+     Atualizado em: 15/03/2026 | Modal VeroHub: campo busca de plano (mvh-plano-busca)
+     ══════════════════════════════════════════════════════════════════════════ -->
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DharmaPro</title>
-  <link rel="icon" type="image/png" href="https://img.icons8.com/stickers/96/cloud--v1.png">
-  <meta name="msapplication-TileImage" content="https://img.icons8.com/stickers/144/cloud--v1.png">
-  <meta name="msapplication-square70x70logo" content="https://img.icons8.com/stickers/70/cloud--v1.png">
-  <meta name="msapplication-square150x150logo" content="https://img.icons8.com/stickers/150/cloud--v1.png">
-  <meta name="msapplication-square310x310logo" content="https://img.icons8.com/stickers/310/cloud--v1.png">
+  <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAAKUElEQVR4nO3dT2wcVx0H8O/MrnfX8d8ktjdx0sRNi50oIT3QQlMIEVRVeigXxJ8AB04FcuiJQ5tDe+kBhFARJ1QKlCJEVYpACBoVqWpTQpR/qLRRotCkJnbiP7vJer2299/M7sxwSFIlrv/seufNvHnv+5GiHCy995z8vvPezL59YyBAfekhL8j+KLpy2TEjiH6EdsKCJ7+ICoTvjbLoSTQ/w+BbQyx8CpofQWi5ARY+ha2VIJitdMziJxm0UodrSg4Ln2TV7GzQ9AzA4ieZNVufTQWAxU9R0EydNhwAFj9FSaP12lAAWPwURY3U7aoBYPFTlK1WvysGgMVPKlipjpcNAIufVLJcPbf0QRhR1C0ZAF79SUVL1fUnAsDiJ5Utrm8ugUhrdwWAV3/SwZ11zhmAtPZxAHj1J53crnfOAKQ1BoC0ZgBc/pC+OAOQ1hgA0hoDQFozuf4nnXEGIK0xAKQ1BoC0xgCQ1hgA0hoDQFpjAEhrDABpjQEgrTEApDUGgLTGAJDWGADSGgNAWmMASGsMAGmNASCtMQCkNQaAtMYAkNbiYQ8gaK8PHcBIstv3dj0AHjy4ngcHgOt5qHkuLM+B7bmwPRdlt47SrT9Ft445x0besVFwbMzULWTqFWRqFcw6tu/jo6VpFwBRDAAGDJiGcfMf1QDaEQPQ1nRbludg3C5h3C7hil3ExWoBF605TNUqPo+aGAAJJY0YhpPdGF40U+XqFs6WczhdzuHtYgYFzhQtM3Q7F0jUEihodc/FidINvDE/iWOlDKquE/aQIokzQETFDRMHOtM40JlG2a3jL3NX8Zv8KG7Uq2EPLVL4FEgB68w4vrN+B47ueBTPDOzBQDwV9pAigwFQSNIw8e319+LojkdxuG8EcYP/vavhv5CCEoaJwxuH8er2/diZ7Al7OFJjABQ2kuzGq9v343DfCMyb70KhRRgAxcUMA4c3DuOFLQ8iZcbCHo50GABNfLlzE16+5xH0xZNhD0UqDIBGdqd68ftt+7E90RH2UKTBAGhmsK0dL92zD5vb2sMeihQYAA1tirfjl1v3YUOMyyEGQFPbEx34xdbPIan5ZwV6//aa25XqwZH0p8MeRqi4F8gHn7/8Jhbc2rI/TxomEkYMKTOGDbEE+uMpDMRTuD/ZheFkN0aSPeiJNb9t2g9f7dmGs+Uc3pifDKX/sDEAAbA8F5bnYsGt4Ua9ig+t+bt+bsLArlQPHl7Xh4PdW7Az4N2qz6UfwAeVWUzUyoH2KwMugSTgwsOFagG/zn+Eb4y9i6+NvYvXC+OoeW4g/bebMTw9sCeQvmTDAEjokjWP57Pn8MSVt/HXuWuB9HmgM40vdAwE0pdMGACJTdcqeDbzPp68dhJTASxPnhnYo90OUr1+24g6Xc7h0PhxnCnnhPazLdGBg12bhfYhGwYgIgqOje9PnMKbC1NC+/nuhvuEti8bBiBCHM/Dken3cKyYEdbHzmQPPruuT1j7smEAIsbxPDw9/R7+ZxeF9fHN3iFhbcuGAYigiuvgh1P/hiXoMen+jgFtvjvAAETUqLWA3+VHhbSdMmPaPBJlACLsV/nLwo5BeaxTj6dBDECEVVwHf5i9IqTthzv6hbQrGwYg4v40Nw7L8/9UuPWxBLa2rfO9XdkwABE359RwvHhdSNsPtK8X0q5MGAAFvCPoc4G9KQaAIuB4ScwMcG+yU0i7MmEAFFBwbEwK2Cw3GOc9AEXE+WrB9zY3t7Urf54cA6CIq3bJ9zbbDBN9ip80zQAoYrou5vVJG2IJIe3KggFQRFbQ+8PaTbW/Ns4AKKIs6BVJKUPtTXEMgCJEfBoMQPldoQyAImxBW6MTin9HWO3fTiOiClXUzCILBkARopYqqr9+lQFQRIegpzUVzgAUBZviYs775wxAkSDqhRczjiWkXVkwAIoYSvi/c9PyXOTrDABFwJ5Ur+9tTtfK8HxvVS4MgAIGbr1vwG9TgrZXyIQBUMAXO9NC2r1iLwhpVyYMgAK+1LlJSLsfVApC2pUJAxBx/fEU9gk6y/NcdVZIuzJhACLuUO+QkDP9Z+pWIO8kCBsDEGHdsTZ8vXe7kLZPCX4XgSwYgAg7vHEEvYK+sfWW4PcQyIIBiKg9qV4cEnSMecV18K/SDSFty4YBiKAusw0/HfwMYoaYMxuOl7LKb4O+jQGImKRh4mdbHsSgwHM7XyuMCWtbNgxAhCQNEy9seUjoK4wuVudwtjwjrH3ZqP2Vf4X0x1P4+ZaHhOz5udMrs2JeuiErBiACDnSm8Vx6L/oFH1I1bpfwD02e/tzGAEhsW6IDT/XtxMGuwUD6+/H183A81fd/3o0BkNDuVC++1TuEJ3q2wgzodM5jxQxOCDplWmYMgARMGNid6sUjHf14vGsQ9yW7Au2/4jr4yfULgfYpCwYgAAnDRMKIIWWa2BhLoi+eQjqewv3JLgwnu7Er1YMusy208T2fPYcJDfb9LIUB8MGJTz0e9hDW7M9zV/H3+YmwhxEafg6gsf9ac/hR9nzYwwgVA6CpcbuEH1w7rc2Wh+UwABrK1Cv43sRJ5BU/8qQRDIBmpmoVPHntJKY1+MJ7I3gTrJHz1QKemjyDGcXP+mkGA6CJtxamcWT6P9qv+RdjABRX81y8OHMJL81cVv6Qq7VgABR2oVrAs5n38ZGl/vk+a8UAKKjqOnhx5hJezo/C5XV/RQyAQiqug9cKY/htfpSPOBvEAChgwa3hj4VxvJIfRcGxwx5OpDAAEWV5Lo4Xszi6MIl/FrPCXpKnOgYgQrL1Ks6UczhVuoF3ihkU3XrYQ4o8BkBCFdfBeK2EMbuIK9YCLlrzuFgtIFuvhj005TAAPnLhwfNu/u14HmpwYbsuLM+F5TmouA6Kbg1lt44Ft445x0besTFbt5BzLGRrVWTqFa7jA2T0pYf4nIxadm7kK8v+bO+HfwtwJM1hAGjNVir65cgWBgaAmraWwl9MliBwOzQ1xY/i97OdVjEA1DC/i1aGEDAA1BBRxRp2CBgAWpXoIg0zBAwArSio4gwrBAwAaY0BoGUFfVUOYxZgAEhrDABpjQGgJYV1Uxp0vwwAaY0BIK0xAKQ1BoC0xgCQ1hgA0hoDQEsK6wsrQffLAJDWGADSGgNAywp6ORLGsosBIK0xALSioK7KYd10MwC0KtHFGeYRKQwANURUkYZ9PhADQA3zu1jDLn6AAaAm+VW0MhQ/wKMRqQU8G5ToFp4OTRRBvAcgrTEApDUGgLTGAJDWGADSmpnLjhlhD4IoLJwBSGsMAGmNASCtmQDA+wDSUS47ZnAGIK0xAKS1jwPAZRDp5Ha9cwYgrd0VAM4CpIM765wzAGntEwHgLEAqW1zfS84ADAGpaKm65hKItLZsADgLkEqWq+cVZwCGgFSwUh2vugRiCCjKVqvfhu4BGAKKokbqtuGbYIaAoqTRem3qKRBDQFHQTJ02/RiUISCZNVufLRUzj1UkWaz1wtzSB2GcDUgGrdShbwXM2YCC5scF2PcrOINAovm58hC6hGEYyC+iltv/BxqpPPV+f+jLAAAAAElFTkSuQmCC">
   <base target="_top">
+  <script>
+    // Redireciona automaticamente dispositivos mobile para a versão mobile
+    // Usa top.location com URL absoluta para sair do iframe interno do GAS
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) {
+      top.location.replace('https://script.google.com/macros/s/AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw/exec?view=mobile');
+    }
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DharmaPro</title>
@@ -85,21 +93,87 @@
     .user-info { display: flex; flex-direction: column; align-items: center; gap: 2px; }
     .user-info .name { font-size: 13px; font-weight: 700; }
     .user-info .role { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; letter-spacing: 1px; text-transform: uppercase; }
-    .nav-section { padding: 16px 0; flex: 1; }
+    .nav-section { padding: 16px 0; flex: 1; overflow-y: auto; min-height: 0; }
+    .nav-section::-webkit-scrollbar { width: 3px; }
+    .nav-section::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
     .nav-label { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; padding: 0 24px 8px; }
     .nav-item { padding: 11px 24px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; display: flex; align-items: center; gap: 10px; border-left: 2px solid transparent; transition: all 0.15s; }
     .nav-item:hover { color: var(--text); background: var(--surface2); }
     .nav-item.ativo { color: var(--text); border-left-color: var(--accent); background: rgba(230,62,109,0.07); }
     .nav-item .icon { font-size: 15px; width: 20px; text-align: center; }
+    .nav-badge { margin-left: auto; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; font-family: 'DM Mono', monospace; border-radius: 10px; padding: 1px 7px; min-width: 18px; text-align: center; display: none; }
+    .nav-badge.visivel { display: block; }
+    @keyframes badge-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+    .nav-badge.pulsar { animation: badge-pulse 1.8s ease-in-out infinite; }
     .rodape { position: fixed; bottom: 0; left: 230px; right: 0; height: 24px; background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: center; z-index: 50; }
     .rodape span { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: .5px; opacity: .6; }
 
     /* ── Main area ── */
     .main { margin-left: 230px; min-height: 100vh; display: flex; flex-direction: column; }
-    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; box-sizing: border-box; width: 100%; overflow: visible; }
     .topbar .crumb { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
     .topbar .crumb-sep { color: var(--border2); }
     .topbar .crumb-active { color: var(--accent); font-weight: 600; }
+
+    /* ── Sino de Notificações ── */
+    .notif-bell-wrap { position: fixed; right: 24px; top: 7px; z-index: 300; flex-shrink: 0; }
+    .notif-bell-btn {
+      width: 34px; height: 34px; border-radius: 8px;
+      background: var(--surface2); border: 1.5px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 16px; transition: all 0.15s;
+      position: relative;
+    }
+    .notif-bell-btn:hover { background: var(--border); border-color: var(--border2); }
+    .notif-bell-btn.tem-alerta { border-color: rgba(230,62,109,0.5); background: rgba(230,62,109,0.08); animation: bellShake 0.5s ease; }
+    @keyframes bellShake {
+      0%,100%{ transform: rotate(0); }
+      20%    { transform: rotate(-12deg); }
+      40%    { transform: rotate(12deg); }
+      60%    { transform: rotate(-8deg); }
+      80%    { transform: rotate(8deg); }
+    }
+    .notif-badge {
+      position: absolute; top: -5px; right: -5px;
+      background: var(--accent); color: #fff;
+      font-size: 9px; font-weight: 700; font-family: 'DM Mono', monospace;
+      min-width: 16px; height: 16px; border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0 4px; border: 2px solid var(--surface);
+      animation: badgePop 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    @keyframes badgePop { from { transform: scale(0); } to { transform: scale(1); } }
+
+    /* ── Dropdown de notificações ── */
+    .notif-dropdown {
+      display: none; position: absolute; top: calc(100% + 8px); right: 0;
+      width: 300px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+      z-index: 500; overflow: hidden;
+    }
+    .notif-dropdown.aberto { display: block; animation: fadeUp 0.18s ease; }
+    .notif-drop-head {
+      padding: 12px 16px 10px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .notif-drop-head span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+    .notif-drop-clear { font-size: 10px; color: var(--accent); cursor: pointer; background: none; border: none; font-family: 'Sora', sans-serif; font-weight: 700; padding: 0; }
+    .notif-drop-clear:hover { text-decoration: underline; }
+    .notif-list { max-height: 280px; overflow-y: auto; }
+    .notif-list::-webkit-scrollbar { width: 3px; }
+    .notif-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+    .notif-item {
+      padding: 11px 16px; border-bottom: 1px solid var(--border);
+      cursor: pointer; transition: background 0.12s; display: flex; gap: 10px; align-items: flex-start;
+    }
+    .notif-item:last-child { border-bottom: none; }
+    .notif-item:hover { background: var(--surface2); }
+    .notif-item.nova { background: rgba(230,62,109,0.05); }
+    .notif-item-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .notif-item-body { flex: 1; min-width: 0; }
+    .notif-item-title { font-size: 12px; font-weight: 700; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .notif-item-sub { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+    .notif-empty { padding: 24px 16px; text-align: center; font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
 
     /* ── Pages ── */
     .page { display: none; flex: 1; }
@@ -116,6 +190,40 @@
       top: 49px; left: 230px; right: 0; bottom: 0;
       overflow-y: auto;
       padding: 20px 24px;
+    }
+
+    /* ── Nova Venda page ── */
+    #pageConfig.ativa {
+      position: fixed;
+      top: 49px;
+      left: 230px;
+      right: 0;
+      bottom: 0;
+      overflow-y: auto;
+      display: block !important;
+    }
+
+    #pageNovaVenda.ativa {
+      display: block !important;
+      position: fixed;
+      top: 49px; left: 230px; right: 0; bottom: 0;
+      overflow-y: auto;
+      padding: 0;
+      background: var(--bg);
+    }
+    #novaVendaContainer {
+      width: 100%;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 40px 60px;
+      box-sizing: border-box;
+    }
+    /* Garante que os cards dentro do container tenham mesma largura */
+    #novaVendaContainer .card,
+    #novaVendaContainer .wiz-progress,
+    #novaVendaContainer .wiz-nav {
+      width: 100%;
+      box-sizing: border-box;
     }
     .form-layout {
       display: grid;
@@ -144,6 +252,14 @@
     .form-group.error input, .form-group.error select { border-color: var(--accent); }
     .form-group .err-msg { font-size: 11px; color: var(--accent); margin-top: 4px; display: none; }
     .form-group.error .err-msg { display: block; }
+    /* Campos opcionais — visual apagado */
+    .form-group.opcional label { opacity: 0.45; }
+    .form-group.opcional input,
+    .form-group.opcional select { opacity: 0.55; border-style: dashed; }
+    .form-group.opcional input:focus,
+    .form-group.opcional select:focus { opacity: 1; border-style: solid; border-color: var(--accent); }
+    /* Asterisco de obrigatório */
+    .form-group label .req { color: var(--accent); margin-left: 2px; }
     .form-actions { display: flex; gap: 12px; align-items: center; padding-top: 4px; }
 
     /* ── Lista page — posicionada como fixed para painel 100% estável ── */
@@ -154,7 +270,7 @@
       top: 49px;
       left: 230px;
       right: 0;
-      bottom: 0;
+      bottom: 24px; /* libera espaço do rodapé fixo */
       overflow: hidden;
       z-index: 10;
     }
@@ -200,44 +316,127 @@
     .pagination { padding: 12px; border-top: 1px solid var(--border); display: none; justify-content: center; align-items: center; gap: 10px; flex-shrink: 0; background: var(--bg); }
     .pag-info { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
 
-    /* ── Venda item (compacto para lista densa) ── */
+    /* ── Venda item — layout 3 zonas ── */
     .venda-item {
       background: var(--surface);
       border: 1px solid var(--border);
+      border-top-width: 2px; /* cor definida inline via JS */
       border-radius: 10px;
-      margin-bottom: 7px;
+      margin-bottom: 6px;
       cursor: pointer;
+      overflow: hidden;
       transition: border-color 0.15s, background 0.15s;
     }
     .venda-item:hover { border-color: var(--border2); background: var(--surface2); }
     .venda-item.selecionado { border-color: var(--accent); background: rgba(230,62,109,0.05); }
 
-    .venda-row {
-      padding: 12px 14px;
-      display: flex; align-items: center; gap: 10px;
-    }
-    .venda-info { flex: 1; min-width: 0; }
-    .venda-nome-linha { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; flex-wrap: wrap; }
-    .venda-nome-linha h4 { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
-    .venda-cpf { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; white-space: nowrap; }
-    .venda-badges { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+    /* Corpo do card */
+    .vi-body { display: flex; flex-direction: column; }
 
+    /* ── ZONA 1: nome + status ── */
+    .vi-top {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; padding: 10px 13px 7px;
+    }
+    .vi-nome-bloco { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+    .vi-nome { font-size: 13px; font-weight: 800; color: #fff; text-transform: uppercase;
+               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .vi-ids  { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+    .vi-id   { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); white-space: nowrap; }
+    .vi-id-sep { color: var(--border2); font-size: 10px; }
+    .vi-prestatus-badge { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--yellow); font-weight: 600; white-space: nowrap; }
+    .vi-status {
+      font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 600;
+      padding: 3px 10px; border-radius: 20px; border: 1.5px solid;
+      white-space: nowrap; flex-shrink: 0;
+    }
+
+    /* ── Divisor entre zonas ── */
+    .vi-divider { height: 1px; background: var(--border); margin: 0 13px; }
+
+    /* ── ZONA 2: rodapé ── */
+    .vi-bot {
+      display: flex; align-items: center;
+      padding: 6px 13px 9px; gap: 10px;
+    }
+
+    /* Esquerda: produto + plano/valor */
+    .vi-bot-left { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+    .vi-produto {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 108px; flex-shrink: 0;
+      padding: 3px 0; border-radius: 5px;
+      font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 500;
+      text-align: center; white-space: nowrap;
+    }
+    .vi-prod-fa { background: rgba(79,158,255,.12);  border: 1px solid rgba(79,158,255,.25);  color: var(--blue);   }
+    .vi-prod-fc { background: rgba(34,217,138,.10);  border: 1px solid rgba(34,217,138,.22);  color: var(--green);  }
+    .vi-prod-mc { background: rgba(167,139,250,.12); border: 1px solid rgba(167,139,250,.25); color: var(--purple); }
+    .vi-prod-ma { background: rgba(247,162,59,.10);  border: 1px solid rgba(247,162,59,.22);  color: var(--yellow); }
+    .vi-prod-xx { background: var(--surface2);       border: 1px solid var(--border2);        color: var(--muted);  }
+    .vi-plano-val { font-size: 11px; color: var(--muted); font-weight: 600;
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* BotConversa: etiquetas e status de atendimento */
+    .vi-bc-tags  { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+                   width: 100%; font-size: 10px; color: var(--muted); opacity: .75; }
+    .vi-bc-status { border-radius: 3px; padding: 1px 5px; font-size: 9px; font-weight: 700;
+                    letter-spacing: .4px; text-transform: uppercase; flex-shrink: 0; }
+    .vi-bc-status--aberto { background: rgba(247,162,59,.12); color: #f7a23b; border: 1px solid rgba(247,162,59,.25); }
+    .vi-bc-status--ok     { background: rgba(34,217,138,.10); color: var(--green); border: 1px solid rgba(34,217,138,.2); }
+
+    /* Separador vertical */
+    .vi-vsep { width: 1px; height: 32px; background: var(--border); flex-shrink: 0; }
+
+    /* Direita: 3 linhas empilhadas */
+    .vi-bot-right { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; width: 220px; align-items: flex-start; justify-content: center; }
+    .vi-row-vhub  { display: flex; align-items: center; }
+    .vi-row-dates { display: flex; align-items: center; gap: 8px; }
+    .vi-row-resp  { display: flex; align-items: center; gap: 5px; }
+
+    /* Datas */
+    .vi-ditem { display: flex; align-items: center; gap: 3px; font-family: 'DM Mono', monospace; font-size: 10px; white-space: nowrap; }
+    .vi-dlbl  { font-size: 9px; color: var(--muted); }
+    .vi-dval  { color: var(--muted); font-weight: 500; }
+    .vi-dval.ok   { color: var(--green); }
+    .vi-dval.pend { color: var(--yellow); }
+
+    /* Responsável */
+    .vi-av { width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+             display: flex; align-items: center; justify-content: center;
+             font-size: 7px; font-weight: 700; font-family: 'DM Mono', monospace; }
+    .vi-resp-nm { font-size: 11px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+
+    /* Canal — ao lado do responsável (menor) */
+    .vi-canal-sm {
+      font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 600;
+      padding: 1px 7px; border-radius: 4px;
+      background: rgba(34,217,138,.07); border: 1px solid rgba(34,217,138,.18); color: var(--green);
+      white-space: nowrap;
+    }
+
+    /* Botões copiar + seta */
+    .vi-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; align-self: center; margin-left: 2px; }
+    .btn-popup { background: rgba(230,62,109,0.1); border: 1px solid rgba(230,62,109,0.25); color: var(--accent);
+                 border-radius: 6px; padding: 4px 7px; font-size: 12px; cursor: pointer;
+                 transition: background 0.15s; line-height: 1; }
+    .btn-popup:hover { background: rgba(230,62,109,0.22); }
+    .venda-arrow { font-size: 10px; color: var(--muted); transition: color 0.15s; }
+    .venda-item.selecionado .venda-arrow { color: var(--accent); }
+
+    /* Badge de viabilidade por linha */
+    .vi-viab-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px;
+                     font-family: 'DM Mono', monospace; white-space: nowrap; max-width: 160px;
+                     overflow: hidden; text-overflow: ellipsis; }
+    .vi-viab-ok  { background: rgba(34,217,138,0.12); color: var(--green); border: 1px solid rgba(34,217,138,0.3); }
+    .vi-viab-nok { background: rgba(230,62,109,0.12); color: var(--accent); border: 1px solid rgba(230,62,109,0.3); }
+
+    /* badges legados (painel e funil) */
     .badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; font-family: 'DM Mono', monospace; }
-    .badge-status { background: transparent !important; border: 1.5px solid; /* cor inline via style */ }
+    .badge-status  { background: transparent !important; border: 1.5px solid; }
     .badge-meta    { background: var(--surface2); border: 1px solid var(--border2); color: var(--muted); }
     .badge-produto { background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.3); color: var(--purple); }
     .badge-plano   { background: rgba(79,158,255,0.12);  border: 1px solid rgba(79,158,255,0.25); color: var(--blue); }
-
-    .venda-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-    .venda-date  { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; }
-
-    /* Botão popup "📋" */
-    .btn-popup { background: rgba(230,62,109,0.1); border: 1px solid rgba(230,62,109,0.25); color: var(--accent); border-radius: 6px; padding: 4px 8px; font-size: 13px; cursor: pointer; transition: background 0.15s; line-height: 1; }
-    .btn-popup:hover { background: rgba(230,62,109,0.22); }
-
-    /* Seta indicadora de selecionado */
-    .venda-arrow { font-size: 10px; color: var(--muted); transition: color 0.15s; }
-    .venda-item.selecionado .venda-arrow { color: var(--accent); }
 
     /* ── Painel lateral de detalhes — largura fixa, nunca rola ── */
     .painel-detalhes {
@@ -258,7 +457,7 @@
     .painel-vazio p { font-size: 13px; line-height: 1.6; }
 
     /* Quando há venda selecionada */
-    .painel-conteudo { display: none; flex-direction: column; height: 100%; }
+    .painel-conteudo { display: none; flex-direction: column; height: 100%; overflow: hidden; }
     .painel-conteudo.ativo { display: flex; }
 
     .painel-topo {
@@ -266,7 +465,7 @@
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
-    .painel-nome { font-size: 15px; font-weight: 800; margin-bottom: 4px; line-height: 1.2; }
+    .painel-nome { font-size: 15px; font-weight: 800; margin-bottom: 4px; line-height: 1.2; text-transform: uppercase; color: #fff; }
     .painel-cpf  { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 8px; }
     .painel-status-wrap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
@@ -304,6 +503,65 @@
     }
     .painel-acoes-row { display: flex; gap: 8px; }
     .painel-acoes .btn { flex: 1; font-size: 11px; padding: 9px 10px; }
+
+    /* ── Painel inline editável ── */
+    .painel-inline-form { display: none; flex: 1; overflow-y: auto; min-height: 0; flex-direction: column; }
+    .painel-inline-form.ativo { display: flex; overflow-y: auto; flex: 1; }
+    .painel-inline-form::-webkit-scrollbar { width: 3px; }
+    .painel-inline-form::-webkit-scrollbar-track { background: transparent; }
+    .painel-inline-form::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+    .pif-secao { margin-bottom: 14px; }
+    .pif-titulo { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--accent); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+    .pif-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .pif-group { display: flex; flex-direction: column; gap: 4px; }
+    .pif-group.span2 { grid-column: 1 / -1; }
+    .pif-group label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+    .pif-group input,
+    .pif-group select,
+    .pif-group textarea {
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 7px; padding: 8px 10px; color: var(--text);
+      font-family: 'Sora', sans-serif; font-size: 12px;
+      outline: none; transition: border-color .15s; width: 100%;
+    }
+    .pif-group input:focus,
+    .pif-group select:focus,
+    .pif-group textarea:focus { border-color: var(--accent); }
+    .pif-group input[readonly] { opacity: .6; cursor: default; }
+    .pif-group textarea { resize: vertical; min-height: 60px; }
+    .pif-hint { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; min-height: 13px; }
+    .pif-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .pif-info-card { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; }
+    .pif-info-card .lbl { font-size: 9px; color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
+    .pif-info-card .val { font-size: 12px; font-weight: 600; min-height: 16px; }
+    /* Botões do painel inline */
+    .painel-acoes-inline { display: none; flex-direction: column; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+    .painel-acoes-inline.ativo { display: flex; }
+    .pif-btn-row { display: flex; gap: 8px; }
+    .pif-btn-row .btn { flex: 1; font-size: 11px; padding: 9px 10px; }
+
+    /* Modais de status */
+    #modalStatus2 .modal-box,
+    #modalStatus3 .modal-box { max-width: 500px; }
+    .ms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .ms-group { display: flex; flex-direction: column; gap: 5px; }
+    .ms-group.span2 { grid-column: 1 / -1; }
+    .ms-group label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+    .ms-group input,
+    .ms-group select { background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; padding: 10px 12px; color: var(--text); font-family: 'Sora', sans-serif; font-size: 13px; outline: none; transition: border-color .15s; width: 100%; }
+    .ms-group input:focus,
+    .ms-group select:focus { border-color: var(--accent); }
+    .ms-group input.erro,
+    .ms-group select.erro { border-color: var(--accent) !important; }
+    .ms-group input[readonly] { opacity: .6; cursor: default; }
+    .ms-req { color: var(--accent); }
+    .ms-err { font-size: 11px; color: var(--accent); display: none; }
+    .ms-err.visivel { display: block; }
+    .ms-hint { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; min-height: 14px; }
+    .ms-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .ms-info-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; }
+    .ms-info-card .lbl { font-size: 9px; color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
+    .ms-info-card .val { font-size: 12px; font-weight: 600; min-height: 16px; }
 
     /* ── Empty / Toast ── */
     .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
@@ -567,24 +825,142 @@
        BOTÃO FLUTUANTE + MODAL DE OFERTAS
     ══════════════════════════════════════════════════════ */
 
-    /* Botão flutuante */
-    .fab-ofertas {
+    /* ── FAB MENU ─────────────────────────────────────────── */
+    .fab-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0);
+      pointer-events: none;
+      z-index: 1999;
+      transition: background 0.25s ease;
+    }
+    .fab-overlay.ativo {
+      background: rgba(0,0,0,0.45);
+      pointer-events: auto;
+    }
+
+    .fab-container {
       position: fixed;
       bottom: 28px; right: 28px;
-      width: 56px; height: 56px;
-      background: linear-gradient(135deg, #e63e6d 0%, #c73260 100%);
-      border: none; border-radius: 50%;
-      color: white; font-size: 22px;
-      cursor: pointer; z-index: 2000;
-      box-shadow: 0 6px 20px rgba(230,62,109,0.45);
+      display: flex; flex-direction: column; align-items: center;
+      gap: 10px;
+      z-index: 2000;
+      pointer-events: none;
+    }
+    .fab-container > .fab-main { pointer-events: auto; }
+    .fab-container.open { pointer-events: auto; }
+
+    .fab-children {
+      display: flex; flex-direction: column; align-items: flex-end;
+      gap: 8px;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.22s ease, transform 0.22s ease;
+      visibility: hidden;
+    }
+    .fab-container.open .fab-children {
+      pointer-events: auto;
+      opacity: 1;
+      transform: translateY(0);
+      visibility: visible;
+    }
+
+    .fab-item {
+      display: flex; align-items: center; gap: 8px;
+      cursor: pointer; background: none; border: none; padding: 0;
+    }
+    .fab-item-label {
+      background: rgba(20,20,30,0.82);
+      backdrop-filter: blur(6px);
+      color: #fff;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.03em;
+      padding: 4px 10px;
+      border-radius: 20px;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      opacity: 0.9;
+    }
+    .fab-item-btn {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      border: none;
+      color: #fff;
+      font-size: 17px;
+      cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      transition: transform 0.15s, box-shadow 0.15s;
+      flex-shrink: 0;
     }
-    .fab-ofertas:hover {
-      transform: scale(1.1);
-      box-shadow: 0 8px 28px rgba(230,62,109,0.6);
+    .fab-item:hover .fab-item-btn { transform: scale(1.12); }
+    .fab-item:hover .fab-item-label { opacity: 1; }
+    .fab-item-btn.color-mapa    { background: linear-gradient(135deg,#e63e6d,#c73260); }
+    .fab-item-btn.color-parcial { background: linear-gradient(135deg,#f5a623,#e08b00); }
+    .fab-item-btn.color-agenda  { background: linear-gradient(135deg,#4db8ff,#1a8fe3); }
+    .fab-item-btn.color-novo    { background: linear-gradient(135deg,#43e097,#27ae71); }
+    .fab-item-btn.color-cpf     { background: linear-gradient(135deg,#9b59b6,#7d3c98); }
+
+    .fab-main {
+      width: 50px; height: 50px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(230,62,109,0.30);
+      color: rgba(255,255,255,0.55);
+      font-size: 26px; font-weight: 300;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 12px rgba(230,62,109,0.2);
+      transition: background 0.2s, color 0.2s, transform 0.2s, box-shadow 0.2s;
+      line-height: 1;
     }
-    .fab-ofertas:active { transform: scale(0.95); }
+    .fab-main:hover,
+    .fab-container.open .fab-main {
+      background: linear-gradient(135deg,#e63e6d,#c73260);
+      color: #fff;
+      box-shadow: 0 6px 20px rgba(230,62,109,0.5);
+    }
+    .fab-main .fab-plus {
+      display: inline-block;
+      transition: transform 0.25s ease;
+    }
+    .fab-container.open .fab-main .fab-plus {
+      transform: rotate(45deg);
+
+    /* ── Modal Assertiva ── */
+    #modalAssertiva .modal-box { max-width: 540px; }
+    .assertiva-input-row {
+      display: flex; gap: 8px; margin-bottom: 16px;
+    }
+    .assertiva-input-row input {
+      flex: 1; padding: 10px 14px; border-radius: 8px;
+      border: 1px solid var(--border2); background: var(--bg);
+      color: var(--text); font-size: 15px; font-family: 'DM Mono', monospace;
+    }
+    .assertiva-input-row button {
+      padding: 10px 18px; border-radius: 8px;
+      background: var(--accent); color: white; border: none;
+      font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+    .assertiva-input-row button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .assertiva-secao { margin-bottom: 14px; }
+    .assertiva-secao-titulo {
+      font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px;
+      color: var(--muted); margin-bottom: 6px; font-family: 'DM Mono', monospace;
+    }
+    .assertiva-campo {
+      display: flex; gap: 8px; padding: 4px 0;
+      font-size: 13px; line-height: 1.4;
+    }
+    .assertiva-campo-label { color: var(--muted); min-width: 110px; flex-shrink: 0; }
+    .assertiva-campo-valor { color: var(--text); word-break: break-word; }
+    .assertiva-lista-item {
+      padding: 4px 0; font-size: 13px; color: var(--text);
+      border-bottom: 1px solid var(--border);
+    }
+    .assertiva-lista-item:last-child { border-bottom: none; }
+    .assertiva-erro { text-align: center; padding: 20px; color: var(--accent); font-size: 14px; }
+    .assertiva-loading { text-align: center; padding: 30px; color: var(--muted); font-size: 14px; }
+    }
 
     /* Modal de ofertas — usa modal-overlay existente mas com estilos próprios */
     #modalOfertas .modal-box {
@@ -841,6 +1217,25 @@
 
     /* Modal de mover para Aguardando */
     #modalLeadsMove .modal-box { max-width: 430px; }
+    /* Modal VeroHub */
+    #modalVeroHub .modal-box { max-width: 480px; }
+    /* Modal Viabilidade Vero */
+    #modalViabilidadeVero .modal-box { max-width: 420px; }
+    .mviab-result { margin-top:14px; padding:14px 16px; border-radius:10px; display:none; }
+    .mviab-result.aprovada { background:rgba(34,217,138,.08); border:1px solid rgba(34,217,138,.3); }
+    .mviab-result.reprovada { background:rgba(230,62,109,.08); border:1px solid rgba(230,62,109,.3); }
+    .mviab-status { font-size:18px; font-weight:800; margin-bottom:6px; }
+    .mviab-status.aprovada { color:#22d98a; }
+    .mviab-status.reprovada { color:var(--accent); }
+    .mviab-network { font-size:12px; font-family:'DM Mono',monospace; color:var(--muted); }
+    .mvh-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .mvh-full { grid-column: 1 / -1; }
+    .mvh-field { display: flex; flex-direction: column; gap: 5px; }
+    .mvh-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .mvh-input { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--text); font-family: inherit; outline: none; transition: border-color .15s; }
+    .mvh-input:focus { border-color: #DF5F30; }
+    .mvh-input.mvh-erro { border-color: var(--accent); }
+    .mvh-input option { background: var(--surface); }
     .leads-campo {
       margin-bottom: 14px;
     }
@@ -880,6 +1275,14 @@
        PAGAMENTOS PAP
     ══════════════════════════════════════════════════════ */
     #pagePAP.ativa {
+      display: flex !important;
+      flex-direction: column;
+      position: fixed;
+      top: 49px; left: 230px; right: 0; bottom: 0;
+      overflow: hidden; z-index: 10;
+    }
+
+    #pageIndicacoes.ativa {
       display: flex !important;
       flex-direction: column;
       position: fixed;
@@ -1040,13 +1443,13 @@
     .wiz-step { cursor: pointer; }
     .wiz-step:hover .wiz-icon { border-color: var(--accent); color: var(--accent); }
     .wiz-panel .form-grid { grid-template-columns: 1fr 1fr; }
-    .wiz-panel .card { max-width: 680px; margin: 0 auto; }
+    .wiz-panel .card { max-width: 100%; margin: 0 auto; }
     .wiz-panel .form-group { min-width: 0; }
     .wiz-panel .hint { font-size: 11px; margin-top: 4px; display: block; line-height: 1.4; white-space: normal; word-break: break-word; }
 
     /* ── TOPBAR BUSCA GLOBAL ────────────────────────────────────────────── */
     .topbar { justify-content: flex-start; gap: 8px; position: relative; }
-    .topbar-search-wrap { margin-left: auto; position: relative; width: 260px; flex-shrink: 0; }
+    .topbar-search-wrap { position: fixed; left: 50%; transform: translateX(-50%); top: 7px; width: 320px; z-index: 200; }
     .topbar-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; pointer-events: none; }
     .topbar-search-input { width: 100%; padding: 7px 12px 7px 32px; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; font-size: 12px; color: var(--text); font-family: 'Sora', sans-serif; transition: border-color .2s; box-sizing: border-box; }
     .topbar-search-input:focus { outline: none; border-color: var(--accent); }
@@ -1093,14 +1496,51 @@
     /* ── VeroHub inline ─────────────────────────────────────────────────── */
     .verohub-wrap { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
     .verohub-label { font-size: 9px; font-family: 'DM Mono', monospace; color: #DF5F30; letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; font-weight: 700; }
-    .verohub-input { font-size: 11px; font-family: 'DM Mono', monospace; background: transparent; border: 1px solid var(--border2); border-radius: 5px; color: var(--text); padding: 2px 6px; width: 120px; cursor: pointer; transition: border-color .2s; }
-    .verohub-input:focus { outline: none; border-color: var(--accent); }
-    .verohub-dot { width: 8px; height: 8px; border-radius: 50%; background: #DF5F30; flex-shrink: 0; animation: vhub-blink 0.8s ease-in-out infinite; }
-    @keyframes vhub-blink { 0%,100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255,255,38,.6); } 50% { opacity: .2; box-shadow: 0 0 6px 3px rgba(255,255,38,0); } }
-    .verohub-ok { font-size: 10px; color: #22d98a; }
+    .verohub-dot { width: 7px; height: 7px; border-radius: 50%; background: #DF5F30; flex-shrink: 0; animation: vhub-blink 0.8s ease-in-out infinite; }
+    @keyframes vhub-blink { 0%,100% { opacity: 1; } 50% { opacity: .15; } }
+    /* número e data do pedido — mesma fonte/cor/tamanho do Responsável (.vi-resp-nm) */
+    .vhub-ped-num { font-size: 11px; color: var(--muted); font-weight: 600; text-decoration: none; white-space: nowrap; }
+    .vhub-ped-num:hover { color: #4f9eff; text-decoration: underline; }
+    .vhub-ped-dt  { font-size: 11px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+    .vi-row-vhub-pedido-wrap { display: flex; align-items: center; gap: 5px; margin-top: 3px; cursor: pointer; }
+    .vi-row-vhub-pedido-wrap:hover .verohub-label { opacity: .75; }
   </style>
 </head>
 <body>
+
+  <!-- Modal: Alterar Senha -->
+  <div id="modalSenha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10000;align-items:center;justify-content:center;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px 28px;width:100%;max-width:360px;box-shadow:0 24px 60px rgba(0,0,0,.5);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+        <div>
+          <div style="font-size:10px;color:var(--accent);font-family:'DM Mono',monospace;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Conta</div>
+          <div style="font-size:16px;font-weight:700;">Alterar senha</div>
+        </div>
+        <button onclick="fecharModalSenha()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;">✕</button>
+      </div>
+      <div id="modalSenhaErro" style="display:none;background:rgba(230,62,109,.1);border:1px solid rgba(230,62,109,.3);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--accent);margin-bottom:16px;"></div>
+      <div id="modalSenhaOk"   style="display:none;background:rgba(52,199,89,.1);border:1px solid rgba(52,199,89,.3);border-radius:8px;padding:10px 14px;font-size:13px;color:#34c759;margin-bottom:16px;"></div>
+      <div class="form-field" style="margin-bottom:14px;">
+        <label style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.5px;text-transform:uppercase;display:block;margin-bottom:6px;">Senha atual</label>
+        <input type="password" id="senhaAtual" placeholder="••••••••" autocomplete="current-password"
+               style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;outline:none;">
+      </div>
+      <div class="form-field" style="margin-bottom:14px;">
+        <label style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.5px;text-transform:uppercase;display:block;margin-bottom:6px;">Nova senha</label>
+        <input type="password" id="senhaNova" placeholder="mínimo 6 caracteres" autocomplete="new-password"
+               style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;outline:none;">
+      </div>
+      <div class="form-field" style="margin-bottom:24px;">
+        <label style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.5px;text-transform:uppercase;display:block;margin-bottom:6px;">Confirmar nova senha</label>
+        <input type="password" id="senhaConfirmar" placeholder="••••••••" autocomplete="new-password"
+               style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;outline:none;">
+      </div>
+      <button id="btnAlterarSenha" onclick="confirmarAlteracaoSenha()"
+              style="width:100%;background:var(--accent);border:none;border-radius:8px;padding:12px;color:#fff;font-size:13px;font-weight:700;font-family:'Sora',sans-serif;cursor:pointer;">
+        Alterar senha
+      </button>
+    </div>
+  </div>
 
   <div id="loading" role="status" aria-live="polite">
     <div class="spinner" aria-hidden="true"></div>
@@ -1127,6 +1567,15 @@
         </div>
         <button type="submit" class="btn btn-full" id="btnLogin">Entrar no Sistema</button>
       </form>
+      <!-- Checkbox versão mobile — visível apenas em celular/tablet -->
+      <div id="mob-switch" style="display:none;margin-top:18px;">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 16px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;user-select:none;">
+          <input type="checkbox" id="mob-check"
+                 style="width:18px;height:18px;accent-color:#e63e6d;cursor:pointer;flex-shrink:0;"
+                 onchange="if(this.checked){ this.disabled=true; window.location.href='?view=mobile'; }">
+          <span style="font-size:13px;font-family:'DM Mono',monospace;color:var(--text);">📱 Abrir versão mobile</span>
+        </label>
+      </div>
     </div>
   </div>
 
@@ -1153,8 +1602,7 @@
     <aside class="sidebar">
       <div class="sidebar-top">
         <span class="sidebar-tag">CRM</span>
-        <h2>DharmaPro</h2>
-        <p id="sidebarRelogio" style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:4px;letter-spacing:.5px;">—</p>
+        <h2>Dharma<span style="color:var(--accent)">Pro</span></h2>        <p id="sidebarRelogio" style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:4px;letter-spacing:.5px;">—</p>
         <p>v3.1</p>
       </div>
       <div class="sidebar-user">
@@ -1167,16 +1615,20 @@
       <div class="nav-section">
         <div class="nav-label">Menu</div>
         <div class="nav-item ativo" id="menuDash"   onclick="navegar('dash')">      <span class="icon">◉</span> Dashboard</div>
-        <div class="nav-item"       id="menuNovo"   onclick="navegar('formulario')"><span class="icon">✦</span> Novo Cadastro</div>
         <div class="nav-item"       id="menuLista"  onclick="navegar('lista')">     <span class="icon">≡</span> Lista de Vendas</div>
         <div class="nav-item"       id="menuFunil"  onclick="navegar('funil')">     <span class="icon">◈</span> Funil Instalações</div>
         <div class="nav-item"       id="menuLeads"  onclick="navegar('leads')">     <span class="icon">◎</span> Tratamento Leads</div>
         <div class="nav-item"       id="menuPAP"    onclick="navegar('pap')">       <span class="icon">◇</span> Pagamentos PAP</div>
+        <div class="nav-item"       id="menuFilaPAP" onclick="navegar('filaPAP')">  <span class="icon">⊞</span> Fila PAP <span class="nav-badge" id="badgeFilaPAP"></span></div>
         <div class="nav-item"       id="menuDocs"      onclick="navegar('docs')">       <span class="icon">❑</span> Documentos</div>
-        <div class="nav-item"       id="menuCruzamento" onclick="navegar('cruzamento')"> <span class="icon">🔀</span> Cruzamento Vero</div>
-        <div class="nav-item" id="menuIndicacoes" onclick="navegar('indicacoes')"><span class="icon">🤝</span> Indicações</div>
+        <div class="nav-item"       id="menuCruzamento" onclick="navegar('cruzamento')"> <span class="icon">☷</span> Cruzamento Vero</div>
+        <div class="nav-item" id="menuIndicacoes" onclick="navegar('indicacao')"><span class="icon">☍</span> Indicações</div>
+        <div class="nav-item" id="menuTickets"   onclick="navegar('tickets')"><span class="icon">◶</span> Tickets</div>
+        <div class="nav-item" id="menuExtrato"   onclick="navegar('extrato')"><span class="icon">⊛</span> Extrato</div>
       </div>
       <div class="sidebar-footer">
+        <div class="nav-item" id="menuConfig" onclick="navegar('config')"><span class="icon">⚙</span> Configurações</div>
+        <div class="nav-item" onclick="abrirModalSenha()" style="color:var(--muted);font-size:11px;padding-left:0;" title="Alterar sua senha de acesso"><span class="icon">🔑</span> Alterar senha</div>
         <div class="nav-item" onclick="sair()" style="color:var(--accent);padding-left:0;"><span class="icon">⏏</span> Sair</div>
       </div>
     </aside>
@@ -1196,6 +1648,23 @@
           <span class="msg-sistema-dot"></span>
           <span class="msg-sistema-texto" id="msgSistemaTexto"></span>
         </div>
+
+        <!-- ── Sino de Notificações ── -->
+        <div class="notif-bell-wrap" id="notifBellWrap">
+          <div class="notif-bell-btn" id="notifBellBtn" onclick="tktToggleNotifDropdown()" title="Notificações de Tickets">
+            🔔
+            <span class="notif-badge" id="notifBadge" style="display:none;">0</span>
+          </div>
+          <div class="notif-dropdown" id="notifDropdown">
+            <div class="notif-drop-head">
+              <span>Notificações</span>
+              <button class="notif-drop-clear" onclick="tktLimparNotifs()">Limpar tudo</button>
+            </div>
+            <div class="notif-list" id="notifList">
+              <div class="notif-empty">Nenhuma notificação</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ── FORMULÁRIO ── -->
@@ -1209,7 +1678,17 @@
         <div id="docsContainer" style="width:100%;height:100%;overflow-y:auto;"></div>
       </div>
 
-      <div id="pageFormulario" class="page ativa">
+      <!-- ── EXTRATO ── -->
+      <div id="pageExtrato" class="page page-full">
+        <div id="extratoContainer" style="width:100%;height:100%;overflow-y:auto;"></div>
+      </div>
+
+      <!-- ── FILA PAP ── -->
+      <div id="pageFilaPAP" class="page page-full">
+        <div id="filaPAPContainer" style="width:100%;height:100%;overflow-y:auto;"></div>
+      </div>
+
+      <div id="pageFormulario" class="page">
         <div class="page-header">
           <div>
             <h2 id="formTitulo">Novo Cadastro</h2>
@@ -1219,7 +1698,7 @@
         <form id="formVendas" onsubmit="event.preventDefault(); salvar();" novalidate>
           <input type="hidden" id="f_linha">
 
-          <!-- ── BARRA DE PROGRESSO ─────────────────────────────── -->
+          <!-- ── BARRA DE PROGRESSO ─────────��───────────────────── -->
           <div class="wiz-progress">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
               <span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Preenchimento</span>
@@ -1242,10 +1721,9 @@
               <div class="card-header"><div class="card-icon">⭐</div><h3>Status e Classificação</h3></div>
               <div class="form-grid">
                 <div class="form-group" id="grp_status">
-                  <label>Status Atual *</label>
+                  <label>Status Atual <span class="req">*</span></label>
                   <select id="f_status" required>
-                    <option value="">Selecione...</option>
-                    <option>1- Conferencia/Ativação</option>
+                    <option value="1- Conferencia/Ativação" selected>1- Conferencia/Ativação</option>
                     <option>2- Aguardando Instalação</option>
                     <option>2- Aguardando Entrega</option>
                     <option>3 - Finalizada/Instalada</option>
@@ -1261,14 +1739,28 @@
                   </select>
                   <span class="err-msg">Selecione um status.</span>
                 </div>
-                <div class="form-group"><label>Data Ativação</label><input type="date" id="f_dataAtiv"></div>
-                <div class="form-group">
-                  <label>Canal</label>
+                <div class="form-group" id="grp_preStatus">
+                  <label>Pré-Status <span class="req">*</span></label>
+                  <select id="f_preStatus">
+                    <option value="">Selecione...</option>
+                    <option>AG DOC</option>
+                    <option>AG ACEITE</option>
+                    <option>AG AUDITORIA</option>
+                    <option>AG COMPROVANTE</option>
+                    <option>AG QUALIDADE</option>
+                    <option>EM NEGOCIACAO</option>
+                  </select>
+                  <span class="err-msg">Selecione o pré-status.</span>
+                </div>
+                <div style="display:none" id="grp_dataAtiv"><input type="date" id="f_dataAtiv"></div>
+                <div class="form-group" id="grp_canal">
+                  <label>Canal <span class="req">*</span></label>
                   <select id="f_canal">
                     <option value="">Selecione...</option>
                     <option>ATIVO</option><option>INDICAÇÃO</option><option>PAP</option>
                     <option>META ADS</option><option>GOOGLE ADS</option>
                   </select>
+                  <span class="err-msg">Selecione um canal.</span>
                 </div>
               </div>
             </div>
@@ -1280,24 +1772,25 @@
               <div class="card-header"><div class="card-icon">👤</div><h3>Dados do Cliente</h3></div>
               <div class="form-grid">
                 <div class="form-group span2" id="grp_cliente">
-                  <label>Nome Completo *</label>
+                  <label>Nome Completo <span class="req">*</span></label>
                   <input type="text" id="f_cliente" placeholder="Digite o nome completo" required>
                   <span class="err-msg">Nome é obrigatório.</span>
                 </div>
                 <div class="form-group" id="grp_cpf">
-                  <label>CPF / CNPJ</label>
+                  <label>CPF / CNPJ <span class="req">*</span></label>
                   <input type="text" id="f_cpf" placeholder="000.000.000-00" maxlength="18">
                   <span class="hint">11 dígitos (CPF) ou 14 (CNPJ)</span>
                   <span class="err-msg">CPF deve ter 11 ou CNPJ 14 dígitos.</span>
                 </div>
-                <div class="form-group"><label>WhatsApp</label><input type="tel" id="f_whats" placeholder="(00) 00000-0000"></div>
-                <div class="form-group"><label>Tel. Ligação</label><input type="tel" id="f_tel" placeholder="(00) 0000-0000"></div>
-                <div class="form-group"><label>Cód. Cliente (col F)</label><input type="text" id="f_codCli" placeholder="Gerado no sistema"></div>
-                <div class="form-group">
-                  <label>Responsável</label>
+                <div class="form-group" id="grp_whats"><label>WhatsApp <span class="req">*</span></label><input type="tel" id="f_whats" placeholder="(00) 00000-0000"><span class="err-msg">WhatsApp é obrigatório.</span></div>
+                <div class="form-group opcional" id="grp_tel"><label>Tel. Ligação</label><input type="tel" id="f_tel" placeholder="(00) 0000-0000"></div>
+                <div class="form-group opcional" id="grp_codCli"><label>Cód. Cliente (col F)</label><input type="text" id="f_codCli" placeholder="Gerado no sistema"></div>
+                <div class="form-group" id="grp_resp">
+                  <label>Responsável <span class="req">*</span></label>
                   <select id="f_resp">
                     <option value="">Carregando...</option>
                   </select>
+                  <span class="err-msg">Responsável é obrigatório.</span>
                 </div>
               </div>
             </div>
@@ -1308,17 +1801,18 @@
             <div class="card">
               <div class="card-header"><div class="card-icon">📍</div><h3>Endereço</h3></div>
               <div class="form-grid">
-                <div class="form-group">
-                  <label>CEP</label>
+                <div class="form-group" id="grp_cep">
+                  <label>CEP <span class="req">*</span></label>
                   <input type="text" id="f_cep" onblur="buscarCEP(this.value)" maxlength="9" placeholder="00000-000">
                   <span class="hint" id="cepHint"></span>
+                  <span class="err-msg">CEP é obrigatório.</span>
                 </div>
-                <div class="form-group"><label>Cidade</label><input type="text" id="f_cidade" oninput="_atualizarLinkMaps()"></div>
-                <div class="form-group"><label>Bairro</label><input type="text" id="f_bairro"></div>
-                <div class="form-group span2"><label>Rua / Logradouro</label><input type="text" id="f_rua" oninput="_atualizarLinkMaps()"></div>
-                <div class="form-group"><label>Número</label><input type="text" id="f_num" oninput="_atualizarLinkMaps()"></div>
-                <div class="form-group"><label>Complemento</label><input type="text" id="f_complemento" placeholder="Apto, Bloco, Casa..."></div>
-                <div class="form-group"><label>UF</label><input type="text" id="f_uf" maxlength="2" style="text-transform:uppercase;"></div>
+                <div class="form-group" id="grp_cidade"><label>Cidade <span class="req">*</span></label><input type="text" id="f_cidade" oninput="_atualizarLinkMaps()"><span class="err-msg">Cidade é obrigatória.</span></div>
+                <div class="form-group" id="grp_bairro"><label>Bairro <span class="req">*</span></label><input type="text" id="f_bairro"><span class="err-msg">Bairro é obrigatório.</span></div>
+                <div class="form-group span2" id="grp_rua"><label>Rua / Logradouro <span class="req">*</span></label><input type="text" id="f_rua" oninput="_atualizarLinkMaps()"><span class="err-msg">Rua é obrigatória.</span></div>
+                <div class="form-group" id="grp_num"><label>Número <span class="req">*</span></label><input type="text" id="f_num" oninput="_atualizarLinkMaps()"><span class="err-msg">Número é obrigatório.</span></div>
+                <div class="form-group opcional" id="grp_complemento"><label>Complemento</label><input type="text" id="f_complemento" placeholder="Apto, Bloco, Casa..."></div>
+                <div class="form-group" id="grp_uf"><label>UF <span class="req">*</span></label><input type="text" id="f_uf" maxlength="2" style="text-transform:uppercase;"><span class="err-msg">UF é obrigatória.</span></div>
               </div>
               <div id="mapsLinkWrap" style="display:none;margin-top:14px;padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
                 <a id="mapsLinkAnchor" href="" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent);text-decoration:none;display:flex;align-items:center;gap:6px;">
@@ -1333,9 +1827,9 @@
             <div class="card">
               <div class="card-header"><div class="card-icon">📦</div><h3>Plano e Faturamento</h3></div>
               <div class="form-grid">
-                <div class="form-group"><label>Sistema</label><input type="text" id="f_sistema" readonly style="background:var(--surface);color:var(--muted);cursor:default;"></div>
-                <div class="form-group">
-                  <label>Produto *</label>
+                <div class="form-group" id="grp_sistema"><label>Sistema <span class="req">*</span></label><input type="text" id="f_sistema" readonly style="background:var(--surface);color:var(--muted);cursor:default;"><span class="err-msg">Sistema é obrigatório.</span></div>
+                <div class="form-group opcional" id="grp_produto">
+                  <label>Produto</label>
                   <select id="f_produto" onchange="onProdutoChange()">
                     <option value="">Selecione o produto...</option>
                     <option value="Fibra Alone">Fibra Alone</option>
@@ -1345,15 +1839,15 @@
                   </select>
                   <span class="hint" id="produtoHint"></span>
                 </div>
-                <div class="form-group" id="grp_plano">
-                  <label>Plano *</label>
+                <div class="form-group opcional" id="grp_plano">
+                  <label>Plano</label>
                   <select id="f_plano">
                     <option value="">— Preencha o CEP e Produto primeiro —</option>
                   </select>
                   <span class="hint" id="planoHint" style="display:none;"></span>
                 </div>
-                <div class="form-group"><label>Valor</label><input type="text" id="f_valor" placeholder="R$ 0,00"></div>
-                <div class="form-group">
+                <div class="form-group opcional" id="grp_valor"><label>Valor</label><input type="text" id="f_valor" placeholder="R$ 0,00"></div>
+                <div class="form-group opcional" id="grp_venc">
                   <label>Vencimento</label>
                   <select id="f_venc">
                     <option value="">Selecione...</option>
@@ -1362,7 +1856,7 @@
                     <option>20</option><option>25</option>
                   </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group opcional" id="grp_fat">
                   <label>Pagamento</label>
                   <select id="f_fat">
                     <option value="">Selecione...</option>
@@ -1372,8 +1866,7 @@
                     <option>Débito em Conta</option>
                   </select>
                 </div>
-                <div class="form-group">
-                  <label>Status Pagamento PAP</label>
+                <div style="display:none" id="grp_statusPAP">
                   <select id="f_statusPAP">
                     <option value="Em Aberto" selected>Em Aberto</option>
                     <option value="Pago">Pago</option>
@@ -1381,22 +1874,13 @@
                 </div>
               </div>
             </div>
-            <div class="card" style="margin-top:14px;">
-              <div class="card-header"><div class="card-icon">📅</div><h3>Agendamento e Instalação</h3></div>
-              <div class="form-grid">
-                <div class="form-group"><label>Data Agendamento</label><input type="date" id="f_agenda"></div>
-                <div class="form-group">
-                  <label>Turno</label>
-                  <select id="f_turno">
-                    <option value="">Selecione...</option>
-                    <option>Manhã (08h às 12h)</option>
-                    <option>Tarde (13h às 17h)</option>
-                  </select>
-                </div>
-                <div class="form-group"><label>ID Contrato / ID Móvel (col G)</label><input type="text" id="f_contrato" placeholder="Gerado no sistema"></div>
-                <div class="form-group"><label>Data Instalação</label><input type="date" id="f_instal"></div>
-                <div class="form-group"><label>Linha Móvel</label><input type="text" id="f_linhaMovel"></div>
-              </div>
+            <!-- Campos de Agendamento e Instalação mantidos ocultos — preenchidos via modal -->
+            <div style="display:none">
+              <input type="date" id="f_agenda">
+              <select id="f_turno"><option value="">Selecione...</option><option>Manhã (08h às 12h)</option><option>Tarde (13h às 17h)</option></select>
+              <input type="text" id="f_contrato">
+              <input type="date" id="f_instal">
+              <input type="text" id="f_linhaMovel">
             </div>
           </div>
 
@@ -1413,6 +1897,13 @@
         </form>
       </div>
 
+      <!-- ── NOVA VENDA ── -->
+      <div id="pageNovaVenda" class="page">
+        <div id="novaVendaContainer">
+          <div style="padding:60px;text-align:center;color:var(--muted);font-family:'DM Mono',monospace;font-size:13px;">��� Carregando...</div>
+        </div>
+      </div>
+
       <!-- ── LISTA ── -->
       <div id="pageLista" class="page">
 
@@ -1426,7 +1917,7 @@
                 <span class="search-icon">🔍</span>
                 <input type="text" id="campoBusca" placeholder="Nome, CPF ou contrato..." oninput="buscaListaInstantanea(this.value)" onkeydown="if(event.key==='Escape') limparBusca()">
               </div>
-              <button class="btn btn-ghost" onclick="limparFiltros()" style="padding:9px 12px;" title="Limpar filtros">✕</button>
+              <button class="btn btn-ghost" onclick="recarregarLista()" style="padding:9px 12px;" title="Buscar novos registros da planilha">🔄</button>
             </div>
             <div class="list-filtros" id="listFiltros">
               <select class="filtro-sel" id="filtroStatus" onchange="aplicarFiltros()">
@@ -1462,10 +1953,7 @@
                 <option value="Móvel Combo">Móvel Combo</option>
                 <option value="Móvel Alone">Móvel Alone</option>
               </select>
-              <label class="filtro-toggle" title="Somente vendas com VeroHub vencido ou sem data">
-                <input type="checkbox" id="filtroVeroHub" onchange="aplicarFiltros()">
-                <span>⚡ VeroHub</span>
-              </label>
+
             </div>
           </div>
           <div class="list-meta"><span id="totalRegistros">—</span></div>
@@ -1497,14 +1985,183 @@
               <div class="painel-status-wrap" id="pStatusWrap"></div>
             </div>
             <div class="painel-scroll" id="painelScroll"></div>
-            <div class="painel-acoes">
+
+            <!-- ── FORMULÁRIO INLINE DE EDIÇÃO ── -->
+            <div class="painel-inline-form" id="painelInlineForm">
+
+              <!-- Classificação -->
+              <div class="pif-secao" style="padding:12px 16px 0;">
+                <div class="pif-titulo">⭐ Classificação</div>
+                <div class="pif-grid">
+                  <div class="pif-group">
+                    <label>Status</label>
+                    <select id="pif-status" onchange="pifOnStatusChange(this.value)">
+                      <option>1- Conferencia/Ativação</option>
+                      <option>2- Aguardando Instalação</option>
+                      <option>2- Aguardando Entrega</option>
+                      <option>3 - Finalizada/Instalada</option>
+                      <option>3- Aguardando Retirada</option>
+                      <option>4- Entregue</option>
+                      <option>5 - Finalizado</option>
+                      <option>Pendencia Vero</option>
+                      <option>Cancelado</option>
+                      <option>Cancelamento Técnico</option>
+                      <option>Cancelamento Comercial</option>
+                      <option>Churn</option>
+                      <option>Devolvido</option>
+                    </select>
+                  </div>
+                  <div class="pif-group">
+                    <label>Pré-Status</label>
+                    <select id="pif-preStatus">
+                      <option value="">—</option>
+                      <option>EM NEGOCIAÇÃO</option>
+                      <option>ANALISE PENDENTE</option>
+                      <option>AG DOC</option>
+                      <option>AG COMPROVANTE</option>
+                      <option>AG SELFIE</option>
+                      <option>AG QUALIDADE</option>
+                      <option>REPROVADO</option>
+                      <option>AG AUDITORIA</option>
+                      <option>AG ACEITE</option>
+                      <option>CRUZAMENTO DE CANAIS</option>
+                    </select>
+                  </div>
+                  <div class="pif-group">
+                    <label>Canal</label>
+                    <select id="pif-canal">
+                      <option value="">—</option>
+                      <option>PAP</option>
+                      <option>META ADS</option>
+                      <option>INDICAÇÃO</option>
+                      <option>ATIVO</option>
+                      <option>GOOGLE ADS</option>
+                    </select>
+                  </div>
+                  <div class="pif-group">
+                    <label>Responsável</label>
+                    <select id="pif-resp"><option value="">Carregando...</option></select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Cliente -->
+              <div class="pif-secao" style="padding:12px 16px 0;">
+                <div class="pif-titulo">👤 Cliente</div>
+                <div class="pif-grid">
+                  <div class="pif-group span2">
+                    <label>Nome</label>
+                    <input type="text" id="pif-cliente">
+                  </div>
+                  <div class="pif-group">
+                    <label>CPF / CNPJ</label>
+                    <input type="text" id="pif-cpf" maxlength="18">
+                  </div>
+                  <div class="pif-group">
+                    <label>WhatsApp</label>
+                    <input type="tel" id="pif-whats">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Endereço -->
+              <div class="pif-secao" style="padding:12px 16px 0;">
+                <div class="pif-titulo">📍 Endereço</div>
+                <div class="pif-grid">
+                  <div class="pif-group">
+                    <label>CEP</label>
+                    <input type="text" id="pif-cep" maxlength="9" onblur="pifBuscarCEP(this.value)">
+                    <span class="pif-hint" id="pif-cepHint"></span>
+                  </div>
+                  <div class="pif-group">
+                    <label>Cidade</label>
+                    <input type="text" id="pif-cidade">
+                  </div>
+                  <div class="pif-group span2">
+                    <label>Rua</label>
+                    <input type="text" id="pif-rua">
+                  </div>
+                  <div class="pif-group">
+                    <label>Nº Fachada</label>
+                    <input type="text" id="pif-num">
+                  </div>
+                  <div class="pif-group">
+                    <label>Complemento</label>
+                    <input type="text" id="pif-complemento">
+                  </div>
+                  <div class="pif-group">
+                    <label>Bairro</label>
+                    <input type="text" id="pif-bairro">
+                  </div>
+                  <div class="pif-group">
+                    <label>UF</label>
+                    <input type="text" id="pif-uf" maxlength="2" style="text-transform:uppercase;">
+                  </div>
+                </div>
+                <div class="pif-info-grid" id="pif-infoGeoWrap" style="display:none;">
+                  <div class="pif-info-card"><div class="lbl">📡 Sistema</div><div class="val" id="pif-sistema-display">—</div></div>
+                  <div class="pif-info-card"><div class="lbl">🗺️ Segmentação</div><div class="val" id="pif-segmentacao-display">—</div></div>
+                </div>
+                <input type="hidden" id="pif-sistema">
+                <input type="hidden" id="pif-segmentacao">
+              </div>
+
+              <!-- Plano -->
+              <div class="pif-secao" style="padding:12px 16px 0;">
+                <div class="pif-titulo">📦 Plano</div>
+                <div class="pif-grid">
+                  <div class="pif-group">
+                    <label>Produto</label>
+                    <select id="pif-produto" onchange="pifOnProdutoChange()">
+                      <option value="">—</option>
+                      <option value="Fibra Alone">Fibra Alone</option>
+                      <option value="Fibra Combo">Fibra Combo</option>
+                      <option value="Móvel Alone">Móvel Alone</option>
+                      <option value="Móvel Combo">Móvel Combo</option>
+                      <option value="Dependente">Dependente</option>
+                    </select>
+                    <span class="pif-hint" id="pif-produtoHint"></span>
+                  </div>
+                  <div class="pif-group">
+                    <label>Plano</label>
+                    <select id="pif-plano" onchange="pifOnPlanoChange()">
+                      <option value="">—</option>
+                    </select>
+                  </div>
+                  <div class="pif-group">
+                    <label>Valor</label>
+                    <input type="text" id="pif-valor" placeholder="R$ 0,00">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Observação -->
+              <div class="pif-secao" style="padding:12px 16px 14px;">
+                <div class="pif-titulo">📝 Observação</div>
+                <div class="pif-group">
+                  <textarea id="pif-observacao" placeholder="Anotações..."></textarea>
+                </div>
+              </div>
+
+            </div><!-- /painelInlineForm -->
+
+            <!-- Botões normais (visualização) -->
+            <div class="painel-acoes" id="painelAcoesNormal">
               <div class="painel-acoes-row">
-                <button class="btn" id="pBtnEditar" onclick="editarDoPanel()">✏️ Editar</button>
+                <button class="btn" id="pBtnEditar" onclick="painelToggleEdicao()">✏️ Editar</button>
                 <button class="btn btn-ghost" id="pBtnWhats" onclick="abrirWhatsPanel()" style="display:none;">📲 WhatsApp</button>
                 <button class="btn btn-ghost" id="pBtnExcluir" onclick="excluirVendaPanel()" style="display:none;border-color:rgba(230,62,109,.4);color:var(--accent);">🗑️ Excluir</button>
               </div>
               <div class="painel-acoes-row">
                 <button class="btn btn-ghost" onclick="copiarDadosPanel()" style="background:rgba(230,62,109,0.08);border-color:rgba(230,62,109,0.25);color:var(--accent);">📋 Copiar Resumo</button>
+              </div>
+            </div>
+
+            <!-- Botões inline (edição) -->
+            <div class="painel-acoes-inline" id="painelAcoesInline">
+              <div class="pif-btn-row">
+                <button class="btn" onclick="pifSalvar()">💾 Salvar</button>
+                <button class="btn btn-ghost" onclick="painelToggleEdicao()">✕ Cancelar</button>
               </div>
             </div>
           </div>
@@ -1596,68 +2253,59 @@
         </div>
       </div>
 
-    <!-- Modal Nova Indicação -->
-    <div class="modal-overlay" id="modalNovaIndicacao">
+    <!-- ══ FAB MENU ══ -->
+    <div class="fab-overlay" id="fabOverlay" onclick="fecharFabMenu()"></div>
+    <div class="fab-container" id="fabContainer">
+
+      <div class="fab-children">
+
+        <div class="fab-item" onclick="abrirModalConsultaCPF(); fecharFabMenu()">
+          <span class="fab-item-label">Consultar CPF</span>
+          <button class="fab-item-btn color-cpf">👤</button>
+        </div>
+
+        <div class="fab-item" onclick="abrirModalOfertas(); fecharFabMenu()">
+          <span class="fab-item-label">Mapa de Ofertas</span>
+          <button class="fab-item-btn color-mapa">🗺️</button>
+        </div>
+
+        <div class="fab-item" onclick="abrirModalParcial(); fecharFabMenu()">
+          <span class="fab-item-label">Parcial de Vendas</span>
+          <button class="fab-item-btn color-parcial">📊</button>
+        </div>
+
+        <div class="fab-item" onclick="abrirModalAgenda(); fecharFabMenu()">
+          <span class="fab-item-label">Agenda do Dia</span>
+          <button class="fab-item-btn color-agenda">📅</button>
+        </div>
+
+        <div class="fab-item" onclick="abrirNovaVenda(); fecharFabMenu()">
+          <span class="fab-item-label">Nova Venda</span>
+          <button class="fab-item-btn color-novo">✦</button>
+        </div>
+
+      </div>
+
+      <button class="fab-main" id="fabMain" onclick="toggleFabMenu(event)" title="Menu rápido">
+        <span class="fab-plus">+</span>
+      </button>
+    </div>
+
+    <!-- Modal Assertiva CPF -->
+    <div class="modal-overlay" id="modalAssertiva">
       <div class="modal-box">
         <div class="modal-head">
-          <h3>🤝 Cadastrar Nova Indicação</h3>
-          <button class="modal-close" onclick="fecharModalIndicacao()">✕</button>
+          <h3>👤 Consultar CPF</h3>
+          <button class="modal-close" onclick="fecharModalAssertiva()">✕</button>
         </div>
-        <div class="modal-body">
-          <form id="formIndicacao" onsubmit="event.preventDefault(); salvarIndicacao();">
-            <div class="leads-campo">
-              <label>Nome de quem está indicando (Indicador) *</label>
-              <input type="text" id="ind_nomeIndicador" required>
-            </div>
-            <div class="leads-campo">
-              <label>Telefone (Indicador) *</label>
-              <input type="text" id="ind_telefoneIndicador" placeholder="(00) 00000-0000" required>
-            </div>
-            <div style="display:flex;gap:10px;margin-bottom:14px;">
-              <div class="leads-campo" style="flex:1;margin-bottom:0;">
-                <label>Tipo de Chave PIX</label>
-                <select id="ind_tipoPix">
-                  <option value="">Selecione...</option>
-                  <option>CPF/CNPJ</option>
-                  <option>Telefone</option>
-                  <option>E-mail</option>
-                  <option>Chave Aleatória</option>
-                </select>
-              </div>
-              <div class="leads-campo" style="flex:2;margin-bottom:0;">
-                <label>Chave PIX</label>
-                <input type="text" id="ind_chavePix">
-              </div>
-            </div>
-            <hr style="border:0;border-top:1px solid var(--border);margin:10px 0 15px;">
-            <div class="leads-campo">
-              <label>Nome do Novo Cliente (Indicado) *</label>
-              <input type="text" id="ind_nomeIndicado" required>
-            </div>
-            <div class="leads-campo">
-              <label>Telefone do Novo Cliente *</label>
-              <input type="text" id="ind_telefoneIndicado" placeholder="(00) 00000-0000" required>
-            </div>
-            <div class="leads-campo">
-              <label>Status Inicial</label>
-              <select id="ind_status">
-                <option>Novo</option>
-                <option>Em Atendimento</option>
-              </select>
-            </div>
-          </form>
+        <div class="modal-body" id="modalAssertivaBody">
+          <!-- conteúdo dinâmico via JS -->
         </div>
-        <div class="modal-foot">
-          <button class="btn btn-ghost" onclick="fecharModalIndicacao()">Cancelar</button>
-          <button class="btn" onclick="salvarIndicacao()" id="btnSalvarInd">✅ Salvar Indicação</button>
+        <div class="modal-foot" id="modalAssertivaFoot" style="display:none;">
+          <button class="btn btn-ghost" onclick="fecharModalAssertiva()">Fechar</button>
         </div>
       </div>
     </div>
-    
-    <!-- ══ BOTÃO FLUTUANTE OFERTAS ══ -->
-    <button class="fab-ofertas" onclick="abrirModalOfertas()" title="Consultar Ofertas por Cidade">
-      🔍
-    </button>
 
     <!-- Modal de ofertas -->
     <div class="modal-overlay" id="modalOfertas">
@@ -1674,6 +2322,49 @@
           <button class="btn-whats-ofertas" id="btnOfertasWhats" onclick="_copiarOfertasWhats()">
             🟢 Copiar WhatsApp
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Parcial de Vendas -->
+    <div class="modal-overlay" id="modalParcial">
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3>📊 Parcial de Vendas</h3>
+          <button class="modal-close" onclick="fecharModalParcial()">✕</button>
+        </div>
+        <div class="modal-body" id="modalParcialBody">
+          <div class="ofertas-loading">⏳ Carregando...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal BotConversa — Disparar Fluxo -->
+    <div class="modal-overlay" id="modalBotConversa">
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3 id="modalBCTitulo">🤖 Disparar Fluxo</h3>
+          <button class="modal-close" onclick="fecharModalBotConversa()">✕</button>
+        </div>
+        <div class="modal-body" id="modalBCBody">
+          <div class="ofertas-loading">⏳ Carregando fluxos...</div>
+        </div>
+        <div class="modal-foot" id="modalBCFoot" style="display:none;">
+          <button class="btn btn-ghost" onclick="fecharModalBotConversa()">Cancelar</button>
+          <button class="btn btn-primary" id="btnBCConfirmar" onclick="_bcConfirmar()">▶ Disparar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Agenda do Dia -->
+    <div class="modal-overlay" id="modalAgenda">
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3>📅 Agenda do Dia</h3>
+          <button class="modal-close" onclick="fecharModalAgenda()">✕</button>
+        </div>
+        <div class="modal-body" id="modalAgendaBody">
+          <div class="ofertas-loading">⏳ Carregando...</div>
         </div>
       </div>
     </div>
@@ -1794,7 +2485,8 @@
 
         <div class="pap-toolbar">
           <h2>💰 Pagamentos PAP</h2>
-          <button class="btn btn-ghost btn-sm" onclick="carregarPAP()" style="margin-left:auto;font-size:11px;">↺ Atualizar</button>
+          <button class="btn btn-ghost btn-sm" id="papBtnResumo" onclick="_enviarResumoPAP()" style="margin-left:auto;font-size:11px;display:none;">📩 Enviar Resumo</button>
+          <button class="btn btn-ghost btn-sm" onclick="carregarPAP()" style="font-size:11px;">↺ Atualizar</button>
         </div>
 
         <!-- Resumo por vendedor -->
@@ -1833,40 +2525,246 @@
         </div>
       </div>
 
-      <!-- ── INDICAÇÕES ── -->
-      <div id="pageIndicacoes" class="page">
-        <div class="pap-toolbar">
-          <h2>Indicações</h2>
-          <button class="btn btn-ghost btn-sm" onclick="carregarIndicacoes()" style="margin-left:auto;font-size:11px;">↺ Atualizar</button>
-          <button class="btn btn-sm" onclick="abrirModalIndicacao()" style="margin-left:8px;"><i class="fas fa-plus"></i> Nova Indicação</button>
-        </div>
-        
-        <div class="pap-resumo" id="indResumo">
-          <div class="pap-empty" style="padding:16px;">⏳ Carregando...</div>
-        </div>
-        
-        <div class="pap-scroll">
-          <table class="pap-table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Indicado (Novo Cliente)</th>
-                <th>Indicador (Quem indicou)</th>
-                <th>Status</th>
-                <th>Pagamento</th>
-                <th>Chave PIX</th>
-              </tr>
-            </thead>
-            <tbody id="indTbody">
-              <tr><td colspan="6" class="pap-empty">⏳ Carregando...</td></tr>
-            </tbody>
-          </table>
+      <!-- ── MODAL CONFIRMAÇÃO PAP ── -->
+      <div class="modal-overlay" id="modalConfirmPAP">
+        <div class="modal-box" style="max-width:440px;">
+          <div class="modal-head">
+            <h3>💰 Confirmar Pagamento</h3>
+            <button class="modal-close" onclick="_fecharModalPAP()">✕</button>
+          </div>
+          <div class="modal-body" style="padding:20px;">
+            <p id="modalPAPTexto" style="font-size:13px;color:var(--text);line-height:1.6;margin:0;"></p>
+            <div id="modalPAPInfo" style="margin-top:14px;padding:12px 14px;background:rgba(34,217,138,0.08);border:1px solid rgba(34,217,138,0.2);border-radius:10px;font-size:12px;color:var(--muted);line-height:1.5;"></div>
+          </div>
+          <div class="modal-foot" style="display:flex;gap:10px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border);">
+            <button class="btn btn-ghost btn-sm" onclick="_fecharModalPAP()">Cancelar</button>
+            <button class="btn btn-sm" id="modalPAPBtnConfirm" onclick="_confirmarPagoPAP()" style="background:var(--green);color:#0d0f14;font-weight:700;padding:8px 20px;border:none;border-radius:8px;cursor:pointer;font-family:'Sora',sans-serif;">✓ Confirmar Pagamento</button>
+          </div>
         </div>
       </div>
+
+      <!-- ── INDICAÇÕES ── -->
+      <?!= include('Indicacoes'); ?>
+
+      <!-- ── TICKETS ── -->
+      <?!= include('Tickets'); ?>
 
     </main>
 
   <!-- ── MODAL CONFIRMAÇÃO EXCLUSÃO ── -->
+  <!-- ── MODAL: Aguardando Instalação (status 2) ── -->
+  <div class="modal-overlay" id="modalStatus2">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3>📋 2- Aguardando Instalação</h3>
+        <button class="modal-close" onclick="_fecharModalStatus2()">✕</button>
+      </div>
+      <div class="modal-body" style="overflow-y:auto;">
+        <div class="ms-grid">
+
+          <div class="ms-group">
+            <label>Data Ativação <span class="ms-req">*</span></label>
+            <input type="date" id="ms2-dataAtiv">
+            <span class="ms-err" id="ms2-err-dataAtiv">Obrigatório.</span>
+          </div>
+          <div class="ms-group">
+            <label>Código do Cliente <span class="ms-req">*</span></label>
+            <input type="text" id="ms2-codCli" placeholder="Cód. no sistema">
+            <span class="ms-err" id="ms2-err-codCli">Obrigatório.</span>
+          </div>
+          <div class="ms-group">
+            <label>ID Contrato / OS <span class="ms-req">*</span></label>
+            <input type="text" id="ms2-contrato" placeholder="Número do contrato">
+            <span class="ms-err" id="ms2-err-contrato">Obrigatório.</span>
+          </div>
+          <div class="ms-group">
+            <label>Data Agendamento <span class="ms-req">*</span></label>
+            <input type="date" id="ms2-agenda">
+            <span class="ms-err" id="ms2-err-agenda">Obrigatório.</span>
+          </div>
+          <div class="ms-group span2">
+            <label>Turno <span class="ms-req">*</span></label>
+            <select id="ms2-turno">
+              <option value="">Selecione...</option>
+              <option>Manhã (08h às 12h)</option>
+              <option>Tarde (13h às 17h)</option>
+            </select>
+            <span class="ms-err" id="ms2-err-turno">Obrigatório.</span>
+          </div>
+
+          <!-- Separador plano -->
+          <div class="ms-group span2" style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px;">
+            <div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--accent);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;">📦 Plano</div>
+          </div>
+
+          <div class="ms-group">
+            <label>Produto</label>
+            <select id="ms2-produto" onchange="ms2OnProdutoChange()">
+              <option value="">—</option>
+              <option value="Fibra Alone">Fibra Alone</option>
+              <option value="Fibra Combo">Fibra Combo</option>
+              <option value="Móvel Alone">Móvel Alone</option>
+              <option value="Móvel Combo">Móvel Combo</option>
+              <option value="Dependente">Dependente</option>
+            </select>
+            <span class="ms-hint" id="ms2-produtoHint"></span>
+          </div>
+          <div class="ms-group">
+            <label>Plano</label>
+            <select id="ms2-plano" onchange="ms2OnPlanoChange()">
+              <option value="">—</option>
+            </select>
+          </div>
+          <div class="ms-group">
+            <label>Valor</label>
+            <input type="text" id="ms2-valor" placeholder="R$ 0,00">
+          </div>
+
+          <!-- Sistema / Segmentação readonly -->
+          <div class="ms-group" id="ms2-infoWrap" style="display:none;">
+          </div>
+
+        </div>
+        <div class="ms-info-grid" id="ms2-infoGeoWrap" style="display:none;margin-top:14px;">
+          <div class="ms-info-card"><div class="lbl">📡 Sistema</div><div class="val" id="ms2-sistema-display">—</div></div>
+          <div class="ms-info-card"><div class="lbl">🗺️ Segmentação</div><div class="val" id="ms2-segmentacao-display">—</div></div>
+        </div>
+        <input type="hidden" id="ms2-sistema">
+        <input type="hidden" id="ms2-segmentacao">
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="_fecharModalStatus2()">Cancelar</button>
+        <button class="btn" id="ms2-btnSalvar" onclick="_confirmarStatus2()">✅ Confirmar e Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODAL: Finalizada/Instalada (status 3) ── -->
+  <div class="modal-overlay" id="modalStatus3">
+    <div class="modal-box" style="max-width:400px;">
+      <div class="modal-head">
+        <h3>✅ 3 - Finalizada/Instalada</h3>
+        <button class="modal-close" onclick="_fecharModalStatus3()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--muted);font-size:13px;line-height:1.6;margin-bottom:16px;">Informe a data de instalação para finalizar a venda.</p>
+        <div class="ms-group">
+          <label>Data de Instalação <span class="ms-req">*</span></label>
+          <input type="date" id="ms3-instal">
+          <span class="ms-err" id="ms3-err-instal">Data de instalação é obrigatória.</span>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="_fecharModalStatus3()">Cancelar</button>
+        <button class="btn" id="ms3-btnSalvar" onclick="_confirmarStatus3()">✅ Confirmar Instalação</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MODAL NOVO PEDIDO VEROHUB ══════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modalVeroHub">
+    <div class="modal-box" style="max-width:480px;">
+      <div class="modal-head">
+        <h3>🟠 Novo Pedido VeroHub</h3>
+        <button class="modal-close" onclick="_fecharModalVeroHub()">✕</button>
+      </div>
+      <div class="modal-body">
+        <p id="mvh-cliente-info" style="font-size:13px;color:var(--muted);margin-bottom:16px;font-family:'DM Mono',monospace;"></p>
+
+        <div class="mvh-grid">
+          <div class="mvh-field mvh-full">
+            <label class="mvh-label">E-mail do cliente</label>
+            <input id="mvh-email" type="text" class="mvh-input" placeholder="cliente@email.com">
+          </div>
+          <div class="mvh-field">
+            <label class="mvh-label">Data de nascimento</label>
+            <input id="mvh-birthday" type="date" class="mvh-input">
+          </div>
+          <div class="mvh-field">
+            <label class="mvh-label">Gênero</label>
+            <select id="mvh-gender" class="mvh-input">
+              <option value="">Selecione</option>
+              <option value="M">Masculino</option>
+              <option value="F">Feminino</option>
+            </select>
+          </div>
+          <div class="mvh-field mvh-full">
+            <label class="mvh-label">Nome da mãe</label>
+            <input id="mvh-mother" type="text" class="mvh-input" placeholder="Nome completo da mãe">
+          </div>
+          <div class="mvh-field">
+            <label class="mvh-label">RG</label>
+            <input id="mvh-rg" type="text" class="mvh-input" placeholder="Ex: 1234567">
+          </div>
+          <div class="mvh-field">
+            <label class="mvh-label">Vencimento</label>
+            <select id="mvh-due-date" class="mvh-input">
+              <option value="">Selecione</option>
+              <option value="1">Dia 1</option>
+              <option value="3">Dia 3</option>
+              <option value="5">Dia 5</option>
+              <option value="9">Dia 9</option>
+              <option value="13">Dia 13</option>
+              <option value="18">Dia 18</option>
+            </select>
+          </div>
+          <div class="mvh-field mvh-full">
+            <label class="mvh-label">Plano VeroHub <span style="color:var(--muted);font-weight:400;text-transform:none;">(digite parte do nome para buscar)</span></label>
+            <input id="mvh-plano-busca" type="text" class="mvh-input" placeholder="Ex: 800MB, Globoplay, Mundo Fibra...">
+          </div>
+        </div>
+
+        <div id="mvh-erro" style="display:none;margin-top:12px;padding:10px 12px;background:rgba(230,62,109,.08);border:1px solid rgba(230,62,109,.3);border-radius:8px;font-size:12px;color:var(--accent);"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="_fecharModalVeroHub()">Cancelar</button>
+        <button class="btn" id="mvh-btn-confirmar" onclick="_confirmarModalVeroHub()" style="background:rgba(223,95,48,.15);border-color:#DF5F30;color:#DF5F30;">🟠 Criar Pedido</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MODAL CONSULTAR VIABILIDADE VEROHUB ═══════════════════════════════ -->
+  <div class="modal-overlay" id="modalViabilidadeVero">
+    <div class="modal-box" style="max-width:420px;">
+      <div class="modal-head">
+        <h3>🔍 Consultar Viabilidade</h3>
+        <button class="modal-close" onclick="_fecharModalViabilidade()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="grid-column:1/-1;display:flex;flex-direction:column;gap:5px;">
+            <label class="mvh-label">CEP</label>
+            <input id="mviab-cep" type="text" class="mvh-input" placeholder="00000-000" maxlength="9"
+              oninput="this.value=this.value.replace(/\D/g,'').replace(/^(\d{5})(\d)/,'$1-$2')"
+              onkeydown="if(event.key==='Enter')document.getElementById('mviab-numero').focus()">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;">
+            <label class="mvh-label">Número</label>
+            <input id="mviab-numero" type="text" class="mvh-input" placeholder="Ex: 123"
+              onkeydown="if(event.key==='Enter')_consultarViabilidade()">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;">
+            <label class="mvh-label">Complemento <span style="color:var(--muted);font-weight:400;text-transform:none;">(opcional)</span></label>
+            <input id="mviab-complemento" type="text" class="mvh-input" placeholder="Apto, Bloco...">
+          </div>
+        </div>
+
+        <!-- Resultado -->
+        <div id="mviab-result" class="mviab-result">
+          <div id="mviab-status" class="mviab-status"></div>
+          <div id="mviab-network" class="mviab-network"></div>
+        </div>
+
+        <!-- Erro -->
+        <div id="mviab-erro" style="display:none;margin-top:12px;padding:10px 12px;background:rgba(230,62,109,.08);border:1px solid rgba(230,62,109,.3);border-radius:8px;font-size:12px;color:var(--accent);"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="_fecharModalViabilidade()">Fechar</button>
+        <button class="btn" id="mviab-btn-consultar" onclick="_consultarViabilidade()" style="background:rgba(223,95,48,.15);border-color:#DF5F30;color:#DF5F30;">🔍 Consultar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="modalConfirmExcluir">
     <div class="modal-box" style="max-width:420px;">
       <div class="modal-head">
@@ -1895,6 +2793,92 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <?!= include('Cruzamento'); ?>
+  <!-- ══ PAGE CONFIG ══════════════════════════════════════════════════════════ -->
+  <div class="page" id="pageConfig">
+    <div style="max-width:640px;margin:0 auto;padding:32px 24px;">
+
+      <div style="margin-bottom:28px;">
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:3px;text-transform:uppercase;display:block;margin-bottom:8px;">DharmaPro · Configurações</span>
+        <h2 style="font-size:20px;font-weight:800;">Configurações</h2>
+        <p style="font-size:12px;color:var(--muted);margin-top:4px;font-family:'DM Mono',monospace;">Gerencie integrações e preferências do sistema</p>
+      </div>
+
+      <!-- Card VeroHub -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+          <span style="font-size:22px;">🟠</span>
+          <div>
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:2px;">VeroHub</h3>
+            <p style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;">Integração para criação de pedidos automáticos</p>
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div>
+              <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Status da Conexão</div>
+              <div id="cfg-vero-status" style="font-size:14px;font-weight:700;">⏳ Verificando...</div>
+              <div id="cfg-vero-token-info" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:3px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Instruções -->
+        <div style="background:rgba(79,158,255,0.06);border:1px solid rgba(79,158,255,0.2);border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:700;color:#4f9eff;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">Como funciona</div>
+          <ol style="font-size:12px;color:var(--muted);line-height:1.8;padding-left:18px;font-family:'DM Mono',monospace;">
+            <li>Clique em <strong style="color:var(--text)">Conectar VeroHub</strong> abaixo</li>
+            <li>Arraste o botão que aparecer para a <strong style="color:var(--text)">barra de favoritos</strong> do Chrome</li>
+            <li>Abra o VeroHub e clique no favorito <strong style="color:var(--text)">🟠 DharmaPro</strong></li>
+            <li>Pronto! Conexão feita automaticamente ✅</li>
+          </ol>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid rgba(79,158,255,0.15);">
+            ⚠️ Repita este processo sempre que o VeroHub deslogar automaticamente.
+          </div>
+        </div>
+
+        <!-- Botões -->
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+          <button id="cfg-btn-conectar"
+            onclick="_conectarVeroHub()"
+            style="width:100%;padding:12px 20px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s;">
+            🔑 Conectar VeroHub
+          </button>
+          <button onclick="_abrirModalViabilidade()"
+            style="width:100%;padding:12px 20px;background:rgba(223,95,48,.1);border:1px solid rgba(223,95,48,.4);border-radius:8px;color:#DF5F30;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all .15s;">
+            🔍 Consultar Viabilidade
+          </button>
+        </div>
+
+        <!-- Bookmarklet -->
+        <div id="cfg-bookmarklet-wrap" style="display:none;"></div>
+
+        <!-- Campo para colar o token -->
+        <div id="cfg-token-wrap" style="display:none;">
+          <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">
+            Cole o token copiado da janela que abriu:
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="cfg-token-campo" type="text"
+              placeholder="Cole o token aqui..."
+              style="flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none;"
+              onkeydown="if(event.key==='Enter') _salvarTokenCampo()">
+            <button onclick="_salvarTokenCampo()"
+              style="padding:10px 16px;background:#22d98a;border:none;border-radius:8px;color:#fff;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;">
+              💾 Salvar
+            </button>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;font-family:'DM Mono',monospace;">
+            ↑ Copie o token na janela aberta e cole aqui. Depois clique Salvar.
+          </div>
+        </div>
+
+      </div><!-- /card verohub -->
+    </div>
+  </div><!-- /pageConfig -->
+
+  <script>var VH_OK = (window.location.search.indexOf('vhtoken=') > -1 || window.location.search.indexOf('vh=ok') > -1) ? 'true' : 'false';</script>
   <?!= include('JS'); ?>
 </body>
 </html>

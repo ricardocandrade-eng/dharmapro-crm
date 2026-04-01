@@ -1,0 +1,6 @@
+**/.claude/**
+**/.git/**
+**/.git
+*.bat
+.clasp.json
+.claspignore
