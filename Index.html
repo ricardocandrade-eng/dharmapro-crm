@@ -927,39 +927,119 @@
       transform: rotate(45deg);
 
     /* ── Modal Assertiva ── */
-    #modalAssertiva .modal-box { max-width: 540px; }
+    #modalAssertiva .modal-box { max-width: 560px; }
+    #modalAssertiva .modal-body { padding: 20px 22px; }
+
     .assertiva-input-row {
-      display: flex; gap: 8px; margin-bottom: 16px;
+      display: flex; gap: 8px; margin-bottom: 18px;
     }
     .assertiva-input-row input {
-      flex: 1; padding: 10px 14px; border-radius: 8px;
-      border: 1px solid var(--border2); background: var(--bg);
+      flex: 1; padding: 11px 14px; border-radius: 9px;
+      border: 1px solid var(--border2); background: var(--surface2);
       color: var(--text); font-size: 15px; font-family: 'DM Mono', monospace;
+      transition: border-color .2s, box-shadow .2s; outline: none;
+    }
+    .assertiva-input-row input:focus {
+      border-color: var(--purple); box-shadow: 0 0 0 3px rgba(167,139,250,.15);
     }
     .assertiva-input-row button {
-      padding: 10px 18px; border-radius: 8px;
-      background: var(--accent); color: white; border: none;
-      font-weight: 700; cursor: pointer; white-space: nowrap;
+      padding: 11px 20px; border-radius: 9px;
+      background: linear-gradient(135deg,#9b59b6,#7d3c98); color: white; border: none;
+      font-weight: 700; cursor: pointer; white-space: nowrap; font-size: 13px;
+      transition: opacity .15s, transform .1s;
     }
-    .assertiva-input-row button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .assertiva-secao { margin-bottom: 14px; }
+    .assertiva-input-row button:hover:not(:disabled) { opacity: .88; transform: translateY(-1px); }
+    .assertiva-input-row button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* Card identidade — cabeçalho do resultado */
+    .assertiva-id-card {
+      background: linear-gradient(135deg, rgba(155,89,182,.12), rgba(125,60,152,.06));
+      border: 1px solid rgba(167,139,250,.22);
+      border-radius: 12px; padding: 16px 18px; margin-bottom: 18px;
+      display: flex; gap: 14px; align-items: flex-start;
+    }
+    .assertiva-id-avatar {
+      width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(135deg,#9b59b6,#7d3c98);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; line-height: 1;
+    }
+    .assertiva-id-info { flex: 1; min-width: 0; }
+    .assertiva-id-nome {
+      font-size: 15px; font-weight: 700; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-bottom: 3px;
+    }
+    .assertiva-id-cpf {
+      font-size: 12px; font-family: 'DM Mono', monospace; color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .assertiva-status-badge {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      padding: 2px 9px; border-radius: 20px; text-transform: uppercase;
+      letter-spacing: .8px; font-family: 'DM Mono', monospace;
+    }
+    .assertiva-status-badge.regular   { background: rgba(34,217,138,.15); color: #22d98a; border: 1px solid rgba(34,217,138,.3); }
+    .assertiva-status-badge.irregular { background: rgba(230,62,109,.15);  color: var(--accent); border: 1px solid rgba(230,62,109,.3); }
+    .assertiva-status-badge.obito     { background: rgba(247,162,59,.15);  color: var(--yellow); border: 1px solid rgba(247,162,59,.3); }
+
+    /* Seções */
+    .assertiva-secao {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 13px 15px; margin-bottom: 10px;
+    }
     .assertiva-secao-titulo {
-      font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px;
-      color: var(--muted); margin-bottom: 6px; font-family: 'DM Mono', monospace;
+      font-size: 9px; text-transform: uppercase; letter-spacing: 1.8px;
+      color: var(--muted); margin-bottom: 10px; font-family: 'DM Mono', monospace;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .assertiva-secao-titulo::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
     }
     .assertiva-campo {
-      display: flex; gap: 8px; padding: 4px 0;
-      font-size: 13px; line-height: 1.4;
-    }
-    .assertiva-campo-label { color: var(--muted); min-width: 110px; flex-shrink: 0; }
-    .assertiva-campo-valor { color: var(--text); word-break: break-word; }
-    .assertiva-lista-item {
-      padding: 4px 0; font-size: 13px; color: var(--text);
+      display: flex; gap: 10px; padding: 5px 0;
+      font-size: 13px; line-height: 1.45;
       border-bottom: 1px solid var(--border);
     }
-    .assertiva-lista-item:last-child { border-bottom: none; }
-    .assertiva-erro { text-align: center; padding: 20px; color: var(--accent); font-size: 14px; }
-    .assertiva-loading { text-align: center; padding: 30px; color: var(--muted); font-size: 14px; }
+    .assertiva-campo:last-child { border-bottom: none; padding-bottom: 0; }
+    .assertiva-campo:first-of-type { padding-top: 0; }
+    .assertiva-campo-label { color: var(--muted); min-width: 115px; flex-shrink: 0; font-size: 12px; }
+    .assertiva-campo-valor { color: var(--text); word-break: break-word; font-weight: 500; }
+
+    /* Itens de lista (telefone, email, endereço) */
+    .assertiva-lista-item {
+      padding: 7px 0; font-size: 13px; color: var(--text);
+      border-bottom: 1px solid var(--border); display: flex;
+      align-items: flex-start; gap: 8px; line-height: 1.4;
+    }
+    .assertiva-lista-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .assertiva-lista-item:first-child { padding-top: 0; }
+    .assertiva-lista-icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
+    .assertiva-lista-info { flex: 1; min-width: 0; }
+    .assertiva-lista-principal { font-weight: 600; color: var(--text); }
+    .assertiva-lista-detalhe { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .assertiva-tag {
+      display: inline-block; font-size: 10px; padding: 1px 7px; border-radius: 20px;
+      background: var(--surface); border: 1px solid var(--border2);
+      color: var(--muted); font-family: 'DM Mono', monospace; margin-left: 4px;
+    }
+    .assertiva-tag.celular { border-color: rgba(34,217,138,.3); color: #22d98a; background: rgba(34,217,138,.08); }
+
+    .assertiva-erro {
+      text-align: center; padding: 30px 20px;
+      color: var(--accent); font-size: 14px;
+      background: rgba(230,62,109,.06); border-radius: 10px;
+      border: 1px solid rgba(230,62,109,.15);
+    }
+    .assertiva-loading {
+      text-align: center; padding: 36px 20px; color: var(--muted); font-size: 13px;
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+    .assertiva-loading-spin {
+      width: 32px; height: 32px; border: 3px solid var(--border2);
+      border-top-color: var(--purple); border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
     }
 
     /* Modal de ofertas — usa modal-overlay existente mas com estilos próprios */
