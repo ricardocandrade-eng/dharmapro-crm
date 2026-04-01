@@ -2504,13 +2504,17 @@ function _consultarViabilidadeVenda(index) {
 // ─── TRAVA VEROHUB ─────────────────────────────────────────────────────────
 
 var _vhTravaTimer = null;
+var _supPollTimer = null;
 
 // Chamada logo após login bem-sucedido
 function _verificarTravaPosLogin() {
   var perfil = AppState.get('perfil') || '';
-  if (perfil !== 'backoffice') return;
-  _acionarTravaSeNecessario();
-  _verificarTravaVeroHub();
+  if (perfil === 'backoffice') {
+    _acionarTravaSeNecessario();
+    _verificarTravaVeroHub();
+  } else if (perfil === 'supervisor' || perfil === 'admin') {
+    _verificarPedidoPosLogin();
+  }
 }
 
 // Polling a cada 30s — só para perfil backoffice
@@ -2609,6 +2613,78 @@ function _desbloqueadoPeloSupervisor() {
   mostrarToast('✅ Desbloqueio aprovado! Acesso liberado.', 'success');
   if (_vhTravaTimer) clearInterval(_vhTravaTimer);
 }
+
+// ── SUPERVISOR/ADMIN — polling de pedidos de desbloqueio ───────────────────────
+
+function _verificarPedidoPosLogin() {
+  if (_supPollTimer) clearInterval(_supPollTimer);
+  _checarPedidoPendente();
+  _supPollTimer = setInterval(_checarPedidoPendente, 10000);
+}
+
+function _checarPedidoPendente() {
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.status === 'pendente') {
+        _exibirCardAprovacao(res);
+      } else {
+        var card = document.getElementById('dhp-sup-card');
+        if (card) card.remove();
+      }
+    })
+    .withFailureHandler(function() {})
+    .getStatusDesbloqueio();
+}
+
+function _exibirCardAprovacao(data) {
+  if (document.getElementById('dhp-sup-card')) return;
+  var solicitante = data.solicitante || 'Backoffice';
+  var ts   = data.ts ? new Date(data.ts) : new Date();
+  var hora = ts.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  var card = document.createElement('div');
+  card.id = 'dhp-sup-card';
+  card.style.cssText = [
+    'position:fixed','bottom:24px','right:24px','z-index:99998',
+    'background:var(--surface)','border:1px solid rgba(230,62,109,.4)',
+    'border-radius:14px','padding:18px 20px',
+    'width:calc(100% - 48px)','max-width:320px',
+    'box-shadow:0 8px 32px rgba(0,0,0,.5)',
+    'font-family:Sora,sans-serif',
+    'animation:dhp-card-in .3s cubic-bezier(0.34,1.56,0.64,1)'
+  ].join(';');
+  card.innerHTML =
+    '<div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">🔓 Pedido de Desbloqueio</div>' +
+    '<div style="font-size:12px;color:var(--text);margin-bottom:2px;"><b>' + esc(solicitante) + '</b> solicitou desbloqueio</div>' +
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:14px;font-family:DM Mono,monospace;">às ' + esc(hora) + '</div>' +
+    '<div style="display:flex;gap:8px;">' +
+      '<button onclick="_aprovarDesbloqueio()" style="flex:1;padding:9px;background:var(--green);border:none;border-radius:8px;color:#0d0f14;font-size:12px;font-weight:700;cursor:pointer;font-family:Sora,sans-serif;">✅ Aprovar</button>' +
+      '<button onclick="_ignorarDesbloqueio()" style="flex:1;padding:9px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;font-family:Sora,sans-serif;">Ignorar</button>' +
+    '</div>';
+  document.body.appendChild(card);
+}
+
+function _aprovarDesbloqueio() {
+  var card = document.getElementById('dhp-sup-card');
+  if (card) card.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+  google.script.run
+    .withSuccessHandler(function() {
+      var c = document.getElementById('dhp-sup-card');
+      if (c) c.remove();
+      mostrarToast('✅ Desbloqueio aprovado!', 'success');
+    })
+    .withFailureHandler(function() {
+      mostrarToast('❌ Erro ao aprovar. Tente novamente.', 'error');
+      var c = document.getElementById('dhp-sup-card');
+      if (c) c.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
+    })
+    .aprovarDesbloqueioBO();
+}
+
+function _ignorarDesbloqueio() {
+  var card = document.getElementById('dhp-sup-card');
+  if (card) card.remove();
+}
+
 
 
 
@@ -6654,13 +6730,17 @@ function _confirmarModalVeroHub() {
 // ─── TRAVA VEROHUB ─────────────────────────────────────────────────────────
 
 var _vhTravaTimer = null;
+var _supPollTimer = null;
 
 // Chamada logo após login bem-sucedido
 function _verificarTravaPosLogin() {
   var perfil = AppState.get('perfil') || '';
-  if (perfil !== 'backoffice') return;
-  _acionarTravaSeNecessario();
-  _verificarTravaVeroHub();
+  if (perfil === 'backoffice') {
+    _acionarTravaSeNecessario();
+    _verificarTravaVeroHub();
+  } else if (perfil === 'supervisor' || perfil === 'admin') {
+    _verificarPedidoPosLogin();
+  }
 }
 
 // Polling a cada 30s — só para perfil backoffice
@@ -6759,6 +6839,78 @@ function _desbloqueadoPeloSupervisor() {
   mostrarToast('✅ Desbloqueio aprovado! Acesso liberado.', 'success');
   if (_vhTravaTimer) clearInterval(_vhTravaTimer);
 }
+
+// ── SUPERVISOR/ADMIN — polling de pedidos de desbloqueio ───────────────────────
+
+function _verificarPedidoPosLogin() {
+  if (_supPollTimer) clearInterval(_supPollTimer);
+  _checarPedidoPendente();
+  _supPollTimer = setInterval(_checarPedidoPendente, 10000);
+}
+
+function _checarPedidoPendente() {
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.status === 'pendente') {
+        _exibirCardAprovacao(res);
+      } else {
+        var card = document.getElementById('dhp-sup-card');
+        if (card) card.remove();
+      }
+    })
+    .withFailureHandler(function() {})
+    .getStatusDesbloqueio();
+}
+
+function _exibirCardAprovacao(data) {
+  if (document.getElementById('dhp-sup-card')) return;
+  var solicitante = data.solicitante || 'Backoffice';
+  var ts   = data.ts ? new Date(data.ts) : new Date();
+  var hora = ts.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  var card = document.createElement('div');
+  card.id = 'dhp-sup-card';
+  card.style.cssText = [
+    'position:fixed','bottom:24px','right:24px','z-index:99998',
+    'background:var(--surface)','border:1px solid rgba(230,62,109,.4)',
+    'border-radius:14px','padding:18px 20px',
+    'width:calc(100% - 48px)','max-width:320px',
+    'box-shadow:0 8px 32px rgba(0,0,0,.5)',
+    'font-family:Sora,sans-serif',
+    'animation:dhp-card-in .3s cubic-bezier(0.34,1.56,0.64,1)'
+  ].join(';');
+  card.innerHTML =
+    '<div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">🔓 Pedido de Desbloqueio</div>' +
+    '<div style="font-size:12px;color:var(--text);margin-bottom:2px;"><b>' + esc(solicitante) + '</b> solicitou desbloqueio</div>' +
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:14px;font-family:DM Mono,monospace;">às ' + esc(hora) + '</div>' +
+    '<div style="display:flex;gap:8px;">' +
+      '<button onclick="_aprovarDesbloqueio()" style="flex:1;padding:9px;background:var(--green);border:none;border-radius:8px;color:#0d0f14;font-size:12px;font-weight:700;cursor:pointer;font-family:Sora,sans-serif;">✅ Aprovar</button>' +
+      '<button onclick="_ignorarDesbloqueio()" style="flex:1;padding:9px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;font-family:Sora,sans-serif;">Ignorar</button>' +
+    '</div>';
+  document.body.appendChild(card);
+}
+
+function _aprovarDesbloqueio() {
+  var card = document.getElementById('dhp-sup-card');
+  if (card) card.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+  google.script.run
+    .withSuccessHandler(function() {
+      var c = document.getElementById('dhp-sup-card');
+      if (c) c.remove();
+      mostrarToast('✅ Desbloqueio aprovado!', 'success');
+    })
+    .withFailureHandler(function() {
+      mostrarToast('❌ Erro ao aprovar. Tente novamente.', 'error');
+      var c = document.getElementById('dhp-sup-card');
+      if (c) c.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
+    })
+    .aprovarDesbloqueioBO();
+}
+
+function _ignorarDesbloqueio() {
+  var card = document.getElementById('dhp-sup-card');
+  if (card) card.remove();
+}
+
 
 
 
