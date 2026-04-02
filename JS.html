@@ -7754,10 +7754,12 @@ function _nvExecutarSalvar(dados) {
         return;
       }
       _listaNeedsReload = true; // invalida cache — nova venda precisa aparecer na lista
-      mostrarToast('✅ ' + res.mensagem, 'success');
-      setTimeout(function() {
-        navegar('lista');
-      }, 600);
+      if (dados.produto === 'Fibra Combo') {
+        _abrirModalMovelCombo(dados);
+      } else {
+        mostrarToast('✅ ' + res.mensagem, 'success');
+        setTimeout(function() { navegar('lista'); }, 600);
+      }
     })
     .withFailureHandler(function(err) {
       if (typeof nvLoading === 'function') nvLoading(false);
@@ -7766,6 +7768,96 @@ function _nvExecutarSalvar(dados) {
     .salvarVenda(dados);
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════
+//  MÓVEL COMBO — auto-duplicar após Fibra Combo
+// ══════════════════════════════════════════════════════════════════════════
+
+var _mmcDadosFibra = null;
+
+function _abrirModalMovelCombo(dados) {
+  _mmcDadosFibra = dados;
+  document.getElementById('mmc-cliente').textContent = dados.nome || '—';
+  document.getElementById('mmc-contrato').value = '';
+  document.getElementById('mmc-linha').value = '';
+  document.getElementById('mmc-portabilidade').value = '';
+  document.getElementById('mmc-erro').style.display = 'none';
+  var btn = document.getElementById('mmc-btn-confirmar');
+  btn.disabled = false;
+  btn.textContent = '✅ Criar Venda Móvel';
+
+  var sel = document.getElementById('mmc-plano');
+  sel.innerHTML = '<option value="">— carregando... —</option>';
+  sel.disabled = true;
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      sel.innerHTML = '<option value="">— Selecione o plano —</option>';
+      if (!res.erro && res.planos && res.planos.length) {
+        res.planos.forEach(function(p) {
+          var opt = document.createElement('option');
+          opt.value = p;
+          opt.textContent = p;
+          sel.appendChild(opt);
+        });
+      }
+      sel.disabled = false;
+    })
+    .withFailureHandler(function() {
+      sel.innerHTML = '<option value="">— erro ao carregar —</option>';
+      sel.disabled = false;
+    })
+    .getPlanosPorCidadeProduto(dados.cidade || '', 'Móvel Combo');
+
+  document.getElementById('modalMovelCombo').style.display = 'flex';
+}
+
+function _confirmarMovelCombo() {
+  var plano         = document.getElementById('mmc-plano').value.trim();
+  var contrato      = document.getElementById('mmc-contrato').value.trim();
+  var portabilidade = document.getElementById('mmc-portabilidade').value.trim();
+  var linha         = document.getElementById('mmc-linha').value.trim();
+  var erro          = document.getElementById('mmc-erro');
+
+  if (!plano)         { erro.textContent = 'Selecione o plano.';              erro.style.display = 'block'; return; }
+  if (!contrato)      { erro.textContent = 'Preencha o ID Contrato Móvel.';   erro.style.display = 'block'; return; }
+  if (!portabilidade) { erro.textContent = 'Selecione a portabilidade.';      erro.style.display = 'block'; return; }
+  erro.style.display = 'none';
+
+  var btn = document.getElementById('mmc-btn-confirmar');
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+
+  var dadosMovel = Object.assign({}, _mmcDadosFibra, {
+    produto:         'Móvel Combo',
+    plano:           plano,
+    contrato:        contrato,
+    portabilidade:   portabilidade,
+    linhaMovel:      linha,
+    linhaReferencia: undefined
+  });
+  delete dadosMovel.linhaReferencia;
+
+  google.script.run
+    .withSuccessHandler(function() {
+      document.getElementById('modalMovelCombo').style.display = 'none';
+      mostrarToast('✅ Fibra Combo + Móvel Combo cadastrados!', 'success');
+      setTimeout(function() { navegar('lista'); }, 700);
+    })
+    .withFailureHandler(function(err) {
+      btn.disabled = false;
+      btn.textContent = '✅ Criar Venda Móvel';
+      erro.textContent = 'Erro ao salvar: ' + (err && err.message ? err.message : 'tente novamente');
+      erro.style.display = 'block';
+    })
+    .salvarVenda(dadosMovel);
+}
+
+function _cancelarMovelCombo() {
+  document.getElementById('modalMovelCombo').style.display = 'none';
+  mostrarToast('✅ Fibra Combo salva. Móvel Combo não cadastrado.', 'info');
+  setTimeout(function() { navegar('lista'); }, 600);
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 //  BOTCONVERSA — MODAL DE FLUXOS

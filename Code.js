@@ -58,8 +58,9 @@ var CONFIG = {
     //             34,  // AI - reservada
     VALOR:       35,  // AJ - Valor
     PRE_STATUS:  36,  // AK - Pré-Status
-    LINHA_MOVEL: 37,  // AL - Linha Móvel
-    VEROHUB:          41,  // AP - Data blindagem VeroHub
+    LINHA_MOVEL:    37,  // AL - Linha Móvel
+    PORTABILIDADE:  40,  // AO - Portabilidade (Sim/Não)
+    VEROHUB:        41,  // AP - Data blindagem VeroHub
     VEROHUB_PEDIDO:   43,  // AR - Número do pedido VeroHub
     VEROHUB_PEDIDO_DT:44,  // AS - Data/hora do pedido VeroHub
     BC_TAGS:          45,  // AT - BotConversa etiquetas (separadas por ' | ')
@@ -2852,7 +2853,8 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     fat:         row[c.FAT]          || '',
     plano:       row[c.PLANO]        || '',
     valor:       row[c.VALOR]        || '',
-    linhaMovel:  row[c.LINHA_MOVEL]  || '',
+    linhaMovel:    row[c.LINHA_MOVEL]    || '',
+    portabilidade: row[c.PORTABILIDADE] || '',
     observacao:  row[c.OBSERVACAO]   || '',
     verohub:     (function(v) {
       if (!v) return '';
@@ -2910,7 +2912,8 @@ function _mapearLinha(row, numeroLinha) {
     fat:         row[c.FAT]          || '',
     plano:       row[c.PLANO]        || '',
     valor:       row[c.VALOR]        || '',
-    linhaMovel:  row[c.LINHA_MOVEL]  || '',
+    linhaMovel:    row[c.LINHA_MOVEL]    || '',
+    portabilidade: row[c.PORTABILIDADE] || '',
     observacao:  row[c.OBSERVACAO]   || '',  // L  - Motivo Cancelamento / Observação
     verohub:     (function(v) {
       if (!v) return '';
@@ -2958,8 +2961,9 @@ function _construirLinhaDados(d) {
   linha[c.FAT]         = d.fat         || '';
   linha[c.PLANO]       = d.plano       || '';
   linha[c.VALOR]       = d.valor       || '';
-  linha[c.LINHA_MOVEL] = d.linhaMovel  || '';
-  linha[c.PRE_STATUS]  = d.preStatus   || '';  // AK - Pré-Status
+  linha[c.LINHA_MOVEL]   = d.linhaMovel    || '';
+  linha[c.PORTABILIDADE] = d.portabilidade || '';
+  linha[c.PRE_STATUS]    = d.preStatus     || '';  // AK - Pré-Status
   linha[26]            = d.segmentacao  || '';  // AA - Segmentação
   linha[42]            = d.statusPAP   || '';  // AQ - Status Pagamento PAP
   linha[43]            = d.verohubPedido   || '';  // AR - Número pedido VeroHub

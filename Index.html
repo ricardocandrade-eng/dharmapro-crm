@@ -2805,6 +2805,52 @@
     </div>
   </div>
 
+  <!-- ══ MODAL MÓVEL COMBO (pós-salvamento Fibra Combo) ════════════════════ -->
+  <div class="modal-overlay" id="modalMovelCombo" style="display:none;">
+    <div class="modal-box" style="max-width:440px;">
+      <div class="modal-head">
+        <h3>📱 Vincular Móvel Combo</h3>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">
+          Venda <strong id="mmc-cliente">—</strong> salva como Fibra Combo.<br>
+          Preencha os dados do Móvel Combo vinculado:
+        </p>
+        <div class="form-field">
+          <label>Produto</label>
+          <input type="text" value="Móvel Combo" disabled style="opacity:.6;cursor:not-allowed;">
+        </div>
+        <div class="form-field">
+          <label>Plano <span style="color:var(--accent)">*</span></label>
+          <select id="mmc-plano">
+            <option value="">— carregando planos... —</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>ID Contrato Móvel <span style="color:var(--accent)">*</span></label>
+          <input type="text" id="mmc-contrato" placeholder="Ex: 123456">
+        </div>
+        <div class="form-field">
+          <label>Portabilidade <span style="color:var(--accent)">*</span></label>
+          <select id="mmc-portabilidade">
+            <option value="">— Selecione —</option>
+            <option value="Sim">Sim</option>
+            <option value="Não">Não</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Número da Linha <span style="color:var(--muted);font-size:11px;">(opcional)</span></label>
+          <input type="text" id="mmc-linha" placeholder="Ex: 11 99999-9999">
+        </div>
+        <div id="mmc-erro" style="display:none;color:var(--accent);font-size:12px;margin-top:8px;"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="_cancelarMovelCombo()">Pular por agora</button>
+        <button class="btn" id="mmc-btn-confirmar" onclick="_confirmarMovelCombo()">✅ Criar Venda Móvel</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ══ MODAL CONSULTAR VIABILIDADE VEROHUB ═══════════════════════════════ -->
   <div class="modal-overlay" id="modalViabilidadeVero">
     <div class="modal-box" style="max-width:420px;">
