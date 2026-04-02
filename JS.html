@@ -506,8 +506,8 @@ function _confirmarStatus2() {
   // Valida obrigatórios
   var ok = true;
   ok = _ms2MarcaErro('ms2-dataAtiv', 'ms2-err-dataAtiv', !document.getElementById('ms2-dataAtiv').value) && ok;
-  ok = _ms2MarcaErro('ms2-codCli',   'ms2-err-codCli',   !document.getElementById('ms2-codCli').value.trim()) && ok;
-  ok = _ms2MarcaErro('ms2-contrato', 'ms2-err-contrato', !document.getElementById('ms2-contrato').value.trim()) && ok;
+  // ok = _ms2MarcaErro('ms2-codCli',   'ms2-err-codCli',   !document.getElementById('ms2-codCli').value.trim()) && ok;
+  // ok = _ms2MarcaErro('ms2-contrato', 'ms2-err-contrato', !document.getElementById('ms2-contrato').value.trim()) && ok;
   ok = _ms2MarcaErro('ms2-agenda',   'ms2-err-agenda',   !document.getElementById('ms2-agenda').value) && ok;
   ok = _ms2MarcaErro('ms2-turno',    'ms2-err-turno',    !document.getElementById('ms2-turno').value) && ok;
   if (!ok) { mostrarToast('⚠️ Preencha todos os campos obrigatórios.', 'warning'); return; }
@@ -2510,8 +2510,9 @@ var _supPollTimer = null;
 function _verificarTravaPosLogin() {
   var perfil = AppState.get('perfil') || '';
   if (perfil === 'backoffice') {
-    _acionarTravaSeNecessario();
-    _verificarTravaVeroHub();
+    // TRAVA VEROHUB PAUSADA TEMPORARIAMENTE
+    // _acionarTravaSeNecessario();
+    // _verificarTravaVeroHub();
   } else if (perfil === 'supervisor' || perfil === 'admin') {
     _verificarPedidoPosLogin();
   }
@@ -6736,8 +6737,9 @@ var _supPollTimer = null;
 function _verificarTravaPosLogin() {
   var perfil = AppState.get('perfil') || '';
   if (perfil === 'backoffice') {
-    _acionarTravaSeNecessario();
-    _verificarTravaVeroHub();
+    // TRAVA VEROHUB PAUSADA TEMPORARIAMENTE
+    // _acionarTravaSeNecessario();
+    // _verificarTravaVeroHub();
   } else if (perfil === 'supervisor' || perfil === 'admin') {
     _verificarPedidoPosLogin();
   }
@@ -7828,7 +7830,7 @@ function _confirmarMovelCombo() {
   var erro          = document.getElementById('mmc-erro');
 
   if (!plano)         { erro.textContent = 'Selecione o plano.';              erro.style.display = 'block'; return; }
-  if (!contrato)      { erro.textContent = 'Preencha o ID Contrato Móvel.';   erro.style.display = 'block'; return; }
+  // if (!contrato)   { erro.textContent = 'Preencha o ID Contrato Móvel.';   erro.style.display = 'block'; return; }
   if (!portabilidade) { erro.textContent = 'Selecione a portabilidade.';      erro.style.display = 'block'; return; }
   erro.style.display = 'none';
 
