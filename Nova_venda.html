@@ -228,17 +228,20 @@
       <div class="card-header"><div class="card-icon">👤</div><h3>Dados do Cliente</h3></div>
       <div class="form-grid">
 
-        <div class="form-group span2" id="nv-grp-cliente">
-          <label>Nome Completo <span class="req">*</span></label>
-          <input type="text" id="nv-cliente" placeholder="Digite o nome completo">
-          <span class="err-msg" id="nv-err-cliente">Nome é obrigatório.</span>
-        </div>
-
         <div class="form-group" id="nv-grp-cpf">
           <label>CPF / CNPJ <span class="req">*</span></label>
-          <input type="text" id="nv-cpf" placeholder="000.000.000-00" maxlength="18">
-          <span class="hint">11 dígitos (CPF) ou 14 (CNPJ)</span>
+          <input type="text" id="nv-cpf" placeholder="000.000.000-00" maxlength="18"
+            oninput="nvMaskCpf(this)"
+            onblur="nvBuscarNomeCPF(this.value)">
+          <span class="hint" id="nv-cpfHint">11 dígitos (CPF) ou 14 (CNPJ)</span>
           <span class="err-msg" id="nv-err-cpf">CPF deve ter 11 ou CNPJ 14 dígitos.</span>
+        </div>
+
+        <div class="form-group span2" id="nv-grp-cliente">
+          <label>Nome Completo <span class="req">*</span> <span id="nv-clienteTag" style="display:none;font-size:11px;color:var(--success);margin-left:6px;">✓ Assertiva</span></label>
+          <input type="text" id="nv-cliente" placeholder="Digite o nome completo"
+            oninput="document.getElementById('nv-clienteTag').style.display='none'">
+          <span class="err-msg" id="nv-err-cliente">Nome é obrigatório.</span>
         </div>
 
         <div class="form-group" id="nv-grp-whats">
@@ -485,6 +488,56 @@ function nvValidarStep(step) {
   // Step 3 (plano) não tem campos obrigatórios
   if (!ok) nvToast('⚠️ Preencha os campos obrigatórios.', 'warning');
   return ok;
+}
+
+// ── Máscara CPF/CNPJ ──────────────────────────────────────────────
+function nvMaskCpf(el) {
+  var v = el.value.replace(/\D/g, '');
+  if (v.length <= 11) {
+    if (v.length > 9)      v = v.replace(/(\d{3})(\d{3})(\d{3})(\d+)/, '$1.$2.$3-$4');
+    else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d+)/, '$1.$2.$3');
+    else if (v.length > 3) v = v.replace(/(\d{3})(\d+)/, '$1.$2');
+  } else {
+    v = v.substring(0, 14);
+    v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d+)/, '$1.$2.$3/$4-$5');
+  }
+  el.value = v;
+}
+
+// ── Busca nome via Assertiva ao sair do campo CPF/CNPJ ────────────
+function nvBuscarNomeCPF(val) {
+  var digitos = val.replace(/\D/g, '');
+  if (digitos.length !== 11 && digitos.length !== 14) return;
+
+  var hint      = document.getElementById('nv-cpfHint');
+  var nomeInput = document.getElementById('nv-cliente');
+  var tag       = document.getElementById('nv-clienteTag');
+
+  hint.textContent = '⏳ Consultando...';
+  hint.style.color = 'var(--muted)';
+
+  var backend = digitos.length === 11 ? 'consultarAssertivaCPF' : 'consultarAssertivaCNPJ';
+
+  google.script.run
+    .withSuccessHandler(function(data) {
+      if (!data || data.erro || !data.dados || !data.dados.nome) {
+        hint.textContent = 'Não encontrado. Preencha o nome manualmente.';
+        hint.style.color = 'var(--warning, #f59e0b)';
+        nomeInput.focus();
+        return;
+      }
+      nomeInput.value = data.dados.nome;
+      tag.style.display = 'inline';
+      hint.textContent = '✓ Nome preenchido automaticamente';
+      hint.style.color = 'var(--success, #10b981)';
+      document.getElementById('nv-whats').focus();
+    })
+    .withFailureHandler(function() {
+      hint.textContent = 'Erro na consulta. Preencha o nome manualmente.';
+      hint.style.color = 'var(--danger, #ef4444)';
+      nomeInput.focus();
+    })
+    [backend](digitos);
 }
 
 // ── Busca CEP ─────────────────────────────────────────────────────
