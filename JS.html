@@ -8185,7 +8185,8 @@ function _renderResultadoTelefone(data) {
 
   var pessoas = data.pessoas || [];
   if (!pessoas.length) {
-    container.innerHTML = '<div class="assertiva-erro">Nenhum resultado encontrado para este telefone.</div>';
+    container.innerHTML = '<div class="assertiva-erro">Nenhum resultado encontrado para este telefone.</div>' +
+      (data._debug ? '<pre style="font-size:10px;overflow:auto;max-height:200px;background:#111;color:#0f0;padding:8px;margin-top:8px;">' + esc(data._debug) + '</pre>' : '');
     foot.style.display = 'flex';
     return;
   }

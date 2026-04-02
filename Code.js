@@ -4065,12 +4065,14 @@ function consultarAssertivaTelefone(telefone) {
       }
     );
 
-    var code = resp.getResponseCode();
-    var body = JSON.parse(resp.getContentText());
+    var code    = resp.getResponseCode();
+    var rawText = resp.getContentText();
+    var body    = JSON.parse(rawText);
+
+    Logger.log('Assertiva Telefone RAW [' + code + ']: ' + rawText.substring(0, 800));
 
     if (code !== 200) {
       var msg = (body && body.mensagem) || (body && body.alerta) || ('HTTP ' + code);
-      Logger.log('Assertiva Telefone erro: ' + code + ' — ' + resp.getContentText().substring(0, 300));
       return { erro: true, mensagem: 'Erro Assertiva: ' + msg };
     }
 
@@ -4109,7 +4111,8 @@ function consultarAssertivaTelefone(telefone) {
     return {
       erro:      false,
       protocolo: (body.cabecalho && body.cabecalho.protocolo) || '',
-      pessoas:   pessoas
+      pessoas:   pessoas,
+      _debug:    pessoas.length === 0 ? JSON.stringify(body).substring(0, 600) : ''
     };
 
   } catch (ex) {
