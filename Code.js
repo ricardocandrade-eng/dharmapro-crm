@@ -4043,3 +4043,77 @@ function consultarAssertivaCPF(cpf) {
     return { erro: true, mensagem: ex.message || 'Erro desconhecido.' };
   }
 }
+
+/**
+ * Consulta dados cadastrais por telefone via Assertiva Localize.
+ * Chamável pelo frontend: google.script.run.consultarAssertivaTelefone(telefone)
+ */
+function consultarAssertivaTelefone(telefone) {
+  try {
+    var limpo = (telefone || '').replace(/\D/g, '');
+    if (limpo.length < 10 || limpo.length > 11)
+      return { erro: true, mensagem: 'Telefone deve ter 10 ou 11 dígitos (com DDD).' };
+
+    var token = _getTokenAssertiva();
+
+    var resp = UrlFetchApp.fetch(
+      'https://api.assertivasolucoes.com.br/localize/v3/telefone?telefone=' + limpo + '&idFinalidade=2',
+      {
+        method:             'get',
+        headers:            { 'Authorization': 'Bearer ' + token },
+        muteHttpExceptions: true
+      }
+    );
+
+    var code = resp.getResponseCode();
+    var body = JSON.parse(resp.getContentText());
+
+    if (code !== 200) {
+      var msg = (body && body.mensagem) || (body && body.alerta) || ('HTTP ' + code);
+      Logger.log('Assertiva Telefone erro: ' + code + ' — ' + resp.getContentText().substring(0, 300));
+      return { erro: true, mensagem: 'Erro Assertiva: ' + msg };
+    }
+
+    var resposta = (body && body.resposta) || {};
+    var lista = Array.isArray(resposta) ? resposta :
+                (Array.isArray(resposta.pessoas) ? resposta.pessoas :
+                (resposta.dadosCadastrais ? [resposta] : []));
+
+    var pessoas = [];
+    for (var i = 0; i < lista.length; i++) {
+      var r   = lista[i];
+      var cad = r.dadosCadastrais || r.dadosCadastraisPF || r || {};
+
+      var enderecos = [];
+      if (Array.isArray(r.enderecos)) {
+        for (var e = 0; e < r.enderecos.length; e++) {
+          var end = r.enderecos[e];
+          enderecos.push({
+            cep:        end.cep || '',
+            logradouro: end.logradouro || '',
+            numero:     end.numero || '',
+            bairro:     end.bairro || '',
+            cidade:     end.cidade || end.municipio || '',
+            uf:         end.uf || end.siglaUf || ''
+          });
+        }
+      }
+
+      pessoas.push({
+        nome:      cad.nome || '',
+        cpf:       cad.cpf  || '',
+        enderecos: enderecos
+      });
+    }
+
+    return {
+      erro:      false,
+      protocolo: (body.cabecalho && body.cabecalho.protocolo) || '',
+      pessoas:   pessoas
+    };
+
+  } catch (ex) {
+    Logger.log('consultarAssertivaTelefone erro: ' + ex);
+    return { erro: true, mensagem: ex.message || 'Erro desconhecido.' };
+  }
+}
