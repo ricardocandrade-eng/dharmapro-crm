@@ -36,7 +36,7 @@ jobs:
           EOF
 
       - name: Enviar código para o GAS
-        run: clasp push
+        run: clasp push --force
 
       - name: Publicar nova versão
         run: clasp deploy --deploymentId AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw -d "Deploy ${{ github.sha }}"
