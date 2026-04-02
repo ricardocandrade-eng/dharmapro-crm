@@ -4082,6 +4082,8 @@ function consultarAssertivaTelefone(telefone) {
                 (Array.isArray(resposta.pessoas) ? resposta.pessoas :
                 (resposta.dadosCadastrais ? [resposta] : [])));
 
+    if (lista.length > 0) Logger.log('Assertiva Telefone pessoa[0]: ' + JSON.stringify(lista[0]));
+
     var pessoas = [];
     for (var i = 0; i < lista.length; i++) {
       var r   = lista[i];
@@ -4103,9 +4105,14 @@ function consultarAssertivaTelefone(telefone) {
       }
 
       pessoas.push({
-        nome:      cad.nome || '',
-        cpf:       cad.cpf  || '',
-        enderecos: enderecos
+        nome:           cad.nome || '',
+        cpf:            cad.cpf  || '',
+        dataNascimento: cad.dataNascimento || '',
+        idade:          cad.idade || '',
+        sexo:           cad.sexo || '',
+        nomeMae:        cad.nomeMae || cad.maeNome || '',
+        enderecos:      enderecos,
+        _raw:           i === 0 ? JSON.stringify(r).substring(0, 800) : ''
       });
     }
 
