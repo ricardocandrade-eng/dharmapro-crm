@@ -4082,37 +4082,16 @@ function consultarAssertivaTelefone(telefone) {
                 (Array.isArray(resposta.pessoas) ? resposta.pessoas :
                 (resposta.dadosCadastrais ? [resposta] : [])));
 
-    if (lista.length > 0) Logger.log('Assertiva Telefone pessoa[0]: ' + JSON.stringify(lista[0]));
-
     var pessoas = [];
     for (var i = 0; i < lista.length; i++) {
-      var r   = lista[i];
-      var cad = r.dadosCadastrais || r.dadosCadastraisPF || r || {};
-
-      var enderecos = [];
-      if (Array.isArray(r.enderecos)) {
-        for (var e = 0; e < r.enderecos.length; e++) {
-          var end = r.enderecos[e];
-          enderecos.push({
-            cep:        end.cep || '',
-            logradouro: end.logradouro || '',
-            numero:     end.numero || '',
-            bairro:     end.bairro || '',
-            cidade:     end.cidade || end.municipio || '',
-            uf:         end.uf || end.siglaUf || ''
-          });
-        }
-      }
-
+      var r = lista[i];
       pessoas.push({
-        nome:           cad.nome || '',
-        cpf:            cad.cpf  || '',
-        dataNascimento: cad.dataNascimento || '',
-        idade:          cad.idade || '',
-        sexo:           cad.sexo || '',
-        nomeMae:        cad.nomeMae || cad.maeNome || '',
-        enderecos:      enderecos,
-        _raw:           i === 0 ? JSON.stringify(r).substring(0, 800) : ''
+        nome:           r.nome           || '',
+        cpf:            r.cpf            || '',
+        dataNascimento: r.dataNascimento  || '',
+        nomeMae:        r.nomeMae        || '',
+        cidade:         r.cidade         || '',
+        uf:             r.uf             || ''
       });
     }
 

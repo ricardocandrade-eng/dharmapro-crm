@@ -8200,31 +8200,21 @@ function _renderResultadoTelefone(data) {
         '<div class="assertiva-id-nome">' + esc(d.nome || '—') + '</div>' +
         '<div class="assertiva-id-cpf">' + esc(_formatarCpfAssertiva(d.cpf || '')) +
           (d.dataNascimento ? ' · ' + esc(d.dataNascimento) : '') +
-          (d.idade ? ' · ' + esc(String(d.idade)) + ' anos' : '') +
         '</div>' +
       '</div>' +
     '</div>';
-    if (d.sexo || d.nomeMae) {
+    if (d.nomeMae) {
       html += '<div class="assertiva-secao"><div class="assertiva-secao-titulo">Dados Pessoais</div>' +
-        _campoAssertiva('Sexo', d.sexo) +
         _campoAssertiva('Nome da Mãe', d.nomeMae) +
       '</div>';
     }
-    if (d.enderecos && d.enderecos.length) {
-      html += '<div class="assertiva-secao"><div class="assertiva-secao-titulo">Endereços (' + d.enderecos.length + ')</div>';
-      for (var e = 0; e < d.enderecos.length && e < 5; e++) {
-        var end = d.enderecos[e];
-        var rua = [end.logradouro, end.numero, end.bairro].filter(Boolean).join(', ');
-        var cidade = [end.cidade, end.uf, end.cep].filter(Boolean).join(' — ');
-        html += '<div class="assertiva-lista-item"><span class="assertiva-lista-icon">📍</span>' +
-          '<div class="assertiva-lista-info"><div class="assertiva-lista-principal">' + esc(rua || '—') + '</div>' +
-          (cidade ? '<div class="assertiva-lista-detalhe">' + esc(cidade) + '</div>' : '') +
-          '</div></div>';
-      }
-      html += '</div>';
-    }
-    if (d._raw) {
-      html += '<pre style="font-size:10px;overflow:auto;max-height:200px;background:#111;color:#0f0;padding:8px;margin-top:8px;">' + esc(d._raw) + '</pre>';
+    if (d.cidade || d.uf) {
+      html += '<div class="assertiva-secao"><div class="assertiva-secao-titulo">Localização</div>' +
+        '<div class="assertiva-lista-item"><span class="assertiva-lista-icon">📍</span>' +
+        '<div class="assertiva-lista-info"><div class="assertiva-lista-principal">' +
+          esc([d.cidade, d.uf].filter(Boolean).join(' — ')) +
+        '</div></div></div>' +
+      '</div>';
     }
   }
 
