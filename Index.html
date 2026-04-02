@@ -2812,37 +2812,39 @@
         <h3>📱 Vincular Móvel Combo</h3>
       </div>
       <div class="modal-body">
-        <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px;font-family:'DM Mono',monospace;">
           Venda <strong id="mmc-cliente">—</strong> salva como Fibra Combo.<br>
           Preencha os dados do Móvel Combo vinculado:
         </p>
-        <div class="form-field">
-          <label>Produto</label>
-          <input type="text" value="Móvel Combo" disabled style="opacity:.6;cursor:not-allowed;">
+        <div class="mvh-grid">
+          <div class="mvh-field mvh-full">
+            <label class="mvh-label">Produto</label>
+            <input type="text" class="mvh-input" value="Móvel Combo" disabled style="opacity:.5;cursor:not-allowed;">
+          </div>
+          <div class="mvh-field mvh-full">
+            <label class="mvh-label">Plano <span style="color:var(--accent)">*</span></label>
+            <select id="mmc-plano" class="mvh-input">
+              <option value="">— carregando planos... —</option>
+            </select>
+          </div>
+          <div class="mvh-field mvh-full">
+            <label class="mvh-label">ID Contrato Móvel <span style="color:var(--accent)">*</span></label>
+            <input type="text" id="mmc-contrato" class="mvh-input" placeholder="Ex: 123456">
+          </div>
+          <div class="mvh-field">
+            <label class="mvh-label">Portabilidade <span style="color:var(--accent)">*</span></label>
+            <select id="mmc-portabilidade" class="mvh-input">
+              <option value="">— Selecione —</option>
+              <option value="Sim">Sim</option>
+              <option value="Não">Não</option>
+            </select>
+          </div>
+          <div class="mvh-field">
+            <label class="mvh-label">Número da Linha <span style="color:var(--muted);font-weight:400;text-transform:none;">(opcional)</span></label>
+            <input type="text" id="mmc-linha" class="mvh-input" placeholder="Ex: 11 99999-9999">
+          </div>
         </div>
-        <div class="form-field">
-          <label>Plano <span style="color:var(--accent)">*</span></label>
-          <select id="mmc-plano">
-            <option value="">— carregando planos... —</option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label>ID Contrato Móvel <span style="color:var(--accent)">*</span></label>
-          <input type="text" id="mmc-contrato" placeholder="Ex: 123456">
-        </div>
-        <div class="form-field">
-          <label>Portabilidade <span style="color:var(--accent)">*</span></label>
-          <select id="mmc-portabilidade">
-            <option value="">— Selecione —</option>
-            <option value="Sim">Sim</option>
-            <option value="Não">Não</option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label>Número da Linha <span style="color:var(--muted);font-size:11px;">(opcional)</span></label>
-          <input type="text" id="mmc-linha" placeholder="Ex: 11 99999-9999">
-        </div>
-        <div id="mmc-erro" style="display:none;color:var(--accent);font-size:12px;margin-top:8px;"></div>
+        <div id="mmc-erro" style="display:none;margin-top:12px;padding:10px 12px;background:rgba(230,62,109,.08);border:1px solid rgba(230,62,109,.3);border-radius:8px;font-size:12px;color:var(--accent);"></div>
       </div>
       <div class="modal-foot">
         <button class="btn btn-ghost" onclick="_cancelarMovelCombo()">Pular por agora</button>

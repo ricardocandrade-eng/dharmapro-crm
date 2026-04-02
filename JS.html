@@ -7794,7 +7794,15 @@ function _abrirModalMovelCombo(dados) {
     .withSuccessHandler(function(res) {
       sel.innerHTML = '<option value="">— Selecione o plano —</option>';
       if (!res.erro && res.planos && res.planos.length) {
+        // Filtra apenas planos da categoria MÓVEL COMBO (exclui MÓVEL ALONE)
+        var inCombo = false;
         res.planos.forEach(function(p) {
+          var isHeader = p.indexOf('▶') > -1;
+          if (isHeader) {
+            inCombo = p.toUpperCase().indexOf('COMBO') > -1;
+            return;
+          }
+          if (!inCombo) return;
           var opt = document.createElement('option');
           opt.value = p;
           opt.textContent = p;
@@ -7828,9 +7836,14 @@ function _confirmarMovelCombo() {
   btn.disabled = true;
   btn.textContent = 'Salvando...';
 
+  // Extrai valor do plano: formato "Nome do Plano | R$ XX,XX"
+  var partes = plano.split(' | ');
+  var valor  = partes.length > 1 ? partes[partes.length - 1].replace('R$ ', '').trim() : '';
+
   var dadosMovel = Object.assign({}, _mmcDadosFibra, {
     produto:         'Móvel Combo',
     plano:           plano,
+    valor:           valor,
     contrato:        contrato,
     portabilidade:   portabilidade,
     linhaMovel:      linha,
