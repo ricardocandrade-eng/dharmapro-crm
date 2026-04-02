@@ -23,6 +23,17 @@ if %COUNT% LSS 16 (
 echo [OK] Todos os arquivos presentes.
 echo.
 
+REM Atualiza DEPLOY_DATE em Config.js com data/hora atual
+for /f "tokens=1-2 delims= " %%a in ("%date% %time%") do (
+    set DT_DATE=%%a
+    set DT_TIME=%%b
+)
+set DT_TIME=%DT_TIME:~0,5%
+set DEPLOY_NOW=%DT_DATE% %DT_TIME%
+powershell -Command "(Get-Content 'Config.js') -replace \"var DEPLOY_DATE = '.*';\", \"var DEPLOY_DATE = '%DEPLOY_NOW%';\" | Set-Content 'Config.js' -Encoding UTF8"
+echo [OK] DEPLOY_DATE atualizado: %DEPLOY_NOW%
+echo.
+
 REM Git
 git add .
 echo.
