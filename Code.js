@@ -3911,6 +3911,51 @@ function _getTokenAssertiva() {
  * Consulta dados cadastrais por CPF via Assertiva Localize.
  * Chamável pelo frontend: google.script.run.consultarAssertivaCPF(cpf)
  */
+function consultarAssertivaCNPJ(cnpj) {
+  try {
+    var limpo = (cnpj || '').replace(/\D/g, '');
+    if (limpo.length !== 14) return { erro: true, mensagem: 'CNPJ deve ter 14 dígitos.' };
+
+    var token = _getTokenAssertiva();
+
+    var resp = UrlFetchApp.fetch(
+      'https://api.assertivasolucoes.com.br/localize/v3/cnpj?cnpj=' + limpo + '&idFinalidade=2',
+      {
+        method:             'get',
+        headers:            { 'Authorization': 'Bearer ' + token },
+        muteHttpExceptions: true
+      }
+    );
+
+    var code = resp.getResponseCode();
+    var body = JSON.parse(resp.getContentText());
+
+    if (code !== 200) {
+      var msg = (body && body.mensagem) || (body && body.alerta) || ('HTTP ' + code);
+      Logger.log('Assertiva CNPJ erro: ' + code + ' — ' + resp.getContentText().substring(0, 300));
+      return { erro: true, mensagem: 'Erro Assertiva: ' + msg };
+    }
+
+    var r   = (body && body.resposta) || {};
+    var cad = r.dadosCadastrais || r.dadosCadastraisPJ || r || {};
+
+    return {
+      erro: false,
+      protocolo: (body.cabecalho && body.cabecalho.protocolo) || '',
+      dados: {
+        cnpj:               cad.cnpj || limpo,
+        nome:               cad.razaoSocial || cad.nomeFantasia || cad.nome || '',
+        nomeFantasia:       cad.nomeFantasia || '',
+        situacaoCadastral:  cad.situacaoCadastral || ''
+      }
+    };
+
+  } catch (ex) {
+    Logger.log('consultarAssertivaCNPJ erro: ' + ex);
+    return { erro: true, mensagem: ex.message || 'Erro desconhecido.' };
+  }
+}
+
 function consultarAssertivaCPF(cpf) {
   try {
     var limpo = (cpf || '').replace(/\D/g, '');
