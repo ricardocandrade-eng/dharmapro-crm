@@ -15,7 +15,7 @@ jobs:
       - name: Instalar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Instalar clasp
         run: npm install -g @google/clasp
@@ -25,9 +25,15 @@ jobs:
 
       - name: Atualizar data de deploy no Config.js
         run: |
-          D=$(TZ="America/Sao_Paulo" date +"%d/%m/%Y %H:%M")
-          sed -i "s/var DEPLOY_DATE = '[^']*'/var DEPLOY_DATE = '$D'/" Config.js
-          echo "DEPLOY_DATE atualizado para: $D"
+          export DEPLOY_DATE=$(TZ="America/Sao_Paulo" date +"%d/%m/%Y %H:%M")
+          python3 << 'EOF'
+          import re, os
+          d = os.environ['DEPLOY_DATE']
+          content = open('Config.js', encoding='utf-8').read()
+          updated = re.sub(r"var DEPLOY_DATE = '[^']*'", f"var DEPLOY_DATE = '{d}'", content)
+          open('Config.js', 'w', encoding='utf-8').write(updated)
+          print(f'[OK] DEPLOY_DATE atualizado para: {d}')
+          EOF
 
       - name: Enviar código para o GAS
         run: clasp push
