@@ -2471,7 +2471,7 @@ function salvarVenda(dados) {
 
 // Limpa cache do funil (rode no editor para forçar recarga)
 function limparCacheFunil() {
-  CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'funil_v2');
+  CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'funil_v2_meta');
   Logger.log('Cache do funil removido.');
 }
 
@@ -2630,7 +2630,11 @@ function moverVendaFunil(payload) {
 
     // Atualiza campo extra conforme destino
     if (campoExtra === 'instal' && valorExtra) {
-      sheet.getRange(linha, CONFIG.COLUNAS.INSTAL + 1).setValue(valorExtra);
+      var partesData = String(valorExtra).split('-');
+      var dataInstal = (partesData.length === 3)
+        ? new Date(parseInt(partesData[0]), parseInt(partesData[1]) - 1, parseInt(partesData[2]))
+        : valorExtra;
+      sheet.getRange(linha, CONFIG.COLUNAS.INSTAL + 1).setValue(dataInstal);
     }
     if (campoExtra === 'observacao' && valorExtra) {
       sheet.getRange(linha, 37).setValue(valorExtra);
@@ -2774,8 +2778,8 @@ function _limparCache() {
   var cache = CacheService.getScriptCache();
   // Remove todos os caches conhecidos de uma vez
   var toRemove = [
-    CONFIG.CACHE_PREFIX + 'funil_v2',
-    CONFIG.CACHE_PREFIX + 'leads_v1',
+    CONFIG.CACHE_PREFIX + 'funil_v2_meta',
+    CONFIG.CACHE_PREFIX + 'leads_v1_meta',
     CONFIG.CACHE_PREFIX + 'responsaveis_v1',
     CONFIG.CACHE_PREFIX + 'cidades_v1',
     CONFIG.CACHE_PREFIX + 'tabela_v1',
