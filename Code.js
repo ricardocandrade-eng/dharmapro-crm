@@ -4078,8 +4078,9 @@ function consultarAssertivaTelefone(telefone) {
 
     var resposta = (body && body.resposta) || {};
     var lista = Array.isArray(resposta) ? resposta :
+                (Array.isArray(resposta.pessoaFisica) ? resposta.pessoaFisica :
                 (Array.isArray(resposta.pessoas) ? resposta.pessoas :
-                (resposta.dadosCadastrais ? [resposta] : []));
+                (resposta.dadosCadastrais ? [resposta] : [])));
 
     var pessoas = [];
     for (var i = 0; i < lista.length; i++) {
@@ -4111,8 +4112,7 @@ function consultarAssertivaTelefone(telefone) {
     return {
       erro:      false,
       protocolo: (body.cabecalho && body.cabecalho.protocolo) || '',
-      pessoas:   pessoas,
-      _debug:    pessoas.length === 0 ? JSON.stringify(body).substring(0, 600) : ''
+      pessoas:   pessoas
     };
 
   } catch (ex) {
