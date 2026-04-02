@@ -1,0 +1,1649 @@
+<!-- ══════════════════════════════════════════════════════════════════════════
+     Extrato.html — Feature "Extrato Mensal" do DharmaPro CRM
+     Criado em: 17/03/2026
+     Funcionalidades:
+       - Upload de XLSX de fechamento mensal (parse client-side via SheetJS)
+       - Dashboard com KPIs, 4 gráficos e tabela financeira (Chart.js)
+       - Persistência por mês/ano via localStorage
+       - Geração de relatório Word (.doc) via HTML mimeType
+     ══════════════════════════════════════════════════════════════════════════ -->
+
+<style>
+/* ─── EXTRATO PAGE — CSS escopado em #extratoPage ────────────────────────── */
+#extratoPage {
+  width: 100%; height: 100%; overflow-y: auto;
+  padding: 28px 32px 56px;
+  background: var(--bg, #0d0f14);
+  font-family: 'Sora', sans-serif;
+  color: var(--text, #e4e8f5);
+}
+#extratoPage * { box-sizing: border-box; }
+
+/* ── Header ── */
+.ep-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 24px; gap: 16px;
+}
+.ep-title-group .ep-tag {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  color: var(--accent, #e63e6d); letter-spacing: 3px;
+  text-transform: uppercase; display: block; margin-bottom: 4px;
+}
+.ep-title-group h2 { font-size: 22px; font-weight: 800; margin: 0; }
+
+/* ── Barra de meses ── */
+.ep-month-bar {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface, #141720); border: 1px solid var(--border, #252a3a);
+  border-radius: var(--radius, 12px); padding: 12px 18px;
+  margin-bottom: 24px;
+}
+.ep-nav-btn {
+  width: 30px; height: 30px; flex-shrink: 0;
+  background: var(--surface2, #1c2030); border: 1.5px solid var(--border2, #353d58);
+  border-radius: 7px; color: var(--muted, #7a82a0); cursor: pointer;
+  font-size: 13px; display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.ep-nav-btn:hover { background: var(--border, #252a3a); color: var(--text, #e4e8f5); }
+.ep-del-btn {
+  width: 30px; height: 30px; flex-shrink: 0;
+  background: transparent; border: 1.5px solid rgba(230,62,109,0.3);
+  border-radius: 7px; color: rgba(230,62,109,0.55); cursor: pointer;
+  font-size: 13px; display: flex; align-items: center; justify-content: center;
+  transition: all .15s; margin-left: 4px;
+}
+.ep-del-btn:hover { background: rgba(230,62,109,0.1); color: var(--accent,#e63e6d); border-color: var(--accent,#e63e6d); }
+.ep-month-select {
+  background: var(--surface2, #1c2030); border: 1.5px solid var(--border, #252a3a);
+  color: var(--text, #e4e8f5); border-radius: 7px; padding: 6px 10px;
+  font-family: 'DM Mono', monospace; font-size: 12px; cursor: pointer; outline: none;
+}
+.ep-month-label {
+  font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 600;
+  color: var(--yellow, #f7a23b); flex: 1; text-align: center;
+}
+
+/* ── Empty / Loading state ── */
+.ep-empty, .ep-loading {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 55vh; gap: 14px; text-align: center;
+}
+.ep-empty-icon { font-size: 52px; opacity: .6; }
+.ep-empty h3 { font-size: 17px; font-weight: 700; margin: 0; }
+.ep-empty p { color: var(--muted, #7a82a0); font-size: 13px; margin: 0; }
+.ep-spinner {
+  width: 38px; height: 38px;
+  border: 3px solid var(--border2, #353d58);
+  border-top-color: var(--accent, #e63e6d);
+  border-radius: 50%; animation: epSpin .8s linear infinite;
+}
+@keyframes epSpin { to { transform: rotate(360deg); } }
+.ep-loading p { color: var(--muted, #7a82a0); font-family: 'DM Mono', monospace; font-size: 13px; margin: 0; }
+
+/* ── Section label ── */
+.ep-section-label {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .25em;
+  text-transform: uppercase; color: var(--muted, #7a82a0);
+  margin: 28px 0 12px; display: flex; align-items: center; gap: 10px;
+}
+.ep-section-label::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--border, #252a3a) 0%, transparent 100%);
+}
+
+/* ── KPI row ── */
+.ep-kpi-row {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 4px;
+}
+.ep-kpi-card {
+  background: var(--surface, #141720); border: 1px solid var(--border, #252a3a);
+  border-radius: var(--radius, 12px); padding: 18px 20px;
+  transition: border-color .2s;
+}
+.ep-kpi-card:hover { border-color: var(--border2, #353d58); }
+.ep-kpi-card.ep-kpi-main {
+  border-color: rgba(34,217,138,.2);
+  background: linear-gradient(135deg, var(--surface, #141720), rgba(34,217,138,.04));
+}
+.ep-kpi-label {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--muted, #7a82a0); margin-bottom: 10px;
+}
+.ep-kpi-value {
+  font-family: 'DM Mono', monospace; font-size: 18px; font-weight: 600; line-height: 1.1;
+}
+.ep-kpi-main .ep-kpi-value { font-size: 22px; }
+
+/* ── Charts grid ── */
+.ep-charts-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 4px;
+}
+.ep-chart-card {
+  background: var(--surface, #141720); border: 1px solid var(--border, #252a3a);
+  border-radius: var(--radius, 12px); padding: 20px;
+}
+.ep-chart-title {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--muted, #7a82a0); margin-bottom: 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+.ep-chart-wrap { position: relative; height: 240px; }
+.ep-chart-wrap.ep-tall { height: 300px; }
+
+/* ── Segmento (Chart 3: donut + barras) ── */
+.ep-seg-layout { display: flex; gap: 20px; align-items: flex-start; }
+.ep-seg-donut { position: relative; width: 150px; height: 150px; flex-shrink: 0; }
+.ep-seg-bars { flex: 1; display: flex; flex-direction: column; gap: 14px; padding-top: 12px; }
+.ep-seg-bar-item { display: flex; flex-direction: column; gap: 5px; }
+.ep-seg-bar-top {
+  display: flex; justify-content: space-between;
+  font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted, #7a82a0);
+}
+.ep-seg-bar-pct { color: var(--text, #e4e8f5); font-weight: 600; }
+.ep-seg-track { height: 6px; background: rgba(255,255,255,.05); border-radius: 3px; overflow: hidden; }
+.ep-seg-fill { height: 100%; border-radius: 3px; transition: width .9s cubic-bezier(.34,1.56,.64,1); }
+
+/* ── Tabela financeira ── */
+.ep-table-wrap {
+  background: var(--surface, #141720); border: 1px solid var(--border, #252a3a);
+  border-radius: var(--radius, 12px); overflow: hidden; margin-bottom: 4px;
+}
+.ep-table { width: 100%; border-collapse: collapse; }
+.ep-table th {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--muted, #7a82a0);
+  background: var(--surface2, #1c2030); padding: 10px 18px;
+  text-align: left; border-bottom: 1px solid var(--border, #252a3a);
+}
+.ep-table td {
+  padding: 10px 18px; font-size: 13px;
+  border-bottom: 1px solid var(--border, #252a3a);
+}
+.ep-table tr:last-child td { border-bottom: none; }
+.ep-table td:last-child { text-align: right; font-family: 'DM Mono', monospace; font-size: 12px; }
+.ep-table tr.ep-row-total td {
+  font-weight: 700; font-size: 14px; border-top: 2px solid var(--border2, #353d58);
+  background: var(--surface2, #1c2030);
+}
+.ep-pos { color: var(--green, #22d98a); }
+.ep-neg { color: #ff4d6d; }
+.ep-section-row td {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--muted, #7a82a0);
+  background: rgba(255,255,255,.02); padding: 6px 18px;
+}
+
+/* ── Painel de revisão (campos não encontrados) ── */
+.ep-review {
+  background: rgba(247,162,59,0.07); border: 1.5px solid rgba(247,162,59,0.35);
+  border-radius: var(--radius,12px); padding: 18px 22px; margin-bottom: 4px;
+}
+.ep-review-title {
+  font-family: 'DM Mono',monospace; font-size: 10px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--yellow,#f7a23b); margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.ep-review-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+.ep-review-field { display: flex; flex-direction: column; gap: 5px; min-width: 180px; }
+.ep-review-label { font-size: 11px; color: var(--muted,#7a82a0); font-family: 'DM Mono',monospace; }
+.ep-review-input {
+  background: var(--surface2,#1c2030); border: 1.5px solid var(--border2,#353d58);
+  border-radius: 7px; color: var(--text,#e4e8f5); padding: 8px 12px;
+  font-family: 'DM Mono',monospace; font-size: 13px; font-weight: 600; outline: none;
+  transition: border-color .15s; width: 100%;
+}
+.ep-review-input:focus { border-color: var(--yellow,#f7a23b); }
+.ep-review-actions { margin-top: 14px; display: flex; gap: 10px; align-items: center; }
+.ep-review-hint { font-size: 11px; color: var(--muted,#7a82a0); font-family: 'DM Mono',monospace; }
+
+/* ── Botão "Últimos 12 meses" ── */
+.ep-12m-btn {
+  padding: 5px 14px; font-size: 11px; font-family: 'DM Mono', monospace;
+  background: transparent; border: 1.5px solid rgba(79,158,255,0.3);
+  color: rgba(79,158,255,0.75); border-radius: 7px; cursor: pointer;
+  letter-spacing: .03em; white-space: nowrap; transition: all .15s;
+}
+.ep-12m-btn:hover { background: rgba(79,158,255,0.1); color: #4f9eff; border-color: #4f9eff; }
+
+/* ── Modal genérico (detalhe + 12 meses) ── */
+.ep-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.72);
+  z-index: 9000; display: flex; align-items: flex-start;
+  justify-content: center; padding: 5vh 20px 24px; overflow-y: auto;
+}
+.ep-modal {
+  background: var(--surface, #141720); border: 1px solid var(--border2, #353d58);
+  border-radius: var(--radius, 12px); width: 100%; max-width: 1100px;
+  display: flex; flex-direction: column;
+  box-shadow: 0 24px 80px rgba(0,0,0,.65); animation: epModalIn .18s ease;
+}
+.ep-modal-lg { max-width: 1300px; }
+@keyframes epModalIn { from { opacity:0; transform: translateY(-12px); } to { opacity:1; transform:none; } }
+.ep-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 22px; border-bottom: 1px solid var(--border, #252a3a); flex-shrink: 0;
+}
+.ep-modal-subt {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .25em;
+  text-transform: uppercase; color: var(--muted, #7a82a0); margin-bottom: 3px;
+}
+.ep-modal-ttl { font-size: 15px; font-weight: 800; color: var(--text, #e4e8f5); margin: 0; }
+.ep-modal-close {
+  width: 30px; height: 30px; background: transparent;
+  border: 1.5px solid var(--border2, #353d58); border-radius: 7px;
+  color: var(--muted, #7a82a0); cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0;
+}
+.ep-modal-close:hover { border-color: var(--accent, #e63e6d); color: var(--accent, #e63e6d); }
+.ep-modal-info {
+  padding: 10px 22px 0; font-family: 'DM Mono', monospace; font-size: 11px;
+  color: var(--muted, #7a82a0); flex-shrink: 0;
+}
+.ep-modal-body { overflow: auto; max-height: 72vh; }
+
+/* ── Tabela de detalhe (modal de linhas) ── */
+.ep-detail-wrap { overflow-x: auto; }
+.ep-detail-table {
+  width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap;
+}
+.ep-detail-table th {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--muted, #7a82a0);
+  background: var(--surface2, #1c2030); padding: 9px 14px;
+  text-align: left; border-bottom: 1px solid var(--border, #252a3a);
+  position: sticky; top: 0; z-index: 1;
+}
+.ep-detail-table td {
+  padding: 7px 14px; border-bottom: 1px solid rgba(255,255,255,.03);
+  color: var(--text, #e4e8f5);
+}
+.ep-detail-table tr:last-child td { border-bottom: none; }
+.ep-detail-table tbody tr:hover td { background: rgba(255,255,255,.03); }
+.ep-detail-link {
+  color: var(--accent, #e63e6d); text-decoration: none; cursor: pointer;
+  font-family: 'DM Mono', monospace; font-weight: 600; font-size: 11px;
+  border-bottom: 1px dashed rgba(230,62,109,.4);
+}
+.ep-detail-link:hover { border-bottom-style: solid; }
+.ep-modal-empty {
+  padding: 56px 24px; text-align: center; color: var(--muted, #7a82a0);
+  font-family: 'DM Mono', monospace; font-size: 13px;
+}
+
+/* ── Linha clicável na tabela financeira ── */
+.ep-row-clickable { cursor: pointer; }
+.ep-row-clickable:hover td { background: rgba(255,255,255,.04) !important; }
+.ep-row-hint {
+  font-size: 9px; color: var(--muted, #7a82a0); margin-left: 8px; opacity: 0;
+  transition: opacity .1s; font-family: 'DM Mono', monospace;
+}
+.ep-row-clickable:hover .ep-row-hint { opacity: 1; }
+
+/* ── Modal 12 meses ── */
+.ep-12m-kpis {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  padding: 18px 22px 0;
+}
+.ep-12m-kpi {
+  background: var(--surface2, #1c2030); border: 1px solid var(--border, #252a3a);
+  border-radius: 10px; padding: 14px 16px;
+}
+.ep-12m-section { padding: 18px 22px 10px; }
+.ep-12m-section-lbl {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .25em;
+  text-transform: uppercase; color: var(--muted, #7a82a0);
+  margin-bottom: 12px; display: flex; align-items: center; gap: 10px;
+}
+.ep-12m-section-lbl::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--border, #252a3a), transparent);
+}
+.ep-12m-table-wrap { overflow-x: auto; padding-bottom: 4px; }
+.ep-12m-table {
+  width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap;
+}
+.ep-12m-table th {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted, #7a82a0);
+  background: var(--surface2, #1c2030); padding: 9px 14px;
+  text-align: right; border-bottom: 1px solid var(--border, #252a3a);
+  position: sticky; top: 0; z-index: 1;
+}
+.ep-12m-table th:first-child { text-align: left; }
+.ep-12m-table td {
+  padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,.03);
+  text-align: right; font-family: 'DM Mono', monospace; font-size: 11px;
+}
+.ep-12m-table td:first-child {
+  text-align: left; font-family: 'Sora', sans-serif; font-weight: 600; font-size: 12px;
+}
+.ep-12m-table tr:last-child td { border-bottom: none; }
+.ep-12m-table tbody tr:hover td { background: rgba(255,255,255,.03); }
+.ep-12m-table tr.ep-12m-current td { background: rgba(230,62,109,.05); }
+.ep-12m-table tr.ep-12m-current td:first-child { color: var(--accent, #e63e6d); }
+.ep-12m-chart-wrap { position: relative; height: 220px; margin: 0 22px 22px; }
+
+/* ── Botão Word / Apagar ── */
+.ep-action-row {
+  display: flex; justify-content: center; align-items: center;
+  gap: 14px; margin-top: 36px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.ep-word-btn { padding: 13px 36px; font-size: 14px; }
+.ep-apagar-btn {
+  padding: 11px 22px; font-size: 13px;
+  background: transparent; border: 1.5px solid rgba(230,62,109,0.4);
+  color: rgba(230,62,109,0.7); border-radius: 8px; cursor: pointer;
+  font-family: 'Sora',sans-serif; font-weight: 700; transition: all .15s;
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.ep-apagar-btn:hover { background: rgba(230,62,109,0.1); color: var(--accent,#e63e6d); border-color: var(--accent,#e63e6d); }
+</style>
+
+<!-- ══ HTML STRUCTURE ══ -->
+<div id="extratoPage">
+
+  <!-- Header -->
+  <div class="ep-header">
+    <div class="ep-title-group">
+      <span class="ep-tag">FINANCEIRO</span>
+      <h2>Extrato Mensal</h2>
+    </div>
+    <button class="btn btn-sm" onclick="epAbrirUpload()">+ Enviar arquivo</button>
+    <input type="file" id="ep-file-input" accept=".xlsx" style="display:none" onchange="epOnFile(event)">
+  </div>
+
+  <!-- Filtro de mês -->
+  <div class="ep-month-bar" id="ep-month-bar" style="display:none">
+    <button class="ep-nav-btn" onclick="epNavMes(-1)" title="Mês anterior">◄</button>
+    <select class="ep-month-select" id="ep-month-sel" onchange="epSelecionarMes(this.value)"></select>
+    <button class="ep-nav-btn" onclick="epNavMes(1)" title="Próximo mês">►</button>
+    <span class="ep-month-label" id="ep-month-label">—</span>
+    <button class="ep-12m-btn" onclick="epAbrir12Meses()" title="Ver composição dos últimos 12 meses">📈 Resultado Últimos 12 meses</button>
+    <button class="ep-del-btn" onclick="epApagarMes()" title="Apagar fechamento deste mês">🗑</button>
+  </div>
+
+  <!-- Estado vazio -->
+  <div class="ep-empty" id="ep-empty">
+    <div class="ep-empty-icon">📊</div>
+    <h3>Nenhum fechamento enviado</h3>
+    <p>Envie seu primeiro arquivo XLSX de fechamento mensal para começar</p>
+    <button class="btn" onclick="epAbrirUpload()" style="margin-top:10px">+ Enviar arquivo</button>
+  </div>
+
+  <!-- Carregando -->
+  <div class="ep-loading" id="ep-loading" style="display:none">
+    <div class="ep-spinner"></div>
+    <p>Processando arquivo...</p>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="ep-dashboard" style="display:none">
+
+    <!-- Painel de revisão (aparece quando campos não são encontrados) -->
+    <div class="ep-review" id="ep-review" style="display:none">
+      <div class="ep-review-title">⚠️ Campos não identificados automaticamente — revise os valores</div>
+      <div class="ep-review-grid" id="ep-review-grid"></div>
+      <div class="ep-review-actions">
+        <button class="btn btn-sm" onclick="epAplicarCorrecoes()">✓ Confirmar correções</button>
+        <span class="ep-review-hint">Os valores corrigidos serão salvos e o dashboard atualizado.</span>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="ep-section-label">KPIs do Período</div>
+    <div class="ep-kpi-row" id="ep-kpis"></div>
+
+    <!-- Gráficos -->
+    <div class="ep-section-label">Análise de Desempenho</div>
+    <div class="ep-charts-grid">
+
+      <!-- Chart 1: Meta vs Realizado -->
+      <div class="ep-chart-card">
+        <div class="ep-chart-title">Meta vs. Realizado</div>
+        <div class="ep-chart-wrap"><canvas id="ep-chart1"></canvas></div>
+      </div>
+
+      <!-- Chart 2: Composição Financeira -->
+      <div class="ep-chart-card">
+        <div class="ep-chart-title">Composição Financeira</div>
+        <div class="ep-chart-wrap ep-tall"><canvas id="ep-chart2"></canvas></div>
+      </div>
+
+      <!-- Chart 3: B2C vs B2B -->
+      <div class="ep-chart-card">
+        <div class="ep-chart-title">Breakdown por Segmento</div>
+        <div class="ep-seg-layout">
+          <div class="ep-seg-donut"><canvas id="ep-chart3"></canvas></div>
+          <div class="ep-seg-bars" id="ep-seg-bars"></div>
+        </div>
+      </div>
+
+      <!-- Chart 4: Deduções -->
+      <div class="ep-chart-card">
+        <div class="ep-chart-title">
+          Deduções Detalhadas
+          <span id="ep-ded-total" style="color:#ff4d6d;font-weight:600;font-size:10px"></span>
+        </div>
+        <div class="ep-chart-wrap"><canvas id="ep-chart4"></canvas></div>
+      </div>
+
+    </div>
+
+    <!-- Tabela financeira -->
+    <div class="ep-section-label">Resumo Financeiro</div>
+    <div class="ep-table-wrap">
+      <table class="ep-table" id="ep-fin-table"></table>
+    </div>
+
+    <!-- Botões de ação -->
+    <div class="ep-action-row">
+      <button class="btn ep-word-btn" onclick="epGerarWord()">📄 Gerar Relatório Word ↓</button>
+      <button class="ep-apagar-btn" onclick="epApagarMes()">🗑 Apagar Fechamento</button>
+    </div>
+
+  </div><!-- /ep-dashboard -->
+
+  <!-- ══ Modal: Detalhe de linha ══ -->
+  <div class="ep-modal-overlay" id="ep-modal-overlay" style="display:none" onclick="if(event.target===this)epFecharDetalhe()">
+    <div class="ep-modal">
+      <div class="ep-modal-header">
+        <div>
+          <div class="ep-modal-subt" id="ep-modal-subt">Detalhamento</div>
+          <div class="ep-modal-ttl" id="ep-modal-ttl">—</div>
+        </div>
+        <button class="ep-modal-close" onclick="epFecharDetalhe()" title="Fechar">✕</button>
+      </div>
+      <div class="ep-modal-info" id="ep-modal-info"></div>
+      <div class="ep-modal-body">
+        <div class="ep-detail-wrap">
+          <table class="ep-detail-table" id="ep-detail-table"></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Modal: Resultado Últimos 12 Meses ══ -->
+  <div class="ep-modal-overlay" id="ep-12m-overlay" style="display:none" onclick="if(event.target===this)epFechar12Meses()">
+    <div class="ep-modal ep-modal-lg">
+      <div class="ep-modal-header">
+        <div>
+          <div class="ep-modal-subt">Análise Histórica</div>
+          <div class="ep-modal-ttl">Resultado dos Últimos 12 Meses</div>
+        </div>
+        <button class="ep-modal-close" onclick="epFechar12Meses()" title="Fechar">✕</button>
+      </div>
+      <div class="ep-modal-body" id="ep-12m-body">
+        <!-- preenchido dinamicamente -->
+      </div>
+    </div>
+  </div>
+
+</div><!-- /extratoPage -->
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// EXTRATO.JS — Lógica completa da feature Extrato Mensal
+// Prefixo: ep* para evitar colisão com o namespace global do Index.html
+// ══════════════════════════════════════════════════════════════════════════════
+
+var EP_KEY      = 'dharmapro_extrato_v1';
+var epMesAtual  = null;
+var epDados     = null;
+var epCharts    = {};
+
+// ── Índices de fallback (usados se o cabeçalho não for encontrado) ────────────
+var EP_C = {
+  parceiro:0,    metaBL:2,       metaMovel:3,   b2b:5,        b2c:6,
+  vb:7,          instTotal:8,    churn:9,        cnVendas:10,  pctCN:11,
+  migracoes:12,  movelAcq:13,    instMovel:15,   pctAtingMeta:16, atingMovel:17,
+  realizadoTM:20,instBL:27,      bonusQuin:29,   bonusExtra:31,
+  adimplencia:32,descChurn:33,   multaCanc:34,   descInadimp:37,
+  susp120:38,    movel:41,       estornoMovel:42,descHUB:46,
+  realizado:48,  realizadoUN:50, b2cReal:53,     b2bReal:54
+};
+
+// ── Alternativas de cabeçalho por campo (normalizadas, ordem de prioridade) ──
+var EP_HDR = {
+  parceiro:     ['parceiro'],
+  metaBL:       ['meta bl', 'meta b l'],
+  metaMovel:    ['meta movel', 'meta movil'],
+  b2b:          ['b2b'],
+  b2c:          ['b2c'],
+  vb:           ['vb', 'venda bruta'],
+  instTotal:    ['instalacao total'],
+  churn:        ['churn'],
+  cnVendas:     ['cn vendas'],
+  pctCN:        ['% cn venda', 'cn venda'],
+  migracoes:    ['migracoes'],
+  movelAcq:     ['movel aquisicao', 'aquisicao movel'],
+  instMovel:    ['instalacao movel', 'inst movel'],
+  pctAtingMeta: ['% ating meta', 'ating meta bl'],
+  atingMovel:   ['ating movel'],
+  realizadoTM:  ['realizado tm', 'tm realizado'],
+  instBL:       ['instalacoes bl', 'inst bl'],
+  bonusQuin:    ['bonus quinzenal'],
+  bonusExtra:   ['bonus extra'],
+  adimplencia:  ['adimplencia'],
+  descChurn:    ['desconto churn', 'desc churn'],
+  multaCanc:    ['multa cancelamento'],
+  descInadimp:  ['desc inadimplentes', 'inadimplentes'],
+  susp120:      ['suspensos 120 dias', 'suspensos 120'],
+  movel:        ['movel'],
+  estornoMovel: ['estorno movel'],
+  descHUB:      ['desconto hub', 'desc hub'],
+  realizado:    ['realizado'],
+  realizadoUN:  ['realizado unidade', 'realizado un', 'realizado   unidade'],
+  b2cReal:      ['b2c realizado'],
+  b2bReal:      ['b2b realizado']
+};
+
+var EP_MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+// ── Mapeamento campo financeiro → aba de detalhe ─────────────────────────────
+// cols: índices 0-based (A=0,B=1,...,Z=25,AA=26,...,AJ=35,BM=64,BR=69,etc.)
+var EP_DETAIL_MAP = {
+  instBL:      { label:'Instalações BL',      sheet:'BD_INSTALAÇÃO',     cols:[35,2,3,4,5,6,7,64,69] },
+  adimplencia: { label:'Adimplência',          sheet:'Adimplência',        cols:null },
+  descInadimp: { label:'Desc. Inadimplentes',  sheet:'Inadimplentes',      cols:[11,1,5,8,9,12,26,30,31] },
+  susp120:     { label:'Suspensos 120 dias',   sheet:'Suspensos 120 dias', cols:[10,5,6,11,25,29,35] },
+  descChurn:   { label:'Desconto Churn',       sheet:'BD_CHURN',           cols:[2,4,6,29,31,33], filterNonEmpty:true },
+  multaCanc:   { label:'Multa Cancelamento',   sheet:'BD_CANCELAMENTOS',   cols:[21,2,7,9,10,19] },
+  movel:       { label:'Móvel',                sheet:'Móvel',              cols:[2,3,13,28,29,31,42,45,50] }
+};
+
+// ── Persistência (localStorage) ──────────────────────────────────────────────
+function epGetAll()  { try { return JSON.parse(localStorage.getItem(EP_KEY)||'{}'); } catch(e){return {};} }
+function epGetData(m){ return epGetAll()[m] || null; }
+function epSaveRec(m,d){
+  var a=epGetAll(); a[m]=d;
+  try{
+    localStorage.setItem(EP_KEY, JSON.stringify(a));
+  } catch(e){
+    // Se localStorage cheio, tentar sem os dados de detalhe das abas
+    console.warn('[EP] localStorage cheio, salvando sem _sheets',e);
+    var d2={}; Object.keys(d).forEach(function(k){ if(k!=='_sheets') d2[k]=d[k]; });
+    a[m]=d2;
+    try{ localStorage.setItem(EP_KEY, JSON.stringify(a)); }
+    catch(e2){ console.error('[EP] localStorage cheio mesmo sem _sheets',e2); }
+  }
+}
+function epGetMeses(){ return Object.keys(epGetAll()).sort(); }
+
+// ── Formatação ────────────────────────────────────────────────────────────────
+function epBRL(v)  { return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function epPct(v)  { return (Number(v||0)*100).toFixed(1).replace('.',',')+' %'; }
+function epCor(v)  { return v>=0.8 ? 'var(--green,#22d98a)' : v>=0.6 ? 'var(--yellow,#f7a23b)' : '#ff4d6d'; }
+function epMesLabel(m){ var p=m.split('-'); return EP_MESES[parseInt(p[1])-1]+'/'+p[0]; }
+
+// ── Estados de UI ─────────────────────────────────────────────────────────────
+function epShowEmpty(){
+  document.getElementById('ep-empty').style.display='';
+  document.getElementById('ep-loading').style.display='none';
+  document.getElementById('ep-dashboard').style.display='none';
+  document.getElementById('ep-month-bar').style.display='none';
+}
+function epShowLoading(){
+  document.getElementById('ep-empty').style.display='none';
+  document.getElementById('ep-loading').style.display='flex';
+  document.getElementById('ep-dashboard').style.display='none';
+}
+function epShowDashboard(){
+  document.getElementById('ep-empty').style.display='none';
+  document.getElementById('ep-loading').style.display='none';
+  document.getElementById('ep-dashboard').style.display='';
+  document.getElementById('ep-month-bar').style.display='flex';
+}
+
+// ── Navegação de meses ────────────────────────────────────────────────────────
+function epUpdateMesUI(){
+  var meses = epGetMeses();
+  var sel = document.getElementById('ep-month-sel');
+  sel.innerHTML = '';
+  meses.forEach(function(m){
+    var o = document.createElement('option');
+    o.value = m; o.textContent = epMesLabel(m);
+    if(m === epMesAtual) o.selected = true;
+    sel.appendChild(o);
+  });
+  document.getElementById('ep-month-label').textContent = epMesAtual ? epMesLabel(epMesAtual) : '—';
+}
+
+function epSelecionarMes(m){
+  epMesAtual = m;
+  epDados    = epGetData(m);
+  epUpdateMesUI();
+  if(epDados) { epRenderDashboard(epDados); epShowDashboard(); }
+  else epShowEmpty();
+}
+
+function epNavMes(dir){
+  var meses = epGetMeses();
+  var idx   = meses.indexOf(epMesAtual);
+  var nx    = meses[idx + dir];
+  if(nx) epSelecionarMes(nx);
+}
+
+function epApagarMes(){
+  if(!epMesAtual) return;
+  var label = epMesLabel(epMesAtual);
+  if(!confirm('Apagar o fechamento de ' + label + '?\n\nEsta ação não pode ser desfeita.')) return;
+
+  var all = epGetAll();
+  delete all[epMesAtual];
+  try{ localStorage.setItem(EP_KEY, JSON.stringify(all)); }catch(e){ console.warn('[EP] localStorage erro ao apagar',e); }
+
+  var meses = Object.keys(all).sort();
+  if(meses.length === 0){
+    epMesAtual = null;
+    epDados    = null;
+    epDestroyCharts();
+    epShowEmpty();
+  } else {
+    epSelecionarMes(meses[meses.length - 1]); // mais recente disponível
+  }
+  epToast('🗑 Fechamento de ' + label + ' apagado.', 'info');
+}
+
+// ── Upload ───────────────────────────────────────────��────────────────────────
+function epAbrirUpload(){
+  document.getElementById('ep-file-input').value = '';
+  document.getElementById('ep-file-input').click();
+}
+
+function epOnFile(e){
+  var file = e.target.files[0];
+  if(!file) return;
+  if(!/\.xlsx$/i.test(file.name)){
+    epToast('⚠️ Apenas arquivos .xlsx são aceitos.','warning'); return;
+  }
+  epShowLoading();
+  var reader = new FileReader();
+  reader.onload  = function(ev){ epProcessarBuffer(ev.target.result, file.name); };
+  reader.onerror = function(){ epShowEmpty(); if(epMesAtual) epSelecionarMes(epMesAtual); epToast('❌ Erro ao ler o arquivo.','error'); };
+  reader.readAsArrayBuffer(file);
+}
+
+function epProcessarBuffer(buf, fileName){
+  if(typeof XLSX === 'undefined'){
+    epLoadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', function(){ epProcessarBuffer(buf, fileName); });
+    return;
+  }
+  try {
+    var wb = XLSX.read(buf, {type:'array'});
+    var ws = wb.Sheets['RESUMO'];
+    if(!ws) throw new Error('Aba RESUMO não encontrada. Verifique se é um arquivo de fechamento válido.');
+    var dados = epParsear(wb, ws, fileName);
+    var mesKey = dados.mes;
+
+    // Verificar duplicata
+    if(epGetData(mesKey)){
+      if(!confirm('Já existe um fechamento para ' + epMesLabel(mesKey) + '. Substituir?')){
+        epShowEmpty();
+        if(epMesAtual) epSelecionarMes(epMesAtual); else epShowEmpty();
+        return;
+      }
+    }
+    epSaveRec(mesKey, dados);
+    epSelecionarMes(mesKey);
+    epToast('✅ Fechamento de ' + epMesLabel(mesKey) + ' importado com sucesso.','success');
+  } catch(err){
+    epShowEmpty();
+    if(epMesAtual) epSelecionarMes(epMesAtual);
+    epToast('❌ ' + (err.message || 'Erro desconhecido'),'error');
+  }
+}
+
+// ── Helpers para extração de abas ─────────────────────────────────────────────
+// Índice 0-based → letra de coluna (0→A, 25→Z, 26→AA …)
+function epColLetter(idx){
+  var s=''; idx+=1;
+  while(idx>0){ var r=(idx-1)%26; s=String.fromCharCode(65+r)+s; idx=Math.floor((idx-1)/26); }
+  return s;
+}
+
+// Busca aba pelo nome exato ou normalizado
+function epFindWs(wb, name){
+  if(wb.Sheets[name]) return wb.Sheets[name];
+  var norm=epNormHeader(name);
+  var ns=wb.SheetNames||[];
+  for(var i=0;i<ns.length;i++){ if(epNormHeader(ns[i])===norm) return wb.Sheets[ns[i]]; }
+  return null;
+}
+
+// Extrai linhas de uma aba com colunas específicas (null = todas, cap 25)
+// Detecta coluna ID_Contrato / Contrato e a posiciona primeiro
+function epExtractSheet(wb, sheetName, colIndices, filterNonEmpty){
+  var ws=epFindWs(wb, sheetName);
+  if(!ws||!ws['!ref']) return null;
+  var range=XLSX.utils.decode_range(ws['!ref']);
+
+  // Ler cabeçalhos e detectar coluna de contrato
+  var allHdrs={}, contractCol=-1;
+  for(var c=range.s.c;c<=range.e.c;c++){
+    var hc=ws[XLSX.utils.encode_cell({c:c,r:0})];
+    var hv=hc?String(hc.v||''):'';
+    allHdrs[c]=hv;
+    var hn=epNormHeader(hv);
+    if(contractCol<0&&(hn==='id contrato'||hn==='id_contrato'||hn==='contrato')) contractCol=c;
+  }
+
+  // Determinar colunas a extrair
+  var cols;
+  if(colIndices===null){
+    cols=[];
+    for(var cc=range.s.c;cc<=range.e.c;cc++) cols.push(cc);
+    if(cols.length>25) cols=cols.slice(0,25);
+  } else {
+    cols=colIndices.filter(function(c){ return c<=range.e.c; });
+  }
+
+  // Garantir coluna de contrato como primeira
+  if(contractCol>=0){
+    var ci=cols.indexOf(contractCol);
+    if(ci>0) cols.splice(ci,1);
+    if(ci!==0) cols.unshift(contractCol);
+  }
+
+  var headers=cols.map(function(c){ return allHdrs[c]||epColLetter(c); });
+
+  // Extrair linhas de dados
+  var rows=[];
+  for(var r=1;r<=range.e.r;r++){
+    var row=cols.map(function(c){
+      var cell=ws[XLSX.utils.encode_cell({c:c,r:r})];
+      return cell!=null?cell.v:null;
+    });
+    var hasAny=row.some(function(v){ return v!=null&&v!==''&&v!==0; });
+    if(!hasAny) continue;
+    if(filterNonEmpty){
+      var hasNum=row.some(function(v){ return typeof v==='number'&&v!==0; });
+      if(!hasNum) continue;
+    }
+    rows.push(row);
+    if(rows.length>=500) break; // segurança
+  }
+  return { headers:headers, rows:rows, contractColIdx:contractCol>=0?0:-1 };
+}
+
+// ── Parser XLSX ───────────────────────────────────────────────────────────────
+function epCell(ws, col, row){
+  var addr = XLSX.utils.encode_cell({c:col, r:row});
+  var cell = ws[addr];
+  return cell ? cell.v : null;
+}
+
+// Normaliza um cabeçalho para comparação: minúsculas, sem acento, sem pontuação
+function epNormHeader(s){
+  return String(s||'')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9%]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+// Constrói mapa { cabeçalho_normalizado -> índice_coluna } a partir da linha 1 da aba
+function epBuildColMap(ws){
+  var map = {};
+  var ref = ws['!ref'];
+  if(!ref) return map;
+  var range = XLSX.utils.decode_range(ref);
+  for(var c = range.s.c; c <= range.e.c; c++){
+    var cell = ws[XLSX.utils.encode_cell({c:c, r:0})];
+    if(cell && cell.v != null){
+      var key = epNormHeader(cell.v);
+      if(key) map[key] = c;
+    }
+  }
+  return map;
+}
+
+// Resolve o índice de uma coluna: tenta as alternativas de cabeçalho, cai no fallback
+function epResolveCol(colMap, alts, fallback){
+  for(var i=0; i<alts.length; i++){
+    if(Object.prototype.hasOwnProperty.call(colMap, alts[i])) return colMap[alts[i]];
+  }
+  if(fallback !== undefined)
+    console.warn('[EP] Coluna não encontrada por cabeçalho:', alts, '— usando fallback índice:', fallback);
+  return fallback;
+}
+
+function epNormMes(val){
+  if(val == null) return null;
+  if(typeof val === 'number'){
+    // Serial de data do Excel (dias desde 1900-01-01)
+    var d = new Date(Math.round((val - 25569) * 86400 * 1000));
+    return d.getUTCFullYear() + '-' + String(d.getUTCMonth()+1).padStart(2,'0');
+  }
+  var s = String(val).trim();
+  if(/^\d{4}-\d{2}$/.test(s)) return s;
+  var low = s.toLowerCase();
+  var map = {janeiro:1,fevereiro:2,'março':3,marco:3,abril:4,maio:5,junho:6,
+             julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12};
+  for(var nm in map){
+    if(low.indexOf(nm) > -1){
+      var yrm = s.match(/\d{4}/);
+      var yr  = yrm ? yrm[0] : new Date().getFullYear();
+      return yr + '-' + String(map[nm]).padStart(2,'0');
+    }
+  }
+  return null;
+}
+
+function epParsear(wb, ws, fileName){
+  // 1. Constrói mapa de cabeçalhos → índices (linha 1 = row 0)
+  var colMap = epBuildColMap(ws);
+  console.info('[EP] Mapa de colunas detectado:', colMap);
+
+  // 2. Resolve cada campo rastreando se veio do cabeçalho ou do índice fallback
+  var _foundViaHeader = {};
+  var rc = function(field){
+    var alts = EP_HDR[field] || [];
+    for(var i=0; i<alts.length; i++){
+      if(Object.prototype.hasOwnProperty.call(colMap, alts[i])){
+        _foundViaHeader[field] = true;
+        return colMap[alts[i]];
+      }
+    }
+    _foundViaHeader[field] = false;
+    return EP_C[field]; // fallback fixo
+  };
+
+  var g = function(field){ return epCell(ws, rc(field), 1); }; // Row 2 = índice 1
+  var n = function(field){ return Number(g(field) || 0); };
+
+  // 3. Identificar mês
+  var mes = null;
+  var wsI = wb.Sheets['BD_INSTALAÇÃO'];
+  if(wsI) mes = epNormMes(epCell(wsI, 1, 1));
+  if(!mes){
+    var ym = fileName.match(/(\d{4})[_\-]?(\d{2})/);
+    if(ym) mes = ym[1] + '-' + ym[2];
+    else { var now = new Date(); mes = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0'); }
+  }
+
+  var dados = {
+    mes:          mes,
+    parceiro:     String(g('parceiro') || ''),
+    uploadedAt:   new Date().toISOString(),
+    metaBL:       n('metaBL'),     metaMovel:    n('metaMovel'),
+    b2b:          n('b2b'),        b2c:          n('b2c'),
+    vb:           n('vb'),         instTotal:    n('instTotal'),
+    churn:        n('churn'),      cnVendas:     n('cnVendas'),
+    pctCN:        n('pctCN'),      migracoes:    n('migracoes'),
+    movelAcq:     n('movelAcq'),   instMovel:    n('instMovel'),
+    pctAtingMeta: n('pctAtingMeta'),atingMovel:  n('atingMovel'),
+    realizadoTM:  n('realizadoTM'),instBL:       n('instBL'),
+    bonusQuin:    n('bonusQuin'),  bonusExtra:   n('bonusExtra'),
+    adimplencia:  n('adimplencia'),descChurn:    n('descChurn'),
+    multaCanc:    n('multaCanc'),  descInadimp:  n('descInadimp'),
+    susp120:      n('susp120'),    movel:        n('movel'),
+    estornoMovel: n('estornoMovel'),descHUB:     n('descHUB'),
+    realizado:    n('realizado'),  realizadoUN:  n('realizadoUN'),
+    b2cReal:      n('b2cReal'),    b2bReal:      n('b2bReal')
+  };
+
+  // 4. instBL: se não encontrado via cabeçalho E valor zero,
+  //    tenta somar sub-colunas (Padrão, Outras Cidades, Ouro, Prata, Especiais)
+  if(!_foundViaHeader.instBL || !dados.instBL){
+    var SUB_INSTBL = ['padrao','outras cidades','ouro','prata','especiais','standard','cidade especial'];
+    var subSum = 0, subFound = false;
+    SUB_INSTBL.forEach(function(h){
+      if(Object.prototype.hasOwnProperty.call(colMap, h)){
+        var v = Number(epCell(ws, colMap[h], 1) || 0);
+        subSum += v;
+        subFound = true;
+      }
+    });
+    if(subFound && subSum){
+      dados.instBL = subSum;
+      _foundViaHeader.instBL = true; // resolvido via sub-colunas
+      console.info('[EP] instBL resolvido via sub-colunas: R$', subSum);
+    }
+  }
+
+  // 5. Detecta campos críticos que não foram resolvidos via cabeçalho E estão zerados
+  var CAMPOS_CRITICOS = [
+    {field:'instBL',       label:'Instalações BL (R$)',    tipo:'brl'},
+    {field:'realizado',    label:'Realizado Total (R$)',    tipo:'brl'},
+    {field:'adimplencia',  label:'Adimplência (R$)',        tipo:'brl'},
+    {field:'movel',        label:'Móvel (R$)',              tipo:'brl'},
+    {field:'metaBL',       label:'Meta BL (qtd)',           tipo:'num'},
+    {field:'instTotal',    label:'Instalações Total (qtd)', tipo:'num'}
+  ];
+  var uncertain = [];
+  CAMPOS_CRITICOS.forEach(function(c){
+    if(!_foundViaHeader[c.field] && !dados[c.field]){
+      uncertain.push(c);
+    }
+  });
+  dados._uncertain = uncertain; // lista de campos para revisão manual
+
+  // 6. Extrair dados das abas para modal de detalhe
+  var _sheets = {};
+  Object.keys(EP_DETAIL_MAP).forEach(function(fk){
+    var def = EP_DETAIL_MAP[fk];
+    try {
+      var sd = epExtractSheet(wb, def.sheet, def.cols||null, !!def.filterNonEmpty);
+      if(sd && sd.rows.length) _sheets[fk] = sd;
+    } catch(e){ console.warn('[EP] Não foi possível extrair aba', def.sheet, e); }
+  });
+  dados._sheets = _sheets;
+
+  return dados;
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function epDestroyCharts(){
+  Object.keys(epCharts).forEach(function(k){ if(epCharts[k]) epCharts[k].destroy(); });
+  epCharts = {};
+}
+
+function epRenderDashboard(d){
+  if(!d) return;
+  epDestroyCharts();
+  epRenderReview(d);
+  epRenderKPIs(d);
+  epRenderTabela(d);
+  if(typeof Chart !== 'undefined'){
+    epRenderCharts(d);
+  } else {
+    epLoadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', function(){ epRenderCharts(d); });
+  }
+}
+
+// ── Painel de revisão inline ──────────────────────────────────────────────────
+function epRenderReview(d){
+  var reviewEl  = document.getElementById('ep-review');
+  var reviewGrid = document.getElementById('ep-review-grid');
+  var uncertain = d._uncertain || [];
+
+  if(!uncertain.length){ reviewEl.style.display='none'; return; }
+
+  reviewEl.style.display = '';
+  reviewGrid.innerHTML = uncertain.map(function(c){
+    var placeholder = c.tipo === 'brl' ? '0,00' : '0';
+    return '<div class="ep-review-field">'+
+           '<label class="ep-review-label">'+c.label+'</label>'+
+           '<input class="ep-review-input" type="number" step="any" id="ep-rev-'+c.field+'"'+
+           ' placeholder="'+placeholder+'" value="'+(d[c.field]||'')+'">'+
+           '</div>';
+  }).join('');
+}
+
+function epAplicarCorrecoes(){
+  if(!epDados) return;
+  var uncertain = epDados._uncertain || [];
+  if(!uncertain.length) return;
+
+  uncertain.forEach(function(c){
+    var el = document.getElementById('ep-rev-'+c.field);
+    if(el && el.value !== ''){
+      epDados[c.field] = Number(el.value);
+    }
+  });
+  epDados._uncertain = []; // limpa após correção
+
+  epSaveRec(epDados.mes, epDados);   // salva os valores corrigidos
+  epRenderDashboard(epDados);        // re-renderiza com dados corretos
+  epToast('✅ Valores corrigidos e salvos.','success');
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────────────────
+function epRenderKPIs(d){
+  var kpis = [
+    {label:'Realizado Total',  value:epBRL(d.realizado),       color:null,        main:true},
+    {label:'Ating. Meta BL',   value:epPct(d.pctAtingMeta),    color:epCor(d.pctAtingMeta), main:false},
+    {label:'Ating. Meta Móvel',value:epPct(d.atingMovel),      color:epCor(d.atingMovel),   main:false},
+    {label:'TM Realizado',     value:epBRL(d.realizadoTM),     color:null,        main:false},
+    {label:'Realizado / UN',   value:epBRL(d.realizadoUN),     color:null,        main:false}
+  ];
+  document.getElementById('ep-kpis').innerHTML = kpis.map(function(k){
+    return '<div class="ep-kpi-card'+(k.main?' ep-kpi-main':'')+'">'+
+           '<div class="ep-kpi-label">'+k.label+'</div>'+
+           '<div class="ep-kpi-value"'+(k.color?' style="color:'+k.color+'"':'')+'>'+k.value+'</div>'+
+           '</div>';
+  }).join('');
+}
+
+// ── Gráficos ─────────��────────────────────────────────────────────────────────
+function epRenderCharts(d){
+  var DIM  = 'rgba(122,130,160,0.8)';
+  var GRID = 'rgba(255,255,255,0.04)';
+  var monoFont = { family:'DM Mono,monospace', size:10 };
+
+  // ── Chart 1 — Meta vs Realizado (barras agrupadas) ────────────────────────
+  epCharts.c1 = new Chart(document.getElementById('ep-chart1'), {
+    type:'bar',
+    data:{
+      labels:['Instalações BL','Móvel Aquisição'],
+      datasets:[
+        {label:'Meta',     data:[d.metaBL, d.metaMovel], backgroundColor:'rgba(79,158,255,0.3)', borderColor:'rgba(79,158,255,0.8)', borderWidth:1, borderRadius:4},
+        {label:'Realizado',data:[d.instTotal, d.movelAcq], backgroundColor:'rgba(34,217,138,0.65)', borderColor:'#22d98a', borderWidth:1, borderRadius:4}
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{labels:{color:DIM, font:monoFont}},
+        tooltip:{callbacks:{label:function(c){ return ' '+c.dataset.label+': '+c.parsed.y; }}}
+      },
+      scales:{
+        x:{ticks:{color:DIM,font:monoFont}, grid:{color:GRID}},
+        y:{ticks:{color:DIM,font:monoFont}, grid:{color:GRID}, beginAtZero:true}
+      }
+    }
+  });
+
+  // ── Chart 2 — Composição Financeira (horizontal) ─────────────────────────
+  var compItems = [
+    {l:'Instalações BL',   v:d.instBL},
+    {l:'Adimplência',      v:d.adimplencia},
+    {l:'Móvel',            v:d.movel},
+    {l:'Bônus Quinzenal',  v:d.bonusQuin},
+    {l:'Bônus Extra',      v:d.bonusExtra},
+    {l:'Desc. Inadimp.',   v:d.descInadimp},
+    {l:'Suspensos 120d',   v:d.susp120},
+    {l:'Estorno Móvel',    v:d.estornoMovel},
+    {l:'Desc. Churn',      v:d.descChurn},
+    {l:'Multa Cancelam.',  v:d.multaCanc},
+    {l:'Desc. HUB',        v:d.descHUB}
+  ].filter(function(x){ return x.v !== 0; });
+
+  epCharts.c2 = new Chart(document.getElementById('ep-chart2'), {
+    type:'bar',
+    data:{
+      labels: compItems.map(function(x){return x.l;}),
+      datasets:[{
+        label:'Valor',
+        data:  compItems.map(function(x){return Math.abs(x.v);}),
+        backgroundColor: compItems.map(function(x){return x.v>=0?'rgba(34,217,138,0.6)':'rgba(255,77,109,0.6)';}),
+        borderColor:     compItems.map(function(x){return x.v>=0?'#22d98a':'#ff4d6d';}),
+        borderWidth:1, borderRadius:3
+      }]
+    },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:function(c){
+          var orig = compItems[c.dataIndex].v;
+          return ' '+epBRL(orig);
+        }}}
+      },
+      scales:{
+        x:{ticks:{color:DIM,font:{family:'DM Mono,monospace',size:9}}, grid:{color:GRID}},
+        y:{ticks:{color:DIM,font:{family:'DM Mono,monospace',size:9}}, grid:{color:GRID}}
+      }
+    }
+  });
+
+  // ── Chart 3 — Donut B2C vs B2B ────────────────────────────────────────────
+  var totalInst = (d.b2c + d.b2b) || 1;
+  epCharts.c3 = new Chart(document.getElementById('ep-chart3'), {
+    type:'doughnut',
+    data:{
+      labels:['B2C','B2B'],
+      datasets:[{
+        data:[d.b2c, d.b2b],
+        backgroundColor:['rgba(79,158,255,0.7)','rgba(167,139,250,0.7)'],
+        borderColor:['#4f9eff','#a78bfa'], borderWidth:2
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom', labels:{color:DIM, font:{family:'DM Mono,monospace',size:9}, boxWidth:10, padding:8}},
+        tooltip:{callbacks:{label:function(c){ return ' '+c.label+': '+c.parsed+' inst.'; }}}
+      },
+      cutout:'65%'
+    }
+  });
+
+  // Barras de realizado por segmento
+  var totalReal = Math.abs(d.b2cReal) + Math.abs(d.b2bReal) || 1;
+  var segData = [{label:'B2C', val:d.b2cReal, color:'#4f9eff'},{label:'B2B', val:d.b2bReal, color:'#a78bfa'}];
+  document.getElementById('ep-seg-bars').innerHTML = segData.map(function(s){
+    var pct = Math.abs(s.val)/totalReal*100;
+    return '<div class="ep-seg-bar-item">'+
+           '<div class="ep-seg-bar-top">'+
+             '<span>'+s.label+' — '+epBRL(s.val)+'</span>'+
+             '<span class="ep-seg-bar-pct">'+pct.toFixed(1).replace('.',',')+' %</span>'+
+           '</div>'+
+           '<div class="ep-seg-track"><div class="ep-seg-fill" style="width:'+pct+'%;background:'+s.color+'"></div></div>'+
+           '</div>';
+  }).join('');
+
+  // ── Chart 4 — Deduções (horizontal, ordenado por valor absoluto) ──────────
+  var deducoes = [
+    {l:'Desc. Inadimp.',  v:d.descInadimp},
+    {l:'Suspensos 120d',  v:d.susp120},
+    {l:'Estorno Móvel',   v:d.estornoMovel},
+    {l:'Desc. Churn',     v:d.descChurn},
+    {l:'Multa Cancelam.', v:d.multaCanc},
+    {l:'Desc. HUB',       v:d.descHUB}
+  ].filter(function(x){ return x.v !== 0; })
+   .sort(function(a,b){ return Math.abs(a.v) - Math.abs(b.v); }); // ascending = maior no topo em chart horizontal
+
+  var totalDed = deducoes.reduce(function(s,x){ return s + Math.abs(x.v); }, 0);
+  document.getElementById('ep-ded-total').textContent = totalDed > 0 ? ('— ' + epBRL(-totalDed)) : '';
+
+  epCharts.c4 = new Chart(document.getElementById('ep-chart4'), {
+    type:'bar',
+    data:{
+      labels: deducoes.map(function(x){return x.l;}),
+      datasets:[{
+        label:'Dedução',
+        data:  deducoes.map(function(x){return Math.abs(x.v);}),
+        backgroundColor:'rgba(255,77,109,0.55)',
+        borderColor:'#ff4d6d', borderWidth:1, borderRadius:3
+      }]
+    },
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:function(c){ return ' '+epBRL(-deducoes[c.dataIndex].v); }}}
+      },
+      scales:{
+        x:{ticks:{color:DIM,font:{family:'DM Mono,monospace',size:9}}, grid:{color:GRID}},
+        y:{ticks:{color:DIM,font:{family:'DM Mono,monospace',size:9}}, grid:{color:GRID}}
+      }
+    }
+  });
+}
+
+// ── Tabela financeira ─────────────────────────────────────────────────────────
+function epRenderTabela(d){
+  var positivos = [
+    {l:'Instalações BL',  v:d.instBL,       k:'instBL'},
+    {l:'Adimplência',     v:d.adimplencia,  k:'adimplencia'},
+    {l:'Móvel',           v:d.movel,        k:'movel'},
+    {l:'Bônus Quinzenal', v:d.bonusQuin,    k:null},
+    {l:'Bônus Extra',     v:d.bonusExtra,   k:null}
+  ].filter(function(x){ return x.v !== 0; });
+
+  var negativos = [
+    {l:'Desc. Inadimplentes',  v:d.descInadimp,   k:'descInadimp'},
+    {l:'Suspensos 120 dias',   v:d.susp120,        k:'susp120'},
+    {l:'Estorno Móvel',        v:d.estornoMovel,   k:null},
+    {l:'Desconto Churn',       v:d.descChurn,      k:'descChurn'},
+    {l:'Multa Cancelamento',   v:d.multaCanc,      k:'multaCanc'},
+    {l:'Desconto HUB',         v:d.descHUB,        k:null}
+  ].filter(function(x){ return x.v !== 0; });
+
+  function renderRow(r, cls){
+    var hasDet = r.k && d._sheets && d._sheets[r.k];
+    var rowCls = hasDet ? ' class="ep-row-clickable"' : '';
+    var click  = hasDet ? ' onclick="epAbrirDetalhe(\'' + r.k + '\')"' : '';
+    var hint   = hasDet ? '<span class="ep-row-hint">🔍 ver detalhe</span>' : '';
+    return '<tr' + rowCls + click + '><td>' + r.l + hint + '</td><td class="' + cls + '">' + epBRL(r.v) + '</td></tr>';
+  }
+
+  var html = '<thead><tr><th>Componente</th><th>Valor</th></tr></thead><tbody>';
+
+  if(positivos.length){
+    html += '<tr class="ep-section-row"><td colspan="2">Receitas</td></tr>';
+    positivos.forEach(function(r){ html += renderRow(r, 'ep-pos'); });
+  }
+  if(negativos.length){
+    html += '<tr class="ep-section-row"><td colspan="2">Deduções</td></tr>';
+    negativos.forEach(function(r){ html += renderRow(r, 'ep-neg'); });
+  }
+  html += '<tr class="ep-row-total"><td><strong>Total Realizado</strong></td><td>' + epBRL(d.realizado) + '</td></tr>';
+  html += '</tbody>';
+  document.getElementById('ep-fin-table').innerHTML = html;
+}
+
+// ── Modal de Detalhe de Linha ─────────────────────────────────────────────────
+function epAbrirDetalhe(fieldKey){
+  var def = EP_DETAIL_MAP[fieldKey];
+  if(!def) return;
+  var sd  = epDados && epDados._sheets && epDados._sheets[fieldKey];
+
+  document.getElementById('ep-modal-subt').textContent = def.sheet;
+  document.getElementById('ep-modal-ttl').textContent  = def.label + ' — ' + (epDados ? epMesLabel(epDados.mes) : '');
+
+  if(!sd){
+    document.getElementById('ep-modal-info').textContent = '';
+    document.getElementById('ep-detail-table').innerHTML =
+      '<tr><td class="ep-modal-empty">Dados de detalhe não disponíveis para este fechamento.<br>'+
+      'Reenvie o arquivo XLSX para habilitar esta funcionalidade.</td></tr>';
+  } else {
+    document.getElementById('ep-modal-info').textContent =
+      sd.rows.length + ' registro' + (sd.rows.length !== 1 ? 's' : '') +
+      (sd.rows.length >= 500 ? ' (limite 500 exibidos)' : '');
+    epRenderDetalheTabela(sd);
+  }
+  document.getElementById('ep-modal-overlay').style.display = 'flex';
+}
+
+function epFecharDetalhe(){
+  document.getElementById('ep-modal-overlay').style.display = 'none';
+}
+
+// Formata valor de célula para exibição na tabela de detalhe
+function epFmtCell(v){
+  if(v == null || v === '') return '<span style="color:var(--border2,#353d58)">—</span>';
+  if(typeof v === 'number'){
+    if(v % 1 !== 0) return v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    return v.toLocaleString('pt-BR');
+  }
+  return String(v);
+}
+
+function epRenderDetalheTabela(sd){
+  var tbl = document.getElementById('ep-detail-table');
+  if(!sd || !sd.rows.length){
+    tbl.innerHTML = '<tr><td class="ep-modal-empty">Nenhum registro encontrado.</td></tr>';
+    return;
+  }
+  var html = '<thead><tr>';
+  sd.headers.forEach(function(h){ html += '<th>' + h + '</th>'; });
+  html += '</tr></thead><tbody>';
+  sd.rows.forEach(function(row){
+    html += '<tr>';
+    row.forEach(function(v, i){
+      var isContract = (i === sd.contractColIdx && sd.contractColIdx >= 0);
+      if(isContract && v != null && v !== ''){
+        var safeId = String(v).replace(/'/g, "\\'");
+        html += '<td><a class="ep-detail-link" onclick="epAbrirContrato(\'' + safeId + '\')" href="#">' + v + '</a></td>';
+      } else {
+        html += '<td>' + epFmtCell(v) + '</td>';
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
+// Abre Lista de Vendas e tenta abrir o painel lateral do contrato
+function epAbrirContrato(idContrato){
+  epFecharDetalhe();
+  if(typeof navegar === 'function'){
+    navegar('vendas');
+    setTimeout(function(){
+      // Tenta funções comuns do módulo de vendas (ajustar ao nome real se necessário)
+      if(typeof abrirVendaSidebar === 'function')       { abrirVendaSidebar(idContrato); return; }
+      if(typeof abrirContratoSidebar === 'function')    { abrirContratoSidebar(idContrato); return; }
+      if(typeof abrirDetalheVenda === 'function')       { abrirDetalheVenda(idContrato); return; }
+      // Fallback: preenche campo de busca
+      var s = document.querySelector('#vendasBusca,#vendas-busca,[id*="Busca"],[id*="busca"],[id*="search"]');
+      if(s){ s.value = String(idContrato); s.dispatchEvent(new Event('input', {bubbles:true})); }
+    }, 600);
+  }
+}
+
+// ── Modal 12 Meses ────────────────────────────────────────────────────────────
+function epAbrir12Meses(){
+  var meses = epGetMeses();
+  // Pegar os últimos 12 meses disponíveis
+  var ultimos = meses.slice(-12);
+  if(!ultimos.length){
+    epToast('⚠️ Nenhum dado disponível ainda.', 'warning');
+    return;
+  }
+  var body = document.getElementById('ep-12m-body');
+  body.innerHTML = '';
+  epRender12Meses(ultimos, body);
+  document.getElementById('ep-12m-overlay').style.display = 'flex';
+}
+
+function epFechar12Meses(){
+  document.getElementById('ep-12m-overlay').style.display = 'none';
+}
+
+function epRender12Meses(meses, container){
+  // Carregar dados de cada mês
+  var registros = meses.map(function(m){
+    var d = epGetData(m);
+    return d ? d : { mes:m, realizado:0, instBL:0, adimplencia:0, movel:0,
+                     bonusQuin:0, bonusExtra:0, descInadimp:0, susp120:0,
+                     estornoMovel:0, descChurn:0, multaCanc:0, descHUB:0,
+                     pctAtingMeta:0, atingMovel:0, instTotal:0 };
+  });
+
+  // ── KPIs agregados ────────────────────────────────────────────────────────
+  var n = registros.length;
+  var totalRealizado  = registros.reduce(function(s,d){ return s + (d.realizado||0); }, 0);
+  var avgRealizado    = totalRealizado / n;
+  var avgAtingBL      = registros.reduce(function(s,d){ return s + (d.pctAtingMeta||0); }, 0) / n;
+  var avgAtingMovel   = registros.reduce(function(s,d){ return s + (d.atingMovel||0); }, 0) / n;
+  var totalInstBL     = registros.reduce(function(s,d){ return s + (d.instBL||0); }, 0);
+  var melhorMes       = registros.reduce(function(a,b){ return (b.realizado||0) > (a.realizado||0) ? b : a; });
+
+  var kpiHtml =
+    '<div class="ep-12m-kpis">'+
+      ep12mKpi('Total ' + n + ' Meses',  epBRL(totalRealizado), 'var(--green,#22d98a)')+
+      ep12mKpi('Média Mensal',           epBRL(avgRealizado),    null)+
+      ep12mKpi('Média Ating. BL',        epPct(avgAtingBL),      epCor(avgAtingBL))+
+      ep12mKpi('Melhor Mês',             epMesLabel(melhorMes.mes) + '<br><small style="font-size:10px;font-weight:400">'+epBRL(melhorMes.realizado)+'</small>', 'var(--yellow,#f7a23b)')+
+    '</div>';
+
+  // ── Gráfico de barras (realizado por mês) ─────────────────────────────────
+  var chartId = 'ep-12m-chart-' + Date.now();
+  var chartHtml =
+    '<div class="ep-12m-section">'+
+      '<div class="ep-12m-section-lbl">Realizado por Mês</div>'+
+      '<div class="ep-12m-chart-wrap"><canvas id="' + chartId + '"></canvas></div>'+
+    '</div>';
+
+  // ── Tabela de composição financeira ──────────────────────────────────────
+  var cols = [
+    {k:'instBL',      l:'Inst. BL',    pos:true},
+    {k:'adimplencia', l:'Adimplência', pos:true},
+    {k:'movel',       l:'Móvel',       pos:true},
+    {k:'bonusQuin',   l:'Bônus Quin.', pos:true},
+    {k:'bonusExtra',  l:'Bônus Extra', pos:true},
+    {k:'descInadimp', l:'Inadimp.',    pos:false},
+    {k:'susp120',     l:'Susp.120d',   pos:false},
+    {k:'descChurn',   l:'Churn',       pos:false},
+    {k:'multaCanc',   l:'Canc.',       pos:false},
+    {k:'descHUB',     l:'HUB',         pos:false},
+    {k:'realizado',   l:'TOTAL',       pos:null}
+  ];
+
+  var tblHtml = '<div class="ep-12m-section"><div class="ep-12m-section-lbl">Composição Financeira por Mês</div>'+
+    '<div class="ep-12m-table-wrap"><table class="ep-12m-table"><thead><tr><th>Mês</th>';
+  cols.forEach(function(c){ tblHtml += '<th>' + c.l + '</th>'; });
+  tblHtml += '</tr></thead><tbody>';
+
+  registros.forEach(function(d){
+    var isCurrent = (d.mes === epMesAtual);
+    tblHtml += '<tr' + (isCurrent ? ' class="ep-12m-current"' : '') + '>';
+    tblHtml += '<td>' + epMesLabel(d.mes) + (isCurrent ? ' ◀' : '') + '</td>';
+    cols.forEach(function(c){
+      var v = d[c.k] || 0;
+      var color = c.pos === true  ? (v > 0 ? 'color:var(--green,#22d98a)' : '') :
+                  c.pos === false ? (v !== 0 ? 'color:#ff4d6d' : '') :
+                  (v >= 0 ? 'color:var(--green,#22d98a)' : 'color:#ff4d6d');
+      var bold  = c.k === 'realizado' ? 'font-weight:700;' : '';
+      tblHtml += '<td style="' + bold + color + '">' + (v !== 0 ? epBRL(v) : '<span style="color:var(--border2,#353d58)">—</span>') + '</td>';
+    });
+    tblHtml += '</tr>';
+  });
+
+  // Totais / médias
+  tblHtml += '<tr style="background:var(--surface2,#1c2030);font-weight:700">';
+  tblHtml += '<td style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted,#7a82a0)">TOTAL / MÉD</td>';
+  cols.forEach(function(c){
+    var total = registros.reduce(function(s,d){ return s+(d[c.k]||0); }, 0);
+    var color = c.pos === true  ? (total > 0 ? 'color:var(--green,#22d98a)' : '') :
+                c.pos === false ? (total !== 0 ? 'color:#ff4d6d' : '') :
+                (total >= 0 ? 'color:var(--green,#22d98a)' : 'color:#ff4d6d');
+    tblHtml += '<td style="' + color + '">' + epBRL(total) + '</td>';
+  });
+  tblHtml += '</tr>';
+  tblHtml += '</tbody></table></div></div>';
+
+  container.innerHTML = kpiHtml + chartHtml + tblHtml;
+
+  // Renderizar gráfico após DOM estar pronto
+  function renderChart12(){
+    if(typeof Chart === 'undefined'){
+      epLoadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', renderChart12);
+      return;
+    }
+    var canvas = document.getElementById(chartId);
+    if(!canvas) return;
+    var labels   = registros.map(function(d){ return epMesLabel(d.mes).replace('/','\n'); });
+    var recs     = registros.map(function(d){ return d.realizado||0; });
+    var instBLs  = registros.map(function(d){ return d.instBL||0; });
+    var adimps   = registros.map(function(d){ return d.adimplencia||0; });
+    var moveis   = registros.map(function(d){ return d.movel||0; });
+    var DIM='rgba(122,130,160,0.8)', GRID='rgba(255,255,255,0.04)';
+    var mf={family:'DM Mono,monospace',size:9};
+    new Chart(canvas, {
+      type:'bar',
+      data:{
+        labels:labels,
+        datasets:[
+          {label:'Instalações BL',  data:instBLs, backgroundColor:'rgba(79,158,255,0.55)',  borderColor:'#4f9eff',   borderWidth:1, borderRadius:3, stack:'comp'},
+          {label:'Adimplência',     data:adimps,  backgroundColor:'rgba(34,217,138,0.55)',  borderColor:'#22d98a',   borderWidth:1, borderRadius:3, stack:'comp'},
+          {label:'Móvel',           data:moveis,  backgroundColor:'rgba(167,139,250,0.55)', borderColor:'#a78bfa',   borderWidth:1, borderRadius:3, stack:'comp'},
+          {label:'Total Realizado', data:recs,    backgroundColor:'transparent',            borderColor:'var(--accent,#e63e6d)', borderWidth:2, borderRadius:4, type:'line', stack:undefined, pointRadius:4, pointHoverRadius:6}
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{labels:{color:DIM,font:mf,boxWidth:10,padding:8}},
+          tooltip:{callbacks:{label:function(c){ return ' '+c.dataset.label+': '+epBRL(c.parsed.y); }}}
+        },
+        scales:{
+          x:{stacked:true, ticks:{color:DIM,font:mf}, grid:{color:GRID}},
+          y:{stacked:false, ticks:{color:DIM,font:mf,callback:function(v){ return 'R$'+Number(v/1000).toFixed(0)+'k'; }}, grid:{color:GRID}}
+        }
+      }
+    });
+  }
+  setTimeout(renderChart12, 50);
+}
+
+function ep12mKpi(label, value, color){
+  return '<div class="ep-12m-kpi">'+
+    '<div class="ep-kpi-label">'+label+'</div>'+
+    '<div class="ep-kpi-value"'+(color?' style="color:'+color+'"':'')+'>'+value+'</div>'+
+    '</div>';
+}
+
+// ── Geração do Relatório Word ─────────────────────────────────────────────────
+function epGerarWord(){
+  var d = epDados;
+  if(!d){ epToast('⚠️ Nenhum dado carregado.','warning'); return; }
+
+  var mesLabel = epMesLabel(d.mes);
+  var recBruta = d.instBL + d.adimplencia + d.movel + d.bonusQuin + d.bonusExtra;
+  var totalDed = Math.abs(d.descInadimp) + Math.abs(d.susp120) + Math.abs(d.estornoMovel) +
+                 Math.abs(d.descChurn)   + Math.abs(d.multaCanc) + Math.abs(d.descHUB);
+
+  // Pontos de atenção automáticos
+  var alertas   = [];
+  var destaques = [];
+
+  if(d.pctAtingMeta < 0.65) alertas.push('Atingimento de meta BL abaixo de 65% ('+epPct(d.pctAtingMeta)+') — requer plano de ação imediato.');
+  if(d.atingMovel   < 0.65) alertas.push('Atingimento de meta Móvel abaixo de 65% ('+epPct(d.atingMovel)+') — produtividade Móvel a rever.');
+  if(recBruta > 0 && totalDed/recBruta > 0.25) alertas.push('Deduções representam '+epPct(totalDed/recBruta)+' da receita bruta — avaliar adimplência e retenção.');
+  if(!d.bonusQuin) alertas.push('Bônus Quinzenal não acionado no período — verificar produtividade quinzenal.');
+  if(!d.bonusExtra) alertas.push('Bônus Extra não acionado no período.');
+
+  if(d.pctAtingMeta >= 0.8) destaques.push('Meta BL atingida em '+epPct(d.pctAtingMeta)+' — desempenho acima do limiar de excelência (80%).');
+  if(d.atingMovel   >= 0.8) destaques.push('Meta Móvel atingida em '+epPct(d.atingMovel)+' — resultado expressivo em Móvel Aquisição.');
+  if(!d.descInadimp && d.adimplencia > 0) destaques.push('Adimplência plena no período — sem deduções por inadimplência.');
+  if(!d.descHUB) destaques.push('CRM acima do limite mínimo — sem desconto HUB aplicado.');
+
+  destaques = destaques.slice(0,3);
+  alertas   = alertas.slice(0,3);
+
+  // Texto narrativo do Resumo Executivo
+  var exec = [
+    'No fechamento de '+mesLabel+', o parceiro '+d.parceiro+' registrou resultado realizado de '+epBRL(d.realizado)+'. '+
+    'Os principais componentes positivos foram Instalações BL ('+epBRL(d.instBL)+'), Adimplência ('+epBRL(d.adimplencia)+') e Comissão Móvel ('+epBRL(d.movel)+').',
+
+    'Em relação às deduções, os maiores impactos negativos foram Desconto por Inadimplentes ('+epBRL(d.descInadimp)+'), '+
+    'Suspensos acima de 120 dias ('+epBRL(d.susp120)+') e Desconto de Churn ('+epBRL(d.descChurn)+'). '+
+    'O total de deduções no período somou '+epBRL(-totalDed)+'.',
+
+    'Quanto ao atingimento de metas, Instalações BL alcançou '+epPct(d.pctAtingMeta)+
+    ' ('+d.instTotal+' de '+d.metaBL+' previstas), enquanto Móvel Aquisição atingiu '+epPct(d.atingMovel)+
+    ' ('+d.movelAcq+' de '+d.metaMovel+' previstas).',
+
+    'O resultado por segmento registrou '+d.b2c+' instalações B2C e '+d.b2b+' B2B, com realizados de '+
+    epBRL(d.b2cReal)+' e '+epBRL(d.b2bReal)+' respectivamente. '+
+    'Ticket médio realizado: '+epBRL(d.realizadoTM)+' | Realizado por unidade: '+epBRL(d.realizadoUN)+'.',
+
+    (d.bonusQuin > 0 || d.bonusExtra > 0)
+      ? 'Bônus de produtividade acionados: Bônus Quinzenal '+epBRL(d.bonusQuin)+
+        (d.bonusExtra > 0 ? ' e Bônus Extra '+epBRL(d.bonusExtra) : '')+'.'
+      : 'Nenhum bônus de produtividade foi acionado no período.'
+  ];
+
+  // Cores de atingimento para o Word
+  function wCor(v){ return v>=0.8?'#1a7a4a':v>=0.6?'#b7770d':'#c0392b'; }
+
+  var positivos = [
+    {l:'Instalações BL',  v:d.instBL},  {l:'Adimplência',v:d.adimplencia},
+    {l:'Móvel',           v:d.movel},   {l:'Bônus Quinzenal',v:d.bonusQuin},
+    {l:'Bônus Extra',     v:d.bonusExtra}
+  ].filter(function(x){return x.v!==0;});
+
+  var negativos = [
+    {l:'Desc. Inadimplentes', v:d.descInadimp},{l:'Suspensos 120 dias',v:d.susp120},
+    {l:'Estorno Móvel',       v:d.estornoMovel},{l:'Desconto Churn',   v:d.descChurn},
+    {l:'Multa Cancelamento',  v:d.multaCanc},  {l:'Desconto HUB',     v:d.descHUB}
+  ].filter(function(x){return x.v!==0;});
+
+  var html =
+    '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'+
+    '<head><meta charset="UTF-8"><style>'+
+    'body{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1a1a2e;margin:2cm 2.5cm;}'+
+    'h1{font-size:20pt;text-align:center;font-weight:bold;margin:0 0 4pt;}'+
+    'h2{font-size:14pt;text-align:center;font-weight:normal;color:#444;margin:0 0 16pt;}'+
+    'h3{font-size:12pt;font-weight:bold;color:#1a1a2e;margin:20pt 0 6pt;padding-bottom:4pt;border-bottom:1pt solid #ddd;}'+
+    'p{font-size:11pt;line-height:1.65;margin:0 0 9pt;text-align:justify;}'+
+    'table{width:100%;border-collapse:collapse;margin:0 0 14pt;font-size:10pt;}'+
+    'th{background:#f0f0f4;padding:7pt 10pt;text-align:left;font-weight:bold;border:1pt solid #ccc;font-size:9pt;text-transform:uppercase;letter-spacing:.5pt;}'+
+    'td{padding:6pt 10pt;border:1pt solid #ddd;}'+
+    'td.r{text-align:right;} .pos{color:#1a7a4a;} .neg{color:#c0392b;} .tot{font-weight:bold;background:#f4f4f4;}'+
+    '.kpi-wrap{display:table;width:100%;margin:0 0 20pt;}'+
+    '.kpi{display:table-cell;padding:10pt;background:#f8f8fb;border:1pt solid #ddd;text-align:center;}'+
+    '.kl{font-size:8pt;color:#777;text-transform:uppercase;display:block;margin-bottom:4pt;}'+
+    '.kv{font-size:14pt;font-weight:bold;}'+
+    '.sep{border-top:2pt solid #1a1a2e;margin:10pt 0;}'+
+    'ul{margin:4pt 0 10pt;padding-left:18pt;} li{margin-bottom:4pt;}'+
+    '.rodape{font-size:8pt;color:#999;text-align:center;margin-top:24pt;}'+
+    '</style></head><body>'+
+
+    // Capa
+    '<p style="text-align:center;font-size:8pt;color:#999;margin-bottom:24pt;">DHARMAPRO · RELATÓRIO CONFIDENCIAL</p>'+
+    '<h1>RELATÓRIO DE FECHAMENTO MENSAL</h1>'+
+    '<h2>'+d.parceiro+' · '+mesLabel+'</h2>'+
+    '<div class="sep"></div>'+
+
+    // KPI Cards
+    '<div class="kpi-wrap">'+
+      '<div class="kpi"><span class="kl">Realizado Total</span><span class="kv">'+epBRL(d.realizado)+'</span></div>'+
+      '<div class="kpi"><span class="kl">Ating. Meta BL</span><span class="kv" style="color:'+wCor(d.pctAtingMeta)+'">'+epPct(d.pctAtingMeta)+'</span></div>'+
+      '<div class="kpi"><span class="kl">Ating. Meta Móvel</span><span class="kv" style="color:'+wCor(d.atingMovel)+'">'+epPct(d.atingMovel)+'</span></div>'+
+      '<div class="kpi"><span class="kl">TM Realizado</span><span class="kv">'+epBRL(d.realizadoTM)+'</span></div>'+
+      '<div class="kpi"><span class="kl">Realizado / UN</span><span class="kv">'+epBRL(d.realizadoUN)+'</span></div>'+
+    '</div>'+
+
+    // 1. Resumo Executivo
+    '<h3>1. Resumo Executivo</h3>'+
+    exec.map(function(p){ return '<p>'+p+'</p>'; }).join('')+
+
+    // 2. Indicadores Comerciais
+    '<h3>2. Indicadores Comerciais</h3>'+
+    '<table><thead><tr><th>Indicador</th><th>Valor</th></tr></thead><tbody>'+
+      '<tr><td>Instalações Total</td><td class="r">'+d.instTotal+'</td></tr>'+
+      '<tr><td>B2C</td><td class="r">'+d.b2c+'</td></tr>'+
+      '<tr><td>B2B</td><td class="r">'+d.b2b+'</td></tr>'+
+      '<tr><td>% Atingimento Meta BL</td><td class="r" style="color:'+wCor(d.pctAtingMeta)+'">'+epPct(d.pctAtingMeta)+'</td></tr>'+
+      '<tr><td>Venda Bruta</td><td class="r">'+d.vb+'</td></tr>'+
+      '<tr><td>Churn</td><td class="r">'+d.churn+'</td></tr>'+
+      '<tr><td>CN Vendas</td><td class="r">'+d.cnVendas+'</td></tr>'+
+      '<tr><td>% CN Venda</td><td class="r">'+epPct(d.pctCN)+'</td></tr>'+
+      '<tr><td>Móvel Aquisição</td><td class="r">'+d.movelAcq+'</td></tr>'+
+      '<tr><td>% Atingimento Meta Móvel</td><td class="r" style="color:'+wCor(d.atingMovel)+'">'+epPct(d.atingMovel)+'</td></tr>'+
+      '<tr><td>Ticket Médio Realizado</td><td class="r">'+epBRL(d.realizadoTM)+'</td></tr>'+
+    '</tbody></table>'+
+
+    // 3. Composição Financeira
+    '<h3>3. Composição Financeira</h3>'+
+    '<table><thead><tr><th>Componente</th><th>Valor</th></tr></thead><tbody>'+
+      (positivos.length?'<tr><td colspan="2" style="background:#f0f8f0;font-size:8pt;color:#555;font-weight:bold;text-transform:uppercase;">Receitas</td></tr>':'')+
+      positivos.map(function(r){ return '<tr><td>'+r.l+'</td><td class="r pos">'+epBRL(r.v)+'</td></tr>'; }).join('')+
+      (negativos.length?'<tr><td colspan="2" style="background:#fff2f2;font-size:8pt;color:#555;font-weight:bold;text-transform:uppercase;">Deduções</td></tr>':'')+
+      negativos.map(function(r){ return '<tr><td>'+r.l+'</td><td class="r neg">'+epBRL(r.v)+'</td></tr>'; }).join('')+
+      '<tr class="tot"><td><strong>Total Realizado</strong></td><td class="r">'+epBRL(d.realizado)+'</td></tr>'+
+    '</tbody></table>'+
+
+    // 4. Resultado Final
+    '<h3>4. Resultado Final</h3>'+
+    '<table><thead><tr><th>Indicador</th><th>Valor</th></tr></thead><tbody>'+
+      '<tr><td>Realizado Total</td><td class="r pos">'+epBRL(d.realizado)+'</td></tr>'+
+      '<tr><td>B2C (realizado)</td><td class="r">'+epBRL(d.b2cReal)+'</td></tr>'+
+      '<tr><td>B2B (realizado)</td><td class="r">'+epBRL(d.b2bReal)+'</td></tr>'+
+      '<tr><td>Realizado / Unidade</td><td class="r">'+epBRL(d.realizadoUN)+'</td></tr>'+
+    '</tbody></table>'+
+
+    // 5. Pontos de atenção
+    '<h3>5. Pontos de Atenção e Recomendações</h3>'+
+    (destaques.length
+      ? '<p><strong>✅ Destaques Positivos:</strong></p><ul>'+destaques.map(function(x){ return '<li>'+x+'</li>'; }).join('')+'</ul>'
+      : '<p>Nenhum destaque positivo gerado automaticamente para este período.</p>')+
+    (alertas.length
+      ? '<p><strong>⚠️ Alertas e Pontos de Melhoria:</strong></p><ul>'+alertas.map(function(x){ return '<li>'+x+'</li>'; }).join('')+'</ul>'
+      : '<p>Nenhum alerta gerado automaticamente para este período.</p>')+
+
+    '<p class="rodape">Relatório gerado automaticamente pelo DharmaPro CRM · '+new Date().toLocaleDateString('pt-BR')+'</p>'+
+    '</body></html>';
+
+  var blob = new Blob([html], {type:'application/msword'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'Extrato_'+(d.parceiro||'relatorio').replace(/\s+/g,'_')+'_'+d.mes+'.doc';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  epToast('📄 Relatório gerado com sucesso!','success');
+}
+
+// ── Utilitários ───────────────────────────────────────────────────────────────
+function epLoadScript(src, cb){
+  if(document.querySelector('script[src="'+src+'"]')){ if(cb) cb(); return; }
+  var s = document.createElement('script');
+  s.src = src;
+  s.onload  = cb || function(){};
+  s.onerror = function(){ console.warn('[EP] Falha ao carregar: '+src); if(cb) cb(); };
+  document.head.appendChild(s);
+}
+
+function epToast(msg, tipo){
+  if(typeof mostrarToast === 'function'){ mostrarToast(msg, tipo || 'info'); return; }
+  // Fallback simples caso mostrarToast não esteja disponível
+  var el = document.createElement('div');
+  el.textContent = msg;
+  el.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1c2030;color:#e4e8f5;'+
+    'border:1px solid #353d58;border-radius:10px;padding:12px 18px;font-family:Sora,sans-serif;'+
+    'font-size:13px;z-index:9999;box-shadow:0 8px 32px rgba(0,0,0,.4);animation:epFadeIn .2s ease;';
+  document.body.appendChild(el);
+  setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 3500);
+}
+
+// ── Inicialização ───────��─────────────────────────────────────────────────────
+function epInit(){
+  // Fechar modais com Escape
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){
+      epFecharDetalhe();
+      epFechar12Meses();
+    }
+  });
+
+  // Pré-carregar SheetJS em segundo plano
+  epLoadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', null);
+
+  var meses = epGetMeses();
+  if(meses.length === 0){ epShowEmpty(); return; }
+
+  // Carregar mês mais recente
+  epMesAtual = meses[meses.length - 1];
+  epDados    = epGetData(epMesAtual);
+  epUpdateMesUI();
+
+  // Pré-carregar Chart.js e renderizar
+  epLoadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', function(){
+    epRenderDashboard(epDados);
+    epShowDashboard();
+  });
+}
+
+epInit();
+</script>

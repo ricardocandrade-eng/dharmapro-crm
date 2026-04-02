@@ -1,0 +1,36 @@
+name: Deploy para GAS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar clasp
+        run: npm install -g @google/clasp
+
+      - name: Configurar credenciais do clasp
+        run: echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
+
+      - name: Atualizar data de deploy no Config.js
+        run: |
+          D=$(TZ="America/Sao_Paulo" date +"%d/%m/%Y %H:%M")
+          sed -i "s/var DEPLOY_DATE = '[^']*'/var DEPLOY_DATE = '$D'/" Config.js
+          echo "DEPLOY_DATE atualizado para: $D"
+
+      - name: Enviar código para o GAS
+        run: clasp push
+
+      - name: Publicar nova versão
+        run: clasp deploy --deploymentId AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw -d "Deploy ${{ github.sha }}"

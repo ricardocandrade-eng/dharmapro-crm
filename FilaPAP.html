@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<!-- ══════════════════════════════════════════════════════════════════════════
+     FilaPAP.html — DharmaPro CRM · Fila de Aprovação PAP
+     Criado em: 28/03/2026
+     Perfis: admin · supervisor · backoffice
+     Seções: Consultas (Cards 1+2) · Pré-Vendas (Card 3)
+     Alertas: badge + banner persistente · polling a cada 60s
+     Backend: Parceiros.js (google.script.run)
+     ══════════════════════════════════════════════════════════════════════════ -->
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#0d0f14">
+  <title>Fila PAP — DharmaPro</title>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #141720;
+      --surface2: #1c2030;
+      --border:   #252a3a;
+      --border2:  #353d58;
+      --accent:   #e63e6d;
+      --accent-h: #c73260;
+      --green:    #22d98a;
+      --blue:     #4f9eff;
+      --yellow:   #f7a23b;
+      --purple:   #a78bfa;
+      --text:     #e4e8f5;
+      --muted:    #7a82a0;
+      --radius:   12px;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box; margin: 0; padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    html, body {
+      height: 100%; background: var(--bg); color: var(--text);
+      font-family: 'Sora', sans-serif; overflow-x: hidden;
+    }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: 20px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 10px; padding: 11px 18px;
+      font-size: 13px; z-index: 9999; opacity: 0;
+      transition: opacity .3s, transform .3s;
+      pointer-events: none; white-space: nowrap; max-width: 90vw;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.ok   { border-color: var(--green);  color: var(--green);  }
+    #toast.err  { border-color: var(--accent); color: var(--accent); }
+
+    /* ── LOADING ── */
+    #loading {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.7); z-index: 9000;
+      align-items: center; justify-content: center; flex-direction: column; gap: 14px;
+    }
+    #loading.show { display: flex; }
+    .spinner {
+      width: 38px; height: 38px;
+      border: 3px solid var(--border2); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); }
+
+    /* ══════════════════════════════════════════
+       BANNER DE ALERTA PERSISTENTE
+       Visível enquanto total pendentes > 0
+    ══════════════════════════════════════════ */
+    #alert-banner {
+      display: none;
+      background: linear-gradient(90deg, rgba(230,62,109,.15) 0%, rgba(230,62,109,.08) 100%);
+      border-bottom: 2px solid var(--accent);
+      padding: 12px 20px;
+      position: sticky; top: 0; z-index: 100;
+      animation: pulse-banner 3s ease-in-out infinite;
+    }
+    #alert-banner.show { display: flex; align-items: center; gap: 12px; }
+    @keyframes pulse-banner {
+      0%, 100% { border-color: var(--accent); }
+      50%       { border-color: rgba(230,62,109,.4); }
+    }
+    .banner-icon { font-size: 20px; flex-shrink: 0; }
+    .banner-text { flex: 1; }
+    .banner-title {
+      font-size: 13px; font-weight: 700; color: var(--accent);
+    }
+    .banner-sub {
+      font-size: 10px; color: var(--muted);
+      font-family: 'DM Mono', monospace; margin-top: 2px;
+    }
+    .banner-counts {
+      display: flex; gap: 8px; flex-shrink: 0;
+    }
+    .banner-pill {
+      border-radius: 20px; padding: 4px 10px;
+      font-size: 11px; font-family: 'DM Mono', monospace; font-weight: 700;
+      white-space: nowrap;
+    }
+    .banner-pill.consultas { background: rgba(79,158,255,.15); color: var(--blue); border: 1px solid rgba(79,158,255,.3); }
+    .banner-pill.prevendas { background: rgba(230,62,109,.15); color: var(--accent); border: 1px solid rgba(230,62,109,.3); }
+
+    /* ══════════════════════════════════════════
+       HEADER
+    ══════════════════════════════════════════ */
+    .page-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      background: var(--bg); position: sticky; top: 0; z-index: 90;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-badge {
+      width: 34px; height: 34px; border-radius: 10px; background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'DM Mono', monospace; font-weight: 700; font-size: 12px; color: #fff;
+    }
+    .header-title { font-size: 15px; font-weight: 700; }
+    .header-sub { font-size: 9px; color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 1.5px; }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .btn-refresh {
+      background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px;
+      padding: 7px 12px; color: var(--muted); font-size: 12px; cursor: pointer;
+      font-family: 'DM Mono', monospace; transition: color .15s;
+    }
+    .btn-refresh:hover { color: var(--text); }
+    .total-badge {
+      background: var(--accent); border-radius: 20px; padding: 4px 10px;
+      font-size: 12px; font-weight: 800; color: #fff; min-width: 28px;
+      text-align: center; display: none;
+    }
+    .total-badge.show { display: inline-block; }
+
+    /* ════════════════════════════════════════���═
+       TAB BAR
+    ══════════════════════════════════════════ */
+    .tab-bar {
+      display: flex; border-bottom: 1px solid var(--border);
+      background: var(--bg); position: sticky; top: 57px; z-index: 89;
+    }
+    .tab-btn {
+      flex: 1; padding: 13px 8px; text-align: center;
+      font-size: 12px; font-weight: 700; cursor: pointer;
+      color: var(--muted); border-bottom: 2px solid transparent;
+      transition: color .2s, border-color .2s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .tab-btn.active { color: var(--text); border-color: var(--accent); }
+    .tab-count {
+      background: var(--accent); border-radius: 12px; padding: 1px 7px;
+      font-size: 10px; color: #fff; font-weight: 800; display: none;
+    }
+    .tab-count.show { display: inline-block; }
+
+    /* ══════════════════════════════════════════
+       FILTROS
+    ══════════════════════════════════════════ */
+    .filter-bar {
+      display: flex; gap: 8px; padding: 12px 20px;
+      overflow-x: auto; background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .filter-bar::-webkit-scrollbar { display: none; }
+    .f-chip {
+      padding: 6px 14px; border-radius: 20px; white-space: nowrap; cursor: pointer;
+      font-size: 11px; font-family: 'DM Mono', monospace;
+      border: 1px solid var(--border2); background: var(--surface2); color: var(--muted);
+      transition: all .15s; flex-shrink: 0;
+    }
+    .f-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ══════════════════════════════════════════
+       CONTEÚDO DAS ABAS
+    ══════════════════════════════════════════ */
+    .tab-pane { display: none; padding: 16px 20px; }
+    .tab-pane.active { display: block; }
+
+    .empty-state {
+      text-align: center; padding: 48px 20px;
+      font-family: 'DM Mono', monospace; color: var(--muted);
+      font-size: 12px; line-height: 1.8;
+    }
+    .empty-icon { font-size: 36px; display: block; margin-bottom: 12px; }
+
+    /* ══════════════════════════════════════════
+       CARDS DE CONSULTA
+    ══════════════════════════════════════════ */
+    .item-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px;
+      transition: border-color .15s;
+    }
+    .item-card.pendente  { border-left: 3px solid var(--yellow); }
+    .item-card.aprovado  { border-left: 3px solid var(--green);  }
+    .item-card.rejeitado { border-left: 3px solid var(--muted);  }
+    .item-card.credito   { border-left-color: var(--purple); }
+
+    .item-top {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .item-id {
+      font-family: 'DM Mono', monospace; font-size: 10px;
+      color: var(--accent); letter-spacing: 1px;
+    }
+    .item-ts { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); margin-top: 2px; }
+
+    .status-chip {
+      border-radius: 20px; padding: 3px 10px;
+      font-size: 10px; font-family: 'DM Mono', monospace; font-weight: 700;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .status-pendente  { background: rgba(247,162,59,.12);  color: var(--yellow); border: 1px solid rgba(247,162,59,.3); }
+    .status-aprovado  { background: rgba(34,217,138,.1);   color: var(--green);  border: 1px solid rgba(34,217,138,.3); }
+    .status-rejeitado { background: rgba(122,130,160,.1);  color: var(--muted);  border: 1px solid var(--border2); }
+    .status-viab      { background: rgba(34,217,138,.1);   color: var(--green);  border: 1px solid rgba(34,217,138,.3); }
+    .status-cred      { background: rgba(167,139,250,.1);  color: var(--purple); border: 1px solid rgba(167,139,250,.3); }
+
+    .item-body { display: flex; flex-direction: column; gap: 5px; }
+    .item-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+    .item-label { font-size: 9px; color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .5px; width: 68px; flex-shrink: 0; }
+    .item-val { color: var(--text); font-size: 13px; font-weight: 600; }
+    .item-val.mono { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 400; color: var(--muted); }
+
+    .item-divider { height: 1px; background: var(--border); margin: 10px 0; }
+
+    /* Botões de ação */
+    .item-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .btn-aprovar {
+      flex: 1; background: rgba(34,217,138,.12); border: 1px solid rgba(34,217,138,.4);
+      border-radius: 8px; padding: 10px; color: var(--green);
+      font-family: 'Sora', sans-serif; font-size: 13px; font-weight: 700;
+      cursor: pointer; text-align: center; transition: background .15s, transform .1s;
+    }
+    .btn-aprovar:active { transform: scale(0.97); background: rgba(34,217,138,.2); }
+    .btn-rejeitar {
+      flex: 1; background: rgba(122,130,160,.08); border: 1px solid var(--border2);
+      border-radius: 8px; padding: 10px; color: var(--muted);
+      font-family: 'Sora', sans-serif; font-size: 13px; font-weight: 700;
+      cursor: pointer; text-align: center; transition: background .15s, transform .1s;
+    }
+    .btn-rejeitar:active { transform: scale(0.97); background: rgba(230,62,109,.08); color: var(--accent); border-color: var(--accent); }
+
+    /* ══════════════════════════════════════════
+       MODAL DE CONFIRMAÇÃO
+    ══════════════════════════════════════════ */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.7); z-index: 800;
+      align-items: flex-end; justify-content: center;
+      backdrop-filter: blur(3px);
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--surface); border-radius: 20px 20px 0 0;
+      padding: 24px 22px 32px; width: 100%; max-width: 480px;
+    }
+    .modal-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border2); margin: 0 auto 20px; }
+    .modal-title { font-size: 17px; font-weight: 800; margin-bottom: 8px; }
+    .modal-sub { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 20px; line-height: 1.6; }
+    .modal-id { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--accent); }
+    .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-btn-confirm {
+      flex: 1; padding: 14px; border-radius: 12px; border: none; cursor: pointer;
+      font-family: 'Sora', sans-serif; font-size: 14px; font-weight: 700;
+      transition: background .15s, transform .1s;
+    }
+    .modal-btn-confirm:active { transform: scale(0.97); }
+    .modal-btn-confirm.aprovar { background: var(--green); color: #0d0f14; }
+    .modal-btn-confirm.rejeitar { background: var(--accent); color: #fff; }
+    .modal-btn-cancel {
+      flex: 1; padding: 14px; border-radius: 12px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--muted); font-family: 'Sora', sans-serif; font-size: 14px;
+      font-weight: 600; cursor: pointer;
+    }
+
+    /* ══════════════════════════════════════════
+       CARDS COLAPSÍVEIS — resumo + detalhes
+    ══════════════════════════════════════════ */
+    .item-summary {
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; gap: 10px;
+    }
+    .summary-left { flex: 1; min-width: 0; }
+    .summary-nome {
+      font-size: 14px; font-weight: 700;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .summary-sub {
+      font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace;
+      margin-top: 3px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .summary-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .expand-icon {
+      font-size: 13px; color: var(--border2); transition: transform .2s;
+      flex-shrink: 0;
+    }
+    .item-card.expanded .expand-icon { transform: rotate(180deg); color: var(--muted); }
+    .item-details { display: none; }
+    .item-card.expanded .item-details { display: block; }
+
+    /* ══════════════════════════════════════════
+       INDICADOR DE ATUALIZAÇÃO
+    ══════════════════════════════════════════ */
+    #last-update {
+      text-align: center; font-size: 10px; color: var(--border2);
+      font-family: 'DM Mono', monospace; padding: 16px 0 24px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="spinner"></div>
+  <p id="loading-msg">Carregando...</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     BANNER DE ALERTA — persiste enquanto total > 0
+══════════════════════════════════════════════════════ -->
+<div id="alert-banner">
+  <div class="banner-icon">🔔</div>
+  <div class="banner-text">
+    <div class="banner-title">Itens aguardando revisão</div>
+    <div class="banner-sub" id="banner-sub">—</div>
+  </div>
+  <div class="banner-counts">
+    <div class="banner-pill consultas" id="banner-consultas" style="display:none"></div>
+    <div class="banner-pill prevendas" id="banner-prevendas" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════════ -->
+<div class="page-header">
+  <div class="header-left">
+    <div class="header-badge">📋</div>
+    <div>
+      <div class="header-title">Fila PAP</div>
+      <div class="header-sub">Consultas · Pré-Vendas</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="btn-refresh" onclick="recarregar()">↺ Atualizar</button>
+    <div class="total-badge" id="total-badge">0</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB BAR
+══════════════════════════════════════════════════════ -->
+<div class="tab-bar">
+  <div class="tab-btn active" id="tab-btn-consultas" onclick="mudarTab('consultas')">
+    🔍 Consultas
+    <span class="tab-count" id="tab-count-consultas"></span>
+  </div>
+  <div class="tab-btn" id="tab-btn-prevendas" onclick="mudarTab('prevendas')">
+    📦 Pré-Vendas
+    <span class="tab-count" id="tab-count-prevendas"></span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     ABA: CONSULTAS
+══════════════════════════════════════════════════════ -->
+<div class="tab-pane active" id="pane-consultas">
+  <div class="filter-bar">
+    <div class="f-chip active" onclick="setFiltro('consultas','Pendente',this)">Pendentes</div>
+    <div class="f-chip"       onclick="setFiltro('consultas','Todos',this)">Todos</div>
+  </div>
+  <div id="lista-consultas">
+    <div class="empty-state">
+      <span class="empty-icon">🔍</span>
+      Carregando consultas...
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     ABA: PRÉ-VENDAS
+══════════════════════════════════════════════════════ -->
+<div class="tab-pane" id="pane-prevendas">
+  <div class="filter-bar">
+    <div class="f-chip active" onclick="setFiltro('prevendas','Pendente',this)">Pendentes</div>
+    <div class="f-chip"       onclick="setFiltro('prevendas','Aprovado',this)">Aprovadas</div>
+    <div class="f-chip"       onclick="setFiltro('prevendas','Rejeitado',this)">Rejeitadas</div>
+    <div class="f-chip"       onclick="setFiltro('prevendas','Todos',this)">Todas</div>
+  </div>
+  <div id="lista-prevendas">
+    <div class="empty-state">
+      <span class="empty-icon">📦</span>
+      Carregando pré-vendas...
+    </div>
+  </div>
+</div>
+
+<div id="last-update">—</div>
+
+<!-- ══════════════════════════════════════════════════════
+     MODAL DE CONFIRMAÇÃO
+══════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-title">Confirmar ação</div>
+    <div class="modal-sub" id="modal-sub">—</div>
+    <div class="modal-id" id="modal-id"></div>
+    <div class="modal-btns">
+      <button class="modal-btn-cancel" onclick="fecharModal()">Cancelar</button>
+      <button class="modal-btn-confirm" id="modal-btn-confirm" onclick="confirmarAcao()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════ -->
+<script>
+/* ─────────────────────────────────────────────────────
+   ESTADO
+───────────────────────────────────────────────────── */
+const STATE = {
+  tabAtual:        'consultas',
+  filtroConsultas: 'Pendente',
+  filtroPreVendas: 'Pendente',
+  consultas:       [],
+  preVendas:       [],
+  pendentes:       { consultas: 0, preVendas: 0, total: 0 },
+};
+
+let _acaoPendente = null; // { tipo: 'aprovar'|'rejeitar', id: string }
+let _pollTimer    = null;
+
+/* ───────────────────────────────────────────────��─────
+   TOAST + LOADING
+───────────────────────────────────────────────────── */
+let _toastTimer;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className   = 'show ' + type;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = ''; }, 3200);
+}
+function setLoading(on, msg = 'Carregando...') {
+  document.getElementById('loading-msg').textContent = msg;
+  document.getElementById('loading').classList.toggle('show', on);
+}
+
+/* ─────────────────────────────────────────────────────
+   TABS
+───────────────────────────────────────────────────── */
+function mudarTab(tab) {
+  STATE.tabAtual = tab;
+  document.querySelectorAll('.tab-btn').forEach(b  => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-btn-'  + tab).classList.add('active');
+  document.getElementById('pane-'     + tab).classList.add('active');
+}
+
+/* ──────��──────────────────────────────────────────────
+   FILTROS
+───────────────────────────────────────────────────── */
+function setFiltro(tab, valor, el) {
+  const bar = el.closest('.filter-bar');
+  bar.querySelectorAll('.f-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  if (tab === 'consultas') {
+    STATE.filtroConsultas = valor;
+    renderConsultas();
+  } else {
+    STATE.filtroPreVendas = valor;
+    renderPreVendas();
+  }
+}
+
+/* ─────────────────────────────────────────────────────
+   ATUALIZAR ALERTAS (banner + badges)
+───────────────────────────────────────────────────── */
+function atualizarAlertas(p) {
+  STATE.pendentes = p;
+
+  // Badge total no header
+  const badgeEl = document.getElementById('total-badge');
+  badgeEl.textContent = p.total;
+  badgeEl.classList.toggle('show', p.total > 0);
+
+  // Banner persistente
+  const banner = document.getElementById('alert-banner');
+  if (p.total > 0) {
+    banner.classList.add('show');
+    document.getElementById('banner-sub').textContent =
+      'Atualizado ' + _horaAgora() + ' · polling a cada 60s';
+
+    const pillC = document.getElementById('banner-consultas');
+    const pillP = document.getElementById('banner-prevendas');
+
+    if (p.consultas > 0) {
+      pillC.textContent = p.consultas + ' consulta' + (p.consultas !== 1 ? 's' : '');
+      pillC.style.display = '';
+    } else { pillC.style.display = 'none'; }
+
+    if (p.preVendas > 0) {
+      pillP.textContent = p.preVendas + ' pré-venda' + (p.preVendas !== 1 ? 's' : '');
+      pillP.style.display = '';
+    } else { pillP.style.display = 'none'; }
+  } else {
+    banner.classList.remove('show');
+  }
+
+  // Badges nas abas
+  _setTabCount('consultas', p.consultas);
+  _setTabCount('prevendas', p.preVendas);
+}
+
+function _setTabCount(tab, n) {
+  const el = document.getElementById('tab-count-' + tab);
+  el.textContent = n;
+  el.classList.toggle('show', n > 0);
+}
+
+/* ─────────────────────────────────────────────────────
+   TOGGLE — expande/colapsa card
+────────────────────────────────────────────────────��� */
+function toggleCard(id, event) {
+  // Ignora clique em botões dentro do card
+  if (event && event.target.closest('button')) return;
+  document.getElementById('card-' + id)?.classList.toggle('expanded');
+}
+
+/* ─────────────────────────────────────────────────────
+   RENDER — CONSULTAS
+   Linha de resumo: parceiro · tipo · local
+   Detalhes (expandir): CPF, nome cliente
+───────────────────────────────────────────────────── */
+function renderConsultas() {
+  const filtro = STATE.filtroConsultas;
+  const items  = filtro === 'Todos'
+    ? STATE.consultas
+    : STATE.consultas.filter(i => i.status === filtro);
+  const el = document.getElementById('lista-consultas');
+
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state"><span class="empty-icon">✅</span>Nenhuma consulta ${filtro === 'Pendente' ? 'pendente' : 'encontrada'}.</div>`;
+    return;
+  }
+
+  el.innerHTML = items.map(item => {
+    const localStr = [item.bairro, item.cidade].filter(Boolean).join(' · ');
+    const subStr   = [item.parceiro, localStr].filter(Boolean).join(' · ');
+    return `
+    <div class="item-card ${item.status === 'Pendente' ? 'pendente' : ''} ${item.tipo === 'Crédito' ? 'credito' : ''}"
+         id="card-${item.id}" onclick="toggleCard('${_esc(item.id)}', event)">
+
+      <!-- Resumo (sempre visível) -->
+      <div class="item-summary">
+        <div class="summary-left">
+          <div class="summary-nome">${item.nomeCliente ? _esc(item.nomeCliente) : (item.cpfCliente ? _esc(item.cpfCliente) : '(sem nome)')}</div>
+          <div class="summary-sub">${_esc(subStr)}</div>
+        </div>
+        <div class="summary-right">
+          <span class="status-chip status-${item.tipo === 'Viabilidade' ? 'viab' : 'cred'}">${item.tipo}</span>
+          <span class="status-chip status-${item.status.toLowerCase()}">${item.status}</span>
+          <span class="expand-icon">▾</span>
+        </div>
+      </div>
+
+      <!-- Detalhes (expansível) -->
+      <div class="item-details">
+        <div class="item-divider"></div>
+        <div class="item-body" style="gap:5px">
+          <div class="item-row">
+            <span class="item-label">ID</span>
+            <span class="item-val mono">${_esc(item.id)}</span>
+          </div>
+          <div class="item-row">
+            <span class="item-label">Data</span>
+            <span class="item-val mono">${_fmtTs(item.ts)}</span>
+          </div>
+          <div class="item-row">
+            <span class="item-label">Parceiro</span>
+            <span class="item-val">${_esc(item.parceiro)}</span>
+          </div>
+          ${item.nomeCliente ? `<div class="item-row">
+            <span class="item-label">Cliente</span>
+            <span class="item-val">${_esc(item.nomeCliente)}</span>
+          </div>` : ''}
+          ${item.cpfCliente ? `<div class="item-row">
+            <span class="item-label">CPF</span>
+            <span class="item-val mono">${_esc(item.cpfCliente)}</span>
+          </div>` : ''}
+          ${localStr ? `<div class="item-row">
+            <span class="item-label">Local</span>
+            <span class="item-val mono">${_esc(localStr)}</span>
+          </div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ─────────────────────────────────────────────────────
+   RENDER — PRÉ-VENDAS
+   Linha de resumo: nome/CPF · plano
+   Detalhes (expandir): todos os campos + botões ação
+───────────────────────────────────────────────────── */
+function renderPreVendas() {
+  const filtro = STATE.filtroPreVendas;
+  const items  = filtro === 'Todos'
+    ? STATE.preVendas
+    : STATE.preVendas.filter(i => i.status === filtro);
+  const el = document.getElementById('lista-prevendas');
+
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state"><span class="empty-icon">📦</span>Nenhuma pré-venda ${filtro === 'Pendente' ? 'pendente' : 'encontrada'}.</div>`;
+    return;
+  }
+
+  el.innerHTML = items.map(item => {
+    const nomeLabel = item.nomeCliente || item.cpfCliente || '(sem identificação)';
+    const subLabel  = [item.cpfCliente, item.plano ? '📶 ' + item.plano : ''].filter(Boolean).join('  ·  ');
+    return `
+    <div class="item-card ${item.status.toLowerCase()}" id="card-${item.id}"
+         onclick="toggleCard('${_esc(item.id)}', event)">
+
+      <!-- Resumo (sempre visível) -->
+      <div class="item-summary">
+        <div class="summary-left">
+          <div class="summary-nome">${_esc(nomeLabel)}</div>
+          <div class="summary-sub">${_esc(subLabel)}</div>
+        </div>
+        <div class="summary-right">
+          <span class="status-chip status-${item.status.toLowerCase()}">${item.status}</span>
+          <span class="expand-icon">▾</span>
+        </div>
+      </div>
+
+      <!-- Detalhes (expandíveis) — todos os campos para conferência do BKO -->
+      <div class="item-details">
+        <div class="item-divider"></div>
+        <div class="item-body" style="gap:5px">
+          <div class="item-row">
+            <span class="item-label">ID</span>
+            <span class="item-val mono">${_esc(item.id)}</span>
+          </div>
+          <div class="item-row">
+            <span class="item-label">Data</span>
+            <span class="item-val mono">${_fmtTs(item.ts)}</span>
+          </div>
+          <div class="item-row">
+            <span class="item-label">Parceiro</span>
+            <span class="item-val">${_esc(item.parceiro)}</span>
+          </div>
+          ${item.nomeCliente ? `<div class="item-row">
+            <span class="item-label">Cliente</span>
+            <span class="item-val">${_esc(item.nomeCliente)}</span>
+          </div>` : ''}
+          ${item.cpfCliente ? `<div class="item-row">
+            <span class="item-label">CPF</span>
+            <span class="item-val mono">${_esc(item.cpfCliente)}</span>
+          </div>` : ''}
+          ${item.whatsapp ? `<div class="item-row">
+            <span class="item-label">WhatsApp</span>
+            <span class="item-val mono">${_esc(item.whatsapp)}</span>
+          </div>` : ''}
+          ${item.plano ? `<div class="item-row">
+            <span class="item-label">Plano</span>
+            <span class="item-val">${_esc(item.plano)}</span>
+          </div>` : ''}
+          ${item.movel ? `<div class="item-row">
+            <span class="item-label">Móvel</span>
+            <span class="item-val">${_esc(item.movel)}</span>
+          </div>` : ''}
+          ${item.vencimento ? `<div class="item-row">
+            <span class="item-label">Vencimento</span>
+            <span class="item-val mono">Dia ${_esc(item.vencimento)}</span>
+          </div>` : ''}
+          ${item.pagamento ? `<div class="item-row">
+            <span class="item-label">Pagamento</span>
+            <span class="item-val">${_esc(item.pagamento)}</span>
+          </div>` : ''}
+          ${item.enderecoRef ? `<div class="item-row">
+            <span class="item-label">Endereço</span>
+            <span class="item-val mono" style="font-size:11px;word-break:break-word">${_esc(item.enderecoRef)}</span>
+          </div>` : ''}
+          ${item.protocoloRef ? `<div class="item-row">
+            <span class="item-label">Consulta</span>
+            <span class="item-val mono">${_esc(item.protocoloRef)}</span>
+          </div>` : ''}
+        </div>
+
+        ${item.status === 'Pendente' ? `
+        <div class="item-actions" style="margin-top:14px">
+          <button class="btn-aprovar" onclick="abrirModal('aprovar','${_esc(item.id)}','${_esc(item.nomeCliente || item.cpfCliente)}')">✓ Aprovar</button>
+          <button class="btn-rejeitar" onclick="abrirModal('rejeitar','${_esc(item.id)}','${_esc(item.nomeCliente || item.cpfCliente)}')">✕ Rejeitar</button>
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ─────────────────────────────────────────────────────
+   MODAL DE CONFIRMAÇÃO
+───────────────────────────────────────────────────── */
+function abrirModal(tipo, id, nomeCliente) {
+  _acaoPendente = { tipo, id };
+  const isAprovar = tipo === 'aprovar';
+
+  document.getElementById('modal-title').textContent = isAprovar ? '✓ Aprovar pré-venda?' : '✕ Rejeitar pré-venda?';
+  document.getElementById('modal-sub').textContent   = isAprovar
+    ? 'Esta pré-venda será aprovada e o cliente entrará na lista de vendas do CRM.'
+    : 'Esta pré-venda será marcada como rejeitada. O vendedor não será notificado automaticamente.';
+  document.getElementById('modal-id').textContent    = id + (nomeCliente ? ' · ' + nomeCliente : '');
+
+  const btnConfirm = document.getElementById('modal-btn-confirm');
+  btnConfirm.textContent = isAprovar ? '✓ Confirmar aprovação' : '✕ Confirmar rejeição';
+  btnConfirm.className   = 'modal-btn-confirm ' + tipo;
+
+  document.getElementById('modal-overlay').classList.add('show');
+}
+
+function fecharModal() {
+  document.getElementById('modal-overlay').classList.remove('show');
+  _acaoPendente = null;
+}
+
+function confirmarAcao() {
+  if (!_acaoPendente) return;
+  fecharModal();
+
+  const { tipo, id } = _acaoPendente;
+  const fn = tipo === 'aprovar' ? aprovarPreVenda : rejeitarPreVenda;
+  fn(id);
+}
+
+/* ─────────────────────────────────────────────────────
+   AÇÕES
+───────────────────────────────────────────────────── */
+function aprovarPreVenda(id) {
+  // Fecha modal ANTES da chamada assíncrona (padrão CRM)
+  const card = document.getElementById('card-' + id);
+  if (card) {
+    const badge = card.querySelector('.status-chip');
+    if (badge) { badge.textContent = 'Aprovando...'; badge.className = 'status-chip status-pendente'; }
+    const btns = card.querySelector('.item-actions');
+    if (btns) btns.innerHTML = '<span style="font-size:12px;color:var(--muted);font-family:DM Mono,monospace">⏳ Processando...</span>';
+  }
+
+  setLoading(true, 'Aprovando e criando venda...');
+  google.script.run
+    .withSuccessHandler(res => {
+      setLoading(false);
+      if (res?.ok) {
+        toast('✓ Pré-venda aprovada! Venda criada na Lista.', 'ok');
+        recarregar();
+      } else {
+        toast('Erro: ' + (res?.error || 'falha ao aprovar'), 'err');
+        recarregar();
+      }
+    })
+    .withFailureHandler(err => {
+      setLoading(false);
+      toast('Erro ao aprovar: ' + (err?.message || err), 'err');
+      recarregar();
+    })
+    .aprovarPreVenda(id, Session?.getActiveUser?.()?.getEmail?.() || '');
+}
+
+function rejeitarPreVenda(id) {
+  const card = document.getElementById('card-' + id);
+  if (card) {
+    const btns = card.querySelector('.item-actions');
+    if (btns) btns.innerHTML = '<span style="font-size:12px;color:var(--muted);font-family:DM Mono,monospace">⏳ Processando...</span>';
+  }
+
+  setLoading(true, 'Rejeitando pré-venda...');
+  google.script.run
+    .withSuccessHandler(res => {
+      setLoading(false);
+      if (res?.ok) {
+        toast('Pr��-venda rejeitada.', '');
+        recarregar();
+      } else {
+        toast('Erro: ' + (res?.error || 'falha ao rejeitar'), 'err');
+        recarregar();
+      }
+    })
+    .withFailureHandler(err => {
+      setLoading(false);
+      toast('Erro ao rejeitar: ' + (err?.message || err), 'err');
+      recarregar();
+    })
+    .rejeitarPreVenda(id, '');
+}
+
+/* ─────────────────────────────────────────────────────
+   CARREGAMENTO DE DADOS (SWR-style)
+   1. Carrega contadores (leve) → atualiza badges/banner
+   2. Carrega listas completas → renderiza
+───────────────────────────────────────────────────── */
+function carregarPendentes() {
+  google.script.run
+    .withSuccessHandler(res => {
+      if (res?.ok) atualizarAlertas(res);
+    })
+    .listarPendentes();
+}
+
+function carregarConsultas(filtro) {
+  google.script.run
+    .withSuccessHandler(res => {
+      if (res?.ok) {
+        STATE.consultas = res.items || [];
+        renderConsultas();
+      } else {
+        document.getElementById('lista-consultas').innerHTML =
+          '<p style="color:var(--muted);padding:20px;font-size:12px;">Nenhum item encontrado.</p>';
+      }
+    })
+    .withFailureHandler(err => {
+      console.error('[FilaPAP] listarConsultas falhou:', err);
+      document.getElementById('lista-consultas').innerHTML =
+        '<p style="color:var(--accent);padding:20px;font-size:12px;">Erro ao carregar consultas. Tente novamente.</p>';
+    })
+    .listarConsultas(filtro || STATE.filtroConsultas);
+}
+
+function carregarPreVendas(filtro) {
+  google.script.run
+    .withSuccessHandler(res => {
+      if (res?.ok) {
+        STATE.preVendas = res.items || [];
+        renderPreVendas();
+      } else {
+        document.getElementById('lista-prevendas').innerHTML =
+          '<p style="color:var(--muted);padding:20px;font-size:12px;">Nenhum item encontrado.</p>';
+      }
+    })
+    .withFailureHandler(err => {
+      console.error('[FilaPAP] listarPreVendas falhou:', err);
+      document.getElementById('lista-prevendas').innerHTML =
+        '<p style="color:var(--accent);padding:20px;font-size:12px;">Erro ao carregar pré-vendas. Tente novamente.</p>';
+    })
+    .listarPreVendas(filtro || STATE.filtroPreVendas);
+}
+
+function recarregar() {
+  document.getElementById('last-update').textContent = 'Atualizando...';
+  carregarPendentes();
+  carregarConsultas();
+  carregarPreVendas();
+  setTimeout(() => {
+    document.getElementById('last-update').textContent =
+      'Última atualização: ' + _horaAgora();
+  }, 2000);
+}
+
+/* ─────────────────────────────────────────────────────
+   POLLING — atualiza contadores a cada 60s
+   (sem recarregar as listas completas)
+───────────────────────────────────────────────────── */
+function _iniciarPolling() {
+  clearInterval(_pollTimer);
+  _pollTimer = setInterval(() => {
+    carregarPendentes();
+    // Recarrega a lista da aba ativa para capturar novos itens
+    if (STATE.tabAtual === 'consultas') carregarConsultas();
+    else carregarPreVendas();
+    document.getElementById('last-update').textContent =
+      'Última atualização: ' + _horaAgora();
+  }, 60000); // 60s
+}
+
+/* ─────────────────────────────────────────────────────
+   HELPERS
+───────────────────────────────────────────────────── */
+function _esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function _horaAgora() {
+  return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+function _fmtTs(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  if (isNaN(d)) return String(ts).slice(0,16);
+  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+}
+
+/* ─────────────────────────────────────────────────────
+   INICIALIZAÇÃO
+   Nota: window.load já disparou quando este script é
+   injetado via getFilaPAPHtml(). Executa diretamente.
+───────────────────────────────────────────────────── */
+// Expõe recarregar globalmente para o navegar() em JS.html
+window.fpRecarregar = recarregar;
+
+// Executa imediatamente (sem esperar 'load' que já passou)
+recarregar();
+_iniciarPolling();
+
+// Fechar modal ao clicar fora
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) fecharModal();
+});
+</script>
+
+</body>
+</html>

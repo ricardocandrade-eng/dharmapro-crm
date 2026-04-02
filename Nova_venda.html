@@ -1,0 +1,626 @@
+<!-- ══════════════════════════════════════════════════════════════════════════
+     Nova_venda.html — Formulário de Nova Venda (DharmaPro)
+     Atualizado em: 15/03/2026 | Fix: complemento não obrigatório, google.script.run delegado ao JS.html
+     ══════════════════════════════════════════════════════════════════════════ -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nova Venda — DharmaPro</title>
+  <link rel="icon" type="image/png" href="https://img.icons8.com/stickers/96/cloud--v1.png">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <base target="_top">
+  <style>
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #141720;
+      --surface2: #1c2030;
+      --border:   #252a3a;
+      --border2:  #353d58;
+      --accent:   #e63e6d;
+      --accent-h: #c73260;
+      --green:    #22d98a;
+      --blue:     #4f9eff;
+      --yellow:   #f7a23b;
+      --text:     #e4e8f5;
+      --muted:    #7a82a0;
+      --radius:   12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Sora', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── Loading ── */
+    #nv-loading { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; }
+    #nv-loading.ativo { display: flex; }
+    .spinner { width: 44px; height: 44px; border: 3px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #nv-loading p { color: var(--muted); margin-top: 14px; font-size: 13px; font-family: 'DM Mono', monospace; }
+
+    /* ── Toast ── */
+    #nv-toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--surface); border: 1px solid var(--border2); border-radius: 10px; padding: 12px 20px; font-size: 13px; color: var(--text); z-index: 8000; opacity: 0; transition: opacity .3s, transform .3s; pointer-events: none; white-space: nowrap; }
+    #nv-toast.ativo { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #nv-toast.success { border-color: var(--green); color: var(--green); }
+    #nv-toast.error   { border-color: var(--accent); color: var(--accent); }
+    #nv-toast.warning { border-color: var(--yellow); color: var(--yellow); }
+
+    /* ── Layout ── */
+    .nv-wrapper { width: 100%; max-width: 960px; margin: 0 auto; padding: 32px 48px 60px; }
+    .nv-header { margin-bottom: 28px; }
+    .nv-header-tag { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; display: block; }
+    .nv-header h1 { font-size: 22px; font-weight: 800; }
+    .nv-header p  { font-size: 12px; color: var(--muted); margin-top: 4px; font-family: 'DM Mono', monospace; }
+
+    /* ── Progress wizard ── */
+    .wiz-progress { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px 14px; margin-bottom: 20px; width: 100%; }
+    .wiz-track { height: 4px; background: var(--border2); border-radius: 2px; margin-bottom: 14px; }
+    .wiz-fill  { height: 100%; background: var(--accent); border-radius: 2px; transition: width .4s ease; }
+    .wiz-steps { display: flex; justify-content: space-between; }
+    .wiz-step  { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; opacity: .4; transition: opacity .2s; }
+    .wiz-step.active { opacity: 1; }
+    .wiz-step.done   { opacity: .7; }
+    .wiz-icon { font-size: 18px; }
+    .wiz-lbl  { font-size: 9px; font-family: 'DM Mono', monospace; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; text-align: center; }
+    .wiz-step.active .wiz-lbl { color: var(--accent); }
+
+    /* ── Card ── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; width: 100%; }
+    .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .card-icon { font-size: 20px; }
+    .card-header h3 { font-size: 14px; font-weight: 700; }
+
+    /* ── Form grid ── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group.span2 { grid-column: 1 / -1; }
+    .form-group label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .req { color: var(--accent); }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 8px; padding: 10px 12px; color: var(--text);
+      font-family: 'Sora', sans-serif; font-size: 13px;
+      transition: border-color .15s; outline: none; width: 100%;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus { border-color: var(--accent); }
+    .form-group input.erro,
+    .form-group select.erro { border-color: var(--accent) !important; }
+    .form-group input[readonly],
+    .form-group select[disabled] { opacity: .6; cursor: default; }
+    .hint { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; min-height: 14px; }
+    .err-msg { font-size: 11px; color: var(--accent); display: none; }
+    .err-msg.visivel { display: block; }
+    textarea { resize: vertical; min-height: 72px; }
+
+    /* ── Status badge readonly ── */
+    .status-locked {
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 8px; padding: 10px 12px; font-size: 13px;
+      color: #EEEEEE; font-weight: 600; display: flex; align-items: center; gap: 8px;
+    }
+    .status-locked .lock-icon { font-size: 11px; color: var(--muted); }
+
+    /* ── Painel step ── */
+    .wiz-panel { display: none; }
+    .wiz-panel.active { display: block; }
+
+    /* ── Navegação ── */
+    .wiz-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+    .wiz-nav-info { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); }
+    .wiz-nav-btns { display: flex; gap: 10px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 20px; border-radius: 8px; font-family: 'Sora', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+    .btn:hover { background: var(--accent-h); border-color: var(--accent-h); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-ghost { background: transparent; color: var(--text); border-color: var(--border2); }
+    .btn-ghost:hover { border-color: var(--border2); background: var(--surface2); }
+    .btn-back  { background: transparent; color: var(--muted); border-color: var(--border); }
+    .btn-back:hover { color: var(--text); border-color: var(--border2); }
+    .btn-save  { min-width: 160px; }
+
+    /* ── Seção de segmentação/sistema ── */
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+    .info-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; }
+    .info-card .lbl { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+    .info-card .val { font-size: 13px; font-weight: 600; color: var(--text); min-height: 18px; }
+
+    @media (max-width: 520px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .form-group.span2 { grid-column: 1; }
+      .info-grid { grid-template-columns: 1fr; }
+      .wiz-lbl { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="nv-loading"><div class="spinner"></div><p>Aguarde...</p></div>
+<!-- Toast -->
+<div id="nv-toast"></div>
+
+<div class="nv-wrapper">
+
+  <div class="nv-header">
+    <span class="nv-header-tag">DharmaPro · Vendas</span>
+    <h1>Nova Venda</h1>
+    <p>Preencha os dados e salve para registrar na planilha</p>
+  </div>
+
+  <!-- ── BARRA DE PROGRESSO ── -->
+  <div class="wiz-progress">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="font-size:10px;font-family:'DM Mono',monospace;color:var(--muted);letter-spacing:1px;text-transform:uppercase;">Preenchimento</span>
+      <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--accent);font-weight:700;" id="nvPct">0%</span>
+    </div>
+    <div class="wiz-track"><div class="wiz-fill" id="nvFill" style="width:0%"></div></div>
+    <div class="wiz-steps">
+      <div class="wiz-step active" id="nvDot0" onclick="nvIr(0)"><span class="wiz-icon">⭐</span><span class="wiz-lbl">Classificação</span></div>
+      <div class="wiz-step"       id="nvDot1" onclick="nvIr(1)"><span class="wiz-icon">👤</span><span class="wiz-lbl">Cliente</span></div>
+      <div class="wiz-step"       id="nvDot2" onclick="nvIr(2)"><span class="wiz-icon">📍</span><span class="wiz-lbl">Endereço</span></div>
+      <div class="wiz-step"       id="nvDot3" onclick="nvIr(3)"><span class="wiz-icon">📦</span><span class="wiz-lbl">Plano</span></div>
+    </div>
+  </div>
+
+  <!-- ══ STEP 0 — Classificação ══════════════════════════════════ -->
+  <div class="wiz-panel active" id="nvPanel0">
+    <div class="card">
+      <div class="card-header"><div class="card-icon">⭐</div><h3>Classificação da Venda</h3></div>
+      <div class="form-grid">
+
+        <!-- Status travado -->
+        <div class="form-group span2">
+          <label>Status Atual</label>
+          <div class="status-locked">🔒 <span>1- Conferencia/Ativação</span> <span class="lock-icon">· fixado no cadastro</span></div>
+        </div>
+
+        <!-- Canal de Vendas -->
+        <div class="form-group" id="nv-grp-canal">
+          <label>Canal de Vendas <span class="req">*</span></label>
+          <select id="nv-canal">
+            <option value="">Selecione...</option>
+            <option>PAP</option>
+            <option>META ADS</option>
+            <option>INDICAÇÃO</option>
+            <option>ATIVO</option>
+            <option>GOOGLE ADS</option>
+          </select>
+          <span class="err-msg" id="nv-err-canal">Selecione um canal.</span>
+        </div>
+
+        <!-- Pré-Status -->
+        <div class="form-group" id="nv-grp-preStatus">
+          <label>Status Pré-Venda <span class="req">*</span></label>
+          <select id="nv-preStatus">
+            <option value="">Selecione...</option>
+            <option>EM NEGOCIAÇÃO</option>
+            <option>ANALISE PENDENTE</option>
+            <option>AG DOC</option>
+            <option>AG COMPROVANTE</option>
+            <option>AG SELFIE</option>
+            <option>AG QUALIDADE</option>
+            <option>REPROVADO</option>
+            <option>AG AUDITORIA</option>
+            <option>AG ACEITE</option>
+            <option>CRUZAMENTO DE CANAIS</option>
+          </select>
+          <span class="err-msg" id="nv-err-preStatus">Selecione o pré-status.</span>
+        </div>
+
+        <!-- Responsável -->
+        <div class="form-group span2" id="nv-grp-resp">
+          <label>Responsável <span class="req">*</span></label>
+          <select id="nv-resp">
+            <option value="">Carregando...</option>
+          </select>
+          <span class="err-msg" id="nv-err-resp">Responsável é obrigatório.</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ STEP 1 — Cliente ═════════════════════════════════════════ -->
+  <div class="wiz-panel" id="nvPanel1">
+    <div class="card">
+      <div class="card-header"><div class="card-icon">👤</div><h3>Dados do Cliente</h3></div>
+      <div class="form-grid">
+
+        <div class="form-group span2" id="nv-grp-cliente">
+          <label>Nome Completo <span class="req">*</span></label>
+          <input type="text" id="nv-cliente" placeholder="Digite o nome completo">
+          <span class="err-msg" id="nv-err-cliente">Nome é obrigatório.</span>
+        </div>
+
+        <div class="form-group" id="nv-grp-cpf">
+          <label>CPF / CNPJ <span class="req">*</span></label>
+          <input type="text" id="nv-cpf" placeholder="000.000.000-00" maxlength="18">
+          <span class="hint">11 dígitos (CPF) ou 14 (CNPJ)</span>
+          <span class="err-msg" id="nv-err-cpf">CPF deve ter 11 ou CNPJ 14 dígitos.</span>
+        </div>
+
+        <div class="form-group" id="nv-grp-whats">
+          <label>WhatsApp <span class="req">*</span></label>
+          <input type="tel" id="nv-whats" placeholder="(00) 00000-0000">
+          <span class="err-msg" id="nv-err-whats">WhatsApp é obrigatório.</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ STEP 2 — Endereço ════════════════════════════════════════ -->
+  <div class="wiz-panel" id="nvPanel2">
+    <div class="card">
+      <div class="card-header"><div class="card-icon">📍</div><h3>Endereço</h3></div>
+      <div class="form-grid">
+
+        <div class="form-group" id="nv-grp-cep">
+          <label>CEP <span class="req">*</span></label>
+          <input type="text" id="nv-cep" placeholder="00000-000" maxlength="9" onblur="nvBuscarCEP(this.value)">
+          <span class="hint" id="nv-cepHint"></span>
+          <span class="err-msg" id="nv-err-cep">CEP é obrigatório.</span>
+        </div>
+
+        <div class="form-group" id="nv-grp-cidade">
+          <label>Cidade <span class="req">*</span></label>
+          <input type="text" id="nv-cidade">
+          <span class="err-msg" id="nv-err-cidade">Cidade é obrigatória.</span>
+        </div>
+
+        <div class="form-group span2" id="nv-grp-rua">
+          <label>Rua / Logradouro <span class="req">*</span></label>
+          <input type="text" id="nv-rua">
+          <span class="err-msg" id="nv-err-rua">Rua é obrigatória.</span>
+        </div>
+
+        <div class="form-group" id="nv-grp-num">
+          <label>Número da Fachada <span class="req">*</span></label>
+          <input type="text" id="nv-num">
+          <span class="err-msg" id="nv-err-num">Número é obrigatório.</span>
+        </div>
+
+        <div class="form-group" id="nv-grp-complemento">
+          <label>Complemento</label>
+          <input type="text" id="nv-complemento" placeholder="Apto, Bloco, Casa...">
+        </div>
+
+        <div class="form-group" id="nv-grp-bairro">
+          <label>Bairro <span class="req">*</span></label>
+          <input type="text" id="nv-bairro">
+          <span class="err-msg" id="nv-err-bairro">Bairro é obrigatório.</span>
+        </div>
+
+        <div class="form-group" id="nv-grp-uf">
+          <label>UF <span class="req">*</span></label>
+          <input type="text" id="nv-uf" maxlength="2" style="text-transform:uppercase;">
+          <span class="err-msg" id="nv-err-uf">UF é obrigatória.</span>
+        </div>
+
+      </div>
+
+      <!-- Segmentação e Sistema (readonly, carregados por cidade) -->
+      <div class="info-grid" id="nv-infoGeoWrap" style="display:none;">
+        <div class="info-card">
+          <div class="lbl">📡 Sistema</div>
+          <div class="val" id="nv-sistema-display">—</div>
+        </div>
+        <div class="info-card">
+          <div class="lbl">🗺️ Segmentação</div>
+          <div class="val" id="nv-segmentacao-display">—</div>
+        </div>
+      </div>
+      <!-- Hidden inputs para gravar -->
+      <input type="hidden" id="nv-sistema">
+      <input type="hidden" id="nv-segmentacao">
+    </div>
+  </div>
+
+  <!-- ══ STEP 3 — Plano ══════════════════════════════════════════ -->
+  <div class="wiz-panel" id="nvPanel3">
+    <div class="card">
+      <div class="card-header"><div class="card-icon">📦</div><h3>Plano <span style="font-size:11px;color:var(--muted);font-weight:400;">(opcional)</span></h3></div>
+      <div class="form-grid">
+
+        <div class="form-group" id="nv-grp-produto">
+          <label>Produto</label>
+          <select id="nv-produto" onchange="nvOnProdutoChange()">
+            <option value="">Selecione o produto...</option>
+            <option value="Fibra Alone">Fibra Alone</option>
+            <option value="Fibra Combo">Fibra Combo</option>
+            <option value="Móvel Alone">Móvel Alone</option>
+            <option value="Móvel Combo">Móvel Combo</option>
+            <option value="Dependente">Dependente</option>
+          </select>
+          <span class="hint" id="nv-produtoHint"></span>
+        </div>
+
+        <div class="form-group" id="nv-grp-plano">
+          <label>Plano</label>
+          <select id="nv-plano" onchange="nvOnPlanoChange()">
+            <option value="">— Preencha o CEP e Produto —</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="nv-grp-valor">
+          <label>Valor</label>
+          <input type="text" id="nv-valor" placeholder="R$ 0,00">
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Observação -->
+    <div class="card">
+      <div class="card-header"><div class="card-icon">📝</div><h3>Observação <span style="font-size:11px;color:var(--muted);font-weight:400;">(opcional)</span></h3></div>
+      <div class="form-group">
+        <textarea id="nv-observacao" placeholder="Anotações sobre esta venda..."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── NAVEGAÇÃO ── -->
+  <div class="wiz-nav">
+    <div class="wiz-nav-btns">
+      <button type="button" class="btn btn-back" id="nvBtnBack" onclick="nvNav(-1)" style="display:none;">← Voltar</button>
+      <button type="button" class="btn" id="nvBtnNext" onclick="nvNav(1)">Próximo →</button>
+      <button type="button" class="btn btn-save" id="nvBtnSave" onclick="nvSalvar()" style="display:none;">💾 Salvar Venda</button>
+    </div>
+    <span class="wiz-nav-info" id="nvNavInfo">Passo 1 de 4</span>
+  </div>
+
+</div><!-- /wrapper -->
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+//  Nova_venda.html — Script de controle
+// ══════════════════════════════════════════════════════════════════
+
+var _nvStep = 0;
+var NV_TOTAL = 4;
+
+// ── Utils ──────────────────────────────────────────────────────────
+function nvLoading(v) {
+  document.getElementById('nv-loading').classList.toggle('ativo', v);
+}
+
+var _nvToastTimer;
+function nvToast(msg, tipo) {
+  var el = document.getElementById('nv-toast');
+  el.textContent = msg;
+  el.className = 'ativo ' + (tipo || '');
+  clearTimeout(_nvToastTimer);
+  _nvToastTimer = setTimeout(function() { el.className = ''; }, 3500);
+}
+
+function nvEsc(str) {
+  if (!str) return '';
+  var d = document.createElement('div');
+  d.appendChild(document.createTextNode(String(str)));
+  return d.innerHTML;
+}
+
+// ── Wizard ──────────────────────────────────────────��─��───────────
+function nvAtualizarProgress() {
+  var pct = Math.round((_nvStep / (NV_TOTAL - 1)) * 100);
+  document.getElementById('nvFill').style.width = pct + '%';
+  document.getElementById('nvPct').textContent  = pct + '%';
+
+  // Steps dots
+  for (var i = 0; i < NV_TOTAL; i++) {
+    var dot = document.getElementById('nvDot' + i);
+    if (!dot) continue;
+    dot.classList.remove('active', 'done');
+    if (i === _nvStep) dot.classList.add('active');
+    else if (i < _nvStep) dot.classList.add('done');
+  }
+
+  // Painéis
+  for (var j = 0; j < NV_TOTAL; j++) {
+    var p = document.getElementById('nvPanel' + j);
+    if (p) p.classList.toggle('active', j === _nvStep);
+  }
+
+  // Botões
+  document.getElementById('nvBtnBack').style.display = _nvStep > 0 ? 'inline-flex' : 'none';
+  document.getElementById('nvBtnNext').style.display = _nvStep < NV_TOTAL - 1 ? 'inline-flex' : 'none';
+  document.getElementById('nvBtnSave').style.display = _nvStep === NV_TOTAL - 1 ? 'inline-flex' : 'none';
+  document.getElementById('nvNavInfo').textContent   = 'Passo ' + (_nvStep + 1) + ' de ' + NV_TOTAL;
+}
+
+function nvIr(step) {
+  if (step < _nvStep) { // voltar sempre é permitido
+    _nvStep = step;
+    nvAtualizarProgress();
+    return;
+  }
+  // Para avançar, valida os steps anteriores
+  for (var s = _nvStep; s < step; s++) {
+    if (!nvValidarStep(s)) return;
+    _nvStep = s + 1;
+  }
+  nvAtualizarProgress();
+}
+
+function nvNav(dir) {
+  if (dir === 1) {
+    if (!nvValidarStep(_nvStep)) return;
+    if (_nvStep < NV_TOTAL - 1) { _nvStep++; nvAtualizarProgress(); }
+  } else {
+    if (_nvStep > 0) { _nvStep--; nvAtualizarProgress(); }
+  }
+}
+
+// ── Validação por step ────────────────────────────────────────────
+function nvMarcaErro(campo, msgId, condicao) {
+  var el  = document.getElementById(campo);
+  var msg = document.getElementById(msgId);
+  if (!el || !msg) return !condicao;
+  el.classList.toggle('erro', condicao);
+  msg.classList.toggle('visivel', condicao);
+  return !condicao; // true = OK
+}
+
+function nvValidarStep(step) {
+  var ok = true;
+  if (step === 0) {
+    ok = nvMarcaErro('nv-canal',     'nv-err-canal',     !document.getElementById('nv-canal').value)     && ok;
+    ok = nvMarcaErro('nv-preStatus', 'nv-err-preStatus', !document.getElementById('nv-preStatus').value) && ok;
+    ok = nvMarcaErro('nv-resp',      'nv-err-resp',      !document.getElementById('nv-resp').value)      && ok;
+  } else if (step === 1) {
+    ok = nvMarcaErro('nv-cliente', 'nv-err-cliente', !document.getElementById('nv-cliente').value.trim()) && ok;
+    var cpfVal = document.getElementById('nv-cpf').value.replace(/\D/g, '');
+    ok = nvMarcaErro('nv-cpf', 'nv-err-cpf', cpfVal.length !== 11 && cpfVal.length !== 14) && ok;
+    ok = nvMarcaErro('nv-whats', 'nv-err-whats', !document.getElementById('nv-whats').value.trim()) && ok;
+  } else if (step === 2) {
+    ok = nvMarcaErro('nv-cep',    'nv-err-cep',    !document.getElementById('nv-cep').value.trim())    && ok;
+    ok = nvMarcaErro('nv-rua',    'nv-err-rua',    !document.getElementById('nv-rua').value.trim())    && ok;
+    ok = nvMarcaErro('nv-num',    'nv-err-num',    !document.getElementById('nv-num').value.trim())    && ok;
+    ok = nvMarcaErro('nv-bairro', 'nv-err-bairro', !document.getElementById('nv-bairro').value.trim()) && ok;
+    ok = nvMarcaErro('nv-cidade', 'nv-err-cidade', !document.getElementById('nv-cidade').value.trim()) && ok;
+    ok = nvMarcaErro('nv-uf',     'nv-err-uf',     !document.getElementById('nv-uf').value.trim())     && ok;
+  }
+  // Step 3 (plano) não tem campos obrigatórios
+  if (!ok) nvToast('⚠️ Preencha os campos obrigatórios.', 'warning');
+  return ok;
+}
+
+// ── Busca CEP ─────────────────────────────────────────────────────
+function nvBuscarCEP(cep) {
+  var limpo = cep.replace(/\D/g, '');
+  if (limpo.length !== 8) return;
+  var hint = document.getElementById('nv-cepHint');
+  hint.textContent = '⏳ Buscando endereço...';
+  hint.style.color = 'var(--muted)';
+  // Busca via fetch (funciona em contexto injetado)
+  fetch('https://brasilapi.com.br/api/cep/v1/' + limpo)
+    .then(function(r) { if (!r.ok) throw new Error('err'); return r.json(); })
+    .then(function(j) {
+      if (!j.city) throw new Error('sem cidade');
+      _nvPreencherEndereco({ logradouro: (j.street||'').toUpperCase(), bairro: (j.neighborhood||'').toUpperCase(), cidade: (j.city||'').toUpperCase(), uf: (j.state||'').toUpperCase() });
+      _nvAoEnderecoOk(hint);
+    })
+    .catch(function() {
+      fetch('https://viacep.com.br/ws/' + limpo + '/json/')
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+          if (j.erro) throw new Error('inválido');
+          _nvPreencherEndereco({ logradouro: (j.logradouro||'').toUpperCase(), bairro: (j.bairro||'').toUpperCase(), cidade: (j.localidade||'').toUpperCase(), uf: (j.uf||'').toUpperCase() });
+          _nvAoEnderecoOk(hint);
+        })
+        .catch(function() {
+          hint.textContent = '❌ CEP não encontrado.';
+          hint.style.color = 'var(--accent)';
+        });
+    });
+}
+
+function _nvPreencherEndereco(d) {
+  document.getElementById('nv-rua').value    = d.logradouro || '';
+  document.getElementById('nv-bairro').value = d.bairro     || '';
+  document.getElementById('nv-cidade').value = d.cidade     || '';
+  document.getElementById('nv-uf').value     = d.uf         || '';
+  ['nv-rua','nv-bairro','nv-cidade','nv-uf'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.classList.remove('erro');
+  });
+}
+
+function _nvAoEnderecoOk(hint) {
+  hint.textContent = '✅ Endereço preenchido';
+  hint.style.color = 'var(--green)';
+  document.getElementById('nv-num').focus();
+  var cidade  = document.getElementById('nv-cidade').value;
+  var produto = document.getElementById('nv-produto').value;
+  // Delega ao JS.html (escopo Index) que tem acesso ao google.script.run
+  if (cidade  && typeof _nvCarregarSistemaSegmentacao === 'function') _nvCarregarSistemaSegmentacao(cidade);
+  if (produto && typeof nvOnProdutoChange === 'function') nvOnProdutoChange();
+}
+
+function _nvCarregarSistemaSegmentacao(cidade) {
+  // Stub — implementação real em JS.html (_nvCarregarSistemaSegmentacao)
+  // Esta função é sobrescrita pelo escopo do Index após injeção
+}
+
+function nvOnProdutoChange() {
+  var cidade   = (document.getElementById('nv-cidade').value || '').trim();
+  var produto  = document.getElementById('nv-produto').value;
+  var hint     = document.getElementById('nv-produtoHint');
+  var selPlano = document.getElementById('nv-plano');
+  selPlano.innerHTML = '<option value="">⏳ Carregando...</option>';
+  selPlano.disabled  = true;
+  document.getElementById('nv-valor').value = '';
+  if (!produto) {
+    selPlano.innerHTML = '<option value="">— Preencha o CEP e Produto —</option>';
+    selPlano.disabled = false; hint.textContent = ''; return;
+  }
+  if (!cidade) {
+    selPlano.innerHTML = '<option value="">— Preencha o CEP primeiro —</option>';
+    selPlano.disabled = false;
+    hint.textContent = '⚠️ Preencha o CEP antes.'; hint.style.color = 'var(--yellow)'; return;
+  }
+  // Delega ao JS.html
+  if (typeof _nvCarregarPlanos === 'function') _nvCarregarPlanos(cidade, produto, selPlano, hint);
+}
+
+function _nvPreencherPlanos(planos) {
+  var sel = document.getElementById('nv-plano');
+  sel.innerHTML = '<option value="">— Selecione o plano —</option>';
+  planos.forEach(function(item) {
+    var opt = document.createElement('option');
+    if (item.indexOf('▶️') === 0) { opt.disabled = true; opt.style.color = 'var(--muted)'; }
+    opt.value = item; opt.textContent = item;
+    sel.appendChild(opt);
+  });
+}
+
+function nvOnPlanoChange() {
+  var plano = document.getElementById('nv-plano').value;
+  if (!plano || plano.indexOf('▶️') === 0) return;
+  var partes = plano.split(' | ');
+  if (partes.length >= 2) document.getElementById('nv-valor').value = 'R$ ' + partes[partes.length - 1].trim();
+}
+
+function nvSalvar() {
+  for (var s = 0; s < NV_TOTAL - 1; s++) {
+    if (!nvValidarStep(s)) { _nvStep = s; nvAtualizarProgress(); return; }
+  }
+  var dados = {
+    status:      '1- Conferencia/Ativação',
+    canal:       document.getElementById('nv-canal').value,
+    preStatus:   document.getElementById('nv-preStatus').value,
+    resp:        document.getElementById('nv-resp').value,
+    cliente:     document.getElementById('nv-cliente').value.trim(),
+    cpf:         document.getElementById('nv-cpf').value.trim(),
+    whats:       document.getElementById('nv-whats').value.trim(),
+    cep:         document.getElementById('nv-cep').value.trim(),
+    rua:         document.getElementById('nv-rua').value.trim(),
+    num:         document.getElementById('nv-num').value.trim(),
+    complemento: document.getElementById('nv-complemento').value.trim(),
+    bairro:      document.getElementById('nv-bairro').value.trim(),
+    cidade:      document.getElementById('nv-cidade').value.trim(),
+    uf:          document.getElementById('nv-uf').value.trim(),
+    sistema:     document.getElementById('nv-sistema').value.trim(),
+    segmentacao: document.getElementById('nv-segmentacao').value.trim(),
+    produto:     document.getElementById('nv-produto').value,
+    plano:       document.getElementById('nv-plano').value,
+    valor:       document.getElementById('nv-valor').value.trim(),
+    observacao:  document.getElementById('nv-observacao').value.trim(),
+    linhaReferencia: ''
+  };
+  // Delega ao JS.html
+  if (typeof _nvExecutarSalvar === 'function') _nvExecutarSalvar(dados);
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+function nvInit() {
+  nvAtualizarProgress();
+  // Responsáveis são carregados pelo _nvCarregarResponsaveis() no escopo do JS.html
+  // pois google.script.run não funciona em scripts injetados via innerHTML
+}
+// Aguarda DOM disponível após injeção
+setTimeout(nvInit, 50);
+</script>
+</body>
+</html>

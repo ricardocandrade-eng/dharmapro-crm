@@ -1,51 +1,61 @@
 // ══════════════════════════════════════════════════════════════════════════
 //  CONFIG.GS — Configurações mensais e anuais do CRM Mobile Digital
 //  Edite aqui todo mês antes de usar o Dashboard
+//
+// ── LOG DE ALTERAÇÕES ─────────────────────────────────────────────────────
+// Atualizado em: 16/03/2026 | Auditoria: PERFIS_MENUS centralizado aqui — fonte única de verdade
+// Atualizado em: 12/03/2026 16:35 | Adicionado: 'indicacao' nos perfis admin, supervisor e backoffice
 // ══════════════════════════════════════════════════════════════════════════
 
-// ── USUÁRIOS ───────────────────────────────────────────────────────────────
-//  usuario : login digitado na tela
-//  senha   : senha em texto puro
-//  nome    : nome exibido no sistema após login
-// ──────────────────────────────────────────────────────────────────────────
-// Perfis disponíveis e seus menus permitidos
-var PERFIS = {
-  'admin':      ['dash','formulario','lista','funil','leads','pap','docs'],
-  'supervisor': ['dash','formulario','lista','funil','leads','docs'],
-  'backoffice': ['dash','formulario','lista','funil','leads','docs']
-};
+// ── VERSÃO / DEPLOY ────────────────────────────────────────────────────────
+//  Atualizado automaticamente pelo salvar_010426_1930.bat a cada deploy
+var DEPLOY_DATE = '01/04/2026 22:55';
 
+// ── USUÁRIOS ───────────────────────────────────────────────────────────────
+// SENHAS: use o campo senhaHash (SHA-256 em hex). Nunca armazene senha em texto puro.
+// Para gerar o hash de uma nova senha: rode gerarHashesSenhas() no editor Apps Script
+// ou use: https://emn178.github.io/online-tools/sha256.html
 var USUARIOS = [
   {
-    usuario: 'Joysse.Coelho',
-    senha:   '000000',
-    nome:    'Joysse Coelho',
-    perfil:  'backoffice',
-    foto:    'https://drive.google.com/thumbnail?id=18ZhwhCb9TqTJ4q27eplYzVguFzfXlPWo&sz=s200'
+    usuario:   'Joysse.Coelho',
+    senhaHash: '91b4d142823f7d20c5f08df69122de43f35f057a988d9619f6d3138485c9a203', // sha256('000000') — trocar pela senha real
+    nome:      'Joysse Coelho',
+    perfil:    'backoffice',
+    foto:      'https://drive.google.com/thumbnail?id=1tbXw1xEYbHduPyffnWcIMbU-kxZuGkTq&sz=s200'
   },
   {
-    usuario: 'Ricardo.Andrade',
-    senha:   '000000',
-    nome:    'Ricardo Andrade',
-    perfil:  'admin',
-    foto:    'https://drive.google.com/thumbnail?id=1WsBnWbnGx2gzK8P8c6tzXoL9HBt7DQCN&sz=s200'
+    usuario:   'Ricardo.Andrade',
+    senhaHash: '91b4d142823f7d20c5f08df69122de43f35f057a988d9619f6d3138485c9a203', // sha256('000000') — trocar pela senha real
+    nome:      'Ricardo Andrade',
+    perfil:    'admin',
+    foto:      'https://drive.google.com/thumbnail?id=18dWp55djwpTrL5RT5hDaKO9XdMRGOwhO&sz=s200'
   },
   {
-    usuario: 'Tuany.Rodrigues',
-    senha:   '000000',
-    nome:    'Tuany Rodrigues',
-    perfil:  'supervisor',
-    foto:    'https://drive.google.com/thumbnail?id=16VfXn_1ghqjaYAjI-S4ZgP7Eu5pIJblT&sz=s200'
+    usuario:   'Tuany.Rodrigues',
+    senhaHash: '91b4d142823f7d20c5f08df69122de43f35f057a988d9619f6d3138485c9a203', // sha256('000000') — trocar pela senha real
+    nome:      'Tuany Rodrigues',
+    perfil:    'supervisor',
+    foto:      'https://drive.google.com/thumbnail?id=1paq4_ynKCuYy2Huv5cvLcsfv_x57GV9B&sz=s200'
   },
   {
-    usuario: 'Vanessa.Andrade',
-    senha:   '000000',
-    nome:    'Vanessa Andrade',
-    perfil:  'backoffice',
-    foto:    'https://drive.google.com/thumbnail?id=1PsFoDhQPue-D5CC0Bzxux172scBDB9bx&sz=s200'
+    usuario:   'Vanessa.Andrade',
+    senhaHash: '91b4d142823f7d20c5f08df69122de43f35f057a988d9619f6d3138485c9a203', // sha256('000000') — trocar pela senha real
+    nome:      'Vanessa Andrade',
+    perfil:    'backoffice',
+    foto:      'https://drive.google.com/thumbnail?id=1HAJQr4V_1wpSgXCV8u3CNbuXYIy-m7OL&sz=s200'
   },
 ];
 
+// ── PERFIS E MENUS — Fonte única de verdade ────────────────────────────────
+//  Altere menus SOMENTE aqui. Code.js lê este objeto via validarLogin().
+//  Menus disponíveis: dash, formulario, lista, funil, leads, pap,
+//                     indicacao, docs, cruzamento, tickets, novaVenda, extrato, config
+// ──────────────────────────────────────────────────────────────────────────
+var PERFIS_MENUS = {
+  'admin':      ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP'],
+  'supervisor': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP'],
+  'backoffice': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','config','filaPAP']
+};
 
 var DASHBOARD_CONFIG = {
 
@@ -83,6 +93,47 @@ var DASHBOARD_CONFIG = {
 
 // ── MENSAGEM DO SISTEMA ────────────────────────────────────────────────────
 //  Escreva aqui um recado rápido para aparecer no topo do sistema.
-//  Deixe em branco ('') para não mostrar nenhuma mensagem.
+//  Deixe em branco ('                                                           ') para não mostrar nenhuma mensagem.
 // ──────────────────────────────────────────────────────────────────────────
-var MENSAGEM_SISTEMA = 'Blindar vendas no VeroHub! 📢';
+var MENSAGEM_SISTEMA = '';
+
+// ── TICKETS — Estrutura inicial ────────────────────────────────────────────
+//  Os tickets são salvos via PropertiesService pelo Apps Script.
+//  Este array serve apenas como seed de exemplo para o primeiro uso.
+//  Após o primeiro carregamento, os dados vêm do PropertiesService.
+// ──────────────────────────────────────────────────────────────────────────
+var TICKETS = [
+  {
+    id:          'TKT-00001',
+    titulo:      'Configurar integração VeroHub',
+    descricao:   'Verificar endpoints e autenticação da API VeroHub.',
+    prioridade:  'Alta',
+    status:      'Aberto',
+    criador:     'Ricardo Andrade',
+    atribuido:   'Ricardo Andrade',
+    dataCriacao: '12/03/2026',
+    dataUpdate:  '12/03/2026'
+  },
+  {
+    id:          'TKT-00002',
+    titulo:      'Revisar relatório de instalações',
+    descricao:   'Conferir dados de março antes do fechamento.',
+    prioridade:  'Média',
+    status:      'Progresso',
+    criador:     'Tuany Rodrigues',
+    atribuido:   'Joysse Coelho',
+    dataCriacao: '12/03/2026',
+    dataUpdate:  '12/03/2026'
+  },
+  {
+    id:          'TKT-00003',
+    titulo:      'Atualizar base de leads frios',
+    descricao:   '',
+    prioridade:  'Baixa',
+    status:      'Aberto',
+    criador:     'Vanessa Andrade',
+    atribuido:   '',
+    dataCriacao: '12/03/2026',
+    dataUpdate:  '12/03/2026'
+  }
+];

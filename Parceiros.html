@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<!-- ══════════════════════════════════════════════════════════════════════════
+     Parceiros.html — DharmaPro CRM · Área do Parceiro Freelancer
+     Criado em: 28/03/2026 · Redesign v2 28/03/2026
+     Fluxo: Consulta (Viabilidade/Crédito unificado) → Pré-Venda
+     Acesso: Link direto com login por CPF (aba "3 - PAP", col W)
+     Integração: fetch(GAS_URL) via doPost → _routePAP
+     ══════════════════════════════════════════════════════════════════════════ -->
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#0d0f14">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="DharmaPro">
+  <link rel="apple-touch-icon" href="https://ui-avatars.com/api/?name=DP&background=141720&color=e63e6d&size=512&bold=true&format=png">
+  <title>DharmaPro Parceiros</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    /* ══════════════════════════════════════════════════════
+       VARIÁVEIS
+    ══════════════════════════════════════════════════════ */
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #141720;
+      --surface2: #1c2030;
+      --border:   #252a3a;
+      --border2:  #353d58;
+      --accent:   #e63e6d;
+      --accent-h: #c73260;
+      --green:    #22d98a;
+      --blue:     #4f9eff;
+      --yellow:   #f7a23b;
+      --purple:   #a78bfa;
+      --text:     #e4e8f5;
+      --muted:    #7a82a0;
+      --radius:   14px;
+    }
+
+    /* ══════════════════════════════════════════════════════
+       RESET
+    ══════════════════════════════════════════════════════ */
+    *, *::before, *::after {
+      box-sizing: border-box; margin: 0; padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    html, body {
+      height: 100%; background: var(--bg);
+      color: var(--text); font-family: 'Sora', sans-serif;
+      overflow: hidden;
+    }
+
+    /* ══════════════════════════════════════════════════════
+       TOAST
+    ══════════════════════════════════════════════════════ */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 12px; padding: 11px 20px;
+      font-size: 13px; color: var(--text);
+      z-index: 9999; opacity: 0;
+      transition: opacity .3s, transform .3s;
+      pointer-events: none; white-space: nowrap; max-width: 90vw;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.ok   { border-color: var(--green);  color: var(--green);  }
+    #toast.err  { border-color: var(--accent); color: var(--accent); }
+    #toast.warn { border-color: var(--yellow); color: var(--yellow); }
+
+    /* ══════════════════════════════════════════════════════
+       LOADING
+    ══════════════════════════════════════════════════════ */
+    #loading {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.72); z-index: 9000;
+      justify-content: center; align-items: center; flex-direction: column; gap: 14px;
+    }
+    #loading.show { display: flex; }
+    .spinner {
+      width: 38px; height: 38px;
+      border: 3px solid var(--border2); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); }
+
+    /* ═══════���══════════════════════════════════════════════
+       HERO
+    ══════════════════════════════════════════════════════ */
+    .hero {
+      height: 100dvh;
+      display: flex; flex-direction: column;
+    }
+
+    /* ─── Header ─── */
+    .hero-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-badge {
+      width: 32px; height: 32px; border-radius: 9px;
+      background: var(--accent); display: flex; align-items: center; justify-content: center;
+      font-family: 'DM Mono', monospace; font-weight: 700; font-size: 12px; color: #fff;
+      flex-shrink: 0;
+    }
+    .logo-name { font-size: 14px; font-weight: 700; line-height: 1.1; }
+    .logo-sub  { font-size: 9px; color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 1.5px; display: block; }
+    .badge-parceiro {
+      background: rgba(230,62,109,.10); border: 1px solid rgba(230,62,109,.28);
+      border-radius: 20px; padding: 4px 12px;
+      font-size: 9px; font-family: 'DM Mono', monospace;
+      color: var(--accent); text-transform: uppercase; letter-spacing: 1.5px;
+      flex-shrink: 0;
+    }
+
+    /* ─── Seller section ─── */
+    .hero-body {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 16px 20px;
+      gap: 18px;
+      min-height: 0;
+    }
+    .seller-section { display: flex; align-items: center; gap: 14px; width: 100%; }
+    .seller-avatar {
+      width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--accent) 0%, #7b2fbe 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 800; color: #fff; font-family: 'Sora', sans-serif;
+      box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px rgba(230,62,109,.4);
+    }
+    .seller-info { flex: 1; min-width: 0; }
+    .seller-name { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .seller-tag  { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; display: flex; align-items: center; gap: 5px; margin-top: 3px; }
+    .dot-online  { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse-dot 2s infinite; flex-shrink: 0; }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+    /* ─── Cards de ação ─── */
+    .actions { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+
+    .action-card {
+      width: 100%; background: var(--surface);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px 16px; display: flex; align-items: center; gap: 14px;
+      cursor: pointer; transition: border-color .2s, background .15s, transform .1s;
+      text-align: left; color: var(--text);
+      -webkit-user-select: none; user-select: none;
+    }
+    .action-card:active { transform: scale(0.985); background: var(--surface2); }
+
+    .card-c1 { border-color: rgba(34,217,138,.25); }
+    .card-c1:active { border-color: var(--green); }
+    .card-c3 { border-color: rgba(230,62,109,.3); }
+    .card-c3:active { border-color: var(--accent); }
+
+    .card-icon {
+      width: 44px; height: 44px; border-radius: 11px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 20px;
+    }
+    .card-c1 .card-icon { background: rgba(34,217,138,.10); }
+    .card-c3 .card-icon { background: rgba(230,62,109,.10); }
+
+    .card-text { flex: 1; min-width: 0; }
+    .card-title { font-size: 14px; font-weight: 700; }
+    .card-desc  { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
+    .card-arrow { font-size: 16px; color: var(--border2); flex-shrink: 0; }
+
+    /* ─── Footer ─── */
+    .hero-footer {
+      padding: 10px 20px 16px; text-align: center;
+      font-family: 'DM Mono', monospace; font-size: 9px;
+      color: var(--border2); letter-spacing: 1px;
+      flex-shrink: 0;
+    }
+
+    /* ══════════════════════════════════════════════════════
+       OVERLAY + BOTTOM SHEETS
+    ══════════════════════════════════════════════════════ */
+    .sheet-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.6); z-index: 500;
+      backdrop-filter: blur(3px);
+    }
+    .sheet-overlay.open { display: block; }
+
+    .sheet {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--surface); border-radius: 22px 22px 0 0;
+      max-height: 93dvh; z-index: 600;
+      transform: translateY(100%);
+      transition: transform .35s cubic-bezier(.32,1,.4,1);
+      display: flex; flex-direction: column;
+      will-change: transform;
+    }
+    .sheet.open { transform: translateY(0); }
+
+    .sheet-handle {
+      width: 36px; height: 4px; border-radius: 2px;
+      background: var(--border2); margin: 13px auto 0; flex-shrink: 0;
+    }
+    .sheet-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px 13px; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .sheet-tag   { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--accent); letter-spacing: 3px; text-transform: uppercase; }
+    .sheet-title { font-size: 16px; font-weight: 700; margin-top: 2px; }
+    .sheet-close {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--surface2); border: none; cursor: pointer;
+      color: var(--muted); font-size: 16px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .sheet-body {
+      flex: 1; overflow-y: auto; padding: 20px 20px 24px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* ══════════════════════════════════════════════════════
+       FORM ELEMENTS
+    ══════════════════════════════════════════════════════ */
+    .f-section {
+      font-size: 9px; font-family: 'DM Mono', monospace;
+      color: var(--accent); text-transform: uppercase; letter-spacing: 2px;
+      display: flex; align-items: center; gap: 8px;
+      margin: 18px 0 12px;
+    }
+    .f-section:first-child { margin-top: 0; }
+    .f-section::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    .f-group { margin-bottom: 12px; }
+    .f-group label {
+      display: block; font-size: 10px; font-weight: 700;
+      color: var(--muted); text-transform: uppercase; letter-spacing: .5px;
+      margin-bottom: 6px;
+    }
+    .req { color: var(--accent); }
+
+    .f-group input,
+    .f-group select,
+    .f-group textarea {
+      width: 100%; background: var(--surface2);
+      border: 1px solid var(--border2); border-radius: 10px;
+      padding: 12px 14px; color: var(--text);
+      font-family: 'Sora', sans-serif; font-size: 14px;
+      outline: none; transition: border-color .15s;
+      -webkit-appearance: none; appearance: none;
+    }
+    .f-group input:focus,
+    .f-group select:focus,
+    .f-group textarea:focus { border-color: var(--accent); }
+    .f-group input.err,
+    .f-group select.err { border-color: var(--accent) !important; }
+    .f-group input[readonly] { opacity: .55; }
+    .f-group textarea { resize: none; min-height: 70px; }
+
+    /* Select arrow */
+    .f-group select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a82a0' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center;
+      padding-right: 36px; cursor: pointer;
+    }
+    select option { background: #1c2030; }
+    select option:disabled { color: var(--muted); font-family: 'DM Mono', monospace; font-size: 11px; }
+
+    .f-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .f-hint { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 4px; min-height: 14px; }
+
+    /* Pill selectors */
+    .pill-group { display: flex; gap: 8px; flex-wrap: wrap; }
+    .pill {
+      padding: 9px 16px; border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: 600;
+      border: 1px solid var(--border2); background: var(--surface2); color: var(--muted);
+      transition: all .15s; -webkit-user-select: none; user-select: none;
+      white-space: nowrap;
+    }
+    .pill.selected { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .pill.pill-blue.selected { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+    /* Radio cards de pagamento */
+    .pay-cards { display: flex; flex-direction: column; gap: 8px; }
+    .pay-card {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px;
+      padding: 12px 14px; cursor: pointer; transition: border-color .15s;
+      -webkit-user-select: none; user-select: none;
+    }
+    .pay-card.selected { border-color: var(--accent); }
+    .pay-radio {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid var(--border2); flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color .15s;
+    }
+    .pay-card.selected .pay-radio { border-color: var(--accent); }
+    .pay-radio-inner {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--accent); display: none;
+    }
+    .pay-card.selected .pay-radio-inner { display: block; }
+    .pay-label { font-size: 13px; font-weight: 600; flex: 1; }
+    .pay-desc  { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; }
+    .pay-tag {
+      background: rgba(247,162,59,.12); border: 1px solid rgba(247,162,59,.3);
+      color: var(--yellow); border-radius: 6px; padding: 2px 7px;
+      font-size: 9px; font-family: 'DM Mono', monospace; white-space: nowrap;
+    }
+
+    /* Toggle SIM/NÃO */
+    .toggle-wrap { display: flex; gap: 8px; }
+    .toggle-btn {
+      flex: 1; padding: 11px; border-radius: 10px; font-size: 13px; font-weight: 700;
+      border: 1px solid var(--border2); background: var(--surface2); color: var(--muted);
+      cursor: pointer; text-align: center; transition: all .15s;
+      -webkit-user-select: none; user-select: none;
+    }
+    .toggle-btn.sel-sim { background: rgba(34,217,138,.12); border-color: var(--green); color: var(--green); }
+    .toggle-btn.sel-nao { background: rgba(230,62,109,.1);  border-color: var(--accent); color: var(--accent); }
+
+    /* Alerta Assertiva / lookup */
+    .assertiva-box {
+      background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px;
+      padding: 14px; margin-bottom: 12px; display: none;
+    }
+    .assertiva-box.show { display: block; }
+    .assertiva-box.found { border-color: rgba(34,217,138,.4); }
+    .assertiva-box.notfound { border-color: rgba(247,162,59,.4); }
+    .assertiva-label { font-size: 9px; font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); margin-bottom: 6px; }
+    .assertiva-nome { font-size: 15px; font-weight: 700; }
+    .assertiva-status { font-size: 11px; font-family: 'DM Mono', monospace; margin-top: 4px; }
+    .assertiva-box.found .assertiva-status { color: var(--green); }
+    .assertiva-box.notfound .assertiva-status { color: var(--yellow); }
+
+    /* Notificação */
+    .success-notif {
+      background: rgba(79,158,255,.08); border: 1px solid rgba(79,158,255,.25);
+      border-radius: 10px; padding: 10px 16px;
+      font-size: 11px; font-family: 'DM Mono', monospace; color: var(--blue);
+      text-align: center; max-width: 280px;
+    }
+    .success-proto {
+      font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace;
+      margin-top: 4px;
+    }
+
+    /* Campos extras CPF não encontrado */
+    #cons-extra-fields { display: none; }
+    #cons-extra-fields.show { display: block; }
+
+    /* Botão consultar CPF / Assertiva */
+    .btn-cpf {
+      width: 100%; background: var(--surface2); border: 1px solid var(--blue);
+      border-radius: 10px; padding: 12px; color: var(--blue);
+      font-family: 'Sora', sans-serif; font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: background .15s, transform .1s;
+      margin-top: 2px;
+    }
+    .btn-cpf:active { transform: scale(0.98); background: rgba(79,158,255,.08); }
+    .btn-cpf:disabled { opacity: .4; cursor: default; }
+
+    /* Botão principal */
+    .btn-submit {
+      width: 100%; background: var(--accent); color: #fff;
+      border: none; border-radius: 12px; padding: 15px;
+      font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: background .2s, transform .1s;
+      margin-top: 10px;
+    }
+    .btn-submit:active { transform: scale(0.98); background: var(--accent-h); }
+    .btn-submit:disabled { opacity: .45; cursor: default; }
+
+    /* Botão secundário verde (→ Pré-Venda) */
+    .btn-green {
+      width: 100%; background: var(--green); color: #0d1810;
+      border: none; border-radius: 12px; padding: 15px;
+      font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: opacity .2s, transform .1s;
+      margin-top: 10px;
+    }
+    .btn-green:active { transform: scale(0.98); opacity: .85; }
+
+    .btn-ghost {
+      width: 100%; background: transparent; border: 1px solid var(--border2);
+      border-radius: 12px; padding: 14px; color: var(--muted);
+      font-family: 'Sora', sans-serif; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: border-color .15s, transform .1s;
+      margin-top: 8px;
+    }
+    .btn-ghost:active { transform: scale(0.98); border-color: var(--border2); }
+
+    /* ══════════════════════════════════════════════════════
+       TELA DE SUCESSO
+    ══════════════════════════════════════════════════════ */
+    .success-view {
+      display: none; flex-direction: column; align-items: center;
+      justify-content: center; padding: 40px 20px; text-align: center; gap: 14px;
+    }
+    .success-view.show { display: flex; }
+    .success-icon  { font-size: 52px; }
+    .success-title { font-size: 20px; font-weight: 800; }
+    .success-sub   { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; max-width: 260px; }
+    .success-id    {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 20px;
+      font-family: 'DM Mono', monospace; font-size: 13px; color: var(--accent);
+    }
+
+    /* ══════════════════════════════════════════════════════
+       TYPE TOGGLE — Viabilidade / Crédito
+    ══════════════════════════════════════════════════════ */
+    .type-toggle {
+      display: flex; background: var(--surface2); border-radius: 12px;
+      padding: 4px; gap: 3px; margin-bottom: 20px;
+    }
+    .type-btn {
+      flex: 1; padding: 11px 8px; border: none; border-radius: 9px;
+      font-family: 'Sora', sans-serif; font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: all .2s; color: var(--muted);
+      background: transparent; text-align: center;
+      -webkit-user-select: none; user-select: none;
+    }
+    .type-btn.active {
+      background: var(--surface); color: var(--text);
+      box-shadow: 0 1px 4px rgba(0,0,0,.35);
+    }
+
+    /* ══════════════════════════════════════════════════════
+       INFO BOX — cliente pré-preenchido
+    ══════════════════════════════════════════════════════ */
+    .info-box {
+      display: none; background: var(--surface2);
+      border: 1px solid rgba(34,217,138,.3); border-radius: 12px;
+      padding: 14px 16px; margin-bottom: 16px;
+    }
+    .info-box.show { display: block; }
+    .info-box-label {
+      font-size: 9px; font-family: 'DM Mono', monospace;
+      color: var(--green); text-transform: uppercase; letter-spacing: 2px;
+      margin-bottom: 6px;
+    }
+    .info-box-nome { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+    .info-box-end  { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+    /* ══════════════════════════════════════════════════════
+       PORTABILIDADE (condicional ao plano móvel)
+    ══════════════════════════════════════════════════════ */
+    #port-wrap { display: none; margin-top: 10px; }
+    #port-wrap.show { display: block; }
+    .f-sub-label {
+      font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace;
+      text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; display: block;
+    }
+
+    /* ══════════════════════════════════════════════════════
+       TELA DE LOGIN
+    ══════════════════════════════════════════════════════ */
+    #login-screen {
+      position: fixed; inset: 0; background: var(--bg); z-index: 700;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 32px 24px;
+      transition: opacity .4s ease, transform .4s ease;
+    }
+    #login-screen.out { opacity: 0; pointer-events: none; transform: translateY(-16px); }
+
+    .login-logo {
+      width: 56px; height: 56px; border-radius: 16px;
+      background: var(--accent); display: flex; align-items: center; justify-content: center;
+      font-family: 'DM Mono', monospace; font-weight: 700; font-size: 20px; color: #fff;
+      margin-bottom: 16px;
+      box-shadow: 0 8px 24px rgba(230,62,109,.35);
+    }
+    .login-title { font-size: 22px; font-weight: 800; }
+    .login-sub {
+      font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace;
+      text-transform: uppercase; letter-spacing: 2px; margin-top: 4px; margin-bottom: 32px;
+    }
+    .login-card {
+      width: 100%; max-width: 340px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 18px; padding: 24px 22px;
+    }
+    .login-card-label {
+      font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace;
+      margin-bottom: 12px; text-align: center;
+    }
+    .login-input {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 12px; padding: 14px 16px; color: var(--text);
+      font-family: 'Sora', sans-serif; font-size: 18px; font-weight: 600;
+      outline: none; text-align: center; letter-spacing: 2px;
+      transition: border-color .15s; -webkit-appearance: none;
+    }
+    .login-input:focus { border-color: var(--accent); }
+    .login-input::placeholder { font-size: 14px; letter-spacing: 0; font-weight: 400; }
+    .login-btn {
+      width: 100%; background: var(--accent); color: #fff;
+      border: none; border-radius: 12px; padding: 15px;
+      font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 700;
+      cursor: pointer; margin-top: 14px;
+      transition: background .2s, transform .1s;
+    }
+    .login-btn:active { transform: scale(0.98); background: var(--accent-h); }
+    .login-btn:disabled { opacity: .5; cursor: default; }
+    .login-error {
+      font-size: 12px; color: var(--accent); font-family: 'DM Mono', monospace;
+      text-align: center; min-height: 16px; margin-top: 8px;
+    }
+    .login-footer {
+      font-size: 10px; color: var(--border2); font-family: 'DM Mono', monospace;
+      text-transform: uppercase; letter-spacing: 1px; margin-top: 28px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="spinner"></div>
+  <p id="loading-msg">Aguarde...</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     LOGIN — Identificação do parceiro por CPF
+     Backend: autenticarParceiro(cpf) → aba "3 - PAP", col W
+══════════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-logo">DP</div>
+  <div class="login-title">DharmaPro</div>
+  <div class="login-sub">Rede PAP · Área do Parceiro</div>
+
+  <div class="login-card">
+    <div class="login-card-label">Informe seu CPF para acessar</div>
+    <input
+      type="text" id="login-cpf" class="login-input"
+      placeholder="000.000.000-00" maxlength="14"
+      inputmode="numeric"
+      oninput="maskCPFLogin(this)"
+      onkeydown="if(event.key==='Enter') fazerLogin()">
+    <div class="login-error" id="login-error"></div>
+    <button class="login-btn" id="login-btn" onclick="fazerLogin()">Entrar</button>
+  </div>
+
+  <div class="login-footer">Acesso exclusivo para parceiros PAP</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     HERO — Tela principal
+══════════════════════════════════════════════════════════ -->
+<div class="hero">
+
+  <!-- Header -->
+  <div class="hero-header">
+    <div class="logo">
+      <div class="logo-badge">DP</div>
+      <div>
+        <span class="logo-name">DharmaPro</span>
+        <span class="logo-sub">Rede de Parceiros</span>
+      </div>
+    </div>
+    <div class="badge-parceiro">Parceiro</div>
+  </div>
+
+  <!-- Body -->
+  <div class="hero-body">
+
+    <!-- Vendedor -->
+    <div class="seller-section">
+      <div class="seller-avatar" id="sellerAvatar">P</div>
+      <div class="seller-info">
+        <div class="seller-name" id="sellerName">Olá, Parceiro!</div>
+        <div class="seller-tag">
+          <span class="dot-online"></span>
+          <span>Link ativo · Área freelancer</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cards -->
+    <div class="actions">
+
+      <button class="action-card card-c1" onclick="openSheet('sheet-consulta')">
+        <div class="card-icon">📋</div>
+        <div class="card-text">
+          <div class="card-title">Análise / Consulta</div>
+          <div class="card-desc">Viabilidade · Crédito CPF</div>
+        </div>
+        <div class="card-arrow">›</div>
+      </button>
+
+      <button class="action-card card-c3" onclick="abrirPreVendaDireta()">
+        <div class="card-icon">📦</div>
+        <div class="card-text">
+          <div class="card-title">Pré-Venda</div>
+          <div class="card-desc">Plano · pagamento · dados finais</div>
+        </div>
+        <div class="card-arrow">›</div>
+      </button>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="hero-footer">DharmaPro CRM · Vero Fibra · Juiz de Fora</div>
+
+</div>
+
+<!-- OVERLAY -->
+<div class="sheet-overlay" id="overlay" onclick="closeSheets()"></div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     SHEET 1 · ANÁLISE / CONSULTA
+     Tipo selecionável: Viabilidade (endereço) | Crédito (CPF + endereço)
+══════════════════════════════════════════════════════════ -->
+<div class="sheet" id="sheet-consulta">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div>
+      <div class="sheet-tag">Consulta</div>
+      <div class="sheet-title" id="cons-sheet-title">Análise de Viabilidade</div>
+    </div>
+    <button class="sheet-close" onclick="closeSheets()">✕</button>
+  </div>
+
+  <!-- Form -->
+  <div class="sheet-body" id="cons-form-body">
+
+    <!-- Seletor de tipo -->
+    <div class="type-toggle">
+      <button class="type-btn active" id="btn-tipo-viab" onclick="setTipo('Viabilidade')">🏠 Viabilidade</button>
+      <button class="type-btn"        id="btn-tipo-cred" onclick="setTipo('Crédito')">🆔 Crédito</button>
+    </div>
+
+    <!-- ── Seção Crédito (CPF + Assertiva) — oculta por padrão ── -->
+    <div id="cred-section" style="display:none">
+
+      <div class="f-section">🆔 CPF do Cliente</div>
+
+      <div class="f-group">
+        <label>CPF <span class="req">*</span></label>
+        <input type="text" id="cons-cpf" placeholder="000.000.000-00" maxlength="14"
+               inputmode="numeric" oninput="maskCPF(this)">
+      </div>
+
+      <button class="btn-cpf" id="btn-assertiva" onclick="consultarAssertiva()">
+        🔍 Consultar no Assertiva
+      </button>
+
+      <!-- Resultado Assertiva -->
+      <div class="assertiva-box" id="assertiva-box" style="margin-top:12px">
+        <div class="assertiva-label">Resultado Assertiva</div>
+        <div class="assertiva-nome" id="assertiva-nome">—</div>
+        <div class="assertiva-status" id="assertiva-status">—</div>
+      </div>
+
+      <!-- Campos extras se CPF não encontrado no Assertiva -->
+      <div id="cons-extra-fields">
+        <div class="f-section">👤 Dados Complementares</div>
+        <div class="f-hint" style="margin-bottom:12px;color:var(--yellow)">⚠ CPF não localizado no Assertiva. Preencha os dados abaixo.</div>
+
+        <div class="f-group">
+          <label>Nome Completo <span class="req">*</span></label>
+          <input type="text" id="cons-nome" placeholder="Nome do cliente" autocomplete="name">
+        </div>
+
+        <div class="f-row">
+          <div class="f-group">
+            <label>Data de Nascimento <span class="req">*</span></label>
+            <input type="text" id="cons-nasc" placeholder="DD/MM/AAAA" maxlength="10"
+                   inputmode="numeric" oninput="maskData(this)">
+          </div>
+          <div class="f-group">
+            <label>Nome da Mãe <span class="req">*</span></label>
+            <input type="text" id="cons-mae" placeholder="Nome completo">
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!-- /cred-section -->
+
+    <!-- ── Endereço (compartilhado Viabilidade + Crédito) ── -->
+    <div class="f-section" id="cons-end-label">🏠 Endereço Completo</div>
+
+    <div class="f-row">
+      <div class="f-group">
+        <label>CEP <span class="req">*</span></label>
+        <input type="text" id="cons-cep" placeholder="00000-000" maxlength="9"
+               inputmode="numeric" oninput="maskCEP(this); buscaCep('cons')">
+        <div class="f-hint" id="cons-cep-hint"></div>
+      </div>
+      <div class="f-group">
+        <label>Número <span class="req">*</span></label>
+        <input type="text" id="cons-num" placeholder="123" inputmode="numeric">
+      </div>
+    </div>
+
+    <div class="f-group">
+      <label>Rua <span class="req">*</span></label>
+      <input type="text" id="cons-rua" placeholder="Preenchida pelo CEP">
+    </div>
+
+    <div class="f-row">
+      <div class="f-group">
+        <label>Bairro</label>
+        <input type="text" id="cons-bairro" placeholder="Bairro">
+      </div>
+      <div class="f-group">
+        <label>Complemento</label>
+        <input type="text" id="cons-comp" placeholder="Apto, casa...">
+      </div>
+    </div>
+
+    <div class="f-row">
+      <div class="f-group">
+        <label>Cidade</label>
+        <input type="text" id="cons-cidade" placeholder="Cidade" readonly>
+      </div>
+      <div class="f-group">
+        <label>UF</label>
+        <input type="text" id="cons-uf" placeholder="MG" maxlength="2" readonly>
+      </div>
+    </div>
+
+    <button class="btn-submit" id="cons-submit-btn" onclick="submitConsulta()">🏠 Solicitar Análise</button>
+    <div style="height:16px"></div>
+  </div>
+
+  <!-- Sucesso -->
+  <div class="success-view" id="cons-success">
+    <div class="success-icon" id="cons-success-icon">📍</div>
+    <div class="success-title">Consulta Registrada!</div>
+    <div class="success-id" id="cons-success-id">—</div>
+    <div class="success-notif">🖥️ Resultado disponível em <strong>Consultas</strong> no CRM · o time retorna pelo BotConversa</div>
+    <div class="success-proto">Guarde o protocolo para referência</div>
+    <button class="btn-green" onclick="irParaPreVenda()">📦 Registrar Pré-Venda →</button>
+    <button class="btn-ghost" onclick="resetConsulta()">+ Nova Consulta</button>
+    <button class="btn-ghost" style="border-color:transparent;color:var(--border2)" onclick="closeSheets()">Voltar ao início</button>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     SHEET 2 · PRÉ-VENDA
+     Pré-preenchido a partir de _consultaData quando vindo da Consulta
+══════════════════════════════════════════════════════════ -->
+<div class="sheet" id="sheet-prevenda">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div>
+      <div class="sheet-tag">Pré-Venda</div>
+      <div class="sheet-title">Concluir Pedido</div>
+    </div>
+    <button class="sheet-close" onclick="closeSheets()">✕</button>
+  </div>
+
+  <div class="sheet-body" id="pv-form-body">
+
+    <!-- Info box — aparece se veio da Consulta -->
+    <div class="info-box" id="pv-info-box">
+      <div class="info-box-label">✅ Dados da Consulta</div>
+      <div class="info-box-nome" id="pv-info-nome">—</div>
+      <div class="info-box-end"  id="pv-info-end">—</div>
+    </div>
+
+    <div class="f-section">🆔 Identificação do Cliente</div>
+
+    <div class="f-group">
+      <label>CPF do Cliente <span class="req">*</span></label>
+      <input type="text" id="pv-cpf" placeholder="000.000.000-00" maxlength="14"
+             inputmode="numeric" oninput="maskCPF(this)">
+    </div>
+
+    <div class="f-section">📱 Contato</div>
+
+    <div class="f-row">
+      <div class="f-group">
+        <label>WhatsApp <span class="req">*</span></label>
+        <input type="text" id="pv-wpp" placeholder="(32) 9 0000-0000"
+               maxlength="16" inputmode="tel" oninput="maskWPP(this)">
+      </div>
+      <div class="f-group">
+        <label>E-mail</label>
+        <input type="email" id="pv-email" placeholder="cliente@email.com" inputmode="email">
+      </div>
+    </div>
+
+    <div class="f-section">🌐 Plano</div>
+
+    <!-- CEP para carregar planos (pré-preenchido ou manual) -->
+    <div class="f-row" style="margin-bottom:0">
+      <div class="f-group">
+        <label>CEP do cliente</label>
+        <input type="text" id="pv-cep" placeholder="00000-000" maxlength="9"
+               inputmode="numeric" oninput="onCepPreVenda(this)">
+        <div class="f-hint" id="pv-cep-hint"></div>
+      </div>
+      <div class="f-group" style="display:flex;align-items:flex-end">
+        <button class="btn-cpf" style="margin:0" onclick="recarregarPlanos()">↺ Carregar</button>
+      </div>
+    </div>
+
+    <div class="f-group" style="margin-top:10px">
+      <label>Plano Contratado <span class="req">*</span></label>
+      <select id="pv-plano">
+        <option value="">Informe o CEP para carregar planos...</option>
+      </select>
+    </div>
+
+    <div class="f-group">
+      <label>Plano Móvel <span class="req">*</span></label>
+      <div class="toggle-wrap">
+        <div class="toggle-btn" id="movel-sim" onclick="setMovel('SIM')">📲 SIM</div>
+        <div class="toggle-btn" id="movel-nao" onclick="setMovel('NÃO')">✕ NÃO</div>
+      </div>
+    </div>
+
+    <!-- Portabilidade — aparece só se móvel = SIM -->
+    <div id="port-wrap">
+      <span class="f-sub-label">Tipo de linha móvel <span class="req">*</span></span>
+      <div class="pill-group" id="port-pills">
+        <div class="pill pill-blue" onclick="setPill('port-pills', this)">Número Novo</div>
+        <div class="pill pill-blue" onclick="setPill('port-pills', this)">Portabilidade</div>
+      </div>
+    </div>
+
+    <div class="f-section">🗓️ Vencimento</div>
+
+    <div class="f-group">
+      <label>Data de Vencimento <span class="req">*</span></label>
+      <div class="pill-group" id="venc-pills">
+        <div class="pill" onclick="setPill('venc-pills', this)">01</div>
+        <div class="pill" onclick="setPill('venc-pills', this)">03</div>
+        <div class="pill" onclick="setPill('venc-pills', this)">05</div>
+        <div class="pill" onclick="setPill('venc-pills', this)">09</div>
+        <div class="pill" onclick="setPill('venc-pills', this)">13</div>
+      </div>
+    </div>
+
+    <div class="f-section">💳 Forma de Pagamento</div>
+
+    <div class="pay-cards" id="pay-cards">
+
+      <div class="pay-card" onclick="selectPay(this)">
+        <div class="pay-radio"><div class="pay-radio-inner"></div></div>
+        <div>
+          <div class="pay-label">Cartão de Crédito</div>
+          <div class="pay-desc">Débito automático na fatura</div>
+        </div>
+      </div>
+
+      <div class="pay-card" onclick="selectPay(this)">
+        <div class="pay-radio"><div class="pay-radio-inner"></div></div>
+        <div>
+          <div class="pay-label">Débito Automático</div>
+          <div class="pay-desc">Debitado direto na conta</div>
+        </div>
+      </div>
+
+      <div class="pay-card" onclick="selectPay(this)">
+        <div class="pay-radio"><div class="pay-radio-inner"></div></div>
+        <div style="flex:1">
+          <div class="pay-label">Boleto ou Pix</div>
+          <div class="pay-desc">Pagamento mensal manual</div>
+        </div>
+        <div class="pay-tag">+ R$10/mês</div>
+      </div>
+
+    </div>
+
+    <button class="btn-submit" onclick="submitPreVenda()">✅ Finalizar Pré-Venda</button>
+    <div style="height:16px"></div>
+  </div>
+
+  <!-- Sucesso -->
+  <div class="success-view" id="pv-success">
+    <div class="success-icon">⏳</div>
+    <div class="success-title">Pré-Venda Registrada!</div>
+    <div class="success-id" id="pv-success-id">—</div>
+    <div class="success-notif">🖥️ Aguardando aprovação do backoffice no CRM</div>
+    <div class="success-proto">Guarde o protocolo para referência</div>
+    <button class="btn-submit" onclick="resetPreVenda()">+ Nova Pré-Venda</button>
+    <button class="btn-ghost" onclick="closeSheets()">Voltar ao início</button>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════ -->
+<script>
+/* ────────────────────────────────────────────────────────
+   CONFIGURAÇÃO
+──────────────────────────────────────────────────────── */
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw/exec';
+
+/* ────────────────────────────────────────────────────────
+   ESTADO GLOBAL
+──────────────────────────────────────────────────────── */
+let SELLER_NAME = '';
+let SELLER_CPF  = '';
+
+// Tipo de consulta atual
+let _tipoConsulta = 'Viabilidade'; // 'Viabilidade' | 'Crédito'
+
+// Dados da consulta recém-enviada (passa para pré-venda)
+let _consultaData = null;
+
+// Pré-venda
+let _movel = null;
+
+/* ────────────────────────────────────────────────────────
+   SESSÃO / RENDER
+──────────────────────────────────────────────────────── */
+function renderSeller() {
+  const first    = SELLER_NAME.split(' ')[0] || 'Parceiro';
+  const initials = SELLER_NAME.split(' ').slice(0,2).map(w => w[0]?.toUpperCase()).join('') || 'P';
+  document.getElementById('sellerName').textContent   = 'Olá, ' + first + '!';
+  document.getElementById('sellerAvatar').textContent = initials;
+}
+
+/* ── Máscara CPF login ── */
+function maskCPFLogin(el) {
+  let v = el.value.replace(/\D/g,'').slice(0,11);
+  if (v.length > 9)      v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/,'$1.$2.$3-$4');
+  else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/,'$1.$2.$3');
+  else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/,'$1.$2');
+  el.value = v;
+}
+
+/* ── Login ── */
+async function fazerLogin() {
+  const cpfRaw = document.getElementById('login-cpf').value.replace(/\D/g,'');
+  const errEl  = document.getElementById('login-error');
+  errEl.textContent = '';
+
+  if (cpfRaw.length < 11) { errEl.textContent = 'Informe um CPF válido (11 dígitos).'; return; }
+
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true; btn.textContent = 'Verificando...';
+  setLoading(true, 'Verificando cadastro PAP...');
+
+  try {
+    const res = await API.autenticarParceiro(cpfRaw);
+    setLoading(false);
+
+    if (res.found) {
+      SELLER_NAME = res.nome;
+      SELLER_CPF  = document.getElementById('login-cpf').value;
+      renderSeller();
+      document.getElementById('login-screen').classList.add('out');
+    } else {
+      btn.disabled = false; btn.textContent = 'Entrar';
+      errEl.textContent = 'CPF não encontrado na rede PAP. Verifique com o responsável.';
+    }
+  } catch {
+    setLoading(false);
+    btn.disabled = false; btn.textContent = 'Entrar';
+    errEl.textContent = 'Erro de conexão. Tente novamente.';
+  }
+}
+
+/* ────────────────────────────────────────────────────────
+   SHEETS
+──────────────────────────────────────────────────────── */
+function openSheet(id) {
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById(id).classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeSheets() {
+  document.getElementById('overlay').classList.remove('open');
+  document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open'));
+  document.body.style.overflow = '';
+}
+
+/* ────────────────────────────────────────────────────────
+   TOAST + LOADING
+──────────────────────────────────────────────────────── */
+let _toastTimer;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className   = 'show ' + type;
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = ''; }, 3200);
+}
+function setLoading(on, msg = 'Aguarde...') {
+  document.getElementById('loading-msg').textContent = msg;
+  document.getElementById('loading').classList.toggle('show', on);
+}
+
+/* ────────────────────────────────────────────────────────
+   TIPO CONSULTA (Viabilidade / Crédito)
+──────────────────────────────────────────────────────── */
+function setTipo(tipo) {
+  _tipoConsulta = tipo;
+  const isViab = tipo === 'Viabilidade';
+
+  // Toggle buttons
+  document.getElementById('btn-tipo-viab').classList.toggle('active', isViab);
+  document.getElementById('btn-tipo-cred').classList.toggle('active', !isViab);
+
+  // Seção crédito
+  document.getElementById('cred-section').style.display = isViab ? 'none' : 'block';
+
+  // Título do sheet
+  document.getElementById('cons-sheet-title').textContent =
+    isViab ? 'Análise de Viabilidade' : 'Análise de Crédito';
+
+  // Label do endereço
+  document.getElementById('cons-end-label').textContent = isViab ? '🏠 Endereço Completo' : '🏠 Endereço';
+
+  // Botão submit
+  document.getElementById('cons-submit-btn').textContent =
+    isViab ? '🏠 Solicitar Análise' : '🆔 Enviar para Análise';
+
+  // Ícone de sucesso (muda retroativamente ao fechar)
+  document.getElementById('cons-success-icon').textContent = isViab ? '📍' : '✅';
+}
+
+/* ────────────────────────────────────────────────────────
+   CEP — BrasilAPI com fallback ViaCEP (consulta)
+──────────────────────────────────────────────────────── */
+const _cepTimers = {};
+function buscaCep(prefix) {
+  const raw  = (document.getElementById(prefix + '-cep')?.value || '').replace(/\D/g,'');
+  const hint = document.getElementById(prefix + '-cep-hint');
+  if (!hint) return;
+  if (raw.length < 8) { hint.textContent = ''; return; }
+
+  clearTimeout(_cepTimers[prefix]);
+  hint.textContent = '⏳ Buscando...';
+
+  _cepTimers[prefix] = setTimeout(async () => {
+    try {
+      const r = await fetch('https://brasilapi.com.br/api/cep/v2/' + raw);
+      if (!r.ok) throw 0;
+      const d = await r.json();
+      preencheEndereco(prefix, d.street || '', d.neighborhood || '', d.city || '', d.state || '');
+      hint.textContent = (d.city || '') + (d.state ? '/' + d.state : '');
+    } catch {
+      try {
+        const r2 = await fetch('https://viacep.com.br/ws/' + raw + '/json/');
+        const d2 = await r2.json();
+        if (d2.erro) throw 0;
+        preencheEndereco(prefix, d2.logradouro || '', d2.bairro || '', d2.localidade || '', d2.uf || '');
+        hint.textContent = (d2.localidade || '') + (d2.uf ? '/' + d2.uf : '');
+      } catch {
+        hint.textContent = '⚠ CEP não encontrado';
+      }
+    }
+  }, 500);
+}
+
+function preencheEndereco(p, rua, bairro, cidade, uf) {
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  set(p + '-rua',    rua);
+  set(p + '-bairro', bairro);
+  set(p + '-cidade', cidade);
+  set(p + '-uf',     uf);
+}
+
+/* ────────────────────────────────────────────────────────
+   CEP PRÉ-VENDA — carrega planos via backend
+──────────────────────────────────────────────────────── */
+function onCepPreVenda(el) {
+  maskCEP(el);
+  const raw = el.value.replace(/\D/g,'');
+  if (raw.length === 8) {
+    clearTimeout(_cepTimers['pv']);
+    _cepTimers['pv'] = setTimeout(() => carregarPlanos(raw), 700);
+  }
+}
+
+function recarregarPlanos() {
+  const raw = (document.getElementById('pv-cep')?.value || '').replace(/\D/g,'');
+  if (raw.length === 8) {
+    carregarPlanos(raw);
+  } else {
+    toast('Informe um CEP válido', 'warn');
+  }
+}
+
+async function carregarPlanos(cep) {
+  const sel = document.getElementById('pv-plano');
+  sel.innerHTML = '<option value="">⏳ Carregando planos...</option>';
+  sel.disabled = true;
+
+  try {
+    const res = await API.buscarCEP(cep);
+
+    sel.disabled = false;
+
+    if (res.erro || !res.planos || res.planos.length === 0) {
+      sel.innerHTML = '<option value="">Sem planos disponíveis para este CEP</option>';
+      document.getElementById('pv-cep-hint').textContent = res.erro ? '⚠ CEP não encontrado' : '';
+      return;
+    }
+
+    // Preenche hint com cidade/UF
+    if (res.cidade) {
+      document.getElementById('pv-cep-hint').textContent = res.cidade + (res.uf ? '/' + res.uf : '');
+    }
+
+    // Constrói select com cabeçalhos de categoria
+    sel.innerHTML = '<option value="">Selecionar plano...</option>';
+    for (const item of res.planos) {
+      const opt = document.createElement('option');
+      if (item.startsWith('▶️')) {
+        // Cabeçalho de categoria — disabled
+        opt.disabled = true;
+        opt.textContent = '── ' + item.replace('▶️ ', '').replace(' ◀️', '') + ' ──';
+      } else {
+        // Plano — "Nome | 99,90"
+        const partes = item.split(' | ');
+        const nome   = (partes[0] || item).trim();
+        const valor  = (partes[1] || '').trim();
+        opt.value       = item;  // guarda full "Nome | valor"
+        opt.textContent = nome + (valor ? ' — R$ ' + valor : '');
+      }
+      sel.appendChild(opt);
+    }
+
+  } catch (err) {
+    sel.disabled = false;
+    sel.innerHTML = '<option value="">Erro ao carregar planos</option>';
+    console.error('[carregarPlanos]', err);
+  }
+}
+
+/* ────────────────────────────────────────────────────────
+   MÁSCARAS
+──────────────────────────────────────────────────────── */
+function maskCPF(el) {
+  let v = el.value.replace(/\D/g,'').slice(0,11);
+  if (v.length > 9)      v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/,'$1.$2.$3-$4');
+  else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/,'$1.$2.$3');
+  else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/,'$1.$2');
+  el.value = v;
+}
+function maskCEP(el) {
+  let v = el.value.replace(/\D/g,'').slice(0,8);
+  if (v.length > 5) v = v.slice(0,5) + '-' + v.slice(5);
+  el.value = v;
+}
+function maskWPP(el) {
+  let v = el.value.replace(/\D/g,'').slice(0,11);
+  if (v.length > 10)     v = v.replace(/(\d{2})(\d{1})(\d{4})(\d{4})/,'($1) $2 $3-$4');
+  else if (v.length > 6) v = v.replace(/(\d{2})(\d{4,5})(\d{1,4})/,'($1) $2-$3');
+  else if (v.length > 2) v = v.replace(/(\d{2})(\d+)/,'($1) $2');
+  el.value = v;
+}
+function maskData(el) {
+  let v = el.value.replace(/\D/g,'').slice(0,8);
+  if (v.length > 4) v = v.slice(0,2)+'/'+v.slice(2,4)+'/'+v.slice(4);
+  else if (v.length > 2) v = v.slice(0,2)+'/'+v.slice(2);
+  el.value = v;
+}
+
+/* ────────────────────────────────────────────────────────
+   PILLS / PAGAMENTO / MÓVEL
+──────────────────────────────────────────────────────── */
+function setPill(groupId, el) {
+  document.querySelectorAll('#' + groupId + ' .pill').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function setMovel(val) {
+  _movel = val;
+  document.getElementById('movel-sim').className = 'toggle-btn' + (val === 'SIM' ? ' sel-sim' : '');
+  document.getElementById('movel-nao').className = 'toggle-btn' + (val === 'NÃO' ? ' sel-nao' : '');
+  document.getElementById('port-wrap').classList.toggle('show', val === 'SIM');
+}
+
+function selectPay(el) {
+  document.querySelectorAll('#pay-cards .pay-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function getPay() {
+  const sel = document.querySelector('#pay-cards .pay-card.selected');
+  return sel ? sel.querySelector('.pay-label').textContent.trim() : null;
+}
+
+/* ────────────────────────────────────────────────────────
+   VALIDAÇÃO
+──────────────────────────────────────────────────────── */
+function required(id) {
+  const el = document.getElementById(id);
+  if (!el) return true;
+  const ok = el.value.trim() !== '';
+  el.classList.toggle('err', !ok);
+  return ok;
+}
+function getVal(id) { return (document.getElementById(id)?.value || '').trim(); }
+
+/* ────────────────────────────────────────────────────────
+   CONSULTA ASSERTIVA
+──────────────────────────────────────────────────────── */
+async function consultarAssertiva() {
+  const cpf = getVal('cons-cpf').replace(/\D/g,'');
+  if (cpf.length < 11) { toast('Informe um CPF válido', 'warn'); return; }
+
+  const btn = document.getElementById('btn-assertiva');
+  btn.disabled = true; btn.textContent = '⏳ Consultando...';
+  setLoading(true, 'Consultando Assertiva...');
+
+  try {
+    const res = await API.consultarAssertiva(cpf);
+    setLoading(false);
+    btn.disabled = false; btn.textContent = '🔍 Consultar no Assertiva';
+
+    const box = document.getElementById('assertiva-box');
+    box.className = 'assertiva-box show ' + (res.found ? 'found' : 'notfound');
+    document.getElementById('assertiva-nome').textContent   = res.found ? res.nome : '—';
+    document.getElementById('assertiva-status').textContent = res.status || (res.found ? 'Localizado' : 'Não encontrado');
+
+    // Se encontrado → preenche nome automaticamente
+    if (res.found && res.nome) {
+      // Guarda nome para usar na pré-venda
+      document.getElementById('cons-extra-fields').classList.remove('show');
+    } else {
+      // Não encontrado → exibe campos extras
+      document.getElementById('cons-extra-fields').classList.add('show');
+    }
+
+  } catch {
+    setLoading(false);
+    btn.disabled = false; btn.textContent = '🔍 Consultar no Assertiva';
+    toast('Erro ao consultar Assertiva.', 'err');
+  }
+}
+
+/* ────────────────────────────────────────────────────────
+   SUBMIT · CONSULTA UNIFICADA
+──────────────────────────────────────────────────────── */
+async function submitConsulta() {
+  const isCred = _tipoConsulta === 'Crédito';
+  const extraVis = isCred && document.getElementById('cons-extra-fields').classList.contains('show');
+
+  // Validação base
+  const checks = [required('cons-cep'), required('cons-rua'), required('cons-num')];
+  if (isCred) checks.push(required('cons-cpf'));
+  if (extraVis) checks.push(required('cons-nome'), required('cons-nasc'), required('cons-mae'));
+
+  if (!checks.every(Boolean)) { toast('Preencha os campos obrigatórios', 'err'); return; }
+
+  // Dados da Assertiva (nome vem do resultado se encontrado)
+  const asserNome = document.getElementById('assertiva-nome')?.textContent;
+  const nomeFinal = extraVis
+    ? getVal('cons-nome')
+    : (asserNome && asserNome !== '—' ? asserNome : '');
+
+  const data = {
+    parceiro:    SELLER_NAME,
+    parceiroCpf: SELLER_CPF,
+    canal:       'PAP',
+    tipo:        _tipoConsulta,
+    // Crédito
+    cpf:         isCred ? getVal('cons-cpf') : '',
+    nome:        nomeFinal,
+    nascimento:  extraVis ? getVal('cons-nasc') : '',
+    nomeMae:     extraVis ? getVal('cons-mae')  : '',
+    extraFields: extraVis,
+    // Endereço
+    cep:         getVal('cons-cep'),
+    rua:         getVal('cons-rua'),
+    numero:      getVal('cons-num'),
+    comp:        getVal('cons-comp'),
+    bairro:      getVal('cons-bairro'),
+    cidade:      getVal('cons-cidade'),
+    uf:          getVal('cons-uf'),
+    ts:          new Date().toISOString(),
+  };
+
+  setLoading(true, 'Enviando consulta...');
+  try {
+    const action = isCred ? 'analisarCredito' : 'analisarViabilidade';
+    const res    = await API._post({ action, ...data });
+    setLoading(false);
+
+    if (res.ok || res.id) {
+      // Salva dados para pré-venda
+      _consultaData = {
+        protocolo:  res.id || '',
+        tipo:       _tipoConsulta,
+        cpf:        data.cpf,
+        nome:       nomeFinal,
+        nascimento: data.nascimento,
+        nomeMae:    data.nomeMae,
+        cep:        data.cep,
+        rua:        data.rua,
+        numero:     data.numero,
+        comp:       data.comp,
+        bairro:     data.bairro,
+        cidade:     data.cidade,
+        uf:         data.uf,
+      };
+      // Mostra sucesso
+      document.getElementById('cons-form-body').style.display = 'none';
+      const sv = document.getElementById('cons-success');
+      sv.classList.add('show');
+      document.getElementById('cons-success-id').textContent = 'Protocolo: ' + (res.id || '—');
+    } else {
+      toast(res.error || 'Erro ao enviar. Tente novamente.', 'err');
+    }
+  } catch { setLoading(false); toast('Erro de conexão.', 'err'); }
+}
+
+/* ────────────────────────────────────────────────────────
+   IR PARA PRÉ-VENDA (após sucesso da Consulta)
+──────────────────────────────────────────────────────── */
+function irParaPreVenda() {
+  closeSheets();
+  setTimeout(() => _abrirPreVendaComDados(), 380);
+}
+
+function abrirPreVendaDireta() {
+  _consultaData = null;
+  _abrirPreVendaComDados();
+}
+
+function _abrirPreVendaComDados() {
+  const d = _consultaData;
+
+  // Info box
+  const infoBox = document.getElementById('pv-info-box');
+  if (d) {
+    const endParts = [d.rua, d.numero, d.comp, d.bairro, d.cidade + (d.uf ? '/' + d.uf : '')].filter(Boolean);
+    document.getElementById('pv-info-nome').textContent = d.nome || ('Protocolo: ' + (d.protocolo || '—'));
+    document.getElementById('pv-info-end').textContent  = endParts.join(', ') || '—';
+    infoBox.classList.add('show');
+  } else {
+    infoBox.classList.remove('show');
+  }
+
+  // CPF
+  const cpfEl = document.getElementById('pv-cpf');
+  if (d?.cpf) {
+    cpfEl.value = d.cpf;
+    cpfEl.readOnly = false; // sempre editável, mas pré-preenchido
+  } else {
+    cpfEl.value = '';
+    cpfEl.readOnly = false;
+  }
+
+  // CEP — pré-preenche e carrega planos
+  const cepEl   = document.getElementById('pv-cep');
+  const hintEl  = document.getElementById('pv-cep-hint');
+  const cepRaw  = d?.cep ? d.cep.replace(/\D/g,'') : '';
+  if (cepRaw.length === 8) {
+    // Formata CEP
+    cepEl.value  = cepRaw.slice(0,5) + '-' + cepRaw.slice(5);
+    hintEl.textContent = [d.cidade, d.uf].filter(Boolean).join('/');
+    carregarPlanos(cepRaw);
+  } else {
+    cepEl.value = '';
+    hintEl.textContent = '';
+    document.getElementById('pv-plano').innerHTML = '<option value="">Informe o CEP para carregar planos...</option>';
+  }
+
+  openSheet('sheet-prevenda');
+}
+
+/* ────────────────────────────────────────────────────────
+   SUBMIT · PRÉ-VENDA
+──────────────────────────────────────────────────────── */
+async function submitPreVenda() {
+  if (!required('pv-cpf'))  { toast('Informe o CPF do cliente', 'err'); return; }
+  if (!required('pv-wpp'))  { toast('Informe o WhatsApp do cliente', 'err'); return; }
+  if (!required('pv-plano')) { toast('Selecione um plano', 'err'); return; }
+
+  if (!_movel) { toast('Informe se tem plano móvel', 'warn'); return; }
+
+  const venc = document.querySelector('#venc-pills .pill.selected');
+  if (!venc) { toast('Escolha a data de vencimento', 'warn'); return; }
+
+  const pagamento = getPay();
+  if (!pagamento) { toast('Escolha a forma de pagamento', 'warn'); return; }
+
+  const portSel = _movel === 'SIM' ? document.querySelector('#port-pills .pill.selected') : null;
+  if (_movel === 'SIM' && !portSel) { toast('Informe se é número novo ou portabilidade', 'warn'); return; }
+
+  // Extrai nome e valor do plano
+  const planoFull = getVal('pv-plano');
+  const [planoNome, planoValor] = planoFull.includes(' | ')
+    ? planoFull.split(' | ')
+    : [planoFull, ''];
+
+  // Monta endereço de referência
+  const d = _consultaData;
+  const endRef = d
+    ? [d.rua, d.numero, d.comp, d.bairro, d.cidade + (d.uf ? '/' + d.uf : '')].filter(Boolean).join(', ')
+    : '';
+
+  const data = {
+    parceiro:    SELLER_NAME,
+    parceiroCpf: SELLER_CPF,
+    cpfCliente:  getVal('pv-cpf'),   // backend espera cpfCliente (salvarPreVenda)
+    nomeCliente: d?.nome || '',
+    enderecoRef: endRef,
+    protocoloRef: d?.protocolo || '',
+    whatsapp:    getVal('pv-wpp'),
+    email:       getVal('pv-email'),
+    plano:       (planoNome || '').trim(),
+    valor:       (planoValor || '').trim(),
+    movel:       _movel,
+    tipoMovel:   portSel?.textContent || '',
+    vencimento:  venc.textContent,
+    pagamento:   pagamento,
+    canal:       'PAP',
+    ts:          new Date().toISOString(),
+  };
+
+  setLoading(true, 'Finalizando pré-venda...');
+  try {
+    const res = await API._post({ action: 'salvarPreVenda', ...data });
+    setLoading(false);
+    if (res.ok || res.id) {
+      document.getElementById('pv-form-body').style.display = 'none';
+      const sv = document.getElementById('pv-success');
+      sv.classList.add('show');
+      document.getElementById('pv-success-id').textContent = 'Protocolo: ' + (res.id || '—');
+      // Limpa dados de contexto após envio bem-sucedido
+      _consultaData = null;
+    } else {
+      toast(res.error || 'Erro ao finalizar. Tente novamente.', 'err');
+    }
+  } catch { setLoading(false); toast('Erro de conexão.', 'err'); }
+}
+
+/* ────────────────────────────────────────────────────────
+   RESET
+──────────────────────────────────────────────────────── */
+function resetConsulta() {
+  // Mostra form, esconde sucesso
+  document.getElementById('cons-form-body').style.display = '';
+  document.getElementById('cons-success').classList.remove('show');
+
+  // Limpa inputs
+  document.querySelectorAll('#sheet-consulta input:not([readonly])').forEach(el => {
+    el.value = ''; el.classList.remove('err');
+  });
+  document.querySelectorAll('#sheet-consulta .f-hint').forEach(el => el.textContent = '');
+
+  // Reseta Assertiva
+  document.getElementById('assertiva-box').className = 'assertiva-box';
+  document.getElementById('cons-extra-fields').classList.remove('show');
+  const btnAs = document.getElementById('btn-assertiva');
+  if (btnAs) { btnAs.disabled = false; btnAs.textContent = '🔍 Consultar no Assertiva'; }
+
+  // Reseta para Viabilidade
+  setTipo('Viabilidade');
+}
+
+function resetPreVenda() {
+  // Mostra form, esconde sucesso
+  document.getElementById('pv-form-body').style.display = '';
+  document.getElementById('pv-success').classList.remove('show');
+
+  // Limpa inputs
+  document.querySelectorAll('#sheet-prevenda input:not([readonly])').forEach(el => {
+    el.value = ''; el.classList.remove('err');
+  });
+  document.querySelectorAll('#sheet-prevenda .f-hint').forEach(el => el.textContent = '');
+
+  // Reset móvel
+  _movel = null;
+  document.getElementById('movel-sim').className = 'toggle-btn';
+  document.getElementById('movel-nao').className = 'toggle-btn';
+  document.getElementById('port-wrap').classList.remove('show');
+
+  // Reset pills
+  document.querySelectorAll('#venc-pills .pill.selected, #port-pills .pill.selected').forEach(el => el.classList.remove('selected'));
+
+  // Reset pagamento
+  document.querySelectorAll('#pay-cards .pay-card.selected').forEach(el => el.classList.remove('selected'));
+
+  // Reset plano
+  document.getElementById('pv-plano').innerHTML = '<option value="">Informe o CEP para carregar planos...</option>';
+
+  // Reset info box
+  document.getElementById('pv-info-box').classList.remove('show');
+  _consultaData = null;
+}
+
+/* ────────────────────────────────────────────────────────
+   API LAYER
+   Todas as chamadas via fetch(GAS_URL) → doPost → _routePAP
+──────────────────────────────────────────────────────── */
+const API = {
+
+  /* Método interno de POST */
+  _post: async (payload) => {
+    const r = await fetch(GAS_URL, {
+      method:  'POST',
+      body:    JSON.stringify(payload),
+      headers: { 'Content-Type': 'text/plain' }, // GAS não precisa de application/json, evita preflight
+    });
+    return r.json();
+  },
+
+  /* ── LOGIN · Autenticar Parceiro ─────────────────────
+     Origem: aba "3 - PAP", coluna W (CPF do parceiro)
+     Retorna: { found: bool, nome: string } */
+  autenticarParceiro: async (cpf) => {
+    return API._post({ action: 'autenticarParceiro', cpf });
+  },
+
+  /* ── Consulta Assertiva (CPF) ─────────────────────────
+     Retorna: { found: bool, nome: string, status: string } */
+  consultarAssertiva: async (cpf) => {
+    return API._post({ action: 'consultarAssertiva', cpf });
+  },
+
+  /* ── Buscar CEP + Planos ──────────────────────────────
+     Retorna: { erro: bool, logradouro, bairro, cidade, uf, planos: [] } */
+  buscarCEP: async (cep) => {
+    return API._post({ action: 'buscarCEP', cep, produto: 'Fibra Alone' });
+  },
+
+};
+
+/* helpers */
+const delay = ms => new Promise(r => setTimeout(r, ms));
+const genId = () => Date.now().toString(36).toUpperCase().slice(-6);
+</script>
+
+</body>
+</html>

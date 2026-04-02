@@ -413,7 +413,7 @@ function _cruzMapear(arr) {
   return m;
 }
 
-// ── HELPERS DE HTML (KANBAN) ──────────────────────────────────
+// ── HELPERS DE HTML (KANBAN) ───────────��──────────────────────
 
 function _cruzKanban(col1, col2, col3) {
   return '<div class="cruz-container-kanban">' +
@@ -517,7 +517,7 @@ function _cruzRenderVendas() {
       })
     },
     {
-      titulo: '⚠️ Relatório Vero',
+      titulo: '⚠️ Apenas no Relatório Vero',
       cor: 'var(--yellow)',
       items: soVero.map(function(r) { 
         var idVero = r.ID_CONTRATO || r.CONTRATO || r.Contrato || 'Sem ID';
@@ -529,7 +529,7 @@ function _cruzRenderVendas() {
       })
     },
     {
-      titulo: '❌ DharmaPro',
+      titulo: '❌ Apenas no CRM',
       cor: 'var(--accent)',
       items: soCRM.map(function(v) { 
         return {
@@ -596,7 +596,7 @@ function _cruzRenderInstalacoes() {
       })
     },
     {
-      titulo: '⚠️ Relatório Vero',
+      titulo: '⚠️ Apenas no Relatório Vero',
       cor: 'var(--yellow)',
       items: pendente.map(function(x) {
         var dataHab = x.vero['DATA_HABILITAÇÃO'] || x.vero['DATA_HABILITACAO'] || '';
@@ -613,7 +613,7 @@ function _cruzRenderInstalacoes() {
       })
     },
     {
-      titulo: '❌ DharmaPro',
+      titulo: '❌ Apenas no CRM',
       cor: 'var(--accent)',
       items: soCRM.map(function(v) { 
         return {
@@ -686,7 +686,7 @@ function _cruzRenderCancelamentos() {
       })
     },
     {
-      titulo: '⚠️ Relatório Vero',
+      titulo: '⚠️ Apenas no Relatório Vero',
       cor: 'var(--yellow)',
       items: soVero.map(function(x) { 
         var idVero = x.vero.ID_CONTRATO || x.vero.CONTRATO || x.vero.Contrato;
@@ -702,7 +702,7 @@ function _cruzRenderCancelamentos() {
       })
     },
     {
-      titulo: '❌ DharmaPro',
+      titulo: '❌ Apenas no CRM',
       cor: 'var(--accent)',
       items: soCRM.map(function(v) { 
         return {
