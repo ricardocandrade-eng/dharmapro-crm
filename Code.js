@@ -237,17 +237,9 @@ function salvarVeroHub(linha, data) {
 
 
 // ── AGENDAMENTO — salva data de agendamento na col H ────────────────────
+// salvarAgendamento mantido para compatibilidade — redireciona para versão com contador
 function salvarAgendamento(linha, data) {
-  try {
-    linha = parseInt(linha);
-    if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
-    var sheet = _getSheet();
-    sheet.getRange(linha, 8).setValue(data || ''); // col H = coluna 8
-    _limparCacheListaCompleta();
-    return { sucesso: true };
-  } catch(e) {
-    return { sucesso: false, mensagem: e.message };
-  }
+  return salvarAgendamentoComContador(linha, data);
 }
 
 
@@ -258,11 +250,53 @@ function salvarVeroHubPedidoManual(linha, data) {
     if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
     var tz = Session.getScriptTimeZone();
     var horaEdit = Utilities.formatDate(new Date(), tz, 'HH:mm');
-    var valorSalvar = data ? (data + ' ' + horaEdit) : '';
     var sheet = _getSheet();
-    sheet.getRange(linha, 45).setValue(valorSalvar); // col AS = coluna 45
+    sheet.getRange(linha, 42).setValue(data || ''); // col AP = coluna 42
     _limparCacheListaCompleta();
-    return { sucesso: true, dataHora: valorSalvar };
+    return { sucesso: true, horaEdit: horaEdit };
+  } catch(e) {
+    return { sucesso: false, mensagem: e.message };
+  }
+}
+
+// ── TURNO — salva turno na col I ────────────────────────────────────────
+function salvarTurno(linha, turno) {
+  try {
+    linha = parseInt(linha);
+    if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
+    var sheet = _getSheet();
+    sheet.getRange(linha, 9).setValue(turno || ''); // col I = coluna 9
+    _limparCacheListaCompleta();
+    return { sucesso: true };
+  } catch(e) {
+    return { sucesso: false, mensagem: e.message };
+  }
+}
+
+// ── AGENDAMENTO — salva data + incrementa contador de reagendamentos ────
+function salvarAgendamentoComContador(linha, data) {
+  try {
+    linha = parseInt(linha);
+    if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
+    var sheet = _getSheet();
+    var agendaAnterior = sheet.getRange(linha, 8).getValue(); // col H
+    sheet.getRange(linha, 8).setValue(data || ''); // col H = Agendamento
+
+    // Contador de reagendamentos na col K (coluna 11) — reservada
+    var contador = 0;
+    if (agendaAnterior && String(agendaAnterior).trim() !== '' && data) {
+      // Tinha data anterior e está mudando → incrementa
+      var contAtual = parseInt(sheet.getRange(linha, 11).getValue()) || 0;
+      contador = contAtual + 1;
+      sheet.getRange(linha, 11).setValue(contador);
+    } else if (!agendaAnterior || String(agendaAnterior).trim() === '') {
+      // Primeiro agendamento
+      var contAtual = parseInt(sheet.getRange(linha, 11).getValue()) || 0;
+      contador = contAtual;
+    }
+
+    _limparCacheListaCompleta();
+    return { sucesso: true, reagendamentos: contador };
   } catch(e) {
     return { sucesso: false, mensagem: e.message };
   }
@@ -2905,7 +2939,8 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     preStatus:   String(row[c.PRE_STATUS] || ''),
     bcTags:      String(row[c.BC_TAGS]    || '').trim(),
     bcStatus:    String(row[c.BC_STATUS]  || '').trim(),
-    mapsLink:    ''
+    mapsLink:    '',
+    reagendamentos: parseInt(row[10]) || 0
   };
 }
 
@@ -2964,7 +2999,8 @@ function _mapearLinha(row, numeroLinha) {
     preStatus:   String(row[c.PRE_STATUS] || ''),  // AK - Pré-Status
     bcTags:      String(row[c.BC_TAGS]    || '').trim(),  // AT - BotConversa etiquetas
     bcStatus:    String(row[c.BC_STATUS]  || '').trim(),  // AU - BotConversa status
-    mapsLink:    ''
+    mapsLink:    '',
+    reagendamentos: parseInt(row[10]) || 0
   };
 }
 
