@@ -1976,6 +1976,115 @@ function _salvarVeroHub(linha, inputEl, index) {
     .salvarVeroHub(linha, dataSalvar);
 }
 
+// ─── AGENDAMENTO INLINE ───────────────────────────────────────────────────
+function _agendaToInputDate(agenda) {
+  if (!agenda) return '';
+  var s = String(agenda).trim();
+  if (s.indexOf('/') > -1) {
+    var p = s.split('/');
+    return p[2] + '-' + ('0'+p[1]).slice(-2) + '-' + ('0'+p[0]).slice(-2);
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,10);
+  return '';
+}
+
+function _agendaHtml(v, index) {
+  var inputDate = _agendaToInputDate(v.agenda);
+  return '<span class="vi-ditem" onclick="event.stopPropagation()">' +
+    '<span class="vi-dlbl">Ag.</span>' +
+    '<input type="date" class="agenda-input" value="' + inputDate + '" ' +
+    'title="Data do agendamento" ' +
+    'onchange="_salvarAgendamento(' + v.linha + ',this,' + index + ')">' +
+  '</span>';
+}
+
+function _salvarAgendamento(linha, inputEl, index) {
+  var val = inputEl.value;
+  var dataSalvar = '';
+  if (val) {
+    var p = val.split('-');
+    dataSalvar = p[2] + '/' + p[1] + '/' + p[0];
+  }
+  inputEl.style.opacity = '.5';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      inputEl.style.opacity = '1';
+      var ok = !res || res.sucesso !== false;
+      if (ok) {
+        if (_paginaAtual[index]) _paginaAtual[index].agenda = dataSalvar;
+        mostrarToast(dataSalvar ? '✅ Agendamento: ' + dataSalvar : 'Agendamento removido', 'success');
+        var vSel = AppState.get('vendaSelecionada');
+        if (vSel && vSel.linha === linha) {
+          vSel.agenda = dataSalvar;
+          AppState.set('vendaSelecionada', vSel);
+          var pEl = document.getElementById('painel-agenda-input');
+          if (pEl) pEl.value = _agendaToInputDate(dataSalvar);
+        }
+      } else {
+        mostrarToast('Erro ao salvar agendamento: ' + (res && res.mensagem ? res.mensagem : ''), 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      inputEl.style.opacity = '1';
+      mostrarToast('Erro: ' + (e && e.message ? e.message : 'desconhecido'), 'error');
+    })
+    .salvarAgendamento(linha, dataSalvar);
+}
+
+// ─── VEROHUB PEDIDO — edição manual de data ───────────────────────────────
+function _vhPedidoDtToInputDate(dtHora) {
+  if (!dtHora) return '';
+  var s = String(dtHora).trim();
+  var dataPart = s.split(' ')[0] || '';
+  if (dataPart.indexOf('/') > -1) {
+    var p = dataPart.split('/');
+    return p[2] + '-' + ('0'+p[1]).slice(-2) + '-' + ('0'+p[0]).slice(-2);
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(dataPart)) return dataPart.substring(0,10);
+  return '';
+}
+
+function _salvarVeroHubPedidoManual(linha, inputEl, index) {
+  var val = inputEl.value;
+  var dataSalvar = '';
+  if (val) {
+    var p = val.split('-');
+    dataSalvar = p[2] + '/' + p[1] + '/' + p[0];
+  }
+  inputEl.style.opacity = '.5';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      inputEl.style.opacity = '1';
+      var ok = !res || res.sucesso !== false;
+      if (ok) {
+        if (_paginaAtual[index]) _paginaAtual[index].verohubPedidoDt = res.dataHora || '';
+        var wrap = inputEl.closest('.vi-row-vhub-pedido-wrap');
+        if (wrap) {
+          var dot = wrap.querySelector('.verohub-dot');
+          var velho = dataSalvar ? _veroHubPedidoVelho(res.dataHora) : true;
+          if (!dataSalvar || velho) {
+            if (!dot) { dot = document.createElement('span'); dot.className = 'verohub-dot'; wrap.insertBefore(dot, wrap.firstChild); }
+          } else {
+            if (dot) dot.remove();
+          }
+          var horaEl = wrap.querySelector('.vhub-edit-hora');
+          if (horaEl && res.dataHora) {
+            var parts = String(res.dataHora).split(' ');
+            horaEl.textContent = parts[1] ? parts[1] : '';
+          }
+        }
+        mostrarToast(dataSalvar ? '✅ VeroHub Pedido: ' + dataSalvar : 'Data removida', 'success');
+      } else {
+        mostrarToast('Erro ao salvar: ' + (res && res.mensagem ? res.mensagem : ''), 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      inputEl.style.opacity = '1';
+      mostrarToast('Erro: ' + (e && e.message ? e.message : 'desconhecido'), 'error');
+    })
+    .salvarVeroHubPedidoManual(linha, dataSalvar);
+}
+
 // ─── CONFIGURAÇÕES — VeroHub Token ────────────────────────────────────────────
 
 function _carregarStatusVeroHub() {
@@ -2119,25 +2228,30 @@ function _veroHubPedidoVelho(dtHora) {
 function _veroHubPedidoHtml(v, index) {
   var temPedido = !!v.verohubPedido;
   var velho     = temPedido && _veroHubPedidoVelho(v.verohubPedidoDt);
-  var piscar    = !temPedido || velho;
+  var temDtManual = !!v.verohubPedidoDt;
+  var piscar    = !temDtManual || velho;
 
-  // Data/hora resumida: "15/03 14:30"
-  var dtShow = '';
+  // Hora de edição (parte HH:mm do verohubPedidoDt "dd/MM/yyyy HH:mm")
+  var horaEdit = '';
   if (v.verohubPedidoDt) {
     var pp = String(v.verohubPedidoDt).split(' ');
-    var dd = pp[0] ? pp[0].split('/') : [];
-    dtShow = (dd[0] && dd[1] ? dd[0]+'/'+dd[1] : pp[0]||'') + (pp[1] ? ' '+pp[1] : '');
+    horaEdit = pp[1] || '';
   }
 
+  var inputDate = _vhPedidoDtToInputDate(v.verohubPedidoDt);
+
   return '<div class="vi-row-vhub-pedido-wrap" id="vhub-wrap-' + index + '" ' +
-    'onclick="event.stopPropagation();_novoPedidoVeroHub(' + index + ')" ' +
-    'title="' + (temPedido ? 'Pedido #'+esc(v.verohubPedido)+' — clique para recriar' : 'Criar pedido no VeroHub') + '">' +
+    'onclick="event.stopPropagation()" ' +
+    'title="Última data do pedido no VeroHub">' +
     (piscar ? '<span class="verohub-dot"></span>' : '') +
     '<span class="verohub-label">VEROHUB</span>' +
+    '<input type="date" class="agenda-input" value="' + inputDate + '" ' +
+    'title="Data do pedido VeroHub" ' +
+    'onchange="_salvarVeroHubPedidoManual(' + v.linha + ',this,' + index + ')">' +
+    (horaEdit ? '<span class="vhub-edit-hora">' + esc(horaEdit) + '</span>' : '<span class="vhub-edit-hora"></span>') +
     (temPedido
       ? '<a class="vhub-ped-num" href="https://hub.veronet.com.br/sales/' + esc(v.verohubPedido) +
-          '" target="_blank" onclick="event.stopPropagation()">#' + esc(v.verohubPedido) + '</a>' +
-        (dtShow ? '<span class="vhub-ped-dt">' + esc(dtShow) + '</span>' : '')
+          '" target="_blank" onclick="event.stopPropagation()">#' + esc(v.verohubPedido) + '</a>'
       : '') +
   '</div>';
 }
@@ -2724,10 +2838,9 @@ function _criarItemVenda(v, index) {
     datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ativ.</span><span class="vi-dval ok">' + esc(dataAtivFormatada.substring(0,5)) + '</span></span>';
   }
 
-  if (v.agenda) {
-    var agCls = v.instal ? ' ok' : ' pend';
-    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ag.</span><span class="vi-dval' + agCls + '">' + esc(_fmtData(v.agenda).substring(0,5)) + '</span></span>';
-  }
+  // Agendamento: sempre exibe input inline editável
+  datasHtml += _agendaHtml(v, index);
+
   if (v.instal) {
     datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
   }
@@ -2859,12 +2972,18 @@ function mostrarPainel(v) {
     ]) +
 
     // ── 4. DATAS ────────────────────────────────────────────────────────────
-    _secaoPainel('📅 Datas', [
-      ['Ativação',    (function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? d : ''; })()],
-      ['Agendamento', _fmtData(v.agenda)],
-      ['Turno',       v.turno],
-      ['Instalação',  _fmtData(v.instal)]
-    ]) +
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📅 Datas</div>' +
+      ((function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? _linhaPainelHtml('Ativação', esc(d)) : ''; })()) +
+      _linhaPainelHtml('Agendamento',
+        '<div class="painel-agenda-wrap">' +
+          '<input type="date" class="agenda-input" id="painel-agenda-input" value="' + _agendaToInputDate(v.agenda) + '" ' +
+          'onchange="_salvarAgendamento(' + v.linha + ',this,-1)">' +
+        '</div>'
+      ) +
+      (v.turno ? _linhaPainelHtml('Turno', esc(v.turno)) : '') +
+      (v.instal ? _linhaPainelHtml('Instalação', esc(_fmtData(v.instal))) : '') +
+    '</div>' +
 
     // ── 5. VEROHUB ──────────────────────────────────────────────────────────
     '<div class="painel-secao">' +
@@ -6356,6 +6475,115 @@ function _salvarVeroHub(linha, inputEl, index) {
     .salvarVeroHub(linha, dataSalvar);
 }
 
+// ─── AGENDAMENTO INLINE ───────────────────────────────────────────────────
+function _agendaToInputDate(agenda) {
+  if (!agenda) return '';
+  var s = String(agenda).trim();
+  if (s.indexOf('/') > -1) {
+    var p = s.split('/');
+    return p[2] + '-' + ('0'+p[1]).slice(-2) + '-' + ('0'+p[0]).slice(-2);
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,10);
+  return '';
+}
+
+function _agendaHtml(v, index) {
+  var inputDate = _agendaToInputDate(v.agenda);
+  return '<span class="vi-ditem" onclick="event.stopPropagation()">' +
+    '<span class="vi-dlbl">Ag.</span>' +
+    '<input type="date" class="agenda-input" value="' + inputDate + '" ' +
+    'title="Data do agendamento" ' +
+    'onchange="_salvarAgendamento(' + v.linha + ',this,' + index + ')">' +
+  '</span>';
+}
+
+function _salvarAgendamento(linha, inputEl, index) {
+  var val = inputEl.value;
+  var dataSalvar = '';
+  if (val) {
+    var p = val.split('-');
+    dataSalvar = p[2] + '/' + p[1] + '/' + p[0];
+  }
+  inputEl.style.opacity = '.5';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      inputEl.style.opacity = '1';
+      var ok = !res || res.sucesso !== false;
+      if (ok) {
+        if (_paginaAtual[index]) _paginaAtual[index].agenda = dataSalvar;
+        mostrarToast(dataSalvar ? '✅ Agendamento: ' + dataSalvar : 'Agendamento removido', 'success');
+        var vSel = AppState.get('vendaSelecionada');
+        if (vSel && vSel.linha === linha) {
+          vSel.agenda = dataSalvar;
+          AppState.set('vendaSelecionada', vSel);
+          var pEl = document.getElementById('painel-agenda-input');
+          if (pEl) pEl.value = _agendaToInputDate(dataSalvar);
+        }
+      } else {
+        mostrarToast('Erro ao salvar agendamento: ' + (res && res.mensagem ? res.mensagem : ''), 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      inputEl.style.opacity = '1';
+      mostrarToast('Erro: ' + (e && e.message ? e.message : 'desconhecido'), 'error');
+    })
+    .salvarAgendamento(linha, dataSalvar);
+}
+
+// ─── VEROHUB PEDIDO — edição manual de data ───────────────────────────────
+function _vhPedidoDtToInputDate(dtHora) {
+  if (!dtHora) return '';
+  var s = String(dtHora).trim();
+  var dataPart = s.split(' ')[0] || '';
+  if (dataPart.indexOf('/') > -1) {
+    var p = dataPart.split('/');
+    return p[2] + '-' + ('0'+p[1]).slice(-2) + '-' + ('0'+p[0]).slice(-2);
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(dataPart)) return dataPart.substring(0,10);
+  return '';
+}
+
+function _salvarVeroHubPedidoManual(linha, inputEl, index) {
+  var val = inputEl.value;
+  var dataSalvar = '';
+  if (val) {
+    var p = val.split('-');
+    dataSalvar = p[2] + '/' + p[1] + '/' + p[0];
+  }
+  inputEl.style.opacity = '.5';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      inputEl.style.opacity = '1';
+      var ok = !res || res.sucesso !== false;
+      if (ok) {
+        if (_paginaAtual[index]) _paginaAtual[index].verohubPedidoDt = res.dataHora || '';
+        var wrap = inputEl.closest('.vi-row-vhub-pedido-wrap');
+        if (wrap) {
+          var dot = wrap.querySelector('.verohub-dot');
+          var velho = dataSalvar ? _veroHubPedidoVelho(res.dataHora) : true;
+          if (!dataSalvar || velho) {
+            if (!dot) { dot = document.createElement('span'); dot.className = 'verohub-dot'; wrap.insertBefore(dot, wrap.firstChild); }
+          } else {
+            if (dot) dot.remove();
+          }
+          var horaEl = wrap.querySelector('.vhub-edit-hora');
+          if (horaEl && res.dataHora) {
+            var parts = String(res.dataHora).split(' ');
+            horaEl.textContent = parts[1] ? parts[1] : '';
+          }
+        }
+        mostrarToast(dataSalvar ? '✅ VeroHub Pedido: ' + dataSalvar : 'Data removida', 'success');
+      } else {
+        mostrarToast('Erro ao salvar: ' + (res && res.mensagem ? res.mensagem : ''), 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      inputEl.style.opacity = '1';
+      mostrarToast('Erro: ' + (e && e.message ? e.message : 'desconhecido'), 'error');
+    })
+    .salvarVeroHubPedidoManual(linha, dataSalvar);
+}
+
 // ─── CONFIGURAÇÕES — VeroHub Token ────────────────────────────────────────────
 
 function _carregarStatusVeroHub() {
@@ -6499,25 +6727,30 @@ function _veroHubPedidoVelho(dtHora) {
 function _veroHubPedidoHtml(v, index) {
   var temPedido = !!v.verohubPedido;
   var velho     = temPedido && _veroHubPedidoVelho(v.verohubPedidoDt);
-  var piscar    = !temPedido || velho;
+  var temDtManual = !!v.verohubPedidoDt;
+  var piscar    = !temDtManual || velho;
 
-  // Data/hora resumida: "15/03 14:30"
-  var dtShow = '';
+  // Hora de edição (parte HH:mm do verohubPedidoDt "dd/MM/yyyy HH:mm")
+  var horaEdit = '';
   if (v.verohubPedidoDt) {
     var pp = String(v.verohubPedidoDt).split(' ');
-    var dd = pp[0] ? pp[0].split('/') : [];
-    dtShow = (dd[0] && dd[1] ? dd[0]+'/'+dd[1] : pp[0]||'') + (pp[1] ? ' '+pp[1] : '');
+    horaEdit = pp[1] || '';
   }
 
+  var inputDate = _vhPedidoDtToInputDate(v.verohubPedidoDt);
+
   return '<div class="vi-row-vhub-pedido-wrap" id="vhub-wrap-' + index + '" ' +
-    'onclick="event.stopPropagation();_novoPedidoVeroHub(' + index + ')" ' +
-    'title="' + (temPedido ? 'Pedido #'+esc(v.verohubPedido)+' — clique para recriar' : 'Criar pedido no VeroHub') + '">' +
+    'onclick="event.stopPropagation()" ' +
+    'title="Última data do pedido no VeroHub">' +
     (piscar ? '<span class="verohub-dot"></span>' : '') +
     '<span class="verohub-label">VEROHUB</span>' +
+    '<input type="date" class="agenda-input" value="' + inputDate + '" ' +
+    'title="Data do pedido VeroHub" ' +
+    'onchange="_salvarVeroHubPedidoManual(' + v.linha + ',this,' + index + ')">' +
+    (horaEdit ? '<span class="vhub-edit-hora">' + esc(horaEdit) + '</span>' : '<span class="vhub-edit-hora"></span>') +
     (temPedido
       ? '<a class="vhub-ped-num" href="https://hub.veronet.com.br/sales/' + esc(v.verohubPedido) +
-          '" target="_blank" onclick="event.stopPropagation()">#' + esc(v.verohubPedido) + '</a>' +
-        (dtShow ? '<span class="vhub-ped-dt">' + esc(dtShow) + '</span>' : '')
+          '" target="_blank" onclick="event.stopPropagation()">#' + esc(v.verohubPedido) + '</a>'
       : '') +
   '</div>';
 }
@@ -6952,11 +7185,9 @@ function _criarItemVenda(v, index) {
     datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ativ.</span><span class="vi-dval ok">' + esc(dataAtivFormatada.substring(0,5)) + '</span></span>';
   }
 
-  if (v.agenda) {
-    var agCls = v.instal ? ' ok' : ' pend';
-    var _tAbrev = v.turno ? (v.turno.toUpperCase().indexOf('TARDE') > -1 ? ' T' : ' M') : '';
-        datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ag.</span><span class="vi-dval' + agCls + '">' + esc(_fmtData(v.agenda).substring(0,5)) + _tAbrev + '</span></span>';
-  }
+  // Agendamento: sempre exibe input inline editável
+  datasHtml += _agendaHtml(v, index);
+
   if (v.instal) {
     datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
   }
@@ -7090,12 +7321,18 @@ function mostrarPainel(v) {
     ]) +
 
     // ── 4. DATAS ────────────────────────────────────────────────────────────
-    _secaoPainel('📅 Datas', [
-      ['Ativação',    (function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? d : ''; })()],
-      ['Agendamento', _fmtData(v.agenda)],
-      ['Turno',       v.turno],
-      ['Instalação',  _fmtData(v.instal)]
-    ]) +
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📅 Datas</div>' +
+      ((function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? _linhaPainelHtml('Ativação', esc(d)) : ''; })()) +
+      _linhaPainelHtml('Agendamento',
+        '<div class="painel-agenda-wrap">' +
+          '<input type="date" class="agenda-input" id="painel-agenda-input" value="' + _agendaToInputDate(v.agenda) + '" ' +
+          'onchange="_salvarAgendamento(' + v.linha + ',this,-1)">' +
+        '</div>'
+      ) +
+      (v.turno ? _linhaPainelHtml('Turno', esc(v.turno)) : '') +
+      (v.instal ? _linhaPainelHtml('Instalação', esc(_fmtData(v.instal))) : '') +
+    '</div>' +
 
     // ── 5. OBSERVAÇÃO ───────────────────────────────────────────────────────
     (v.observacao ?

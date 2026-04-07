@@ -1583,8 +1583,14 @@
     .vhub-ped-num { font-size: 11px; color: var(--muted); font-weight: 600; text-decoration: none; white-space: nowrap; }
     .vhub-ped-num:hover { color: #4f9eff; text-decoration: underline; }
     .vhub-ped-dt  { font-size: 11px; color: var(--muted); font-weight: 600; white-space: nowrap; }
-    .vi-row-vhub-pedido-wrap { display: flex; align-items: center; gap: 5px; margin-top: 3px; cursor: pointer; }
+    .vi-row-vhub-pedido-wrap { display: flex; align-items: center; gap: 5px; margin-top: 3px; cursor: default; flex-wrap: wrap; }
     .vi-row-vhub-pedido-wrap:hover .verohub-label { opacity: .75; }
+    .agenda-input { background: transparent; border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 10px; padding: 2px 4px; width: 115px; cursor: pointer; }
+    .agenda-input:focus { outline: none; border-color: var(--accent); }
+    .agenda-input::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
+    .vhub-edit-hora { font-size: 9px; color: var(--muted); font-family: 'DM Mono', monospace; white-space: nowrap; opacity: .7; }
+    .painel-agenda-wrap { display: flex; align-items: center; gap: 8px; }
+    .painel-agenda-wrap .agenda-input { width: 140px; font-size: 12px; padding: 4px 6px; }
   </style>
 </head>
 <body>

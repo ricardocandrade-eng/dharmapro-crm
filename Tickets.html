@@ -150,6 +150,21 @@
 .tkt-detail-btn:hover { background: var(--border2); }
 .tkt-detail-btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
 .tkt-detail-btn.accent:hover { background: var(--accent-h); }
+
+/* ── PRINTS / ANEXOS ── */
+.tkt-prints-area { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; min-height: 0; }
+.tkt-print-thumb { position: relative; width: 80px; height: 80px; border-radius: 8px; border: 1px solid var(--border); overflow: hidden; cursor: pointer; transition: border-color 0.2s; }
+.tkt-print-thumb:hover { border-color: var(--accent); }
+.tkt-print-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.tkt-print-thumb .tkt-print-del { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; background: rgba(230,62,109,0.9); color: #fff; border: none; border-radius: 50%; font-size: 10px; line-height: 18px; text-align: center; cursor: pointer; display: none; padding: 0; }
+.tkt-print-thumb:hover .tkt-print-del { display: block; }
+.tkt-upload-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: var(--surface2); border: 1.5px dashed var(--border2); border-radius: 8px; font-size: 11px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all 0.2s; font-family: 'Sora', sans-serif; }
+.tkt-upload-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(230,62,109,0.05); }
+.tkt-upload-btn.uploading { opacity: 0.5; pointer-events: none; }
+.tkt-detail-prints { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.tkt-detail-print-thumb { width: 100px; height: 100px; border-radius: 8px; border: 1px solid var(--border); overflow: hidden; cursor: pointer; transition: border-color 0.2s; }
+.tkt-detail-print-thumb:hover { border-color: var(--accent); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+.tkt-detail-print-thumb img { width: 100%; height: 100%; object-fit: cover; }
 </style>
 
 <!-- ── PÁGINA KANBAN DE TICKETS ── -->
@@ -237,6 +252,15 @@
           <select id="tktF_atribuido"><option value="">Ninguém</option><option>Joysse Coelho</option><option>Ricardo Andrade</option><option>Tuany Rodrigues</option><option>Vanessa Andrade</option></select>
         </div>
       </div>
+      <!-- Prints / Anexos -->
+      <div class="tkt-campo">
+        <label>Prints / Anexos</label>
+        <div class="tkt-prints-area" id="tktF_prints"></div>
+        <label class="tkt-upload-btn" id="tktUploadLabel">
+          <input type="file" accept="image/*" multiple style="display:none" onchange="tktUploadPrints(this.files)">
+          📎 Adicionar print
+        </label>
+      </div>
     </div>
     <div class="tkt-modal-foot">
       <!-- ✅ ALTERADO: só habilitado para tickets arquivados -->
@@ -258,6 +282,7 @@
       <div class="tkt-detail-meta" id="tktDetMeta"></div>
       <div class="tkt-detail-title" id="tktDetTitulo"></div>
       <div class="tkt-detail-desc"  id="tktDetDesc"></div>
+      <div class="tkt-detail-prints" id="tktDetPrints"></div>
       <div class="tkt-detail-info"  id="tktDetInfo"></div>
       <div class="tkt-detail-actions">
         <button class="tkt-detail-btn" onclick="tktMoverDeDetalhe('Aberto')">📋 Aberto</button>
@@ -360,6 +385,7 @@ function tktCardHTML(t) {
     (t.descricao ? '<div class="tkt-card-desc">' + esc(t.descricao) + '</div>' : '') +
     '<div class="tkt-card-foot"><div class="tkt-card-foot-left">' + assigneeHtml +
     '<span class="tkt-card-creator">' + esc(_tktPrimeiroNome(t.criador)) + '</span></div>' +
+    (t.prints && t.prints.length ? '<span style="font-size:10px;opacity:.6;" title="' + t.prints.length + ' print(s)">📷 ' + t.prints.length + '</span>' : '') +
     '<span class="tkt-card-date">' + esc(t.dataCriacao || '') + '</span></div></div>';
 }
 
@@ -409,6 +435,8 @@ function tktAbrirModalNovo() {
   var btnDel = document.getElementById('tktBtnDeletar');
   btnDel.style.display = 'none';
   btnDel.disabled = true;
+  _tktPrintsTemp = [];
+  tktRenderPrints();
   document.getElementById('tktModalForm').classList.add('aberto');
   setTimeout(function() { var el = document.getElementById('tktF_titulo'); if (el) el.focus(); }, 100);
 }
@@ -424,6 +452,10 @@ function tktAbrirModalEditar(id) {
   document.getElementById('tktF_status').value           = ticket.status || 'Aberto';
   document.getElementById('tktF_criador').value          = ticket.criador || '';
   document.getElementById('tktF_atribuido').value        = ticket.atribuido || '';
+
+  // Carrega prints existentes
+  _tktPrintsTemp = (ticket.prints || []).slice();
+  tktRenderPrints();
 
   // ✅ REGRA: botão excluir só habilitado se ticket for Arquivado
   var btnDel = document.getElementById('tktBtnDeletar');
@@ -459,6 +491,7 @@ function tktSalvar() {
       ticket.criador    = document.getElementById('tktF_criador').value;
       ticket.atribuido  = document.getElementById('tktF_atribuido').value;
       ticket.dataUpdate = agora;
+      ticket.prints = _tktPrintsTemp.slice();
       if (ticket.atribuido && ticket.atribuido !== atribuidoAnterior)
         _tktAdicionarNotif('atribuido', 'Ticket atribuído a ' + _tktPrimeiroNome(ticket.atribuido), '#' + ticket.id + ' · ' + ticket.titulo.slice(0,40));
       if (ticket.status === 'Concluído' && statusAnterior !== 'Concluído') tktNotificarConclusao(ticket);
@@ -469,7 +502,7 @@ function tktSalvar() {
     var novoTicket = { id: novoId, titulo: titulo, descricao: document.getElementById('tktF_desc').value.trim(),
       prioridade: document.getElementById('tktF_pri').value, status: document.getElementById('tktF_status').value,
       criador: document.getElementById('tktF_criador').value, atribuido: document.getElementById('tktF_atribuido').value,
-      dataCriacao: agora, dataUpdate: agora };
+      dataCriacao: agora, dataUpdate: agora, prints: _tktPrintsTemp.slice() };
     _tktDados.unshift(novoTicket);
     _tktAdicionarNotif('novo', 'Novo ticket: ' + titulo, 'Criado por ' + _tktPrimeiroNome(novoTicket.criador));
     if (novoTicket.atribuido) _tktAdicionarNotif('atribuido', 'Atribuído a ' + _tktPrimeiroNome(novoTicket.atribuido), '#' + novoId + ' · ' + novoTicket.prioridade);
@@ -512,6 +545,7 @@ function tktAbrirDetalhe(id) {
     '<div class="tkt-detail-info-item"><label>Atribuído a</label><span>' + esc(t.atribuido||'—') + '</span></div>' +
     '<div class="tkt-detail-info-item"><label>Criado em</label><span>' + esc(t.dataCriacao||'—') + '</span></div>' +
     '<div class="tkt-detail-info-item"><label>Atualizado</label><span>' + esc(t.dataUpdate||'—') + '</span></div>';
+  tktRenderDetailPrints(t.prints || []);
   document.getElementById('tktModalDetalhe').classList.add('aberto');
 }
 function tktFecharDetalhe() { document.getElementById('tktModalDetalhe').classList.remove('aberto'); _tktDetalheId = null; }
@@ -661,5 +695,88 @@ function _tktAnimarSino() {
   btn.classList.remove('tem-alerta');
   void btn.offsetWidth;
   btn.classList.add('tem-alerta');
+}
+
+// ── PRINTS / ANEXOS ───────────────────────────────────────────
+var _tktPrintsTemp = []; // prints do ticket em edição
+
+function tktRenderPrints() {
+  var container = document.getElementById('tktF_prints');
+  if (!container) return;
+  if (!_tktPrintsTemp.length) { container.innerHTML = ''; return; }
+  container.innerHTML = _tktPrintsTemp.map(function(p, i) {
+    return '<div class="tkt-print-thumb" onclick="window.open(\'' + esc(p.viewUrl) + '\',\'_blank\')">' +
+      '<img src="' + esc(p.url) + '" alt="' + esc(p.nome) + '">' +
+      '<button class="tkt-print-del" onclick="event.stopPropagation();tktRemoverPrint(' + i + ')" title="Remover">✕</button>' +
+    '</div>';
+  }).join('');
+}
+
+function tktUploadPrints(files) {
+  if (!files || !files.length) return;
+  var ticketId = document.getElementById('tktF_id').value || 'TKT-NOVO';
+  var label = document.getElementById('tktUploadLabel');
+  var total = files.length;
+  var done = 0;
+  if (label) { label.classList.add('uploading'); label.childNodes[1].textContent = ' Enviando...'; }
+
+  Array.from(files).forEach(function(file) {
+    if (!file.type.startsWith('image/')) {
+      mostrarToast('⚠️ Apenas imagens são permitidas.', 'warning');
+      done++;
+      if (done >= total && label) { label.classList.remove('uploading'); label.childNodes[1].textContent = ' Adicionar print'; }
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      mostrarToast('⚠️ Imagem muito grande (máx 5MB).', 'warning');
+      done++;
+      if (done >= total && label) { label.classList.remove('uploading'); label.childNodes[1].textContent = ' Adicionar print'; }
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var base64 = e.target.result.split(',')[1];
+      google.script.run
+        .withSuccessHandler(function(res) {
+          done++;
+          if (res && res.sucesso) {
+            _tktPrintsTemp.push(res.print);
+            tktRenderPrints();
+            mostrarToast('✅ Print adicionado!', 'success');
+          } else {
+            mostrarToast('❌ Erro: ' + (res ? res.mensagem : 'desconhecido'), 'error');
+          }
+          if (done >= total && label) { label.classList.remove('uploading'); label.childNodes[1].textContent = ' Adicionar print'; }
+        })
+        .withFailureHandler(function(err) {
+          done++;
+          mostrarToast('❌ Erro: ' + (err && err.message ? err.message : 'desconhecido'), 'error');
+          if (done >= total && label) { label.classList.remove('uploading'); label.childNodes[1].textContent = ' Adicionar print'; }
+        })
+        .uploadPrintTicket(ticketId, base64, file.name, file.type);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function tktRemoverPrint(index) {
+  var print = _tktPrintsTemp[index];
+  if (!print) return;
+  _tktPrintsTemp.splice(index, 1);
+  tktRenderPrints();
+  // Remove do Drive em background
+  google.script.run.withFailureHandler(function(){}).deletePrintTicket(print.id);
+  mostrarToast('🗑️ Print removido.', 'success');
+}
+
+function tktRenderDetailPrints(prints) {
+  var container = document.getElementById('tktDetPrints');
+  if (!container) return;
+  if (!prints || !prints.length) { container.innerHTML = ''; return; }
+  container.innerHTML = prints.map(function(p) {
+    return '<div class="tkt-detail-print-thumb" onclick="window.open(\'' + esc(p.viewUrl) + '\',\'_blank\')" title="' + esc(p.nome) + '">' +
+      '<img src="' + esc(p.url) + '" alt="' + esc(p.nome) + '">' +
+    '</div>';
+  }).join('');
 }
 </script>

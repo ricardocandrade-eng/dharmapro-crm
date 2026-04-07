@@ -236,6 +236,39 @@ function salvarVeroHub(linha, data) {
 }
 
 
+// ── AGENDAMENTO — salva data de agendamento na col H ────────────────────
+function salvarAgendamento(linha, data) {
+  try {
+    linha = parseInt(linha);
+    if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
+    var sheet = _getSheet();
+    sheet.getRange(linha, 8).setValue(data || ''); // col H = coluna 8
+    _limparCacheListaCompleta();
+    return { sucesso: true };
+  } catch(e) {
+    return { sucesso: false, mensagem: e.message };
+  }
+}
+
+
+// ── VEROHUB PEDIDO — salva data manual + timestamp de edição na col AS ───
+function salvarVeroHubPedidoManual(linha, data) {
+  try {
+    linha = parseInt(linha);
+    if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
+    var tz = Session.getScriptTimeZone();
+    var horaEdit = Utilities.formatDate(new Date(), tz, 'HH:mm');
+    var valorSalvar = data ? (data + ' ' + horaEdit) : '';
+    var sheet = _getSheet();
+    sheet.getRange(linha, 45).setValue(valorSalvar); // col AS = coluna 45
+    _limparCacheListaCompleta();
+    return { sucesso: true, dataHora: valorSalvar };
+  } catch(e) {
+    return { sucesso: false, mensagem: e.message };
+  }
+}
+
+
 // ── VEROHUB — salva número e data/hora do pedido nas cols AR e AS ─────────
 function salvarPedidoVeroHub(linha, numeroPedido, dataHoraPedido) {
   try {
@@ -3764,6 +3797,49 @@ function salvarTickets(json) {
   try {
     var props = PropertiesService.getScriptProperties();
     props.setProperty(TICKETS_KEY, json);
+    return { sucesso: true };
+  } catch(e) {
+    return { sucesso: false, mensagem: e.message };
+  }
+}
+
+// ── TICKETS — Upload de print para Google Drive ─────────────────────────
+var TICKETS_PRINTS_FOLDER = 'DharmaPro_Tickets_Prints';
+
+function _getTicketsPrintsFolder() {
+  var folders = DriveApp.getFoldersByName(TICKETS_PRINTS_FOLDER);
+  if (folders.hasNext()) return folders.next();
+  return DriveApp.createFolder(TICKETS_PRINTS_FOLDER);
+}
+
+function uploadPrintTicket(ticketId, base64Data, nomeArquivo, mimeType) {
+  try {
+    if (!base64Data || !ticketId) return { sucesso: false, mensagem: 'Dados inválidos.' };
+    mimeType = mimeType || 'image/png';
+    nomeArquivo = nomeArquivo || (ticketId + '_' + Date.now() + '.png');
+    var blob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType, nomeArquivo);
+    var folder = _getTicketsPrintsFolder();
+    var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var fileId = file.getId();
+    return {
+      sucesso: true,
+      print: {
+        id: fileId,
+        nome: nomeArquivo,
+        url: 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w800',
+        viewUrl: 'https://drive.google.com/file/d/' + fileId + '/view'
+      }
+    };
+  } catch(e) {
+    return { sucesso: false, mensagem: e.message };
+  }
+}
+
+function deletePrintTicket(fileId) {
+  try {
+    if (!fileId) return { sucesso: false };
+    DriveApp.getFileById(fileId).setTrashed(true);
     return { sucesso: true };
   } catch(e) {
     return { sucesso: false, mensagem: e.message };
