@@ -2873,7 +2873,8 @@ function _criarItemVenda(v, index) {
 
   if (v.agenda) {
     var agCls = v.instal ? ' ok' : ' pend';
-    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ag.</span><span class="vi-dval' + agCls + '">' + esc(_fmtData(v.agenda).substring(0,5)) + '</span></span>';
+    var _tAbrev = v.turno ? (v.turno.toUpperCase().indexOf('TARDE') > -1 ? ' T' : ' M') : '';
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ag.</span><span class="vi-dval' + agCls + '">' + esc(_fmtData(v.agenda).substring(0,5)) + _tAbrev + '</span></span>';
   }
   if (v.instal) {
     datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
@@ -7261,7 +7262,8 @@ function _criarItemVenda(v, index) {
 
   if (v.agenda) {
     var agCls = v.instal ? ' ok' : ' pend';
-    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ag.</span><span class="vi-dval' + agCls + '">' + esc(_fmtData(v.agenda).substring(0,5)) + '</span></span>';
+    var _tAbrev = v.turno ? (v.turno.toUpperCase().indexOf('TARDE') > -1 ? ' T' : ' M') : '';
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ag.</span><span class="vi-dval' + agCls + '">' + esc(_fmtData(v.agenda).substring(0,5)) + _tAbrev + '</span></span>';
   }
   if (v.instal) {
     datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
