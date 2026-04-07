@@ -197,8 +197,12 @@ function autorizarDrive() {
 }
 
 
-// ── EXCLUIR VENDA (limpa conteúdo da linha, não deleta) ───────────────────
-function excluirVenda(linha) {
+// ── ARQUIVAR VENDA — copia dados para aba "Arquivo" e limpa a linha ──────
+function arquivarVenda(linha) {
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch(le) {
+    return { sucesso: false, mensagem: '⚠️ Sistema ocupado. Tente novamente.' };
+  }
   try {
     linha = parseInt(linha);
     if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
@@ -207,17 +211,47 @@ function excluirVenda(linha) {
     var ult   = sheet.getLastRow();
     if (linha > ult) return { sucesso: false, mensagem: 'Linha não encontrada.' };
 
-    // Limpa todo o conteúdo da linha (preserva a linha para não deslocar índices)
-    sheet.getRange(linha, 1, 1, 43).clearContent();
+    var c = CONFIG.COLUNAS;
+    var row = sheet.getRange(linha, 1, 1, 48).getValues()[0];
 
-    // Limpa o cache para forçar recarregamento
+    // Dados para a aba Arquivo
+    var nome  = row[c.CLIENTE] || '';
+    var cpf   = row[c.CPF]    || '';
+    var whats = row[c.WHATS]  || '';
+    var plano = row[c.PLANO]  || '';
+    var valor = row[c.VALOR]  || '';
+    var tz    = Session.getScriptTimeZone();
+    var dataExclusao = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm');
+
+    // Grava na aba Arquivo
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var abaArquivo = ss.getSheetByName('Arquivo');
+    if (!abaArquivo) {
+      abaArquivo = ss.insertSheet('Arquivo');
+      abaArquivo.getRange(1, 1, 1, 6).setValues([['NOME', 'CPF', 'WHATSAPP', 'PLANO', 'VALOR', 'DATA DE EXCLUSÃO']]);
+      abaArquivo.getRange(1, 1, 1, 6).setFontWeight('bold');
+    }
+    abaArquivo.appendRow([nome, cpf, whats, plano, valor, dataExclusao]);
+
+    // Limpa a linha na aba principal (preserva a linha para não deslocar índices)
+    sheet.getRange(linha, 1, 1, 48).clearContent();
+
+    // Limpa cache
     _limparCache();
 
-    return { sucesso: true };
+    Logger.log('Venda arquivada: linha=' + linha + ' | cliente=' + nome);
+    return { sucesso: true, mensagem: '✅ Venda de ' + nome + ' arquivada com sucesso!' };
   } catch(e) {
-    Logger.log('Erro em excluirVenda: ' + e);
+    Logger.log('Erro em arquivarVenda: ' + e);
     return { sucesso: false, mensagem: e.message };
+  } finally {
+    lock.releaseLock();
   }
+}
+
+// Mantém compatibilidade com código antigo
+function excluirVenda(linha) {
+  return arquivarVenda(linha);
 }
 
 
@@ -2494,6 +2528,15 @@ function salvarVenda(dados) {
 
     var sheet      = _getSheet();
     var linhaDados = _construirLinhaDados(dados);
+
+    // ── ARQUIVAR VENDA: se pré-status = "ARQUIVAR VENDA", arquiva e limpa ──
+    if (dados.preStatus === 'ARQUIVAR VENDA' && dados.linhaReferencia && dados.linhaReferencia !== '') {
+      var linhaArq = parseInt(dados.linhaReferencia);
+      if (isNaN(linhaArq) || linhaArq < 3) throw new Error('Linha de referência inválida!');
+      lock.releaseLock(); // libera o lock antes de chamar arquivarVenda (que usa seu próprio lock)
+      var resArq = arquivarVenda(linhaArq);
+      return resArq;
+    }
 
     if (dados.linhaReferencia && dados.linhaReferencia !== '') {
       var linhaNum = parseInt(dados.linhaReferencia);

@@ -336,6 +336,16 @@ function pifSalvar() {
       }
       _listaNeedsReload = true; // invalida cache — lista precisa de dado fresco
       mostrarToast('✅ ' + res.mensagem, 'success');
+
+      // Se foi arquivada, fecha painel e recarrega lista
+      if (dados.preStatus === 'ARQUIVAR VENDA') {
+        _pifModoEdicao = false;
+        AppState.set('vendaSelecionada', null);
+        fecharPainel();
+        carregarVendas(1, '');
+        return;
+      }
+
       if (dados.status === '2- Aguardando Instalação' && v.status !== '2- Aguardando Instalação') dispararConfete();
       if (dados.status === '3 - Finalizada/Instalada' && v.status !== '3 - Finalizada/Instalada') dispararChovaDinheiro();
       // Recarrega venda atualizada e reabre painel
@@ -3061,13 +3071,6 @@ function mostrarPainel(v) {
 
   var whatsBtn = document.getElementById('pBtnWhats');
   whatsBtn.style.display = v.whats ? 'flex' : 'none';
-  var excluirBtn = document.getElementById('pBtnExcluir');
-  if (excluirBtn) {
-    var perfil      = AppState.get('perfil') || '';
-    var podeExcluir = (perfil === 'admin' || perfil === 'supervisor') &&
-                      (v.status === '1- Conferencia/Ativação');
-    excluirBtn.style.display = podeExcluir ? 'flex' : 'none';
-  }
 
   document.getElementById('painelVazio').style.display = 'none';
   document.getElementById('painelConteudo').classList.add('ativo');
@@ -7432,13 +7435,6 @@ function mostrarPainel(v) {
 
   var whatsBtn = document.getElementById('pBtnWhats');
   whatsBtn.style.display = v.whats ? 'flex' : 'none';
-  var excluirBtn = document.getElementById('pBtnExcluir');
-  if (excluirBtn) {
-    var perfil      = AppState.get('perfil') || '';
-    var podeExcluir = (perfil === 'admin' || perfil === 'supervisor') &&
-                      (v.status === '1- Conferencia/Ativação');
-    excluirBtn.style.display = podeExcluir ? 'flex' : 'none';
-  }
 
   _painelAbertoPorClique = true; // ignora o clique que abriu
   document.getElementById('painelVazio').style.display = 'none';
