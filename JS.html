@@ -2752,12 +2752,11 @@ function _consultarAdapterVenda(index) {
         document.getElementById('madp-erro-msg').textContent = 'Tempo esgotado. Verifique se a extensao DharmaPro Connector esta instalada e a VPN esta ativada.';
       }, 30000);
 
-      // Abrir popup no Adapter com params — a extensao (content script) faz o resto
-      var params = 'dhp_adapter_cpf='  + encodeURIComponent(v.cpf.replace(/\D/g, '')) +
-                   '&dhp_adapter_user=' + encodeURIComponent(creds.user) +
-                   '&dhp_adapter_pass=' + encodeURIComponent(creds.pass);
-
-      window.open('https://adapter.veronet.com.br/adapter/?' + params + '#/login', 'dhp_adapter', 'width=400,height=300');
+      // Abrir popup no Adapter com dados no hash (servidor nao recebe o hash)
+      var _hash = '#dhp?cpf=' + encodeURIComponent(v.cpf.replace(/\D/g, '')) +
+                  '&user='    + encodeURIComponent(creds.user) +
+                  '&pass='    + encodeURIComponent(creds.pass);
+      window.open('https://adapter.veronet.com.br/adapter/' + _hash, 'dhp_adapter', 'width=400,height=300');
     })
     .withFailureHandler(function(err) {
       document.getElementById('madp-loading').style.display = 'none';
