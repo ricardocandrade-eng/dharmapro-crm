@@ -274,17 +274,6 @@
     // Passo 3: Aguardar sub-itens do menu aparecerem e clicar no correto
     console.log('[DHP-NG] Buscando sub-item do menu expandido...');
 
-    // Função auxiliar: retorna o texto DIRETO de um elemento (sem filhos)
-    function textoProprioEl(el) {
-      var t = '';
-      for (var c = 0; c < el.childNodes.length; c++) {
-        if (el.childNodes[c].nodeType === Node.TEXT_NODE) {
-          t += el.childNodes[c].textContent;
-        }
-      }
-      return t.trim();
-    }
-
     // Função auxiliar: verifica se el é ou está dentro de btnCategoria
     function dentroCategoria(el) {
       var node = el;
@@ -295,53 +284,27 @@
       return false;
     }
 
-    // Função auxiliar: verifica se el está visível de verdade
-    function estaVisivel(el) {
-      if (!el.offsetParent && getComputedStyle(el).position !== 'fixed') return false;
-      var rect = el.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return false;
-      var style = getComputedStyle(el);
-      if (style.visibility === 'hidden' || style.display === 'none') return false;
-      if (parseFloat(style.opacity) < 0.1) return false;
-      return true;
-    }
-
     var subItem = await aguardar(function() {
-      var candidates = document.querySelectorAll('button, div, span, a, td, li');
-
-      // Diagnóstico: log dos candidatos visíveis (apenas na primeira tentativa)
-      var debugTexts = [];
-      for (var d = 0; d < candidates.length; d++) {
-        var tp = textoProprioEl(candidates[d]);
-        if (tp && tp.length > 1 && tp.length < 40) debugTexts.push(tp);
-      }
-      if (debugTexts.length > 0) {
-        console.log('[DHP-NG] Textos próprios visíveis:', debugTexts.slice(0, 30).join(' | '));
-      }
-
-      for (var s = 0; s < candidates.length; s++) {
-        var el = candidates[s];
-
-        // Pular se é a categoria ou está dentro dela
-        if (dentroCategoria(el)) continue;
-
-        // Pular se não está visível
-        if (!estaVisivel(el)) continue;
-
-        // Verificar texto próprio (sem filhos) - procuramos "Aten..." que é o sub-item truncado
-        var proprio = textoProprioEl(el);
-        if (!proprio) continue;
-
-        // Também verificar textContent completo para sub-itens com filhos simples
-        var completo = el.textContent.trim();
-
-        // Critério: texto começa com "Aten" (inclui "Atendimento" pois o sub-item
-        // pode ter o mesmo texto que a categoria — dentroCategoria() já exclui o original)
-        var match = proprio.indexOf('Aten') === 0 || completo.indexOf('Aten') === 0;
-
-        if (match) {
-          console.log('[DHP-NG] Candidato sub-item: "' + proprio + '" / "' + completo + '" <' + el.tagName + '> class=' + el.className);
+      // Estratégia 1: sub-item com classe w-icons-hidden (mapeado via Chrome)
+      var iconsHidden = document.querySelectorAll('.w-icons-hidden');
+      for (var ih = 0; ih < iconsHidden.length; ih++) {
+        var el = iconsHidden[ih];
+        var txt = el.textContent.trim();
+        if (txt.indexOf('Aten') === 0 && !dentroCategoria(el)) {
+          console.log('[DHP-NG] Sub-item via w-icons-hidden: "' + txt + '"');
           return el;
+        }
+      }
+
+      // Estratégia 2: qualquer elemento com "Aten" que não seja a categoria
+      var candidates = document.querySelectorAll('button, div, span, a');
+      for (var s = 0; s < candidates.length; s++) {
+        var cand = candidates[s];
+        if (dentroCategoria(cand)) continue;
+        var ctxt = cand.textContent.trim();
+        if (ctxt.indexOf('Aten') === 0 && cand.offsetParent) {
+          console.log('[DHP-NG] Sub-item via texto: "' + ctxt + '" <' + cand.tagName + '>');
+          return cand;
         }
       }
 
@@ -380,8 +343,16 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
     simularDigitacao(input, cpfLimpo);
 
-    // Pressionar Enter
-    simularEnter(input);
+    // Clicar no botão de pesquisa (mais confiável que Enter)
+    var pesquisaBtn = buscaCtrl.ctrl.items.pesquisaB;
+    if (pesquisaBtn && pesquisaBtn.element) {
+      console.log('[DHP-NG] Clicando botão pesquisaB');
+      pesquisaBtn.element.click();
+    } else {
+      // Fallback: pressionar Enter
+      console.log('[DHP-NG] pesquisaB não encontrado, usando Enter');
+      simularEnter(input);
+    }
 
     console.log('[DHP-NG] Digitou CPF e Enter, aguardando resultado...');
 
@@ -409,54 +380,58 @@
   // ── Clicar em Visualizar ──────────────────────────────────────────────
 
   async function clicarVisualizar() {
-    // Estratégia 1: buscar botão via controller Wing (iniciarAtendSemProtocoloB)
+    // Estratégia 1: buscar botão Visualizar via controller Wing (visualizaPessoaB)
     var cardCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360CardRetornoBuscaWComp');
     var btnClicado = false;
 
     if (cardCtrl && cardCtrl.ctrl.items) {
-      var btnItem = cardCtrl.ctrl.items.iniciarAtendSemProtocoloB;
+      var btnItem = cardCtrl.ctrl.items.visualizaPessoaB;
       if (btnItem && btnItem.element) {
-        console.log('[DHP-NG] Botão via controller: iniciarAtendSemProtocoloB');
+        console.log('[DHP-NG] Botão via controller: visualizaPessoaB');
         btnItem.element.click();
         btnClicado = true;
       }
     }
 
-    // Estratégia 2: fallback — buscar por texto no DOM
+    // Estratégia 2: fallback — buscar botão "Visualizar" por texto no DOM
     if (!btnClicado) {
       var btnVis = await aguardar(function() {
         var buttons = document.querySelectorAll('button');
-        var fallback = null;
         for (var i = 0; i < buttons.length; i++) {
           var txt = buttons[i].textContent.trim();
-          if (txt === 'Atender') return buttons[i];
-          if (txt.indexOf('Atender') > -1) return buttons[i];
-          if (txt === 'Visualizar' && !fallback) fallback = buttons[i];
+          if (txt === 'Visualizar') return buttons[i];
         }
-        return fallback;
-      }, 10000, 300, 'Botão Atender/Visualizar');
+        return null;
+      }, 10000, 300, 'Botão Visualizar');
 
       console.log('[DHP-NG] Botão via DOM: "' + btnVis.textContent.trim() + '"');
       btnVis.click();
     }
 
-    console.log('[DHP-NG] Clicou, aguardando dados...');
+    console.log('[DHP-NG] Clicou Visualizar, aguardando dados...');
 
-    // Aguardar dados carregarem — aceitar qualquer controller de dados do cliente
+    // Aguardar dados carregarem — aceitar controllers OU dados visíveis no DOM
     await aguardar(function() {
       var instances = Wing.session.controllerManager.instances;
-      var contratoCtrl = findCtrlByType(instances, 'Atend360ContratoTipoFisicoCardWComp');
-      var criacaoCtrl  = findCtrlByType(instances, 'CasoCriacaoDeContratoWComp');
+      // Controllers do fluxo Visualizar
       var pessoaCtrl   = findCtrlByType(instances, 'Atend360TabPessoaFisicaWComp');
+      var contratoCtrl = findCtrlByType(instances, 'Atend360ContratoTipoFisicoCardWComp');
       var mainCtrl     = findCtrlByType(instances, 'Atend360WMC');
-      return contratoCtrl || criacaoCtrl || pessoaCtrl || mainCtrl;
-    }, 20000, 500, 'Controllers dados contrato/pessoa');
+      if (pessoaCtrl || contratoCtrl || mainCtrl) return true;
 
-    // Pequena pausa para controllers terminarem de popular
-    await new Promise(function(r) { setTimeout(r, 1000); });
+      // Fallback DOM: verificar se a seção "Dados do cliente" apareceu
+      var headers = document.querySelectorAll('span, div, h2, h3');
+      for (var h = 0; h < headers.length; h++) {
+        if (headers[h].textContent.trim() === 'Dados do cliente') return true;
+      }
+      return null;
+    }, 25000, 500, 'Dados do cliente após Visualizar');
+
+    // Pausa para controllers/DOM terminarem de popular
+    await new Promise(function(r) { setTimeout(r, 2000); });
   }
 
-  // ── Ler resultados dos controllers Wing ──────────────────────────────
+  // ── Ler resultados dos controllers Wing + fallback DOM ──────────────
 
   function lerResultados() {
     var instances = Wing.session.controllerManager.instances;
@@ -471,20 +446,27 @@
       debug:           {}
     };
 
-    // ── Nome da pessoa ──
+    // ── Listar controllers disponíveis para debug ──
+    var ctrlTypes = [];
+    for (var cid in instances) {
+      if (instances[cid] && instances[cid].type) ctrlTypes.push(instances[cid].type);
+    }
+    r.debug.controllers = ctrlTypes;
+    console.log('[DHP-NG] Controllers disponíveis:', ctrlTypes.join(', '));
+
+    // ── Nome da pessoa (Wing) ──
     var pessoaCtrl = findCtrlByType(instances, 'Atend360TabPessoaFisicaWComp');
     if (pessoaCtrl && pessoaCtrl.ctrl.items) {
       r.nome = lerItemTexto(pessoaCtrl.ctrl.items.nomePessoaST);
     }
     if (!r.nome) {
-      // Fallback: controller principal
       var mainCtrl = findCtrlByType(instances, 'Atend360WMC');
       if (mainCtrl && mainCtrl.ctrl.items) {
         r.nome = lerItemTexto(mainCtrl.ctrl.items.nomePessoaST);
       }
     }
 
-    // ── Dados do contrato ──
+    // ── Dados do contrato (Wing) ──
     var contratoCard = findCtrlByType(instances, 'Atend360ContratoTipoFisicoCardWComp');
     if (contratoCard && contratoCard.ctrl.items) {
       var items = contratoCard.ctrl.items;
@@ -492,12 +474,14 @@
       var tipoContrato = lerItemTexto(items.tipoContratoST);
       var dataInst = lerItemTexto(items.dataInstalacaoST);
       var endereco = lerItemTexto(items.enderecoST);
+      var bairro = lerItemTexto(items.bairroST);
 
       r.contratos.push({
         numero: numContrato,
         tipo: tipoContrato,
         dataInstalacao: dataInst,
-        endereco: endereco
+        endereco: endereco,
+        bairro: bairro
       });
 
       if (dataInst && dataInst !== '-') {
@@ -527,7 +511,7 @@
       }
     }
 
-    // ── Contrato criação (número e status geral) ──
+    // ── Contrato criação ──
     var criacaoCtrl = findCtrlByType(instances, 'CasoCriacaoDeContratoWComp');
     if (criacaoCtrl && criacaoCtrl.ctrl.items) {
       var numContr = lerItemTexto(criacaoCtrl.ctrl.items.contratoST);
@@ -546,14 +530,22 @@
       r.debug.analiseCredito = lerItemTexto(creditoCtrl.ctrl.items.checkDetalheSL);
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    //  FALLBACK DOM: se controllers Wing não retornaram dados suficientes,
+    //  ler diretamente do DOM (tela Visualizar mostra dados visíveis)
+    // ══════════════════════════════════════════════════════════════════════
+    if (!r.nome || r.contratos.length === 0) {
+      console.log('[DHP-NG] Tentando fallback DOM...');
+      lerDadosDom(r);
+    }
+
     // ── Se não achou OS Externa mas tem contrato com data de instalação ──
     if (!r.instalada && !r.aguardando && r.dataInstalacao) {
       r.instalada = true;
     }
 
     // ── Se não tem contrato ──
-    if (!contratoCard && !criacaoCtrl) {
-      // Verificar se pessoa existe mas sem contrato
+    if (r.contratos.length === 0 && !contratoCard && !criacaoCtrl) {
       if (r.nome) {
         r.resumo = 'Sem contrato ativo';
         return r;
@@ -572,6 +564,67 @@
     }
 
     return r;
+  }
+
+  // ── Fallback: ler dados diretamente do DOM ────────────────────────────
+
+  function lerDadosDom(r) {
+    // Utilitário: busca texto do label seguinte a um rótulo
+    function lerCampoDOM(rotulo) {
+      var spans = document.querySelectorAll('span, div, label, p');
+      for (var i = 0; i < spans.length; i++) {
+        var txt = spans[i].textContent.trim();
+        if (txt === rotulo) {
+          // O valor costuma estar no próximo irmão ou no pai/próximo elemento
+          var parent = spans[i].parentElement;
+          if (parent) {
+            var filhos = parent.querySelectorAll('span, div');
+            for (var j = 0; j < filhos.length; j++) {
+              var val = filhos[j].textContent.trim();
+              if (val && val !== rotulo && val.length > 0) return val;
+            }
+          }
+          // Tentar próximo irmão
+          var next = spans[i].nextElementSibling;
+          if (next) {
+            var val2 = next.textContent.trim();
+            if (val2 && val2 !== rotulo) return val2;
+          }
+        }
+      }
+      return '';
+    }
+
+    // Nome do cliente
+    if (!r.nome) {
+      r.nome = lerCampoDOM('Nome') || lerCampoDOM('Nome completo');
+      if (r.nome) console.log('[DHP-NG] DOM nome:', r.nome);
+    }
+
+    // Contrato (painel esquerdo: "Contrato", "Instalado em", etc.)
+    if (r.contratos.length === 0) {
+      var numContrato = lerCampoDOM('Contrato');
+      var dataInst = lerCampoDOM('Instalado em');
+      var tipoContr = lerCampoDOM('Tipo de contrato');
+      var endereco = lerCampoDOM('Endereço');
+      var bairro = lerCampoDOM('Bairro');
+
+      if (numContrato) {
+        r.contratos.push({
+          numero: numContrato,
+          tipo: tipoContr || '',
+          dataInstalacao: dataInst || '',
+          endereco: endereco || '',
+          bairro: bairro || ''
+        });
+        r.debug.fonte = 'DOM';
+        console.log('[DHP-NG] DOM contrato:', numContrato, 'instalado:', dataInst);
+
+        if (dataInst && dataInst !== '-') {
+          r.dataInstalacao = dataInst;
+        }
+      }
+    }
   }
 
   // ── Iniciar execução quando DOM estiver pronto ──────────────────────
