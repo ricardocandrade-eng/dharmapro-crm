@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "DharmaPro Connector",
+  "version": "1.0.0",
+  "description": "Integra DharmaPro CRM com Vero Adapter e VeroHub",
+  "permissions": [],
+  "content_scripts": [
+    {
+      "matches": ["https://adapter.veronet.com.br/*"],
+      "js": ["content-adapter.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
