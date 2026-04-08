@@ -601,6 +601,51 @@ function atualizarVendaComAdapter(dados) {
 }
 
 
+// ── NG BILLING — consulta status de instalação no NG (Wing Framework) ──────
+// Mesma lógica do Adapter: backend salva credenciais, extensão faz a consulta.
+
+function salvarCredenciaisNG(user, pass) {
+  PropertiesService.getScriptProperties().setProperties({
+    'ng_user': String(user),
+    'ng_pass': String(pass)
+  });
+  return { sucesso: true };
+}
+
+function getCredenciaisNG() {
+  var props = PropertiesService.getScriptProperties();
+  var user  = props.getProperty('ng_user') || '';
+  var pass  = props.getProperty('ng_pass') || '';
+  if (!user) return { sucesso: false };
+  return { sucesso: true, user: user, pass: pass };
+}
+
+function atualizarVendaComNG(dados) {
+  try {
+    var linha = parseInt(dados.linha);
+    if (linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
+
+    var sheet = _getSheet();
+
+    if (dados.instalada) {
+      sheet.getRange(linha, CONFIG.COLUNAS.STATUS + 1).setValue('3 - Finalizada/Instalada');
+      if (dados.dataInstalacao) {
+        sheet.getRange(linha, CONFIG.COLUNAS.INSTAL + 1).setValue(dados.dataInstalacao);
+      }
+    }
+    if (dados.dataAgendamento) {
+      sheet.getRange(linha, CONFIG.COLUNAS.AGENDA + 1).setValue(dados.dataAgendamento);
+    }
+
+    _limparCacheListaCompleta();
+    return { sucesso: true };
+  } catch(e) {
+    Logger.log('Erro atualizarVendaComNG: ' + e.message);
+    return { sucesso: false, mensagem: e.message };
+  }
+}
+
+
 // ── SINCRONIZAÇÃO INICIAL — vendas p1 + contratos numa só chamada ─────────
 function getSincronizacaoInicial() {
   try {

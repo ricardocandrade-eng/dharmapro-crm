@@ -1131,6 +1131,8 @@ function navegar(pagina) {
     document.getElementById('pageConfig').classList.add('ativa');
     document.getElementById('breadcrumbTexto').textContent = 'Configurações';
     _carregarStatusVeroHub();
+    _verificarAdapterConfig();
+    _verificarNGConfig();
 
   } else if (pagina === 'novaVenda') {
     document.getElementById('breadcrumbTexto').textContent = 'Nova Venda';
@@ -2659,10 +2661,200 @@ function _consultarViabilidadeVenda(index) {
   }, 120000);
 }
 
-// ─── CONSULTA NG ──────────────────────────────────────────────────────────
+// ─── CONSULTA NG BILLING ──────────────────────────────────────────────────
+
+var _ngDadosTemp = null;
 
 function _consultarNGVenda(index) {
-  mostrarToast('Consulta NG ainda não implementada.', 'info');
+  var v = _paginaAtual[index];
+  if (!v || !v.cpf) { mostrarToast('Venda sem CPF.', 'error'); return; }
+
+  _ngDadosTemp = { index: index, linha: v.linha };
+
+  var modal = document.getElementById('modalNG');
+  document.getElementById('mng-info').textContent = v.cliente + ' | CPF: ' + v.cpf;
+  document.getElementById('mng-loading').style.display = 'block';
+  document.getElementById('mng-resultado').style.display = 'none';
+  document.getElementById('mng-erro').style.display = 'none';
+  document.getElementById('mng-foot').style.display = 'none';
+  modal.classList.add('ativo');
+
+  // Listener para resultado da extensão via postMessage
+  var _handler = function(e) {
+    if (!e.data || e.data.type !== 'dhp_ng_result') return;
+    window.removeEventListener('message', _handler);
+    clearTimeout(_timeout);
+
+    document.getElementById('mng-loading').style.display = 'none';
+
+    if (e.data.erro) {
+      document.getElementById('mng-erro').style.display = 'block';
+      document.getElementById('mng-erro-msg').textContent = e.data.erro;
+      return;
+    }
+
+    var r = e.data;
+    _ngDadosTemp.resultado = r;
+
+    // Badge de status
+    var badge = document.getElementById('mng-status-badge');
+    if (r.instalada) {
+      badge.style.background = 'rgba(40,167,69,.12)';
+      badge.style.border = '1px solid rgba(40,167,69,.3)';
+      badge.innerHTML = '<span style="font-size:15px;font-weight:700;color:#28a745;">\u2714 ' + esc(r.resumo) + '</span>';
+    } else if (r.dataAgendamento) {
+      badge.style.background = 'rgba(255,193,7,.12)';
+      badge.style.border = '1px solid rgba(255,193,7,.3)';
+      badge.innerHTML = '<span style="font-size:15px;font-weight:700;color:#ffc107;">\u23F3 ' + esc(r.resumo) + '</span>';
+    } else {
+      badge.style.background = 'rgba(220,53,69,.12)';
+      badge.style.border = '1px solid rgba(220,53,69,.3)';
+      badge.innerHTML = '<span style="font-size:15px;font-weight:700;color:#dc3545;">\u26A0 ' + esc(r.resumo) + '</span>';
+    }
+
+    // Detalhes (nome + debug)
+    var html = '';
+    if (r.nome) html += '<strong>Cliente:</strong> ' + esc(r.nome) + '<br>';
+    if (r.dataInstalacao) html += '<strong>Instalação:</strong> ' + esc(r.dataInstalacao) + '<br>';
+    if (r.dataAgendamento) html += '<strong>Agendamento:</strong> ' + esc(r.dataAgendamento) + '<br>';
+    if (r.debug && Object.keys(r.debug).length) {
+      html += '<br><strong>Dados capturados:</strong><br>';
+      for (var dk in r.debug) {
+        html += '<span style="opacity:.6;">' + esc(dk) + ':</span> ' + esc(r.debug[dk]) + '<br>';
+      }
+    }
+    document.getElementById('mng-detalhes').innerHTML = html;
+    document.getElementById('mng-resultado').style.display = 'block';
+
+    // Botão de confirmar
+    var statusAtual = (_paginaAtual[_ngDadosTemp.index] || {}).status || '';
+    var jaInstalada = statusAtual.indexOf('Instalada') > -1 || statusAtual.indexOf('Finalizada') > -1;
+
+    if (r.instalada && jaInstalada) {
+      // Já marcada — só informativo
+    } else if (r.instalada || r.dataAgendamento) {
+      document.getElementById('mng-foot').style.display = 'flex';
+      var btnTxt = r.instalada ? 'Marcar como Instalada' : 'Atualizar Agendamento';
+      document.getElementById('mng-btn-confirmar').textContent = btnTxt;
+    }
+  };
+
+  window.addEventListener('message', _handler);
+
+  var _timeout = setTimeout(function() {
+    window.removeEventListener('message', _handler);
+    document.getElementById('mng-loading').style.display = 'none';
+    document.getElementById('mng-erro').style.display = 'block';
+    document.getElementById('mng-erro-msg').textContent = 'Tempo esgotado. Verifique se:\n1. A extensão DharmaPro Connector está instalada\n2. A VPN está ativada';
+  }, 45000);
+
+  // Buscar credenciais NG do backend
+  google.script.run
+    .withSuccessHandler(function(creds) {
+      if (!creds.sucesso) {
+        document.getElementById('mng-loading').style.display = 'none';
+        document.getElementById('mng-erro').style.display = 'block';
+        document.getElementById('mng-erro-msg').textContent = 'Credenciais do NG não configuradas. Vá em Config e salve usuário/senha do NG.';
+        return;
+      }
+
+      // Abrir popup no domínio NG com CPF + credenciais no hash
+      var cpfLimpo = v.cpf.replace(/\D/g, '');
+      var _hash = '#dhp?cpf=' + encodeURIComponent(cpfLimpo) +
+                  '&user='    + encodeURIComponent(creds.user) +
+                  '&pass='    + encodeURIComponent(creds.pass);
+      window.open('https://ng.vero.objective.com.br/' + _hash, 'dhp_ng', 'width=400,height=300,left=0,top=0');
+    })
+    .withFailureHandler(function(err) {
+      document.getElementById('mng-loading').style.display = 'none';
+      document.getElementById('mng-erro').style.display = 'block';
+      document.getElementById('mng-erro-msg').textContent = 'Erro ao buscar credenciais NG: ' + (err.message || String(err));
+    })
+    .getCredenciaisNG();
+}
+
+function _confirmarNG() {
+  if (!_ngDadosTemp || !_ngDadosTemp.resultado) return;
+  var r = _ngDadosTemp.resultado;
+
+  var btn = document.getElementById('mng-btn-confirmar');
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      btn.disabled = false;
+      if (res.sucesso) {
+        mostrarToast(r.instalada ? 'Venda marcada como Instalada.' : 'Agendamento atualizado.', 'success');
+
+        var idx = _ngDadosTemp.index;
+        if (_paginaAtual[idx]) {
+          if (r.instalada) {
+            _paginaAtual[idx].status = '3 - Finalizada/Instalada';
+            if (r.dataInstalacao) _paginaAtual[idx].instal = r.dataInstalacao;
+          }
+          if (r.dataAgendamento) _paginaAtual[idx].agenda = r.dataAgendamento;
+        }
+
+        _fecharModalNG();
+        _renderizarPagina();
+      } else {
+        mostrarToast('Erro: ' + res.mensagem, 'error');
+        btn.textContent = 'Tentar novamente';
+      }
+    })
+    .withFailureHandler(function(err) {
+      btn.disabled = false;
+      btn.textContent = 'Tentar novamente';
+      mostrarToast('Erro ao salvar: ' + (err.message || err), 'error');
+    })
+    .atualizarVendaComNG({
+      linha: _ngDadosTemp.linha,
+      instalada: r.instalada,
+      dataInstalacao: r.dataInstalacao,
+      dataAgendamento: r.dataAgendamento
+    });
+}
+
+function _fecharModalNG() {
+  document.getElementById('modalNG').classList.remove('ativo');
+  _ngDadosTemp = null;
+}
+
+function _salvarCredenciaisNG() {
+  var user = document.getElementById('cfg-ng-user').value.trim();
+  var pass = document.getElementById('cfg-ng-pass').value.trim();
+  if (!user || !pass) { mostrarToast('Preencha usuario e senha.', 'error'); return; }
+
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (r.sucesso) {
+        mostrarToast('Credenciais do NG salvas.', 'success');
+        document.getElementById('cfg-ng-status').innerHTML = '<span style="color:#28a745;">Configurado</span>';
+        document.getElementById('cfg-ng-pass').value = '';
+      } else {
+        mostrarToast('Erro: ' + r.mensagem, 'error');
+      }
+    })
+    .withFailureHandler(function(err) {
+      mostrarToast('Erro ao salvar: ' + (err.message || err), 'error');
+    })
+    .salvarCredenciaisNG(user, pass);
+}
+
+function _verificarNGConfig() {
+  google.script.run
+    .withSuccessHandler(function(r) {
+      var el = document.getElementById('cfg-ng-status');
+      if (el) el.innerHTML = r.sucesso
+        ? '<span style="color:#28a745;">Configurado</span>'
+        : '<span style="color:var(--muted);">Nao configurado</span>';
+    })
+    .withFailureHandler(function() {
+      var el = document.getElementById('cfg-ng-status');
+      if (el) el.innerHTML = '<span style="color:var(--muted);">Nao configurado</span>';
+    })
+    .getCredenciaisNG();
 }
 
 // ─── CONSULTA ADAPTER ─────────────────────────────────────────────────────
@@ -5744,6 +5936,8 @@ function navegar(pagina) {
     document.getElementById('pageConfig').classList.add('ativa');
     document.getElementById('breadcrumbTexto').textContent = 'Configurações';
     _carregarStatusVeroHub();
+    _verificarAdapterConfig();
+    _verificarNGConfig();
 
   } else if (pagina === 'novaVenda') {
     document.getElementById('breadcrumbTexto').textContent = 'Nova Venda';

@@ -2937,6 +2937,33 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="modalNG">
+    <div class="modal-box" style="max-width:500px;">
+      <div class="modal-head">
+        <h3>Consulta NG Billing</h3>
+        <button class="modal-close" onclick="_fecharModalNG()">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <p id="mng-info" style="font-size:13px;color:var(--muted);margin-bottom:14px;font-family:'DM Mono',monospace;"></p>
+        <div id="mng-loading" style="text-align:center;padding:24px;display:none;">
+          <div class="spinner" style="margin:0 auto 10px;"></div>
+          <p style="font-size:12px;color:var(--muted);">Consultando NG...</p>
+        </div>
+        <div id="mng-resultado" style="display:none;">
+          <div id="mng-status-badge" style="padding:14px 16px;border-radius:10px;margin-bottom:14px;"></div>
+          <div id="mng-detalhes" style="font-size:12px;color:var(--muted);line-height:1.7;"></div>
+        </div>
+        <div id="mng-erro" style="display:none;padding:14px;background:rgba(230,62,109,.08);border:1px solid rgba(230,62,109,.25);border-radius:8px;">
+          <p style="font-size:12px;color:var(--accent);line-height:1.5;" id="mng-erro-msg"></p>
+        </div>
+      </div>
+      <div class="modal-foot" id="mng-foot" style="display:none;">
+        <button class="btn btn-ghost" onclick="_fecharModalNG()">Cancelar</button>
+        <button class="btn" id="mng-btn-confirmar" onclick="_confirmarNG()">Atualizar venda</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="modalConfirmExcluir">
     <div class="modal-box" style="max-width:420px;">
       <div class="modal-head">
@@ -3081,6 +3108,40 @@
           Salvar credenciais Adapter
         </button>
       </div><!-- /card adapter -->
+
+      <!-- NG Billing -->
+      <div class="config-card" style="margin-top:20px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+          <div style="width:40px;height:40px;border-radius:10px;background:rgba(23,162,184,.1);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#17a2b8;">NG</div>
+          <div>
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:2px;">NG Billing</h3>
+            <p style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;">Consulta de status de instalacao via Wing Framework</p>
+          </div>
+        </div>
+
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+          <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Status da Conexao</div>
+          <div id="cfg-ng-status" style="font-size:14px;font-weight:700;">Verificando...</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;display:block;margin-bottom:4px;">Usuario</label>
+            <input id="cfg-ng-user" type="text" placeholder="usuario.ng"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;display:block;margin-bottom:4px;">Senha</label>
+            <input id="cfg-ng-pass" type="password" placeholder="••••••"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none;box-sizing:border-box;">
+          </div>
+        </div>
+
+        <button onclick="_salvarCredenciaisNG()"
+          style="width:100%;padding:12px 20px;background:#17a2b8;border:none;border-radius:8px;color:#fff;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s;">
+          Salvar credenciais NG
+        </button>
+      </div><!-- /card ng -->
 
     </div>
   </div><!-- /pageConfig -->
