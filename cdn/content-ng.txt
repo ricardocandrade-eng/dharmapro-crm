@@ -224,76 +224,77 @@
   // ── Navegar para Atendimento ──────────────────────────────────────────
 
   async function irParaAtendimento() {
-    // Esperar elemento "Atendimento" aparecer (pode ser button, div, span, etc)
-    var btnAtend = await aguardar(function() {
-      // Tentar button primeiro
-      var buttons = document.querySelectorAll('button');
-      for (var i = 0; i < buttons.length; i++) {
-        var txt = buttons[i].textContent.trim();
-        if (txt === 'Atendimento') return buttons[i];
-      }
-      // Fallback: qualquer elemento clicável com texto "Atendimento"
-      var all = document.querySelectorAll('div, span, a, td, li');
-      for (var j = 0; j < all.length; j++) {
-        var el = all[j];
-        if (el.textContent.trim() === 'Atendimento' && el.children.length === 0) return el;
-      }
-      return null;
-    }, 10000, 300, 'Elemento Atendimento no menu');
+    // Estratégia 1: usar API Wing para abrir menu Atendimento
+    console.log('[DHP-NG] Tentando navegar para Atendimento...');
 
-    // Diagnóstico
-    console.log('[DHP-NG] Elemento Atendimento:', btnAtend.tagName, btnAtend.className);
-    console.log('[DHP-NG] Controllers antes do clique:', Object.keys(Wing.session.controllerManager.instances));
-
-    btnAtend.click();
-    console.log('[DHP-NG] Clicou em Atendimento');
-
-    // Tentar também disparar eventos Wing se o click simples não funcionar
-    btnAtend.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    btnAtend.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-
-    // Aguardar controller de busca carregar (com re-clique se demorar)
+    var wingNavegou = false;
     try {
-      await aguardar(function() {
-        return findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
-      }, 15000, 300, 'Controller BuscaWComp (1a tentativa)');
-    } catch(e1) {
-      // Diagnóstico: listar controllers e elementos da página
-      console.error('[DHP-NG] Controllers existentes:', Object.keys(Wing.session.controllerManager.instances));
-      var ctrls = Wing.session.controllerManager.instances;
-      for (var cid in ctrls) {
-        if (ctrls[cid] && ctrls[cid].type) {
-          console.log('[DHP-NG]   ctrl ' + cid + ': ' + ctrls[cid].type);
+      // Wing menu entries: tentar diversas APIs conhecidas do Wing
+      if (Wing.session.menuManager) {
+        var mm = Wing.session.menuManager;
+        console.log('[DHP-NG] menuManager encontrado. Métodos:', Object.keys(mm).filter(function(k) { return typeof mm[k] === 'function'; }).join(', '));
+
+        // Tentar executeEntry com índice [0,0,0] (Atendimento)
+        if (typeof mm.executeEntry === 'function') {
+          mm.executeEntry([0, 0, 0]);
+          wingNavegou = true;
+          console.log('[DHP-NG] executeEntry([0,0,0]) chamado');
+        } else if (typeof mm.execute === 'function') {
+          mm.execute([0, 0, 0]);
+          wingNavegou = true;
+          console.log('[DHP-NG] execute([0,0,0]) chamado');
+        }
+
+        // Listar entries do menu para diagnóstico
+        if (mm.entries || mm.items || mm.menuEntries) {
+          var entries = mm.entries || mm.items || mm.menuEntries;
+          console.log('[DHP-NG] Menu entries:', JSON.stringify(entries).substring(0, 500));
         }
       }
-      // Listar botões visíveis
-      var btns = document.querySelectorAll('button');
-      var btnList = [];
-      for (var bi = 0; bi < btns.length; bi++) {
-        var t = btns[bi].textContent.trim();
-        if (t) btnList.push(t.substring(0, 30));
-      }
-      console.log('[DHP-NG] Botões na página:', btnList.join(' | '));
-
-      // Re-clicar em Atendimento e tentar novamente
-      console.log('[DHP-NG] Re-clicando em Atendimento...');
-      var btnRetry = null;
-      var elems = document.querySelectorAll('button, div, span, a');
-      for (var ri = 0; ri < elems.length; ri++) {
-        if (elems[ri].textContent.trim() === 'Atendimento' && elems[ri].children.length <= 1) {
-          btnRetry = elems[ri]; break;
-        }
-      }
-      if (btnRetry) {
-        btnRetry.click();
-        btnRetry.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-        btnRetry.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-      }
-
-      await aguardar(function() {
-        return findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
-      }, 20000, 500, 'Controller BuscaWComp (2a tentativa)');
+    } catch(wingErr) {
+      console.warn('[DHP-NG] Erro na API Wing:', wingErr.message);
     }
+
+    // Estratégia 2: se Wing API não funcionou, clicar no DOM
+    if (!wingNavegou) {
+      console.log('[DHP-NG] Tentando clique DOM...');
+      var btnAtend = null;
+
+      try {
+        btnAtend = await aguardar(function() {
+          // Buscar em todos os tipos de elementos
+          var all = document.querySelectorAll('button, div, span, a, td, li');
+          for (var i = 0; i < all.length; i++) {
+            var txt = all[i].textContent.trim();
+            if (txt === 'Atendimento') return all[i];
+          }
+          return null;
+        }, 10000, 300, 'Elemento Atendimento no menu');
+      } catch(e) {
+        // Listar o que tem na página
+        var allBtns = document.querySelectorAll('button');
+        var lista = [];
+        for (var b = 0; b < allBtns.length; b++) {
+          var t = allBtns[b].textContent.trim();
+          if (t) lista.push(t.substring(0, 40));
+        }
+        console.error('[DHP-NG] Botão Atendimento não encontrado. Botões:', lista.join(' | '));
+        throw e;
+      }
+
+      console.log('[DHP-NG] Elemento:', btnAtend.tagName, btnAtend.className);
+
+      // Simular interação completa (mousedown → mouseup → click)
+      btnAtend.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      btnAtend.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+      btnAtend.click();
+      console.log('[DHP-NG] Clicou em Atendimento via DOM');
+    }
+
+    // Aguardar controller de busca carregar
+    await aguardar(function() {
+      return findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
+    }, 30000, 500, 'Controller BuscaWComp após Atendimento');
   }
 
   // ── Buscar CPF ─────────────────────────────────────────────────────────
