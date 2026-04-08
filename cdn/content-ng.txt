@@ -338,14 +338,15 @@
           return;
         }
 
-        // Verificar se campo de busca apareceu no DOM (fallback)
-        var campoBusca = document.querySelector('input[placeholder*="CPF"]') ||
-                         document.querySelector('input[placeholder*="Buscar"]');
+        // Verificar se campo de busca específico do Atendimento apareceu
+        var campoBusca = document.querySelector('input[placeholder*="CPF/CNPJ"]');
         if (campoBusca) {
-          console.log('[DHP-NG] ✔ Campo de busca encontrado no DOM após clique [' + ci + ']');
-          // Esperar mais um pouco para controller registrar
-          await new Promise(function(r) { setTimeout(r, 2000); });
-          return;
+          console.log('[DHP-NG] ✔ Campo de busca Atendimento encontrado no DOM após clique [' + ci + ']');
+          // Esperar controller registrar
+          await new Promise(function(r) { setTimeout(r, 3000); });
+          buscaExiste = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
+          if (buscaExiste) return;
+          console.log('[DHP-NG] Campo encontrado mas controller não registrou, continuando...');
         }
 
         console.log('[DHP-NG] Clique [' + ci + '] não abriu busca, tentando próximo...');

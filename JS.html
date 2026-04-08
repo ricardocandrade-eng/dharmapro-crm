@@ -1056,7 +1056,10 @@ function navegar(pagina) {
     document.getElementById('formTitulo').textContent      = ed ? 'Editar Cadastro' : 'Novo Cadastro';
     document.getElementById('formSubtitulo').textContent   = ed ? 'Atualize os dados e salve' : 'Preencha os dados do cliente e do plano';
     if (!ed) limparFormulario();
-    else _atualizarBloqueioStatusForm(true);
+    else {
+      _atualizarBloqueioStatusForm(true);
+      _carregarResponsaveis(); // Atualiza lista de vendedores ao abrir edição
+    }
 
   } else if (pagina === 'lista') {
     document.getElementById('menuLista').classList.add('ativo');
@@ -5861,7 +5864,10 @@ function navegar(pagina) {
     document.getElementById('formTitulo').textContent      = ed ? 'Editar Cadastro' : 'Novo Cadastro';
     document.getElementById('formSubtitulo').textContent   = ed ? 'Atualize os dados e salve' : 'Preencha os dados do cliente e do plano';
     if (!ed) limparFormulario();
-    else _atualizarBloqueioStatusForm(true);
+    else {
+      _atualizarBloqueioStatusForm(true);
+      _carregarResponsaveis(); // Atualiza lista de vendedores ao abrir edição
+    }
 
   } else if (pagina === 'lista') {
     document.getElementById('menuLista').classList.add('ativo');
