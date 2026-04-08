@@ -2659,6 +2659,12 @@ function _consultarViabilidadeVenda(index) {
   }, 120000);
 }
 
+// ─── CONSULTA NG ──────────────────────────────────────────────────────────
+
+function _consultarNGVenda(index) {
+  mostrarToast('Consulta NG ainda não implementada.', 'info');
+}
+
 // ─── CONSULTA ADAPTER ─────────────────────────────────────────────────────
 
 var _adapterDadosTemp = null;
@@ -3138,7 +3144,8 @@ function _criarItemVenda(v, index) {
           (v.cpf ? '<button class="btn-popup" title="Consultar CPF Assertiva" onclick="event.stopPropagation();abrirModalAssertiva(\'' + esc(v.cpf.replace(/\D/g,'')) + '\')">👤</button>' : '') +
           '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
           (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">🔍</button>' : '') +
-          (v.cpf ? '<button class="btn-popup" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">A</button>' : '') +
+          (v.cpf && (v.sistema || '').toUpperCase() === 'ADAPTER' ? '<button class="btn-popup" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
+          (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
           '<span class="venda-arrow">›</span>' +
         '</div>' +
       '</div>' +
