@@ -244,13 +244,19 @@
     // Precisamos: 1) clicar na categoria  2) clicar no sub-item "Aten..."
 
     // Passo 1: Clicar na categoria "Atendimento"
+    // Prefere o elemento mais interno (menor childElementCount) para evitar clicar em wrappers
     var btnCategoria = await aguardar(function() {
       var all = document.querySelectorAll('button, div, span, a, td, li');
+      var best = null;
       for (var i = 0; i < all.length; i++) {
         var txt = all[i].textContent.trim();
-        if (txt === 'Atendimento') return all[i];
+        if (txt === 'Atendimento') {
+          if (!best || all[i].childElementCount < best.childElementCount) {
+            best = all[i];
+          }
+        }
       }
-      return null;
+      return best;
     }, 15000, 300, 'Categoria Atendimento no menu');
 
     console.log('[DHP-NG] Categoria: <' + btnCategoria.tagName + '> class=' + btnCategoria.className);
@@ -265,37 +271,84 @@
       return;
     }
 
-    // Passo 3: Procurar e clicar no sub-item do menu (primeiro item da lista expandida)
-    console.log('[DHP-NG] Buscando sub-item do menu...');
+    // Passo 3: Aguardar sub-itens do menu aparecerem e clicar no correto
+    console.log('[DHP-NG] Buscando sub-item do menu expandido...');
 
-    // Listar todos os elementos visíveis para diagnóstico
-    var menuItems = document.querySelectorAll('button, div, span, a, td, li');
-    var textos = [];
-    for (var d = 0; d < menuItems.length; d++) {
-      var t = menuItems[d].textContent.trim();
-      if (t && t.length < 30 && t.length > 2) textos.push(t);
-    }
-    console.log('[DHP-NG] Itens do menu:', textos.slice(0, 20).join(' | '));
-
-    // Procurar sub-item que comece com "Aten" (não o botão categoria que já clicamos)
-    var subItem = null;
-    for (var s = 0; s < menuItems.length; s++) {
-      var el = menuItems[s];
-      var txt = el.textContent.trim();
-      // Sub-item começa com "Aten" mas não é o mesmo elemento da categoria
-      if (txt.indexOf('Aten') === 0 && el !== btnCategoria && el.offsetParent !== null) {
-        subItem = el;
-        break;
+    // Função auxiliar: retorna o texto DIRETO de um elemento (sem filhos)
+    function textoProprioEl(el) {
+      var t = '';
+      for (var c = 0; c < el.childNodes.length; c++) {
+        if (el.childNodes[c].nodeType === Node.TEXT_NODE) {
+          t += el.childNodes[c].textContent;
+        }
       }
+      return t.trim();
     }
 
-    if (subItem) {
-      console.log('[DHP-NG] Sub-item encontrado: "' + subItem.textContent.trim() + '" <' + subItem.tagName + '>');
-      subItem.click();
-    } else {
-      console.log('[DHP-NG] Sub-item não encontrado, tentando clique duplo na categoria');
-      btnCategoria.click();
+    // Função auxiliar: verifica se el é ou está dentro de btnCategoria
+    function dentroCategoria(el) {
+      var node = el;
+      while (node) {
+        if (node === btnCategoria) return true;
+        node = node.parentElement;
+      }
+      return false;
     }
+
+    // Função auxiliar: verifica se el está visível de verdade
+    function estaVisivel(el) {
+      if (!el.offsetParent && getComputedStyle(el).position !== 'fixed') return false;
+      var rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return false;
+      var style = getComputedStyle(el);
+      if (style.visibility === 'hidden' || style.display === 'none') return false;
+      if (parseFloat(style.opacity) < 0.1) return false;
+      return true;
+    }
+
+    var subItem = await aguardar(function() {
+      var candidates = document.querySelectorAll('button, div, span, a, td, li');
+
+      // Diagnóstico: log dos candidatos visíveis (apenas na primeira tentativa)
+      var debugTexts = [];
+      for (var d = 0; d < candidates.length; d++) {
+        var tp = textoProprioEl(candidates[d]);
+        if (tp && tp.length > 1 && tp.length < 40) debugTexts.push(tp);
+      }
+      if (debugTexts.length > 0) {
+        console.log('[DHP-NG] Textos próprios visíveis:', debugTexts.slice(0, 30).join(' | '));
+      }
+
+      for (var s = 0; s < candidates.length; s++) {
+        var el = candidates[s];
+
+        // Pular se é a categoria ou está dentro dela
+        if (dentroCategoria(el)) continue;
+
+        // Pular se não está visível
+        if (!estaVisivel(el)) continue;
+
+        // Verificar texto próprio (sem filhos) - procuramos "Aten..." que é o sub-item truncado
+        var proprio = textoProprioEl(el);
+        if (!proprio) continue;
+
+        // Também verificar textContent completo para sub-itens com filhos simples
+        var completo = el.textContent.trim();
+
+        // Critério: texto começa com "Aten" e NÃO é "Atendimento" (que é a categoria)
+        var match = (proprio.indexOf('Aten') === 0 && proprio !== 'Atendimento') ||
+                    (completo.indexOf('Aten') === 0 && completo !== 'Atendimento' && completo.length < 20);
+
+        if (match) return el;
+      }
+
+      // Fallback: procurar qualquer sub-item novo que apareceu após expansão do menu
+      // (pode ser "Cobr...", "OS e..." etc. -- qualquer clicável pós-expansão)
+      return null;
+    }, 10000, 500, 'Sub-item menu Atendimento');
+
+    console.log('[DHP-NG] Sub-item encontrado: "' + subItem.textContent.trim() + '" <' + subItem.tagName + '>');
+    subItem.click();
 
     // Aguardar controller de busca carregar
     await aguardar(function() {
