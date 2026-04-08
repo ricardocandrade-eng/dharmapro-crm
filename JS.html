@@ -216,23 +216,54 @@ function painelToggleEdicao() {
     _pifSet('pif-valor',      v.valor      || '');
     _pifSet('pif-observacao', v.observacao || '');
 
-    // Preencher responsável
+    // Preencher responsável — carrega lista completa do servidor
     var selResp = document.getElementById('pif-resp');
     if (selResp) {
-      var found = false;
-      for (var i = 0; i < selResp.options.length; i++) {
-        if (selResp.options[i].value === v.resp || selResp.options[i].text === v.resp) {
-          selResp.selectedIndex = i;
-          found = true;
-          break;
-        }
+      var respAtual = v.resp || '';
+      // Exibe o responsável atual imediatamente como fallback
+      selResp.innerHTML = '<option value="">⏳ Carregando...</option>';
+      if (respAtual) {
+        var optAtual = document.createElement('option');
+        optAtual.value = respAtual; optAtual.textContent = respAtual;
+        selResp.appendChild(optAtual);
+        selResp.value = respAtual;
       }
-      if (!found && v.resp) {
-        var opt = document.createElement('option');
-        opt.value = v.resp; opt.textContent = v.resp;
-        selResp.appendChild(opt);
-        selResp.value = v.resp;
-      }
+      // Carrega lista completa e re-seleciona o responsável atual
+      google.script.run
+        .withSuccessHandler(function(res) {
+          var sel = document.getElementById('pif-resp');
+          if (!sel) return;
+          sel.innerHTML = '<option value="">Selecione...</option>';
+          if (res && !res.erro && res.lista && res.lista.length > 0) {
+            res.lista.forEach(function(nome) {
+              var opt = document.createElement('option');
+              opt.value = nome; opt.textContent = nome;
+              sel.appendChild(opt);
+            });
+          }
+          // Re-seleciona o responsável da venda; se não estiver na lista, adiciona
+          if (respAtual) {
+            sel.value = respAtual;
+            if (!sel.value) {
+              var opt = document.createElement('option');
+              opt.value = respAtual; opt.textContent = respAtual;
+              sel.appendChild(opt);
+              sel.value = respAtual;
+            }
+          }
+        })
+        .withFailureHandler(function() {
+          var sel = document.getElementById('pif-resp');
+          if (!sel) return;
+          sel.innerHTML = '<option value="">Erro ao carregar</option>';
+          if (respAtual) {
+            var opt = document.createElement('option');
+            opt.value = respAtual; opt.textContent = respAtual;
+            sel.appendChild(opt);
+            sel.value = respAtual;
+          }
+        })
+        .getResponsaveis();
     }
 
     // Preencher produto e plano (produto primeiro pois dispara carregamento de planos)
