@@ -240,19 +240,62 @@
     // Só automação DOM pura funciona.
     console.log('[DHP-NG] Navegando para Atendimento via DOM...');
 
-    var btnAtend = await aguardar(function() {
+    // "Atendimento" é uma CATEGORIA do menu que expande sub-itens.
+    // Precisamos: 1) clicar na categoria  2) clicar no sub-item "Aten..."
+
+    // Passo 1: Clicar na categoria "Atendimento"
+    var btnCategoria = await aguardar(function() {
       var all = document.querySelectorAll('button, div, span, a, td, li');
       for (var i = 0; i < all.length; i++) {
         var txt = all[i].textContent.trim();
         if (txt === 'Atendimento') return all[i];
       }
       return null;
-    }, 15000, 300, 'Botão Atendimento no menu');
+    }, 15000, 300, 'Categoria Atendimento no menu');
 
-    console.log('[DHP-NG] Botão Atendimento: <' + btnAtend.tagName + '> class=' + btnAtend.className);
+    console.log('[DHP-NG] Categoria: <' + btnCategoria.tagName + '> class=' + btnCategoria.className);
+    btnCategoria.click();
 
-    // Clique DOM simples — não usar mousedown/mouseup (pode corromper sessão Wing)
-    btnAtend.click();
+    // Passo 2: Verificar se já carregou o controller (caso clique direto funcione)
+    await new Promise(function(r) { setTimeout(r, 2000); });
+
+    var buscaJaAberta = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
+    if (buscaJaAberta) {
+      console.log('[DHP-NG] BuscaWComp já carregou após clique na categoria');
+      return;
+    }
+
+    // Passo 3: Procurar e clicar no sub-item do menu (primeiro item da lista expandida)
+    console.log('[DHP-NG] Buscando sub-item do menu...');
+
+    // Listar todos os elementos visíveis para diagnóstico
+    var menuItems = document.querySelectorAll('button, div, span, a, td, li');
+    var textos = [];
+    for (var d = 0; d < menuItems.length; d++) {
+      var t = menuItems[d].textContent.trim();
+      if (t && t.length < 30 && t.length > 2) textos.push(t);
+    }
+    console.log('[DHP-NG] Itens do menu:', textos.slice(0, 20).join(' | '));
+
+    // Procurar sub-item que comece com "Aten" (não o botão categoria que já clicamos)
+    var subItem = null;
+    for (var s = 0; s < menuItems.length; s++) {
+      var el = menuItems[s];
+      var txt = el.textContent.trim();
+      // Sub-item começa com "Aten" mas não é o mesmo elemento da categoria
+      if (txt.indexOf('Aten') === 0 && el !== btnCategoria && el.offsetParent !== null) {
+        subItem = el;
+        break;
+      }
+    }
+
+    if (subItem) {
+      console.log('[DHP-NG] Sub-item encontrado: "' + subItem.textContent.trim() + '" <' + subItem.tagName + '>');
+      subItem.click();
+    } else {
+      console.log('[DHP-NG] Sub-item não encontrado, tentando clique duplo na categoria');
+      btnCategoria.click();
+    }
 
     // Aguardar controller de busca carregar
     await aguardar(function() {
