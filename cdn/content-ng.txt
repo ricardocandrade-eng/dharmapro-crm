@@ -360,17 +360,24 @@
   // ── Clicar em Visualizar ──────────────────────────────────────────────
 
   async function clicarVisualizar() {
-    // Procurar botão "Visualizar" na página
+    // Procurar botão "Atender" ou "Visualizar" na página
     var btnVis = await aguardar(function() {
       var buttons = document.querySelectorAll('button');
+      // Prioridade: Atender > Visualizar
+      var fallback = null;
       for (var i = 0; i < buttons.length; i++) {
-        if (buttons[i].textContent.trim() === 'Visualizar') return buttons[i];
+        var txt = buttons[i].textContent.trim();
+        if (txt === 'Atender') return buttons[i];
+        if (txt === 'Visualizar' && !fallback) fallback = buttons[i];
       }
-      return null;
-    }, 5000, 300, 'Botão Visualizar');
+      return fallback;
+    }, 5000, 300, 'Botão Atender/Visualizar');
 
+    console.log('[DHP-NG] Botão encontrado: "' + btnVis.textContent.trim() + '"');
+    btnVis.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    btnVis.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
     btnVis.click();
-    console.log('[DHP-NG] Clicou em Visualizar, aguardando dados...');
+    console.log('[DHP-NG] Clicou, aguardando dados...');
 
     // Aguardar dados do contrato carregarem (CasoCriacaoDeContratoWComp ou ContratoTipoFisicoCardWComp)
     await aguardar(function() {
