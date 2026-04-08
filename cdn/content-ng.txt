@@ -335,15 +335,16 @@
         // Também verificar textContent completo para sub-itens com filhos simples
         var completo = el.textContent.trim();
 
-        // Critério: texto começa com "Aten" e NÃO é "Atendimento" (que é a categoria)
-        var match = (proprio.indexOf('Aten') === 0 && proprio !== 'Atendimento') ||
-                    (completo.indexOf('Aten') === 0 && completo !== 'Atendimento' && completo.length < 20);
+        // Critério: texto começa com "Aten" (inclui "Atendimento" pois o sub-item
+        // pode ter o mesmo texto que a categoria — dentroCategoria() já exclui o original)
+        var match = proprio.indexOf('Aten') === 0 || completo.indexOf('Aten') === 0;
 
-        if (match) return el;
+        if (match) {
+          console.log('[DHP-NG] Candidato sub-item: "' + proprio + '" / "' + completo + '" <' + el.tagName + '> class=' + el.className);
+          return el;
+        }
       }
 
-      // Fallback: procurar qualquer sub-item novo que apareceu após expansão do menu
-      // (pode ser "Cobr...", "OS e..." etc. -- qualquer clicável pós-expansão)
       return null;
     }, 10000, 500, 'Sub-item menu Atendimento');
 
