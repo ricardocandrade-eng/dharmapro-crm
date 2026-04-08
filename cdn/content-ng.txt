@@ -312,31 +312,48 @@
   // ── Clicar em Visualizar ──────────────────────────────────────────────
 
   async function clicarVisualizar() {
-    // Procurar botão "Atender" ou "Visualizar" na página
-    var btnVis = await aguardar(function() {
-      var buttons = document.querySelectorAll('button');
-      // Prioridade: Atender > Visualizar
-      var fallback = null;
-      for (var i = 0; i < buttons.length; i++) {
-        var txt = buttons[i].textContent.trim();
-        if (txt === 'Atender') return buttons[i];
-        if (txt === 'Visualizar' && !fallback) fallback = buttons[i];
-      }
-      return fallback;
-    }, 5000, 300, 'Botão Atender/Visualizar');
+    // Estratégia 1: buscar botão via controller Wing (iniciarAtendSemProtocoloB)
+    var cardCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360CardRetornoBuscaWComp');
+    var btnClicado = false;
 
-    console.log('[DHP-NG] Botão encontrado: "' + btnVis.textContent.trim() + '"');
-    btnVis.click();
+    if (cardCtrl && cardCtrl.ctrl.items) {
+      var btnItem = cardCtrl.ctrl.items.iniciarAtendSemProtocoloB;
+      if (btnItem && btnItem.element) {
+        console.log('[DHP-NG] Botão via controller: iniciarAtendSemProtocoloB');
+        btnItem.element.click();
+        btnClicado = true;
+      }
+    }
+
+    // Estratégia 2: fallback — buscar por texto no DOM
+    if (!btnClicado) {
+      var btnVis = await aguardar(function() {
+        var buttons = document.querySelectorAll('button');
+        var fallback = null;
+        for (var i = 0; i < buttons.length; i++) {
+          var txt = buttons[i].textContent.trim();
+          if (txt === 'Atender') return buttons[i];
+          if (txt.indexOf('Atender') > -1) return buttons[i];
+          if (txt === 'Visualizar' && !fallback) fallback = buttons[i];
+        }
+        return fallback;
+      }, 10000, 300, 'Botão Atender/Visualizar');
+
+      console.log('[DHP-NG] Botão via DOM: "' + btnVis.textContent.trim() + '"');
+      btnVis.click();
+    }
+
     console.log('[DHP-NG] Clicou, aguardando dados...');
 
-    // Aguardar dados do contrato carregarem (CasoCriacaoDeContratoWComp ou ContratoTipoFisicoCardWComp)
+    // Aguardar dados carregarem — aceitar qualquer controller de dados do cliente
     await aguardar(function() {
-      var contratoCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360ContratoTipoFisicoCardWComp');
-      var criacaoCtrl  = findCtrlByType(Wing.session.controllerManager.instances, 'CasoCriacaoDeContratoWComp');
-      // Também aceitar caso sem contrato (TabPessoaFisica carregada mas sem ContratoCard)
-      var pessoaCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360TabPessoaFisicaWComp');
-      return contratoCtrl || criacaoCtrl || pessoaCtrl;
-    }, 15000, 300, 'Controllers dados contrato/pessoa');
+      var instances = Wing.session.controllerManager.instances;
+      var contratoCtrl = findCtrlByType(instances, 'Atend360ContratoTipoFisicoCardWComp');
+      var criacaoCtrl  = findCtrlByType(instances, 'CasoCriacaoDeContratoWComp');
+      var pessoaCtrl   = findCtrlByType(instances, 'Atend360TabPessoaFisicaWComp');
+      var mainCtrl     = findCtrlByType(instances, 'Atend360WMC');
+      return contratoCtrl || criacaoCtrl || pessoaCtrl || mainCtrl;
+    }, 20000, 500, 'Controllers dados contrato/pessoa');
 
     // Pequena pausa para controllers terminarem de popular
     await new Promise(function(r) { setTimeout(r, 1000); });
