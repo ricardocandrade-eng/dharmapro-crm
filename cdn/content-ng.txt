@@ -147,7 +147,7 @@
       // 4. Aguardar tela de busca (controller Atend360BuscaWComp)
       await aguardar(function() {
         return findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
-      }, 15000, 300, 'Controller Atend360BuscaWComp');
+      }, 30000, 500, 'Controller Atend360BuscaWComp');
 
       // 5. Buscar CPF
       await buscarCPF(cpf.replace(/\D/g, ''));
@@ -216,6 +216,17 @@
     await aguardar(function() {
       return Wing.session.READY;
     }, 20000, 300, 'Session READY após login');
+
+    // Após login, Wing precisa de tempo para renderizar o menu completamente
+    console.log('[DHP-NG] Login OK. Aguardando UI estabilizar...');
+    await new Promise(function(r) { setTimeout(r, 3000); });
+
+    // Verificar se já caiu direto na busca (sessão anterior)
+    var buscaJaAberta = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
+    if (buscaJaAberta) {
+      console.log('[DHP-NG] Busca já aberta após login, pulando navegação');
+      return;
+    }
 
     // Navegar para Atendimento
     await irParaAtendimento();
