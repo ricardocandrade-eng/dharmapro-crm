@@ -2662,7 +2662,154 @@ function _consultarViabilidadeVenda(index) {
 // ─── CONSULTA ADAPTER ─────────────────────────────────────────────────────
 
 var _adapterDadosTemp = null;
+var _adapterBaseUrl = 'https://adapter.veronet.com.br/adapter/server/gateway';
 
+// ── Consulta Adapter via browser fetch (VPN necessária) ──────────────────
+async function _adapterFetch(url, opts) {
+  opts = opts || {};
+  opts.credentials = 'include';          // envia cookies de sessão
+  var resp = await fetch(url, opts);
+  if (!resp.ok) throw new Error('HTTP ' + resp.status + ' — ' + resp.statusText);
+  return resp.json();
+}
+
+async function _adapterLogin(user, pass) {
+  return _adapterFetch(_adapterBaseUrl + '/auth/login', {
+    method: 'POST',
+    headers: { 'Authorization': 'Basic ' + btoa(user + ':' + pass) }
+  });
+}
+
+async function _adapterBuscarCliente(cpf) {
+  var cpfLimpo = cpf.replace(/\D/g, '');
+  return _adapterFetch(_adapterBaseUrl + '/comercial/clientes/novo/datatables?cpf=' + cpfLimpo, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ draw:1, start:0, length:10 })
+  });
+}
+
+async function _adapterContratos(clienteId) {
+  return _adapterFetch(_adapterBaseUrl + '/comercial/contratos/cliente/' + clienteId);
+}
+
+async function _adapterAtendimentos(clienteId, status) {
+  return _adapterFetch(_adapterBaseUrl + '/comercial/atendimentos/novo/datatables?clienteId=' + clienteId + '&status=' + status, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ draw:1, start:0, length:50 })
+  });
+}
+
+// Formata data ISO ou timestamp para DD/MM/YYYY
+function _fmtDataAdapter(val) {
+  if (!val) return '';
+  var d = new Date(val);
+  if (isNaN(d)) return '';
+  var dd = ('0'+d.getDate()).slice(-2);
+  var mm = ('0'+(d.getMonth()+1)).slice(-2);
+  return dd+'/'+mm+'/'+d.getFullYear();
+}
+
+// ── Pipeline completo: login → busca → contratos → atendimentos ─────────
+async function _executarConsultaAdapter(cpf) {
+  // 1. Obter credenciais do backend
+  var creds = await new Promise(function(resolve, reject) {
+    google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(reject)
+      .getCredenciaisAdapter();
+  });
+  if (!creds.sucesso) throw new Error('Credenciais do Adapter não configuradas. Vá em Config e salve usuário/senha.');
+
+  // 2. Login
+  try {
+    await _adapterLogin(creds.user, creds.pass);
+  } catch(e) {
+    throw new Error('Falha no login do Adapter. Verifique se a VPN está ativada.\n(' + e.message + ')');
+  }
+
+  // 3. Buscar cliente por CPF
+  var clientes = await _adapterBuscarCliente(cpf);
+  var lista = clientes.data || clientes.content || [];
+  if (!lista.length) throw new Error('CPF não encontrado no Adapter.');
+  var cliente = lista[0];
+  var clienteId = cliente.id;
+
+  // 4. Contratos
+  var contratosResp = await _adapterContratos(clienteId);
+  var contratos = Array.isArray(contratosResp) ? contratosResp : (contratosResp.data || contratosResp.content || []);
+
+  // 5. Atendimentos (agendados + solucionados)
+  var agendadosResp = await _adapterAtendimentos(clienteId, 'VISITA_AGENDADA');
+  var solucionadosResp = await _adapterAtendimentos(clienteId, 'SOLUCIONADO');
+  var agendados = agendadosResp.data || agendadosResp.content || [];
+  var solucionados = solucionadosResp.data || solucionadosResp.content || [];
+
+  // 6. Processar resultado
+  var resultado = {
+    sucesso: true,
+    instalada: false,
+    dataInstalacao: '',
+    dataAgendamento: '',
+    resumo: '',
+    contratos: []
+  };
+
+  // Mapear contratos
+  for (var i = 0; i < contratos.length; i++) {
+    var c = contratos[i];
+    resultado.contratos.push({
+      id: c.id || c.contrato || '',
+      plano: c.plano || c.descricao || c.produto || '',
+      status: c.status || ''
+    });
+    // HABILITADO = instalado
+    if (c.status && c.status.toUpperCase() === 'HABILITADO') {
+      resultado.instalada = true;
+    }
+  }
+
+  // Verificar solucionados (fechamento = data de instalação)
+  for (var j = 0; j < solucionados.length; j++) {
+    var s = solucionados[j];
+    var dtFech = s.fechamento || s.dataFechamento || s.dataConclusao || '';
+    if (dtFech) {
+      resultado.instalada = true;
+      resultado.dataInstalacao = _fmtDataAdapter(dtFech);
+      break;
+    }
+  }
+
+  // Verificar agendamentos pendentes
+  if (!resultado.instalada) {
+    for (var k = 0; k < agendados.length; k++) {
+      var a = agendados[k];
+      var dtAg = a.agendamento || a.dataAgendamento || a.dataVisita || '';
+      var dtFechAg = a.fechamento || a.dataFechamento || '';
+      if (dtFechAg) {
+        // Se tem fechamento, já foi instalada
+        resultado.instalada = true;
+        resultado.dataInstalacao = _fmtDataAdapter(dtFechAg);
+      } else if (dtAg) {
+        resultado.dataAgendamento = _fmtDataAdapter(dtAg);
+      }
+    }
+  }
+
+  // Resumo
+  if (resultado.instalada) {
+    resultado.resumo = '✔ Instalada' + (resultado.dataInstalacao ? ' em ' + resultado.dataInstalacao : '');
+  } else if (resultado.dataAgendamento) {
+    resultado.resumo = '⏳ Agendada para ' + resultado.dataAgendamento;
+  } else {
+    resultado.resumo = '⚠ Sem instalação ou agendamento';
+  }
+
+  return resultado;
+}
+
+// ── Abre modal e executa a consulta ──────────────────────────────────────
 function _consultarAdapterVenda(index) {
   var v = _paginaAtual[index];
   if (!v || !v.cpf) { mostrarToast('Venda sem CPF.', 'error'); return; }
@@ -2677,14 +2824,9 @@ function _consultarAdapterVenda(index) {
   document.getElementById('madp-foot').style.display = 'none';
   modal.classList.add('ativo');
 
-  google.script.run
-    .withSuccessHandler(function(r) {
+  _executarConsultaAdapter(v.cpf)
+    .then(function(r) {
       document.getElementById('madp-loading').style.display = 'none';
-      if (!r.sucesso) {
-        document.getElementById('madp-erro').style.display = 'block';
-        document.getElementById('madp-erro-msg').textContent = r.mensagem;
-        return;
-      }
 
       _adapterDadosTemp.resultado = r;
 
@@ -2708,25 +2850,24 @@ function _consultarAdapterVenda(index) {
       var html = '<strong>Contratos:</strong><br>';
       for (var i = 0; i < r.contratos.length; i++) {
         var c = r.contratos[i];
-        html += c.id + ' - ' + c.plano + ' <span style="opacity:.7;">(' + c.status + ')</span><br>';
+        html += c.id + ' — ' + c.plano + ' <span style="opacity:.7;">(' + c.status + ')</span><br>';
       }
       document.getElementById('madp-contratos').innerHTML = html;
 
       document.getElementById('madp-resultado').style.display = 'block';
 
-      // Mostrar botao de confirmar se ha algo para atualizar
+      // Mostrar botão de confirmar se há algo para atualizar
       if (r.instalada || r.dataAgendamento) {
         document.getElementById('madp-foot').style.display = 'flex';
         var btnTxt = r.instalada ? 'Marcar como Instalada' : 'Atualizar Agendamento';
         document.getElementById('madp-btn-confirmar').textContent = btnTxt;
       }
     })
-    .withFailureHandler(function(err) {
+    .catch(function(err) {
       document.getElementById('madp-loading').style.display = 'none';
       document.getElementById('madp-erro').style.display = 'block';
       document.getElementById('madp-erro-msg').textContent = err.message || String(err);
-    })
-    .consultarAdapter(v.cpf);
+    });
 }
 
 function _confirmarAdapter() {
@@ -2803,14 +2944,14 @@ function _verificarAdapterConfig() {
     .withSuccessHandler(function(r) {
       var el = document.getElementById('cfg-adapter-status');
       if (el) el.innerHTML = r.sucesso
-        ? '<span style="color:#28a745;">Conectado</span>'
+        ? '<span style="color:#28a745;">Configurado</span>'
         : '<span style="color:var(--muted);">Nao configurado</span>';
     })
     .withFailureHandler(function() {
       var el = document.getElementById('cfg-adapter-status');
       if (el) el.innerHTML = '<span style="color:var(--muted);">Nao configurado</span>';
     })
-    .consultarAdapter('00000000000');
+    .getCredenciaisAdapter();
 }
 
 // ─── TRAVA VEROHUB ─────────────────────────────────────────────────────────
