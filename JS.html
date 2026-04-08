@@ -2659,6 +2659,160 @@ function _consultarViabilidadeVenda(index) {
   }, 120000);
 }
 
+// ─── CONSULTA ADAPTER ─────────────────────────────────────────────────────
+
+var _adapterDadosTemp = null;
+
+function _consultarAdapterVenda(index) {
+  var v = _paginaAtual[index];
+  if (!v || !v.cpf) { mostrarToast('Venda sem CPF.', 'error'); return; }
+
+  _adapterDadosTemp = { index: index, linha: v.linha };
+
+  var modal = document.getElementById('modalAdapter');
+  document.getElementById('madp-info').textContent = v.cliente + ' | CPF: ' + v.cpf;
+  document.getElementById('madp-loading').style.display = 'block';
+  document.getElementById('madp-resultado').style.display = 'none';
+  document.getElementById('madp-erro').style.display = 'none';
+  document.getElementById('madp-foot').style.display = 'none';
+  modal.classList.add('ativo');
+
+  google.script.run
+    .withSuccessHandler(function(r) {
+      document.getElementById('madp-loading').style.display = 'none';
+      if (!r.sucesso) {
+        document.getElementById('madp-erro').style.display = 'block';
+        document.getElementById('madp-erro-msg').textContent = r.mensagem;
+        return;
+      }
+
+      _adapterDadosTemp.resultado = r;
+
+      // Badge de status
+      var badge = document.getElementById('madp-status-badge');
+      if (r.instalada) {
+        badge.style.background = 'rgba(40,167,69,.12)';
+        badge.style.border = '1px solid rgba(40,167,69,.3)';
+        badge.innerHTML = '<span style="font-size:15px;font-weight:700;color:#28a745;">' + r.resumo + '</span>';
+      } else if (r.dataAgendamento) {
+        badge.style.background = 'rgba(255,193,7,.12)';
+        badge.style.border = '1px solid rgba(255,193,7,.3)';
+        badge.innerHTML = '<span style="font-size:15px;font-weight:700;color:#ffc107;">' + r.resumo + '</span>';
+      } else {
+        badge.style.background = 'rgba(220,53,69,.12)';
+        badge.style.border = '1px solid rgba(220,53,69,.3)';
+        badge.innerHTML = '<span style="font-size:15px;font-weight:700;color:#dc3545;">' + r.resumo + '</span>';
+      }
+
+      // Contratos
+      var html = '<strong>Contratos:</strong><br>';
+      for (var i = 0; i < r.contratos.length; i++) {
+        var c = r.contratos[i];
+        html += c.id + ' - ' + c.plano + ' <span style="opacity:.7;">(' + c.status + ')</span><br>';
+      }
+      document.getElementById('madp-contratos').innerHTML = html;
+
+      document.getElementById('madp-resultado').style.display = 'block';
+
+      // Mostrar botao de confirmar se ha algo para atualizar
+      if (r.instalada || r.dataAgendamento) {
+        document.getElementById('madp-foot').style.display = 'flex';
+        var btnTxt = r.instalada ? 'Marcar como Instalada' : 'Atualizar Agendamento';
+        document.getElementById('madp-btn-confirmar').textContent = btnTxt;
+      }
+    })
+    .withFailureHandler(function(err) {
+      document.getElementById('madp-loading').style.display = 'none';
+      document.getElementById('madp-erro').style.display = 'block';
+      document.getElementById('madp-erro-msg').textContent = err.message || String(err);
+    })
+    .consultarAdapter(v.cpf);
+}
+
+function _confirmarAdapter() {
+  if (!_adapterDadosTemp || !_adapterDadosTemp.resultado) return;
+  var r = _adapterDadosTemp.resultado;
+
+  var btn = document.getElementById('madp-btn-confirmar');
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      btn.disabled = false;
+      if (res.sucesso) {
+        mostrarToast(r.instalada ? 'Venda marcada como Instalada.' : 'Agendamento atualizado.', 'success');
+
+        var idx = _adapterDadosTemp.index;
+        if (_paginaAtual[idx]) {
+          if (r.instalada) {
+            _paginaAtual[idx].status = '3 - Finalizada/Instalada';
+            if (r.dataInstalacao) _paginaAtual[idx].instal = r.dataInstalacao;
+          }
+          if (r.dataAgendamento) _paginaAtual[idx].agenda = r.dataAgendamento;
+        }
+
+        _fecharModalAdapter();
+        _renderizarPagina();
+      } else {
+        mostrarToast('Erro: ' + res.mensagem, 'error');
+        btn.textContent = 'Tentar novamente';
+      }
+    })
+    .withFailureHandler(function(err) {
+      btn.disabled = false;
+      btn.textContent = 'Tentar novamente';
+      mostrarToast('Erro ao salvar: ' + (err.message || err), 'error');
+    })
+    .atualizarVendaComAdapter({
+      linha: _adapterDadosTemp.linha,
+      instalada: r.instalada,
+      dataInstalacao: r.dataInstalacao,
+      dataAgendamento: r.dataAgendamento
+    });
+}
+
+function _fecharModalAdapter() {
+  document.getElementById('modalAdapter').classList.remove('ativo');
+  _adapterDadosTemp = null;
+}
+
+function _salvarCredenciaisAdapter() {
+  var user = document.getElementById('cfg-adapter-user').value.trim();
+  var pass = document.getElementById('cfg-adapter-pass').value.trim();
+  if (!user || !pass) { mostrarToast('Preencha usuario e senha.', 'error'); return; }
+
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (r.sucesso) {
+        mostrarToast('Credenciais do Adapter salvas.', 'success');
+        document.getElementById('cfg-adapter-status').innerHTML = '<span style="color:#28a745;">Conectado</span>';
+        document.getElementById('cfg-adapter-pass').value = '';
+      } else {
+        mostrarToast('Erro: ' + r.mensagem, 'error');
+      }
+    })
+    .withFailureHandler(function(err) {
+      mostrarToast('Erro ao salvar: ' + (err.message || err), 'error');
+    })
+    .salvarCredenciaisAdapter(user, pass);
+}
+
+function _verificarAdapterConfig() {
+  google.script.run
+    .withSuccessHandler(function(r) {
+      var el = document.getElementById('cfg-adapter-status');
+      if (el) el.innerHTML = r.sucesso
+        ? '<span style="color:#28a745;">Conectado</span>'
+        : '<span style="color:var(--muted);">Nao configurado</span>';
+    })
+    .withFailureHandler(function() {
+      var el = document.getElementById('cfg-adapter-status');
+      if (el) el.innerHTML = '<span style="color:var(--muted);">Nao configurado</span>';
+    })
+    .consultarAdapter('00000000000');
+}
+
 // ─── TRAVA VEROHUB ─────────────────────────────────────────────────────────
 
 var _vhTravaTimer = null;
@@ -2942,6 +3096,7 @@ function _criarItemVenda(v, index) {
           (v.cpf ? '<button class="btn-popup" title="Consultar CPF Assertiva" onclick="event.stopPropagation();abrirModalAssertiva(\'' + esc(v.cpf.replace(/\D/g,'')) + '\')">👤</button>' : '') +
           '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
           (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">🔍</button>' : '') +
+          (v.cpf ? '<button class="btn-popup" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">A</button>' : '') +
           '<span class="venda-arrow">›</span>' +
         '</div>' +
       '</div>' +
@@ -7325,6 +7480,7 @@ function _criarItemVenda(v, index) {
           '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
           '<button class="btn-popup" title="Disparar fluxo BotConversa para o Cliente" onclick="event.stopPropagation();abrirModalBotConversa(\'cliente\',' + index + ')">🤖</button>' +
           (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">🔍</button>' : '') +
+          (v.cpf ? '<button class="btn-popup" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">A</button>' : '') +
           '<span class="venda-arrow">›</span>' +
         '</div>' +
 

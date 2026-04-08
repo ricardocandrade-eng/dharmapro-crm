@@ -2909,6 +2909,34 @@
     </div>
   </div>
 
+  <!-- ══ MODAL CONSULTA ADAPTER ══════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modalAdapter">
+    <div class="modal-box" style="max-width:500px;">
+      <div class="modal-head">
+        <h3>Consulta Adapter</h3>
+        <button class="modal-close" onclick="_fecharModalAdapter()">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <p id="madp-info" style="font-size:13px;color:var(--muted);margin-bottom:14px;font-family:'DM Mono',monospace;"></p>
+        <div id="madp-loading" style="text-align:center;padding:24px;display:none;">
+          <div class="spinner" style="margin:0 auto 10px;"></div>
+          <p style="font-size:12px;color:var(--muted);">Consultando Adapter...</p>
+        </div>
+        <div id="madp-resultado" style="display:none;">
+          <div id="madp-status-badge" style="padding:14px 16px;border-radius:10px;margin-bottom:14px;"></div>
+          <div id="madp-contratos" style="font-size:12px;color:var(--muted);line-height:1.7;"></div>
+        </div>
+        <div id="madp-erro" style="display:none;padding:14px;background:rgba(230,62,109,.08);border:1px solid rgba(230,62,109,.25);border-radius:8px;">
+          <p style="font-size:12px;color:var(--accent);line-height:1.5;" id="madp-erro-msg"></p>
+        </div>
+      </div>
+      <div class="modal-foot" id="madp-foot" style="display:none;">
+        <button class="btn btn-ghost" onclick="_fecharModalAdapter()">Cancelar</button>
+        <button class="btn" id="madp-btn-confirmar" onclick="_confirmarAdapter()">Atualizar venda</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="modalConfirmExcluir">
     <div class="modal-box" style="max-width:420px;">
       <div class="modal-head">
@@ -3019,6 +3047,41 @@
         </div>
 
       </div><!-- /card verohub -->
+
+      <!-- Card Adapter -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+          <span style="font-size:22px;color:#17a2b8;font-weight:700;">A</span>
+          <div>
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:2px;">Vero Adapter</h3>
+            <p style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;">Consulta de status de instalacao e agendamentos</p>
+          </div>
+        </div>
+
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+          <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">Status da Conexao</div>
+          <div id="cfg-adapter-status" style="font-size:14px;font-weight:700;">Verificando...</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+          <div>
+            <label style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;display:block;margin-bottom:4px;">Usuario</label>
+            <input id="cfg-adapter-user" type="text" placeholder="usuario.adapter"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none;box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;display:block;margin-bottom:4px;">Senha</label>
+            <input id="cfg-adapter-pass" type="password" placeholder="••••••"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:10px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none;box-sizing:border-box;">
+          </div>
+        </div>
+
+        <button onclick="_salvarCredenciaisAdapter()"
+          style="width:100%;padding:12px 20px;background:#17a2b8;border:none;border-radius:8px;color:#fff;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s;">
+          Salvar credenciais Adapter
+        </button>
+      </div><!-- /card adapter -->
+
     </div>
   </div><!-- /pageConfig -->
 

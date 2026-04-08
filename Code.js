@@ -554,6 +554,181 @@ function consultarViabilidadeVero(dados) {
 }
 
 
+// ── ADAPTER — consulta status de instalação no Vero Adapter ────────────────
+var ADAPTER_BASE = 'https://adapter.veronet.com.br/adapter/';
+
+function salvarCredenciaisAdapter(user, pass) {
+  PropertiesService.getScriptProperties().setProperties({
+    'adapter_user': String(user),
+    'adapter_pass': String(pass)
+  });
+  return { sucesso: true };
+}
+
+function _loginAdapter() {
+  var props = PropertiesService.getScriptProperties();
+  var user  = props.getProperty('adapter_user');
+  var pass  = props.getProperty('adapter_pass');
+  if (!user || !pass) throw new Error('Credenciais do Adapter não configuradas. Vá em Config e salve usuário/senha.');
+
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get('adapter_session');
+  if (cached) return cached;
+
+  var base64 = Utilities.base64Encode(user + ':' + pass);
+  var r = UrlFetchApp.fetch(ADAPTER_BASE + 'server/gateway/auth/login', {
+    method: 'post',
+    muteHttpExceptions: true,
+    headers: { 'Authorization': 'Basic ' + base64, 'Content-Type': 'application/json' },
+    payload: '{}'
+  });
+
+  var allH = r.getAllHeaders();
+  var raw  = allH['Set-Cookie'] || allH['set-cookie'] || '';
+  var arr  = typeof raw === 'string' ? [raw] : raw;
+  var jsid = '';
+  for (var i = 0; i < arr.length; i++) {
+    if (arr[i].indexOf('JSESSIONID') !== -1) { jsid = arr[i].split(';')[0]; break; }
+  }
+  if (!jsid) throw new Error('Login Adapter falhou (sem JSESSIONID). Verifique usuário/senha.');
+
+  cache.put('adapter_session', jsid, 1500);
+  return jsid;
+}
+
+function _adapterFetch(endpoint, method, body) {
+  var cookie = _loginAdapter();
+  var opts   = {
+    method: method || 'get',
+    muteHttpExceptions: true,
+    headers: { 'Cookie': cookie, 'Content-Type': 'application/json', 'Accept': 'application/json' }
+  };
+  if (body) opts.payload = typeof body === 'string' ? body : JSON.stringify(body);
+
+  var r = UrlFetchApp.fetch(ADAPTER_BASE + endpoint, opts);
+  if (r.getResponseCode() === 401 || r.getResponseCode() === 403) {
+    CacheService.getScriptCache().remove('adapter_session');
+    cookie = _loginAdapter();
+    opts.headers['Cookie'] = cookie;
+    r = UrlFetchApp.fetch(ADAPTER_BASE + endpoint, opts);
+  }
+  return JSON.parse(r.getContentText());
+}
+
+// Recebe CPF (com ou sem formatação). Retorna status de instalação.
+function consultarAdapter(cpf) {
+  try {
+    cpf = String(cpf || '').replace(/\D/g, '');
+    if (!cpf || cpf.length < 11) return { sucesso: false, mensagem: 'CPF inválido.' };
+
+    // 1. Buscar cliente por CPF
+    var dtBody = JSON.stringify({ draw:1, columns:[], order:[], start:0, length:10, search:{value:'',regex:false} });
+    var cli = _adapterFetch('server/gateway/comercial/clientes/novo/datatables?cpf=' + cpf, 'post', dtBody);
+    if (!cli.data || cli.data.length === 0)
+      return { sucesso: false, mensagem: 'CPF não encontrado no Adapter.' };
+
+    var clienteId = cli.data[0].IDCliente;
+    var nomeCli   = cli.data[0].Nome;
+
+    // 2. Buscar contratos
+    var contratos = _adapterFetch('server/gateway/comercial/contratos/cliente/' + clienteId, 'get');
+    var resumoC = [];
+    for (var i = 0; i < contratos.length; i++) {
+      var c = contratos[i];
+      resumoC.push({
+        id:     c.id,
+        plano:  (c.plano ? c.plano.descricao : '') || '',
+        status: (c.status ? c.status.descricao : '') || ''
+      });
+    }
+
+    // 3. Atendimentos — visita agendada
+    var atBody = JSON.stringify({ draw:1, columns:[], order:[], start:0, length:50, search:{value:'',regex:false} });
+    var agendados   = _adapterFetch('server/gateway/comercial/atendimentos/novo/datatables?clienteId=' + clienteId + '&status=VISITA_AGENDADA', 'post', atBody);
+    var solucionados = _adapterFetch('server/gateway/comercial/atendimentos/novo/datatables?clienteId=' + clienteId + '&status=SOLUCIONADO', 'post', atBody);
+
+    var dataInstalacao  = '';
+    var dataAgendamento = '';
+    var instalada       = false;
+
+    // Verificar solucionados (instalações concluídas)
+    if (solucionados.data) {
+      for (var j = 0; j < solucionados.data.length; j++) {
+        var s = solucionados.data[j];
+        if (s.tipoServico === 'INSTALACAO' && s.dataFechamento) {
+          instalada = true;
+          dataInstalacao = s.dataFechamento;
+          break;
+        }
+      }
+    }
+
+    // Verificar agendados
+    if (!instalada && agendados.data) {
+      for (var k = 0; k < agendados.data.length; k++) {
+        var a = agendados.data[k];
+        if (a.tipoServico === 'INSTALACAO') {
+          dataAgendamento = a.dataAgendamento || '';
+          break;
+        }
+      }
+    }
+
+    // Contrato habilitado = instalado mesmo sem atendimento
+    var contratoHab = false;
+    for (var m = 0; m < resumoC.length; m++) {
+      if (resumoC[m].status === 'HABILITADO') { contratoHab = true; break; }
+    }
+
+    instalada = instalada || contratoHab;
+
+    var resumo = instalada
+      ? 'INSTALADA' + (dataInstalacao ? ' em ' + dataInstalacao : '')
+      : (dataAgendamento ? 'AGENDADA para ' + dataAgendamento : 'AGUARDANDO INSTALAÇÃO');
+
+    return {
+      sucesso: true,
+      clienteId: clienteId,
+      nomeCliente: nomeCli,
+      contratos: resumoC,
+      instalada: instalada,
+      dataInstalacao: dataInstalacao,
+      dataAgendamento: dataAgendamento,
+      resumo: resumo
+    };
+  } catch(e) {
+    Logger.log('Erro consultarAdapter: ' + e.message);
+    return { sucesso: false, mensagem: e.message };
+  }
+}
+
+// Atualiza a venda na planilha após confirmação do usuário
+function atualizarVendaComAdapter(dados) {
+  try {
+    var linha = parseInt(dados.linha);
+    if (linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
+
+    var sheet = _getSheet();
+
+    if (dados.instalada) {
+      sheet.getRange(linha, CONFIG.COLUNAS.STATUS + 1).setValue('3 - Finalizada/Instalada');
+      if (dados.dataInstalacao) {
+        sheet.getRange(linha, CONFIG.COLUNAS.INSTAL + 1).setValue(dados.dataInstalacao);
+      }
+    }
+    if (dados.dataAgendamento) {
+      sheet.getRange(linha, CONFIG.COLUNAS.AGENDA + 1).setValue(dados.dataAgendamento);
+    }
+
+    _limparCacheListaCompleta();
+    return { sucesso: true };
+  } catch(e) {
+    Logger.log('Erro atualizarVendaComAdapter: ' + e.message);
+    return { sucesso: false, mensagem: e.message };
+  }
+}
+
+
 // ── SINCRONIZAÇÃO INICIAL — vendas p1 + contratos numa só chamada ─────────
 function getSincronizacaoInicial() {
   try {
