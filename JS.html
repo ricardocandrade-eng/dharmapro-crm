@@ -2731,6 +2731,7 @@ function _consultarAdapterVenda(index) {
         } else {
           html += '<span style="opacity:.5;">Nenhum contrato encontrado</span>';
         }
+        if (r.debug) html += '<br><span style="opacity:.35;font-size:10px;">' + r.debug + '</span>';
         document.getElementById('madp-contratos').innerHTML = html;
 
         document.getElementById('madp-resultado').style.display = 'block';
