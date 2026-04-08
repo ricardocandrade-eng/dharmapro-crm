@@ -2663,7 +2663,7 @@ function _consultarViabilidadeVenda(index) {
 
 var _adapterDadosTemp = null;
 
-// ── Abre popup no Adapter e aguarda resultado da extensão via postMessage ──
+// ── Consulta Adapter via extensao Chrome (background, sem popup) ──────────
 function _consultarAdapterVenda(index) {
   var v = _paginaAtual[index];
   if (!v || !v.cpf) { mostrarToast('Venda sem CPF.', 'error'); return; }
@@ -2678,7 +2678,7 @@ function _consultarAdapterVenda(index) {
   document.getElementById('madp-foot').style.display = 'none';
   modal.classList.add('ativo');
 
-  // Buscar credenciais do backend e abrir popup
+  // Buscar credenciais do backend
   google.script.run
     .withSuccessHandler(function(creds) {
       if (!creds.sucesso) {
@@ -2688,21 +2688,20 @@ function _consultarAdapterVenda(index) {
         return;
       }
 
-      // Listener para resultado da extensao
+      // Listener para resposta da extensao (via content-bridge)
       var _handler = function(e) {
-        if (!e.data || e.data.type !== 'dhp_adapter_result') return;
-        window.removeEventListener('message', _handler);
+        window.removeEventListener('dhp-adapter-response', _handler);
         clearTimeout(_timeout);
 
         document.getElementById('madp-loading').style.display = 'none';
+        var r = e.detail;
 
-        if (e.data.erro) {
+        if (!r || r.erro) {
           document.getElementById('madp-erro').style.display = 'block';
-          document.getElementById('madp-erro-msg').textContent = e.data.erro;
+          document.getElementById('madp-erro-msg').textContent = (r && r.erro) ? r.erro : 'Extensao DharmaPro Connector nao respondeu. Esta instalada?';
           return;
         }
 
-        var r = e.data;
         _adapterDadosTemp.resultado = r;
 
         // Badge de status
@@ -2735,13 +2734,12 @@ function _consultarAdapterVenda(index) {
 
         document.getElementById('madp-resultado').style.display = 'block';
 
-        // Mostrar botao de confirmar se ha algo para atualizar
-        // Ocultar se a venda ja esta instalada no DharmaPro
+        // Mostrar botao se ha algo para atualizar (ocultar se ja instalada no DharmaPro)
         var statusAtual = (_paginaAtual[_adapterDadosTemp.index] || {}).status || '';
         var jaInstalada = statusAtual.indexOf('Instalada') > -1 || statusAtual.indexOf('Finalizada') > -1;
 
         if (r.instalada && jaInstalada) {
-          // Ja esta marcada como instalada — so informativo, sem botao
+          // Ja marcada como instalada — so informativo
         } else if (r.instalada || r.dataAgendamento) {
           document.getElementById('madp-foot').style.display = 'flex';
           var btnTxt = r.instalada ? 'Marcar como Instalada' : 'Atualizar Agendamento';
@@ -2749,20 +2747,24 @@ function _consultarAdapterVenda(index) {
         }
       };
 
-      window.addEventListener('message', _handler);
+      window.addEventListener('dhp-adapter-response', _handler);
 
       var _timeout = setTimeout(function() {
-        window.removeEventListener('message', _handler);
+        window.removeEventListener('dhp-adapter-response', _handler);
         document.getElementById('madp-loading').style.display = 'none';
         document.getElementById('madp-erro').style.display = 'block';
         document.getElementById('madp-erro-msg').textContent = 'Tempo esgotado. Verifique se a extensao DharmaPro Connector esta instalada e a VPN esta ativada.';
       }, 30000);
 
-      // Abrir popup no Adapter com dados no hash (servidor nao recebe o hash)
-      var _hash = '#dhp?cpf=' + encodeURIComponent(v.cpf.replace(/\D/g, '')) +
-                  '&user='    + encodeURIComponent(creds.user) +
-                  '&pass='    + encodeURIComponent(creds.pass);
-      window.open('https://adapter.veronet.com.br/adapter/' + _hash, 'dhp_adapter', 'width=400,height=300');
+      // Envia consulta para a extensao via CustomEvent (content-bridge escuta)
+      window.dispatchEvent(new CustomEvent('dhp-adapter-request', {
+        detail: {
+          type: 'dhp_adapter_consulta',
+          cpf: v.cpf.replace(/\D/g, ''),
+          user: creds.user,
+          pass: creds.pass
+        }
+      }));
     })
     .withFailureHandler(function(err) {
       document.getElementById('madp-loading').style.display = 'none';
