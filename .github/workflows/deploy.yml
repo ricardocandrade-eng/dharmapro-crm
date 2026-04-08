@@ -38,5 +38,22 @@ jobs:
       - name: Enviar código para o GAS
         run: clasp push --force
 
+      - name: Limpar versões antigas (manter últimas 10)
+        run: |
+          VERSIONS=$(clasp versions 2>/dev/null | grep -oP '^\d+' | sort -n)
+          TOTAL=$(echo "$VERSIONS" | wc -l)
+          if [ "$TOTAL" -gt 190 ]; then
+            DELETE_COUNT=$((TOTAL - 10))
+            TO_DELETE=$(echo "$VERSIONS" | head -n $DELETE_COUNT)
+            for v in $TO_DELETE; do
+              curl -s -X DELETE \
+                -H "Authorization: Bearer $(cat ~/.clasprc.json | python3 -c "import sys,json;print(json.load(sys.stdin)['token']['access_token'])")" \
+                "https://script.googleapis.com/v1/projects/12PwAZi4xAjS2h_l9f_QFJK_zNdtADy6c5J3qMa9co3VNt5qxUE5PANEI/versions/$v" || true
+            done
+            echo "[OK] Versões antigas removidas"
+          else
+            echo "[OK] Dentro do limite ($TOTAL versões)"
+          fi
+
       - name: Publicar nova versão
         run: clasp deploy --deploymentId AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw -d "Deploy ${{ github.sha }}"
