@@ -235,72 +235,24 @@
   // ── Navegar para Atendimento ──────────────────────────────────────────
 
   async function irParaAtendimento() {
-    // Estratégia 1: usar API Wing para abrir menu Atendimento
-    console.log('[DHP-NG] Tentando navegar para Atendimento...');
+    // IMPORTANTE: NÃO usar Wing API (menuManager, eFireEvent, etc.)
+    // Wing corrompe a sessão (clientKey: -1) quando se usa API JS diretamente.
+    // Só automação DOM pura funciona.
+    console.log('[DHP-NG] Navegando para Atendimento via DOM...');
 
-    var wingNavegou = false;
-    try {
-      // Wing menu entries: tentar diversas APIs conhecidas do Wing
-      if (Wing.session.menuManager) {
-        var mm = Wing.session.menuManager;
-        console.log('[DHP-NG] menuManager encontrado. Métodos:', Object.keys(mm).filter(function(k) { return typeof mm[k] === 'function'; }).join(', '));
-
-        // Tentar executeEntry com índice [0,0,0] (Atendimento)
-        if (typeof mm.executeEntry === 'function') {
-          mm.executeEntry([0, 0, 0]);
-          wingNavegou = true;
-          console.log('[DHP-NG] executeEntry([0,0,0]) chamado');
-        } else if (typeof mm.execute === 'function') {
-          mm.execute([0, 0, 0]);
-          wingNavegou = true;
-          console.log('[DHP-NG] execute([0,0,0]) chamado');
-        }
-
-        // Listar entries do menu para diagnóstico
-        if (mm.entries || mm.items || mm.menuEntries) {
-          var entries = mm.entries || mm.items || mm.menuEntries;
-          console.log('[DHP-NG] Menu entries:', JSON.stringify(entries).substring(0, 500));
-        }
+    var btnAtend = await aguardar(function() {
+      var all = document.querySelectorAll('button, div, span, a, td, li');
+      for (var i = 0; i < all.length; i++) {
+        var txt = all[i].textContent.trim();
+        if (txt === 'Atendimento') return all[i];
       }
-    } catch(wingErr) {
-      console.warn('[DHP-NG] Erro na API Wing:', wingErr.message);
-    }
+      return null;
+    }, 15000, 300, 'Botão Atendimento no menu');
 
-    // Estratégia 2: se Wing API não funcionou, clicar no DOM
-    if (!wingNavegou) {
-      console.log('[DHP-NG] Tentando clique DOM...');
-      var btnAtend = null;
+    console.log('[DHP-NG] Botão Atendimento: <' + btnAtend.tagName + '> class=' + btnAtend.className);
 
-      try {
-        btnAtend = await aguardar(function() {
-          // Buscar em todos os tipos de elementos
-          var all = document.querySelectorAll('button, div, span, a, td, li');
-          for (var i = 0; i < all.length; i++) {
-            var txt = all[i].textContent.trim();
-            if (txt === 'Atendimento') return all[i];
-          }
-          return null;
-        }, 10000, 300, 'Elemento Atendimento no menu');
-      } catch(e) {
-        // Listar o que tem na página
-        var allBtns = document.querySelectorAll('button');
-        var lista = [];
-        for (var b = 0; b < allBtns.length; b++) {
-          var t = allBtns[b].textContent.trim();
-          if (t) lista.push(t.substring(0, 40));
-        }
-        console.error('[DHP-NG] Botão Atendimento não encontrado. Botões:', lista.join(' | '));
-        throw e;
-      }
-
-      console.log('[DHP-NG] Elemento:', btnAtend.tagName, btnAtend.className);
-
-      // Simular interação completa (mousedown → mouseup → click)
-      btnAtend.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      btnAtend.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-      btnAtend.click();
-      console.log('[DHP-NG] Clicou em Atendimento via DOM');
-    }
+    // Clique DOM simples — não usar mousedown/mouseup (pode corromper sessão Wing)
+    btnAtend.click();
 
     // Aguardar controller de busca carregar
     await aguardar(function() {
@@ -374,8 +326,6 @@
     }, 5000, 300, 'Botão Atender/Visualizar');
 
     console.log('[DHP-NG] Botão encontrado: "' + btnVis.textContent.trim() + '"');
-    btnVis.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-    btnVis.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
     btnVis.click();
     console.log('[DHP-NG] Clicou, aguardando dados...');
 
