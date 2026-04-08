@@ -2736,7 +2736,13 @@ function _consultarAdapterVenda(index) {
         document.getElementById('madp-resultado').style.display = 'block';
 
         // Mostrar botao de confirmar se ha algo para atualizar
-        if (r.instalada || r.dataAgendamento) {
+        // Ocultar se a venda ja esta instalada no DharmaPro
+        var statusAtual = (_paginaAtual[_adapterDadosTemp.index] || {}).status || '';
+        var jaInstalada = statusAtual.indexOf('Instalada') > -1 || statusAtual.indexOf('Finalizada') > -1;
+
+        if (r.instalada && jaInstalada) {
+          // Ja esta marcada como instalada — so informativo, sem botao
+        } else if (r.instalada || r.dataAgendamento) {
           document.getElementById('madp-foot').style.display = 'flex';
           var btnTxt = r.instalada ? 'Marcar como Instalada' : 'Atualizar Agendamento';
           document.getElementById('madp-btn-confirmar').textContent = btnTxt;
