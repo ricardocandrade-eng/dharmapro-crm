@@ -1,0 +1,463 @@
+// ══════════════════════════════════════════════════════════════════════════════
+//  DharmaPro — Content Script para NG Billing (Wing Framework / Objective)
+//  Roda em ng.vero.objective.com.br (document_start)
+//
+//  Modo de operação:
+//    QUERY — popup aberto pelo DharmaPro com #dhp?cpf=...&user=...&pass=...
+//            Deixa Wing carregar, faz login se necessário, busca CPF via DOM,
+//            lê resultado dos controllers Wing e devolve via postMessage.
+//    PASSIVO — se não há hash #dhp?, não faz nada (não interfere no uso normal)
+// ══════════════════════════════════════════════════════════════════════════════
+
+(function() {
+  'use strict';
+
+  var hash = window.location.hash || '';
+  if (hash.indexOf('#dhp?') !== 0) return; // nao e consulta DharmaPro
+
+  var params = new URLSearchParams(hash.substring(4));
+  var cpf  = params.get('cpf');
+  var user = params.get('user');
+  var pass = params.get('pass');
+  if (!cpf || !user || !pass) return;
+
+  // Limpar hash (segurança)
+  if (window.history && window.history.replaceState) {
+    window.history.replaceState(null, '', window.location.pathname);
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  function enviar(dados) {
+    dados.type = 'dhp_ng_result';
+    try { if (window.opener) window.opener.postMessage(dados, '*'); } catch(x) {}
+    setTimeout(function() { window.close(); }, 800);
+  }
+
+  function erroFatal(msg) { enviar({ erro: msg }); }
+
+  function aguardar(condicao, timeout, intervalo, label) {
+    timeout  = timeout  || 30000;
+    intervalo = intervalo || 300;
+    label = label || 'aguardar';
+    return new Promise(function(resolve, reject) {
+      var inicio = Date.now();
+      function checar() {
+        var r = condicao();
+        if (r) {
+          console.log('[DHP-NG] ✔ ' + label + ' (' + (Date.now() - inicio) + 'ms)');
+          return resolve(r);
+        }
+        if (Date.now() - inicio > timeout) {
+          console.error('[DHP-NG] ✘ TIMEOUT em: ' + label + ' (' + timeout + 'ms)');
+          return reject(new Error('Timeout em: ' + label));
+        }
+        setTimeout(checar, intervalo);
+      }
+      checar();
+    });
+  }
+
+  // Simula digitação real no campo (dispatch input events)
+  function simularDigitacao(input, texto) {
+    input.focus();
+    input.value = '';
+    input.dispatchEvent(new Event('focus', { bubbles: true }));
+    for (var i = 0; i < texto.length; i++) {
+      input.value += texto[i];
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // Simula Enter no campo
+  function simularEnter(input) {
+    input.dispatchEvent(new KeyboardEvent('keydown',  { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keyup',    { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+  }
+
+  // Busca controller por tipo (fragmento do nome completo)
+  function findCtrlByType(instances, typeFragment) {
+    for (var id in instances) {
+      var ctrl = instances[id];
+      if (ctrl && ctrl.type && ctrl.type.indexOf(typeFragment) > -1) {
+        return { id: parseInt(id), ctrl: ctrl };
+      }
+    }
+    return null;
+  }
+
+  // Lê texto de um item Wing (via value, text ou DOM element)
+  function lerItemTexto(item) {
+    if (!item) return '';
+    var t = item.value || item.text || '';
+    if (!t && item.element) t = item.element.textContent || item.element.innerText || '';
+    if (!t && item.labelElement) t = item.labelElement.textContent || '';
+    return (t || '').toString().trim();
+  }
+
+  // ── Fluxo principal ─────────────────────────────────────────────────────
+
+  async function executar() {
+    try {
+      console.log('[DHP-NG] Iniciando consulta. CPF: ' + cpf);
+      console.log('[DHP-NG] URL: ' + window.location.href);
+      console.log('[DHP-NG] readyState: ' + document.readyState);
+
+      // 1. Aguardar Wing carregar
+      try {
+        await aguardar(function() {
+          return typeof Wing !== 'undefined' && Wing.session;
+        }, 20000, 500, 'Wing carregar');
+      } catch(wingErr) {
+        // Diagnóstico: o que existe na página?
+        console.error('[DHP-NG] Wing não encontrado. Diagnóstico:');
+        console.log('[DHP-NG]   typeof Wing:', typeof Wing);
+        console.log('[DHP-NG]   readyState:', document.readyState);
+        console.log('[DHP-NG]   title:', document.title);
+        console.log('[DHP-NG]   body length:', document.body ? document.body.innerHTML.length : 0);
+        console.log('[DHP-NG]   scripts:', document.querySelectorAll('script').length);
+        // Buscar possíveis variáveis Wing
+        var candidates = ['Wing', 'wing', 'WING', 'WingApp', 'wingApp'];
+        for (var ci = 0; ci < candidates.length; ci++) {
+          if (typeof window[candidates[ci]] !== 'undefined') {
+            console.log('[DHP-NG]   ENCONTRADO: window.' + candidates[ci], typeof window[candidates[ci]]);
+          }
+        }
+        throw wingErr;
+      }
+
+      // 2. Aguardar sessão abrir (OPEN)
+      await aguardar(function() {
+        return Wing.session.OPEN;
+      }, 15000, 300, 'Sessão OPEN');
+
+      // 3. Verificar se é tela de login ou já autenticado
+      var precisaLogin = await detectarEstado();
+      console.log('[DHP-NG] Estado detectado: ' + precisaLogin);
+
+      if (precisaLogin === 'login') {
+        await fazerLogin();
+      } else if (precisaLogin === 'menu') {
+        await irParaAtendimento();
+      }
+      // Se já está na busca, segue direto
+
+      // 4. Aguardar tela de busca (controller Atend360BuscaWComp)
+      await aguardar(function() {
+        return findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
+      }, 15000, 300, 'Controller Atend360BuscaWComp');
+
+      // 5. Buscar CPF
+      await buscarCPF(cpf.replace(/\D/g, ''));
+
+      // 6. Clicar em Visualizar
+      await clicarVisualizar();
+
+      // 7. Ler dados dos controllers
+      var resultado = lerResultados();
+      console.log('[DHP-NG] ✔ Resultado final:', JSON.stringify(resultado));
+      enviar(resultado);
+
+    } catch(e) {
+      console.error('[DHP-NG] ✘ ERRO:', e.message || String(e));
+      erroFatal('Erro NG: ' + (e.message || String(e)));
+    }
+  }
+
+  // ── Detectar estado da tela ─────────────────────────────────────────────
+
+  function detectarEstado() {
+    return aguardar(function() {
+      // Tela de login: tem input type=password
+      var pwField = document.querySelector('input[type="password"]');
+      if (pwField) return 'login';
+
+      // Menu principal: tem botão Atendimento mas sem campoPesquisaTF
+      var buscaCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
+      if (buscaCtrl) return 'busca';
+
+      // Verificar se session está READY (menu carregou)
+      if (Wing.session.READY && Object.keys(Wing.session.controllerManager.instances).length === 0) {
+        return 'menu';
+      }
+
+      return null; // ainda carregando
+    }, 20000, 300, 'Detectar estado (login/menu/busca)');
+  }
+
+  // ── Login ──────────────────────────────────────────────────────────────
+
+  async function fazerLogin() {
+    // Preencher usuário
+    var userInput = document.querySelector('input[type="text"]');
+    if (userInput) {
+      simularDigitacao(userInput, user);
+    }
+
+    // Preencher senha
+    var passInput = document.querySelector('input[type="password"]');
+    if (!passInput) throw new Error('Campo de senha não encontrado');
+    simularDigitacao(passInput, pass);
+
+    // Clicar em "Iniciar sessão"
+    await aguardar(function() {
+      var buttons = document.querySelectorAll('button');
+      for (var i = 0; i < buttons.length; i++) {
+        if (buttons[i].textContent.indexOf('Iniciar') > -1) return buttons[i];
+      }
+      return null;
+    }, 5000, 300, 'Botão Iniciar sessão').then(function(btn) {
+      btn.click();
+    });
+
+    // Aguardar menu carregar (session READY)
+    await aguardar(function() {
+      return Wing.session.READY;
+    }, 20000, 300, 'Session READY após login');
+
+    // Navegar para Atendimento
+    await irParaAtendimento();
+  }
+
+  // ── Navegar para Atendimento ──────────────────────────────────────────
+
+  async function irParaAtendimento() {
+    // Esperar botão "Atendimento" aparecer e clicar
+    var btnAtend = await aguardar(function() {
+      var buttons = document.querySelectorAll('button');
+      for (var i = 0; i < buttons.length; i++) {
+        var txt = buttons[i].textContent.trim();
+        if (txt === 'Atendimento') return buttons[i];
+      }
+      return null;
+    }, 10000, 300, 'Botão Atendimento no menu');
+
+    btnAtend.click();
+    console.log('[DHP-NG] Clicou em Atendimento');
+
+    // Aguardar controller de busca carregar (com re-clique se demorar)
+    try {
+      await aguardar(function() {
+        return findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
+      }, 15000, 300, 'Controller BuscaWComp (1a tentativa)');
+    } catch(e1) {
+      // Re-clicar em Atendimento e tentar novamente
+      console.log('[DHP-NG] Re-clicando em Atendimento...');
+      var btnRetry = null;
+      var buttons = document.querySelectorAll('button');
+      for (var i = 0; i < buttons.length; i++) {
+        if (buttons[i].textContent.trim() === 'Atendimento') { btnRetry = buttons[i]; break; }
+      }
+      if (btnRetry) btnRetry.click();
+
+      await aguardar(function() {
+        return findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
+      }, 20000, 500, 'Controller BuscaWComp (2a tentativa)');
+    }
+  }
+
+  // ── Buscar CPF ─────────────────────────────────────────────────────────
+
+  async function buscarCPF(cpfLimpo) {
+    var buscaCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
+    if (!buscaCtrl) throw new Error('Tela de busca não encontrada');
+
+    // Encontrar o input do campo de pesquisa via Wing item
+    var campoItem = buscaCtrl.ctrl.items.campoPesquisaTF;
+    var input = campoItem && campoItem.inputField;
+
+    if (!input) {
+      // Fallback: buscar por placeholder
+      input = document.querySelector('input[placeholder*="CPF"]') ||
+              document.querySelector('input[placeholder*="Buscar"]');
+    }
+    if (!input) throw new Error('Campo de pesquisa não encontrado');
+
+    // Limpar campo e digitar CPF
+    input.focus();
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    simularDigitacao(input, cpfLimpo);
+
+    // Pressionar Enter
+    simularEnter(input);
+
+    console.log('[DHP-NG] Digitou CPF e Enter, aguardando resultado...');
+
+    // Aguardar resultado (CardRetornoBusca ou resultadoTotalSl com "0")
+    await aguardar(function() {
+      var cardCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360CardRetornoBuscaWComp');
+      if (cardCtrl) return 'encontrado';
+
+      // Verificar se "Resultado: 0"
+      var buscaItems = buscaCtrl.ctrl.items;
+      if (buscaItems.resultadoTotalSl) {
+        var label = lerItemTexto(buscaItems.resultadoTotalSl);
+        if (label.indexOf(': 0') > -1 || label === 'Resultado: 0') return 'nao_encontrado';
+      }
+      return null;
+    }, 15000, 300, 'Resultado busca CPF');
+
+    // Verificar se encontrou
+    var cardCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360CardRetornoBuscaWComp');
+    if (!cardCtrl) {
+      throw new Error('CPF não encontrado no NG.');
+    }
+  }
+
+  // ── Clicar em Visualizar ──────────────────────────────────────────────
+
+  async function clicarVisualizar() {
+    // Procurar botão "Visualizar" na página
+    var btnVis = await aguardar(function() {
+      var buttons = document.querySelectorAll('button');
+      for (var i = 0; i < buttons.length; i++) {
+        if (buttons[i].textContent.trim() === 'Visualizar') return buttons[i];
+      }
+      return null;
+    }, 5000, 300, 'Botão Visualizar');
+
+    btnVis.click();
+    console.log('[DHP-NG] Clicou em Visualizar, aguardando dados...');
+
+    // Aguardar dados do contrato carregarem (CasoCriacaoDeContratoWComp ou ContratoTipoFisicoCardWComp)
+    await aguardar(function() {
+      var contratoCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360ContratoTipoFisicoCardWComp');
+      var criacaoCtrl  = findCtrlByType(Wing.session.controllerManager.instances, 'CasoCriacaoDeContratoWComp');
+      // Também aceitar caso sem contrato (TabPessoaFisica carregada mas sem ContratoCard)
+      var pessoaCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360TabPessoaFisicaWComp');
+      return contratoCtrl || criacaoCtrl || pessoaCtrl;
+    }, 15000, 300, 'Controllers dados contrato/pessoa');
+
+    // Pequena pausa para controllers terminarem de popular
+    await new Promise(function(r) { setTimeout(r, 1000); });
+  }
+
+  // ── Ler resultados dos controllers Wing ──────────────────────────────
+
+  function lerResultados() {
+    var instances = Wing.session.controllerManager.instances;
+    var r = {
+      instalada:       false,
+      dataInstalacao:  '',
+      dataAgendamento: '',
+      resumo:          '',
+      contratos:       [],
+      aguardando:      false,
+      nome:            '',
+      debug:           {}
+    };
+
+    // ── Nome da pessoa ──
+    var pessoaCtrl = findCtrlByType(instances, 'Atend360TabPessoaFisicaWComp');
+    if (pessoaCtrl && pessoaCtrl.ctrl.items) {
+      r.nome = lerItemTexto(pessoaCtrl.ctrl.items.nomePessoaST);
+    }
+    if (!r.nome) {
+      // Fallback: controller principal
+      var mainCtrl = findCtrlByType(instances, 'Atend360WMC');
+      if (mainCtrl && mainCtrl.ctrl.items) {
+        r.nome = lerItemTexto(mainCtrl.ctrl.items.nomePessoaST);
+      }
+    }
+
+    // ── Dados do contrato ──
+    var contratoCard = findCtrlByType(instances, 'Atend360ContratoTipoFisicoCardWComp');
+    if (contratoCard && contratoCard.ctrl.items) {
+      var items = contratoCard.ctrl.items;
+      var numContrato = lerItemTexto(items.numeroContratoST);
+      var tipoContrato = lerItemTexto(items.tipoContratoST);
+      var dataInst = lerItemTexto(items.dataInstalacaoST);
+      var endereco = lerItemTexto(items.enderecoST);
+
+      r.contratos.push({
+        numero: numContrato,
+        tipo: tipoContrato,
+        dataInstalacao: dataInst,
+        endereco: endereco
+      });
+
+      if (dataInst && dataInst !== '-') {
+        r.dataInstalacao = dataInst;
+      }
+    }
+
+    // ── OS Externa de Habilitação (status da instalação) ──
+    var osCtrl = findCtrlByType(instances, 'CasoCriacaoCheckOSExternaDeHabilitacaoWComp');
+    if (osCtrl && osCtrl.ctrl.items) {
+      var detalheOS = lerItemTexto(osCtrl.ctrl.items.checkDetalheSL);
+      r.debug.osExterna = detalheOS;
+
+      if (detalheOS) {
+        var detalheUp = detalheOS.toUpperCase();
+        if (detalheUp.indexOf('BAIXADA') > -1) {
+          r.instalada = true;
+          var m1 = detalheOS.match(/(\d{2}\/\d{2}\/\d{4})/);
+          if (m1) r.dataInstalacao = m1[1];
+        } else if (detalheUp.indexOf('AGENDADA') > -1 || detalheUp.indexOf('AGENDA') > -1) {
+          r.aguardando = true;
+          var m2 = detalheOS.match(/(\d{2}\/\d{2}\/\d{4})/);
+          if (m2) r.dataAgendamento = m2[1];
+        } else if (detalheUp.indexOf('AGUARDANDO') > -1 || detalheUp.indexOf('PENDENTE') > -1) {
+          r.aguardando = true;
+        }
+      }
+    }
+
+    // ── Contrato criação (número e status geral) ──
+    var criacaoCtrl = findCtrlByType(instances, 'CasoCriacaoDeContratoWComp');
+    if (criacaoCtrl && criacaoCtrl.ctrl.items) {
+      var numContr = lerItemTexto(criacaoCtrl.ctrl.items.contratoST);
+      if (numContr) r.debug.contrato = numContr;
+    }
+
+    // ── Taxa de Habilitação ──
+    var taxaCtrl = findCtrlByType(instances, 'CasoCriacaoCheckTaxaDeHabilitacaoWComp');
+    if (taxaCtrl && taxaCtrl.ctrl.items) {
+      r.debug.taxaHabilitacao = lerItemTexto(taxaCtrl.ctrl.items.checkDetalheSL);
+    }
+
+    // ── Análise de Crédito ──
+    var creditoCtrl = findCtrlByType(instances, 'CasoCriacaoCheckAnaliseCreditoWComp');
+    if (creditoCtrl && creditoCtrl.ctrl.items) {
+      r.debug.analiseCredito = lerItemTexto(creditoCtrl.ctrl.items.checkDetalheSL);
+    }
+
+    // ── Se não achou OS Externa mas tem contrato com data de instalação ──
+    if (!r.instalada && !r.aguardando && r.dataInstalacao) {
+      r.instalada = true;
+    }
+
+    // ── Se não tem contrato ──
+    if (!contratoCard && !criacaoCtrl) {
+      // Verificar se pessoa existe mas sem contrato
+      if (r.nome) {
+        r.resumo = 'Sem contrato ativo';
+        return r;
+      }
+    }
+
+    // ── Montar resumo ──
+    if (r.instalada) {
+      r.resumo = 'Instalada' + (r.dataInstalacao ? ' em ' + r.dataInstalacao : '');
+    } else if (r.dataAgendamento) {
+      r.resumo = 'Agendada para ' + r.dataAgendamento;
+    } else if (r.aguardando) {
+      r.resumo = 'Aguardando Instalação (sem agendamento)';
+    } else {
+      r.resumo = 'Status não identificado (ver debug)';
+    }
+
+    return r;
+  }
+
+  // ── Iniciar execução quando DOM estiver pronto ──────────────────────
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', executar);
+  } else {
+    executar();
+  }
+})();
