@@ -313,24 +313,31 @@ function salvarAgendamentoComContador(linha, data) {
     linha = parseInt(linha);
     if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
     var sheet = _getSheet();
-    var agendaAnterior = sheet.getRange(linha, 8).getValue(); // col H
+
+    // Lê agenda anterior — pode ser Date ou string
+    var agendaRaw = sheet.getRange(linha, 8).getValue(); // col H
+    var tinhaAgenda = false;
+    if (agendaRaw) {
+      if (agendaRaw instanceof Date) {
+        tinhaAgenda = !isNaN(agendaRaw.getTime());
+      } else {
+        tinhaAgenda = String(agendaRaw).trim() !== '';
+      }
+    }
+
+    // Grava nova data
     sheet.getRange(linha, 8).setValue(data || ''); // col H = Agendamento
 
-    // Contador de reagendamentos na col K (coluna 11) — reservada
-    var contador = 0;
-    if (agendaAnterior && String(agendaAnterior).trim() !== '' && data) {
-      // Tinha data anterior e está mudando → incrementa
-      var contAtual = parseInt(sheet.getRange(linha, 11).getValue()) || 0;
-      contador = contAtual + 1;
-      sheet.getRange(linha, 11).setValue(contador);
-    } else if (!agendaAnterior || String(agendaAnterior).trim() === '') {
-      // Primeiro agendamento
-      var contAtual = parseInt(sheet.getRange(linha, 11).getValue()) || 0;
-      contador = contAtual;
+    // Contador de reagendamentos na col K (coluna 11)
+    var contAtual = parseInt(sheet.getRange(linha, 11).getValue()) || 0;
+    if (tinhaAgenda && data) {
+      // Tinha data anterior e está mudando → reagendamento
+      contAtual = contAtual + 1;
+      sheet.getRange(linha, 11).setValue(contAtual);
     }
 
     _limparCacheListaCompleta();
-    return { sucesso: true, reagendamentos: contador };
+    return { sucesso: true, reagendamentos: contAtual };
   } catch(e) {
     return { sucesso: false, mensagem: e.message };
   }
@@ -3081,6 +3088,7 @@ function _construirLinhaDados(d) {
   linha[c.PORTABILIDADE] = d.portabilidade || '';
   linha[c.PRE_STATUS]    = d.preStatus     || '';  // AK - Pré-Status
   linha[26]            = d.segmentacao  || '';  // AA - Segmentação
+  linha[10]            = d.reagendamentos || '';  // K - Contador de reagendamentos
   linha[42]            = d.statusPAP   || '';  // AQ - Status Pagamento PAP
   linha[43]            = d.verohubPedido   || '';  // AR - Número pedido VeroHub
   linha[44]            = d.verohubPedidoDt || '';  // AS - Data/hora pedido VeroHub

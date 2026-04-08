@@ -321,7 +321,8 @@ function pifSalvar() {
     turno:      v.turno      || '',
     instal:     v.instal     || '',
     linhaMovel: v.linhaMovel || '',
-    statusPAP:  v.statusPAP  || ''
+    statusPAP:  v.statusPAP  || '',
+    reagendamentos: v.reagendamentos || 0
   };
 
   // Diagnóstico temporário
@@ -3024,7 +3025,7 @@ function mostrarPainel(v) {
         '<div class="painel-agenda-wrap">' +
           '<input type="date" class="agenda-input" id="painel-agenda-input" value="' + _agendaToInputDate(v.agenda) + '" ' +
           'onchange="_salvarAgendamento(' + v.linha + ',this,-1)">' +
-          (v.reagendamentos ? '<span class="painel-reag-badge" title="Reagendado ' + v.reagendamentos + ' vez(es)">🔄 ' + v.reagendamentos + '</span>' : '') +
+          (v.reagendamentos ? '<span class="painel-reag-badge painel-reag-tooltip-wrap">🔄 ' + v.reagendamentos + '<span class="painel-reag-tooltip">Esta venda foi reagendada <b>' + v.reagendamentos + '</b> vez' + (v.reagendamentos > 1 ? 'es' : '') + '.<br>O contador incrementa a cada alteração de data de agendamento.</span></span>' : '') +
         '</div>'
       ) +
       _linhaPainelHtml('Turno',
@@ -7408,7 +7409,7 @@ function mostrarPainel(v) {
         '<div class="painel-agenda-wrap">' +
           '<input type="date" class="agenda-input" id="painel-agenda-input" value="' + _agendaToInputDate(v.agenda) + '" ' +
           'onchange="_salvarAgendamento(' + v.linha + ',this,-1)">' +
-          (v.reagendamentos ? '<span class="painel-reag-badge" title="Reagendado ' + v.reagendamentos + ' vez(es)">🔄 ' + v.reagendamentos + '</span>' : '') +
+          (v.reagendamentos ? '<span class="painel-reag-badge painel-reag-tooltip-wrap">🔄 ' + v.reagendamentos + '<span class="painel-reag-tooltip">Esta venda foi reagendada <b>' + v.reagendamentos + '</b> vez' + (v.reagendamentos > 1 ? 'es' : '') + '.<br>O contador incrementa a cada alteração de data de agendamento.</span></span>' : '') +
         '</div>'
       ) +
       _linhaPainelHtml('Turno',

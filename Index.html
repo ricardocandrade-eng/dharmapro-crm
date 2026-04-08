@@ -1591,7 +1591,11 @@
     .vhub-edit-hora { font-size: 9px; color: var(--muted); font-family: 'DM Mono', monospace; white-space: nowrap; opacity: .7; }
     .painel-agenda-wrap { display: flex; align-items: center; gap: 8px; }
     .painel-agenda-wrap .agenda-input { width: 140px; font-size: 12px; padding: 4px 6px; }
-    .painel-reag-badge { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--yellow); background: rgba(247,162,59,.1); border: 1px solid rgba(247,162,59,.25); border-radius: 12px; padding: 1px 8px; white-space: nowrap; }
+    .painel-reag-badge { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--yellow); background: rgba(247,162,59,.1); border: 1px solid rgba(247,162,59,.25); border-radius: 12px; padding: 1px 8px; white-space: nowrap; cursor: help; }
+    .painel-reag-tooltip-wrap { position: relative; display: inline-block; }
+    .painel-reag-tooltip { visibility: hidden; opacity: 0; position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; font-size: 11px; font-family: 'Sora', sans-serif; white-space: normal; width: 220px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,.3); z-index: 999; transition: opacity .2s, visibility .2s; line-height: 1.4; }
+    .painel-reag-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: var(--border); }
+    .painel-reag-tooltip-wrap:hover .painel-reag-tooltip { visibility: visible; opacity: 1; }
     .painel-turno-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 4px 8px; font-size: 12px; font-family: 'Sora', sans-serif; cursor: pointer; width: 100%; max-width: 220px; }
     .painel-turno-select:focus { outline: none; border-color: var(--accent); }
   </style>
