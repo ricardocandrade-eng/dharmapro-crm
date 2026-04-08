@@ -2663,7 +2663,7 @@ function _consultarViabilidadeVenda(index) {
 
 var _adapterDadosTemp = null;
 
-// ── Consulta Adapter via extensao Chrome (background, sem popup) ──────────
+// ── Consulta Adapter via extensao Chrome (content script no popup) ────────
 function _consultarAdapterVenda(index) {
   var v = _paginaAtual[index];
   if (!v || !v.cpf) { mostrarToast('Venda sem CPF.', 'error'); return; }
@@ -2688,20 +2688,21 @@ function _consultarAdapterVenda(index) {
         return;
       }
 
-      // Listener para resposta da extensao (via content-bridge)
+      // Listener para resultado da extensao via postMessage
       var _handler = function(e) {
-        window.removeEventListener('dhp-adapter-response', _handler);
+        if (!e.data || e.data.type !== 'dhp_adapter_result') return;
+        window.removeEventListener('message', _handler);
         clearTimeout(_timeout);
 
         document.getElementById('madp-loading').style.display = 'none';
-        var r = e.detail;
 
-        if (!r || r.erro) {
+        if (e.data.erro) {
           document.getElementById('madp-erro').style.display = 'block';
-          document.getElementById('madp-erro-msg').textContent = (r && r.erro) ? r.erro : 'Extensao DharmaPro Connector nao respondeu. Esta instalada?';
+          document.getElementById('madp-erro-msg').textContent = e.data.erro;
           return;
         }
 
+        var r = e.data;
         _adapterDadosTemp.resultado = r;
 
         // Badge de status
@@ -2747,24 +2748,20 @@ function _consultarAdapterVenda(index) {
         }
       };
 
-      window.addEventListener('dhp-adapter-response', _handler);
+      window.addEventListener('message', _handler);
 
       var _timeout = setTimeout(function() {
-        window.removeEventListener('dhp-adapter-response', _handler);
+        window.removeEventListener('message', _handler);
         document.getElementById('madp-loading').style.display = 'none';
         document.getElementById('madp-erro').style.display = 'block';
         document.getElementById('madp-erro-msg').textContent = 'Tempo esgotado. Verifique se a extensao DharmaPro Connector esta instalada e a VPN esta ativada.';
       }, 30000);
 
-      // Envia consulta para a extensao via CustomEvent (content-bridge escuta)
-      window.dispatchEvent(new CustomEvent('dhp-adapter-request', {
-        detail: {
-          type: 'dhp_adapter_consulta',
-          cpf: v.cpf.replace(/\D/g, ''),
-          user: creds.user,
-          pass: creds.pass
-        }
-      }));
+      // Abrir popup no Adapter com dados no hash (servidor nao recebe o hash)
+      var _hash = '#dhp?cpf=' + encodeURIComponent(v.cpf.replace(/\D/g, '')) +
+                  '&user='    + encodeURIComponent(creds.user) +
+                  '&pass='    + encodeURIComponent(creds.pass);
+      window.open('https://adapter.veronet.com.br/adapter/' + _hash, 'dhp_adapter', 'width=1,height=1,left=-100,top=-100');
     })
     .withFailureHandler(function(err) {
       document.getElementById('madp-loading').style.display = 'none';
