@@ -145,9 +145,13 @@
       // Se já está na busca, segue direto
 
       // 4. Aguardar tela de busca (controller Atend360BuscaWComp)
-      await aguardar(function() {
-        return findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
-      }, 30000, 500, 'Controller Atend360BuscaWComp');
+      // irParaAtendimento() já verifica internamente, mas garantir
+      var buscaCtrlFinal = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
+      if (!buscaCtrlFinal) {
+        await aguardar(function() {
+          return findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
+        }, 15000, 500, 'Controller Atend360BuscaWComp');
+      }
 
       // 5. Buscar CPF
       await buscarCPF(cpf.replace(/\D/g, ''));
@@ -174,12 +178,12 @@
       var pwField = document.querySelector('input[type="password"]');
       if (pwField) return 'login';
 
-      // Menu principal: tem botão Atendimento mas sem campoPesquisaTF
+      // Já está na busca?
       var buscaCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
       if (buscaCtrl) return 'busca';
 
-      // Verificar se session está READY (menu carregou)
-      if (Wing.session.READY && Object.keys(Wing.session.controllerManager.instances).length === 0) {
+      // Menu principal: session READY (pode ter controllers residuais)
+      if (Wing.session.READY) {
         return 'menu';
       }
 
@@ -240,84 +244,122 @@
     // Só automação DOM pura funciona.
     console.log('[DHP-NG] Navegando para Atendimento via DOM...');
 
-    // "Atendimento" é uma CATEGORIA do menu que expande sub-itens.
-    // Precisamos: 1) clicar na categoria  2) clicar no sub-item "Aten..."
+    // Diagnóstico: listar TODOS os botões visíveis na página
+    var allBtns = document.querySelectorAll('button');
+    var btnTexts = [];
+    for (var b = 0; b < allBtns.length; b++) {
+      var bt = allBtns[b].textContent.trim();
+      if (bt && bt.length < 50) btnTexts.push('"' + bt + '" <' + allBtns[b].tagName + '.' + allBtns[b].className.split(' ')[0] + '>');
+    }
+    console.log('[DHP-NG] Botões na página (' + btnTexts.length + '):', btnTexts.join(' | '));
 
-    // Passo 1: Clicar na categoria "Atendimento"
-    // Prefere o elemento mais interno (menor childElementCount) para evitar clicar em wrappers
-    var btnCategoria = await aguardar(function() {
-      var all = document.querySelectorAll('button, div, span, a, td, li');
-      var best = null;
-      for (var i = 0; i < all.length; i++) {
-        var txt = all[i].textContent.trim();
-        if (txt === 'Atendimento') {
-          if (!best || all[i].childElementCount < best.childElementCount) {
-            best = all[i];
+    // Tentar até 3 vezes com estratégias diferentes
+    for (var tentativa = 1; tentativa <= 3; tentativa++) {
+      console.log('[DHP-NG] Tentativa ' + tentativa + ' de navegar para Atendimento...');
+
+      // Verificar se já está na busca (pode ter carregado entre tentativas)
+      var buscaExiste = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
+      if (buscaExiste) {
+        console.log('[DHP-NG] BuscaWComp já existe!');
+        return;
+      }
+
+      // ── Passo 0: Abrir menu lateral (hamburger) se existir ──
+      if (tentativa >= 2) {
+        var hamburger = document.querySelector('button.w-menu-button') ||
+                        document.querySelector('[class*="hamburger"]') ||
+                        document.querySelector('[class*="menu-toggle"]');
+        // Tentar o primeiro botão da página (geralmente é o hamburger ☰)
+        if (!hamburger) {
+          var firstBtn = document.querySelector('button');
+          if (firstBtn && firstBtn.textContent.trim().length <= 3) {
+            hamburger = firstBtn;
           }
         }
+        if (hamburger) {
+          console.log('[DHP-NG] Clicando hamburger/menu: "' + hamburger.textContent.trim() + '"');
+          hamburger.click();
+          await new Promise(function(r) { setTimeout(r, 1500); });
+        }
       }
-      return best;
-    }, 15000, 300, 'Categoria Atendimento no menu');
 
-    console.log('[DHP-NG] Categoria: <' + btnCategoria.tagName + '> class=' + btnCategoria.className);
-    btnCategoria.click();
-
-    // Passo 2: Verificar se já carregou o controller (caso clique direto funcione)
-    await new Promise(function(r) { setTimeout(r, 2000); });
-
-    var buscaJaAberta = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
-    if (buscaJaAberta) {
-      console.log('[DHP-NG] BuscaWComp já carregou após clique na categoria');
-      return;
-    }
-
-    // Passo 3: Aguardar sub-itens do menu aparecerem e clicar no correto
-    console.log('[DHP-NG] Buscando sub-item do menu expandido...');
-
-    // Função auxiliar: verifica se el é ou está dentro de btnCategoria
-    function dentroCategoria(el) {
-      var node = el;
-      while (node) {
-        if (node === btnCategoria) return true;
-        node = node.parentElement;
-      }
-      return false;
-    }
-
-    var subItem = await aguardar(function() {
-      // Estratégia 1: sub-item com classe w-icons-hidden (mapeado via Chrome)
-      var iconsHidden = document.querySelectorAll('.w-icons-hidden');
-      for (var ih = 0; ih < iconsHidden.length; ih++) {
-        var el = iconsHidden[ih];
+      // ── Passo 1: Encontrar e clicar em "Atendimento" ──
+      // Buscar TODOS os elementos com texto "Atendimento"
+      var candidatos = [];
+      var all = document.querySelectorAll('button, div[role="button"], a, span, div');
+      for (var i = 0; i < all.length; i++) {
+        var el = all[i];
         var txt = el.textContent.trim();
-        if (txt.indexOf('Aten') === 0 && !dentroCategoria(el)) {
-          console.log('[DHP-NG] Sub-item via w-icons-hidden: "' + txt + '"');
-          return el;
+        if (txt === 'Atendimento' || (txt.indexOf('Atendimento') === 0 && txt.length < 20)) {
+          var rect = el.getBoundingClientRect();
+          var visivel = rect.width > 0 && rect.height > 0;
+          candidatos.push({
+            el: el,
+            tag: el.tagName,
+            cls: el.className,
+            filhos: el.childElementCount,
+            visivel: visivel,
+            w: rect.width,
+            h: rect.height,
+            iconsHidden: el.classList.contains('w-icons-hidden')
+          });
         }
       }
 
-      // Estratégia 2: qualquer elemento com "Aten" que não seja a categoria
-      var candidates = document.querySelectorAll('button, div, span, a');
-      for (var s = 0; s < candidates.length; s++) {
-        var cand = candidates[s];
-        if (dentroCategoria(cand)) continue;
-        var ctxt = cand.textContent.trim();
-        if (ctxt.indexOf('Aten') === 0 && cand.offsetParent) {
-          console.log('[DHP-NG] Sub-item via texto: "' + ctxt + '" <' + cand.tagName + '>');
-          return cand;
-        }
+      console.log('[DHP-NG] Candidatos "Atendimento": ' + candidatos.length);
+      for (var c = 0; c < candidatos.length; c++) {
+        var cc = candidatos[c];
+        console.log('[DHP-NG]   [' + c + '] <' + cc.tag + '> cls="' + cc.cls + '" filhos=' + cc.filhos +
+                    ' visível=' + cc.visivel + ' ' + cc.w + 'x' + cc.h +
+                    (cc.iconsHidden ? ' [w-icons-hidden]' : ''));
       }
 
-      return null;
-    }, 10000, 500, 'Sub-item menu Atendimento');
+      if (candidatos.length === 0) {
+        console.warn('[DHP-NG] Nenhum candidato "Atendimento" encontrado!');
+        await new Promise(function(r) { setTimeout(r, 2000); });
+        continue;
+      }
 
-    console.log('[DHP-NG] Sub-item encontrado: "' + subItem.textContent.trim() + '" <' + subItem.tagName + '>');
-    subItem.click();
+      // Clicar em cada candidato visível, um por um, até BuscaWComp carregar
+      for (var ci = 0; ci < candidatos.length; ci++) {
+        var cand = candidatos[ci];
+        if (!cand.visivel) continue;
 
-    // Aguardar controller de busca carregar
+        console.log('[DHP-NG] Clicando candidato [' + ci + ']: <' + cand.tag + '> cls="' + cand.cls + '"');
+        cand.el.click();
+
+        // Esperar um pouco para ver se carregou
+        await new Promise(function(r) { setTimeout(r, 2500); });
+
+        // Verificar se BuscaWComp apareceu
+        buscaExiste = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
+        if (buscaExiste) {
+          console.log('[DHP-NG] ✔ BuscaWComp carregou após clique no candidato [' + ci + ']');
+          return;
+        }
+
+        // Verificar se campo de busca apareceu no DOM (fallback)
+        var campoBusca = document.querySelector('input[placeholder*="CPF"]') ||
+                         document.querySelector('input[placeholder*="Buscar"]');
+        if (campoBusca) {
+          console.log('[DHP-NG] ✔ Campo de busca encontrado no DOM após clique [' + ci + ']');
+          // Esperar mais um pouco para controller registrar
+          await new Promise(function(r) { setTimeout(r, 2000); });
+          return;
+        }
+
+        console.log('[DHP-NG] Clique [' + ci + '] não abriu busca, tentando próximo...');
+      }
+
+      // Se chegou aqui, nenhum candidato funcionou nesta tentativa
+      console.warn('[DHP-NG] Tentativa ' + tentativa + ' falhou. Aguardando antes de retry...');
+      await new Promise(function(r) { setTimeout(r, 2000); });
+    }
+
+    // Última chance: aguardar BuscaWComp aparecer (pode ter loading lento)
     await aguardar(function() {
       return findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
-    }, 30000, 500, 'Controller BuscaWComp após Atendimento');
+    }, 15000, 500, 'Controller BuscaWComp (espera final)');
   }
 
   // ── Buscar CPF ─────────────────────────────────────────────────────────
