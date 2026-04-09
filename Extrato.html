@@ -493,23 +493,26 @@ var epDados     = null;
 var epCharts    = {};
 
 // ── Índices de fallback (usados se o cabeçalho não for encontrado) ────────────
+// Índices 0-based de fallback — espelham o layout atual de RESUMO COMPLETO (mar/2026+)
 var EP_C = {
   parceiro:0,    metaBL:2,       metaMovel:3,   b2b:5,        b2c:6,
   vb:7,          instTotal:8,    churn:9,        cnVendas:10,  pctCN:11,
   migracoes:12,  movelAcq:13,    instMovel:15,   pctAtingMeta:16, atingMovel:17,
-  realizadoTM:20,instBL:27,      bonusQuin:29,   bonusExtra:31,
-  adimplencia:32,descChurn:33,   multaCanc:34,   descInadimp:37,
-  susp120:38,    movel:41,       estornoMovel:42,descHUB:46,
-  realizado:48,  realizadoUN:50, b2cReal:53,     b2bReal:54
+  realizadoTM:20,instBL:27,      bonusQuin:29,   bonusExtra:33,
+  adimplencia:34,descChurn:35,   multaCanc:36,   descInadimp:39,
+  susp120:40,    movel:43,       estornoMovel:44,descHUB:48,
+  realizado:50,  realizadoUN:52, b2cReal:55,     b2bReal:56
 };
 
 // ── Alternativas de cabeçalho por campo (normalizadas, ordem de prioridade) ──
+// Nota: b2b/b2c NÃO usam header (nomes duplicados na planilha); resolvem pelo índice fixo.
+// b2cReal/b2bReal usam 'b2c'/'b2b' pois epBuildColMap mantém a última ocorrência (col 55/56).
 var EP_HDR = {
   parceiro:     ['parceiro'],
   metaBL:       ['meta bl', 'meta b l'],
   metaMovel:    ['meta movel', 'meta movil'],
-  b2b:          ['b2b'],
-  b2c:          ['b2c'],
+  b2b:          [],
+  b2c:          [],
   vb:           ['vb', 'venda bruta'],
   instTotal:    ['instalacao total'],
   churn:        ['churn'],
@@ -528,14 +531,14 @@ var EP_HDR = {
   descChurn:    ['desconto churn', 'desc churn'],
   multaCanc:    ['multa cancelamento'],
   descInadimp:  ['desc inadimplentes', 'inadimplentes'],
-  susp120:      ['suspensos 120 dias', 'suspensos 120'],
+  susp120:      ['suspensos 120 dias', 'suspensos 120', 'suspensos'],
   movel:        ['movel'],
   estornoMovel: ['estorno movel'],
   descHUB:      ['desconto hub', 'desc hub'],
   realizado:    ['realizado'],
   realizadoUN:  ['realizado unidade', 'realizado un', 'realizado   unidade'],
-  b2cReal:      ['b2c realizado'],
-  b2bReal:      ['b2b realizado']
+  b2cReal:      ['b2c realizado', 'b2c'],
+  b2bReal:      ['b2b realizado', 'b2b']
 };
 
 var EP_MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -672,8 +675,8 @@ function epProcessarBuffer(buf, fileName){
   }
   try {
     var wb = XLSX.read(buf, {type:'array'});
-    var ws = wb.Sheets['RESUMO'];
-    if(!ws) throw new Error('Aba RESUMO não encontrada. Verifique se é um arquivo de fechamento válido.');
+    var ws = wb.Sheets['RESUMO COMPLETO'] || wb.Sheets['RESUMO'] || epFindWs(wb,'RESUMO COMPLETO') || epFindWs(wb,'RESUMO');
+    if(!ws) throw new Error('Aba RESUMO / RESUMO COMPLETO não encontrada. Verifique se é um arquivo de fechamento válido.');
     var dados = epParsear(wb, ws, fileName);
     var mesKey = dados.mes;
 
