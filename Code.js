@@ -4365,3 +4365,73 @@ function consultarAssertivaTelefone(telefone) {
     return { erro: true, mensagem: ex.message || 'Erro desconhecido.' };
   }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  EXTRATO MENSAL — Persistência no Google Drive
+//  Pasta: "DharmaPro - Extratos" (criada automaticamente na raiz do Drive)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function _epGetPasta() {
+  var it = DriveApp.getFoldersByName('DharmaPro - Extratos');
+  return it.hasNext() ? it.next() : DriveApp.createFolder('DharmaPro - Extratos');
+}
+
+// Salva (ou substitui) um extrato como JSON no Drive
+function epSalvarExtrato(jsonStr, nomeArq) {
+  try {
+    var pasta = _epGetPasta();
+    // Apaga versão anterior com mesmo nome, se existir
+    var existing = pasta.getFilesByName(nomeArq);
+    while (existing.hasNext()) existing.next().setTrashed(true);
+    pasta.createFile(nomeArq, jsonStr, MimeType.PLAIN_TEXT);
+    return { ok: true };
+  } catch (e) {
+    Logger.log('epSalvarExtrato erro: ' + e);
+    return { ok: false, mensagem: e.message };
+  }
+}
+
+// Lista todos os extratos salvos no Drive (mais recente primeiro)
+function epListarExtratos() {
+  try {
+    var pasta   = _epGetPasta();
+    var files   = pasta.getFiles();
+    var res     = [];
+    while (files.hasNext()) {
+      var f = files.next();
+      if (f.getName().match(/^Extrato_.*\.json$/)) {
+        res.push({
+          id:     f.getId(),
+          nome:   f.getName(),
+          criado: f.getDateCreated().toISOString()
+        });
+      }
+    }
+    res.sort(function(a, b) { return a.criado < b.criado ? 1 : -1; });
+    return { ok: true, arquivos: res };
+  } catch (e) {
+    Logger.log('epListarExtratos erro: ' + e);
+    return { ok: false, mensagem: e.message, arquivos: [] };
+  }
+}
+
+// Carrega o JSON de um extrato pelo ID do arquivo no Drive
+function epCarregarExtrato(fileId) {
+  try {
+    var conteudo = DriveApp.getFileById(fileId).getBlob().getDataAsString();
+    return { ok: true, dados: conteudo };
+  } catch (e) {
+    Logger.log('epCarregarExtrato erro: ' + e);
+    return { ok: false, mensagem: e.message };
+  }
+}
+
+// Apaga um extrato do Drive pelo ID
+function epApagarExtratoDrive(fileId) {
+  try {
+    DriveApp.getFileById(fileId).setTrashed(true);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, mensagem: e.message };
+  }
+}

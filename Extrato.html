@@ -330,6 +330,8 @@
   gap: 14px; margin-top: 36px; margin-bottom: 12px; flex-wrap: wrap;
 }
 .ep-word-btn { padding: 13px 36px; font-size: 14px; }
+.ep-png-btn  { padding: 13px 28px; font-size: 14px; background: rgba(99,179,237,0.15); border-color: rgba(99,179,237,0.5); color: #63b3ed; }
+.ep-png-btn:hover { background: rgba(99,179,237,0.28); border-color: #63b3ed; color: #fff; }
 .ep-apagar-btn {
   padding: 11px 22px; font-size: 13px;
   background: transparent; border: 1.5px solid rgba(230,62,109,0.4);
@@ -338,6 +340,47 @@
   text-transform: uppercase; letter-spacing: .5px;
 }
 .ep-apagar-btn:hover { background: rgba(230,62,109,0.1); color: var(--accent,#e63e6d); border-color: var(--accent,#e63e6d); }
+
+/* ── Painel Drive ─────────────────────────────────────────────────────────── */
+.ep-drive-bar {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px; padding: 10px 16px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.ep-drive-bar-title {
+  font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.45);
+  text-transform: uppercase; letter-spacing: .6px; white-space: nowrap;
+}
+.ep-drive-list {
+  display: flex; flex-wrap: wrap; gap: 7px; flex: 1;
+}
+.ep-drive-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px; padding: 4px 12px; font-size: 12px; color: rgba(255,255,255,0.75);
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.ep-drive-chip:hover { background: rgba(99,179,237,0.18); border-color: #63b3ed; color: #fff; }
+.ep-drive-chip.ep-drive-chip-active { background: rgba(99,179,237,0.25); border-color: #63b3ed; color: #63b3ed; font-weight: 700; }
+.ep-drive-chip-del {
+  font-size: 10px; color: rgba(255,100,100,0.5); cursor: pointer; padding: 0 2px; line-height: 1;
+}
+.ep-drive-chip-del:hover { color: #ff4d6d; }
+.ep-drive-empty { font-size: 12px; color: rgba(255,255,255,0.3); font-style: italic; }
+.ep-drive-actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+.ep-drive-save-btn {
+  padding: 6px 14px; font-size: 12px; font-weight: 700; border-radius: 7px;
+  border: 1.5px solid rgba(99,179,237,0.4); background: transparent;
+  color: #63b3ed; cursor: pointer; font-family: 'Sora',sans-serif; transition: all .15s;
+}
+.ep-drive-save-btn:hover { background: rgba(99,179,237,0.18); border-color: #63b3ed; }
+.ep-drive-save-btn:disabled { opacity: .4; cursor: not-allowed; }
+.ep-drive-refresh-btn {
+  padding: 6px 10px; font-size: 12px; border-radius: 7px;
+  border: 1px solid rgba(255,255,255,0.1); background: transparent;
+  color: rgba(255,255,255,0.4); cursor: pointer; transition: all .15s;
+}
+.ep-drive-refresh-btn:hover { color: #fff; border-color: rgba(255,255,255,0.3); }
 </style>
 
 <!-- ══ HTML STRUCTURE ══ -->
@@ -361,6 +404,18 @@
     <span class="ep-month-label" id="ep-month-label">—</span>
     <button class="ep-12m-btn" onclick="epAbrir12Meses()" title="Ver composição dos últimos 12 meses">📈 Resultado Últimos 12 meses</button>
     <button class="ep-del-btn" onclick="epApagarMes()" title="Apagar fechamento deste mês">🗑</button>
+  </div>
+
+  <!-- Painel Drive -->
+  <div class="ep-drive-bar" id="ep-drive-bar">
+    <span class="ep-drive-bar-title">☁️ Drive</span>
+    <div class="ep-drive-list" id="ep-drive-list">
+      <span class="ep-drive-empty">Carregando...</span>
+    </div>
+    <div class="ep-drive-actions">
+      <button class="ep-drive-save-btn" id="ep-drive-save-btn" onclick="epArquivarNoDrive()" title="Salva o fechamento atual no Google Drive">💾 Arquivar</button>
+      <button class="ep-drive-refresh-btn" onclick="epCarregarListaDrive()" title="Atualizar lista do Drive">↺</button>
+    </div>
   </div>
 
   <!-- Estado vazio -->
@@ -439,7 +494,8 @@
     <!-- Botões de ação -->
     <div class="ep-action-row">
       <button class="btn ep-word-btn" onclick="epGerarWord()">📄 Gerar Relatório Word ↓</button>
-      <button class="ep-apagar-btn" onclick="epApagarMes()">🗑 Apagar Fechamento</button>
+      <button class="btn ep-png-btn"  onclick="epSalvarPNG()" title="Salva uma imagem PNG do dashboard atual">📸 Salvar PNG ↓</button>
+      <button class="ep-apagar-btn"   onclick="epApagarMes()">🗑 Apagar Fechamento</button>
     </div>
 
   </div><!-- /ep-dashboard -->
@@ -1598,6 +1654,170 @@ function epGerarWord(){
   epToast('📄 Relatório gerado com sucesso!','success');
 }
 
+// ── Salvar dashboard como PNG ─────────────────────────────────────────────────
+function epSalvarPNG(){
+  var d = epMesAtual ? epGetData(epMesAtual) : null;
+  if(!d){ epToast('Nenhum fechamento selecionado.','error'); return; }
+
+  var btn = document.querySelector('.ep-png-btn');
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Gerando…'; }
+
+  var H2C_URL = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  epLoadScript(H2C_URL, function(){
+    var el = document.getElementById('ep-dashboard');
+    html2canvas(el, {
+      backgroundColor: getComputedStyle(document.body).backgroundColor || '#0d1117',
+      scale: 2,
+      useCORS: true,
+      logging: false
+    }).then(function(canvas){
+      var link = document.createElement('a');
+      var nome  = (d.parceiro || 'extrato').replace(/\s+/g,'_');
+      var mes   = d.mes || epMesAtual || 'sem-data';
+      link.download = 'Extrato_' + nome + '_' + mes + '.png';
+      link.href = canvas.toDataURL('image/png');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      epToast('📸 PNG salvo com sucesso!', 'success');
+    }).catch(function(err){
+      console.error('[EP] html2canvas erro:', err);
+      epToast('Erro ao gerar imagem. Tente novamente.', 'error');
+    }).finally(function(){
+      if(btn){ btn.disabled = false; btn.textContent = '📸 Salvar PNG ↓'; }
+    });
+  });
+}
+
+// ── Google Drive — Arquivamento de extratos ───────────────────────────────────
+var epDriveArquivos = [];  // cache local da lista do Drive
+
+// Formata nome do arquivo: Extrato_PARCEIRO_2026-03.json
+function epDriveNomeArq(d){
+  var parceiro = (d.parceiro||'extrato').replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_\-]/g,'');
+  return 'Extrato_' + parceiro + '_' + (d.mes||'sem-data') + '.json';
+}
+
+// Carrega a lista de arquivos salvos no Drive e atualiza o painel
+function epCarregarListaDrive(){
+  var listEl = document.getElementById('ep-drive-list');
+  listEl.innerHTML = '<span class="ep-drive-empty">Carregando...</span>';
+
+  if(typeof google === 'undefined' || !google.script){
+    listEl.innerHTML = '<span class="ep-drive-empty">Drive não disponível fora do Apps Script.</span>';
+    return;
+  }
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      epDriveArquivos = (res && res.arquivos) || [];
+      epRenderListaDrive();
+    })
+    .withFailureHandler(function(err){
+      listEl.innerHTML = '<span class="ep-drive-empty" style="color:#ff4d6d">Erro ao acessar Drive.</span>';
+      console.warn('[EP Drive]', err);
+    })
+    .epListarExtratos();
+}
+
+// Renderiza os chips da lista do Drive
+function epRenderListaDrive(){
+  var listEl = document.getElementById('ep-drive-list');
+  if(!epDriveArquivos.length){
+    listEl.innerHTML = '<span class="ep-drive-empty">Nenhum extrato arquivado ainda.</span>';
+    return;
+  }
+  listEl.innerHTML = epDriveArquivos.map(function(arq){
+    var label = arq.nome.replace(/^Extrato_/,'').replace(/\.json$/,'').replace(/_/g,' ');
+    var ativo  = epMesAtual && arq.nome.indexOf(epMesAtual) > -1 ? ' ep-drive-chip-active' : '';
+    return '<span class="ep-drive-chip'+ativo+'" onclick="epCarregarDoDrive(\''+arq.id+'\')" title="Carregar '+arq.nome+'">'+
+             label+
+             ' <span class="ep-drive-chip-del" onclick="event.stopPropagation();epApagarDoDrive(\''+arq.id+'\',\''+arq.nome+'\')" title="Apagar do Drive">✕</span>'+
+           '</span>';
+  }).join('');
+}
+
+// Arquiva o fechamento atual no Drive
+function epArquivarNoDrive(){
+  var d = epMesAtual ? epGetData(epMesAtual) : null;
+  if(!d){ epToast('Selecione um fechamento primeiro.','error'); return; }
+  if(typeof google === 'undefined' || !google.script){
+    epToast('Drive não disponível fora do Apps Script.','error'); return;
+  }
+
+  var btn = document.getElementById('ep-drive-save-btn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Salvando…'; }
+
+  // Remove _sheets (dados brutos pesados) antes de salvar — o CRM não precisa deles para renderizar
+  var dadosLeves = {};
+  Object.keys(d).forEach(function(k){ if(k!=='_sheets') dadosLeves[k]=d[k]; });
+  var jsonStr  = JSON.stringify(dadosLeves);
+  var nomeArq  = epDriveNomeArq(d);
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      if(btn){ btn.disabled=false; btn.textContent='💾 Arquivar'; }
+      if(res && res.ok){
+        epToast('☁️ Arquivado no Drive com sucesso!','success');
+        epCarregarListaDrive();
+      } else {
+        epToast('Erro ao salvar no Drive: '+(res&&res.mensagem||'?'),'error');
+      }
+    })
+    .withFailureHandler(function(err){
+      if(btn){ btn.disabled=false; btn.textContent='💾 Arquivar'; }
+      epToast('Falha na comunicação com o Drive.','error');
+      console.warn('[EP Drive]', err);
+    })
+    .epSalvarExtrato(jsonStr, nomeArq);
+}
+
+// Carrega um extrato do Drive e o renderiza no dashboard
+function epCarregarDoDrive(fileId){
+  if(typeof google === 'undefined' || !google.script){ return; }
+  epShowLoading();
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      if(!res || !res.ok){ epShowEmpty(); epToast('Erro ao carregar arquivo do Drive.','error'); return; }
+      try {
+        var d    = JSON.parse(res.dados);
+        var mesK = d.mes;
+        epSaveRec(mesK, d);
+        epSelecionarMes(mesK);
+        epToast('☁️ Extrato carregado do Drive.','success');
+        epRenderListaDrive();
+      } catch(e){
+        epShowEmpty();
+        epToast('Arquivo inválido no Drive.','error');
+      }
+    })
+    .withFailureHandler(function(err){
+      epShowEmpty();
+      epToast('Falha ao acessar Drive.','error');
+      console.warn('[EP Drive]', err);
+    })
+    .epCarregarExtrato(fileId);
+}
+
+// Apaga um extrato do Drive
+function epApagarDoDrive(fileId, nome){
+  if(!confirm('Apagar "'+nome+'" do Google Drive?')) return;
+  if(typeof google === 'undefined' || !google.script){ return; }
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      if(res && res.ok){
+        epToast('🗑 Arquivo apagado do Drive.','success');
+        epCarregarListaDrive();
+      } else {
+        epToast('Erro ao apagar: '+(res&&res.mensagem||'?'),'error');
+      }
+    })
+    .withFailureHandler(function(){ epToast('Falha ao apagar do Drive.','error'); })
+    .epApagarExtratoDrive(fileId);
+}
+
 // ── Utilitários ───────────────────────────────────────────────────────────────
 function epLoadScript(src, cb){
   if(document.querySelector('script[src="'+src+'"]')){ if(cb) cb(); return; }
@@ -1632,6 +1852,9 @@ function epInit(){
 
   // Pré-carregar SheetJS em segundo plano
   epLoadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', null);
+
+  // Carregar lista de extratos arquivados no Drive
+  epCarregarListaDrive();
 
   var meses = epGetMeses();
   if(meses.length === 0){ epShowEmpty(); return; }
