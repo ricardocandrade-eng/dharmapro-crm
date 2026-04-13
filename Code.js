@@ -1039,6 +1039,15 @@ function doPost(e) {
       return _routePAP(payload);
     }
 
+    // ── Roteador Meta Ads: leads enviados pela Renata via n8n ────────────────
+    // Identificados por utm_source ou utm_campaign (sem 'action', sem 'secret')
+    if ((payload.utm_source || payload.utm_campaign) && payload.secret === undefined) {
+      var linhaMetaAds = registrarLeadMetaAds(payload);
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true, modulo: 'meta_ads', linha: linhaMetaAds }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // Validação do segredo — rejeita requisições sem token correto
     if (SECRET && payload.secret !== SECRET) {
       return ContentService
