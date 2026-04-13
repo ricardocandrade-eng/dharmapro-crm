@@ -134,12 +134,14 @@ function getLeadsMetaAds() {
     var raw = aba.getRange(2, 1, ult - 1, 12).getValues();
     var leads = [];
 
+    var tz = Session.getScriptTimeZone();
+
     for (var i = 0; i < raw.length; i++) {
       var r = raw[i];
       if (!r[0]) continue;
       leads.push({
         linha:        i + 2,
-        data_entrada: r[0],
+        data_entrada: r[0] instanceof Date ? Utilities.formatDate(r[0], tz, 'dd/MM/yyyy HH:mm') : String(r[0] || ''),
         nome:         String(r[1] || '').trim(),
         telefone:     String(r[2] || '').trim(),
         cidade:       String(r[3] || '').trim(),
@@ -149,7 +151,7 @@ function getLeadsMetaAds() {
         utm_medium:   String(r[7] || '').trim(),
         status_final: String(r[8] || '').trim(),
         motivo_desq:  String(r[9] || '').trim(),
-        data_status:  r[10] || '',
+        data_status:  r[10] instanceof Date ? Utilities.formatDate(r[10], tz, 'dd/MM/yyyy HH:mm') : String(r[10] || ''),
         observacao:   String(r[11] || '').trim(),
       });
     }
