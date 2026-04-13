@@ -1717,6 +1717,7 @@
         <div class="nav-item"       id="menuFilaPAP" onclick="navegar('filaPAP')">  <span class="icon">⊞</span> Fila PAP <span class="nav-badge" id="badgeFilaPAP"></span></div>
         <div class="nav-item"       id="menuDocs"      onclick="navegar('docs')">       <span class="icon">❑</span> Documentos</div>
         <div class="nav-item"       id="menuCruzamento" onclick="navegar('cruzamento')"> <span class="icon">☷</span> Cruzamento Vero</div>
+        <div class="nav-item" id="menuLeadsMetaAds" onclick="navegar('metaads')"><span class="icon">◈</span> Leads Meta Ads</div>
         <div class="nav-item" id="menuIndicacoes" onclick="navegar('indicacao')"><span class="icon">☍</span> Indicações</div>
         <div class="nav-item" id="menuTickets"   onclick="navegar('tickets')"><span class="icon">◶</span> Tickets</div>
         <div class="nav-item" id="menuExtrato"   onclick="navegar('extrato')"><span class="icon">⊛</span> Extrato</div>
@@ -2638,6 +2639,9 @@
           </div>
         </div>
       </div>
+
+      <!-- ── LEADS META ADS ── -->
+      <?!= include('LeadsMetaAds'); ?>
 
       <!-- ── INDICAÇÕES ── -->
       <?!= include('Indicacoes'); ?>

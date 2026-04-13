@@ -9,7 +9,7 @@
 
 // â”€â”€ VERSÃƒO / DEPLOY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //  Atualizado automaticamente pelo salvar_010426_1930.bat a cada deploy
-var DEPLOY_DATE = '13/04/2026 15:54';
+var DEPLOY_DATE = '13/04/2026 15:56';
 
 // â”€â”€ USUÃRIOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // SENHAS: use o campo senhaHash (SHA-256 em hex). Nunca armazene senha em texto puro.
@@ -52,9 +52,9 @@ var USUARIOS = [
 //                     indicacao, docs, cruzamento, tickets, novaVenda, extrato, config
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 var PERFIS_MENUS = {
-  'admin':      ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP'],
-  'supervisor': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP'],
-  'backoffice': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','config','filaPAP']
+  'admin':      ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads'],
+  'supervisor': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads'],
+  'backoffice': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','config','filaPAP','metaads']
 };
 
 var DASHBOARD_CONFIG = {

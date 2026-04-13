@@ -1,0 +1,334 @@
+<!-- ══════════════════════════════════════════════════════════════════════════
+     Módulo: Leads Meta Ads | DharmaPro v2.0 | Abril/2026
+     ══════════════════════════════════════════════════════════════════════════ -->
+
+<style>
+/* ── PÁGINA LEADS META ADS ─────────────────────────────────────────────── */
+#pageLeadsMetaAds.ativa {
+  display: flex !important;
+  flex-direction: column;
+  position: fixed;
+  top: 49px; left: 230px; right: 0; bottom: 0;
+  overflow: hidden; z-index: 10;
+}
+#pageLeadsMetaAds.ativa .lma-body {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--bg);
+  min-height: 0;
+}
+#pageLeadsMetaAds.ativa .lma-body::-webkit-scrollbar { width: 4px; }
+#pageLeadsMetaAds.ativa .lma-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ── TOOLBAR ── */
+.lma-toolbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; flex-wrap: wrap;
+}
+.lma-toolbar h2 { font-size: 16px; font-weight: 800; flex: 1; }
+
+.lma-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 16px;
+  background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px;
+  font-size: 12px; font-weight: 700; font-family: 'Sora', sans-serif;
+  cursor: pointer; transition: background .2s;
+}
+.lma-btn:hover { background: var(--border); }
+
+/* ── CARDS RESUMO ── */
+.lma-resumo {
+  display: flex; gap: 12px; padding: 18px 24px 18px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto; flex-shrink: 0;
+}
+.lma-resumo::-webkit-scrollbar { height: 3px; }
+.lma-resumo::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.lma-card {
+  flex-shrink: 0;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 18px; min-width: 130px;
+}
+.lma-card.c-total    { border-color: rgba(130,130,255,.4); }
+.lma-card.c-conv     { border-color: rgba(62,230,130,.4); }
+.lma-card.c-desq     { border-color: rgba(230,62,62,.4); }
+.lma-card.c-pend     { border-color: rgba(230,180,62,.4); }
+.lma-card.c-taxa     { border-color: rgba(62,180,230,.4); }
+.lma-card-label { font-size: 10px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+.lma-card-valor { font-size: 20px; font-weight: 800; font-family: 'DM Mono', monospace; color: var(--text); }
+.lma-card-sub   { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
+
+/* ── FILTROS ── */
+.lma-filtro-wrap {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0; flex-wrap: wrap;
+}
+.lma-filtro-wrap label { font-size: 11px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
+.lma-select {
+  padding: 6px 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text);
+  font-size: 12px; font-family: 'Sora', sans-serif;
+  cursor: pointer; min-width: 160px;
+}
+.lma-select:focus { outline: none; border-color: var(--accent); }
+.lma-input-busca {
+  padding: 6px 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 7px; color: var(--text);
+  font-size: 12px; font-family: 'Sora', sans-serif;
+  min-width: 200px;
+}
+.lma-input-busca:focus { outline: none; border-color: var(--accent); }
+.lma-count { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); margin-left: auto; }
+
+/* ── TABELA ── */
+.lma-scroll { padding: 0 0 40px; }
+.lma-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 12px;
+}
+.lma-table thead {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--surface2);
+}
+.lma-table th {
+  padding: 10px 14px; text-align: left;
+  font-size: 10px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 1px;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.lma-table td {
+  padding: 11px 14px; border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.lma-table tbody tr:hover { background: var(--surface); }
+
+.lma-nome     { font-weight: 700; font-size: 12px; }
+.lma-sub      { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
+.lma-mono     { font-family: 'DM Mono', monospace; font-size: 11px; white-space: nowrap; }
+.lma-utmcell  { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted);
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Status badges */
+.lma-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 20px;
+  font-size: 10px; font-weight: 700; font-family: 'DM Mono', monospace;
+  white-space: nowrap;
+}
+.lma-badge.converteu    { background: rgba(62,230,130,.15); color: #2ea854; }
+.lma-badge.desqualificado { background: rgba(230,62,62,.12); color: #c04040; }
+.lma-badge.negociacao   { background: rgba(62,130,230,.12); color: #3070c0; }
+.lma-badge.sem-contato  { background: rgba(200,170,62,.12); color: #997a20; }
+.lma-badge.pendente     { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+</style>
+
+<!-- ══ PÁGINA ══ -->
+<div id="pageLeadsMetaAds" class="page">
+
+  <!-- Toolbar -->
+  <div class="lma-toolbar">
+    <h2>📣 Leads Meta Ads</h2>
+    <button class="lma-btn" onclick="carregarLeadsMetaAds()">↺ Atualizar</button>
+  </div>
+
+  <!-- Cards de resumo -->
+  <div class="lma-resumo" id="lmaResumo">
+    <div class="lma-card c-total">
+      <div class="lma-card-label">Total</div>
+      <div class="lma-card-valor" id="lmaTotalVal">—</div>
+      <div class="lma-card-sub">leads recebidos</div>
+    </div>
+    <div class="lma-card c-conv">
+      <div class="lma-card-label">Convertidos</div>
+      <div class="lma-card-valor" id="lmaConvVal">—</div>
+      <div class="lma-card-sub" id="lmaTaxaSub">taxa —%</div>
+    </div>
+    <div class="lma-card c-pend">
+      <div class="lma-card-label">Pendentes</div>
+      <div class="lma-card-valor" id="lmaPendVal">—</div>
+      <div class="lma-card-sub">sem status</div>
+    </div>
+    <div class="lma-card c-desq">
+      <div class="lma-card-label">Desqualificados</div>
+      <div class="lma-card-valor" id="lmaDesqVal">—</div>
+      <div class="lma-card-sub">não avançaram</div>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="lma-filtro-wrap">
+    <label>Status</label>
+    <select class="lma-select" id="lmaFiltroStatus" onchange="_lmaFiltrar()">
+      <option value="">Todos</option>
+      <option value="pendente">Sem status</option>
+      <option value="Converteu">Converteu</option>
+      <option value="Em negociação">Em negociação</option>
+      <option value="Sem contato">Sem contato</option>
+      <option value="Desqualificado">Desqualificado</option>
+    </select>
+    <label>Campanha</label>
+    <select class="lma-select" id="lmaFiltroCampanha" onchange="_lmaFiltrar()">
+      <option value="">Todas</option>
+    </select>
+    <input class="lma-input-busca" id="lmaBusca" type="text" placeholder="Buscar nome ou telefone…" oninput="_lmaFiltrar()">
+    <span class="lma-count" id="lmaCount"></span>
+  </div>
+
+  <!-- Tabela -->
+  <div class="lma-body">
+    <div class="lma-scroll">
+      <table class="lma-table">
+        <thead>
+          <tr>
+            <th>Data entrada</th>
+            <th>Lead</th>
+            <th>Cidade</th>
+            <th>Campanha</th>
+            <th>Anúncio</th>
+            <th>Status</th>
+            <th>Motivo desq.</th>
+            <th>Atualizado em</th>
+          </tr>
+        </thead>
+        <tbody id="lmaTbody">
+          <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">Clique em Atualizar para carregar os leads.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+var _lmaDados = [];
+
+function carregarLeadsMetaAds() {
+  document.getElementById('lmaTbody').innerHTML =
+    '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">⏳ Carregando…</td></tr>';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res || res.erro) {
+        document.getElementById('lmaTbody').innerHTML =
+          '<tr><td colspan="8" style="text-align:center;padding:40px;color:#c04040">Erro: ' + (res && res.erro ? res.erro : 'resposta inválida') + '</td></tr>';
+        return;
+      }
+      _lmaDados = res.leads || [];
+      _lmaAtualizarResumo(res.resumo || {});
+      _lmaPopularFiltrosCampanha();
+      _lmaFiltrar();
+    })
+    .withFailureHandler(function(err) {
+      document.getElementById('lmaTbody').innerHTML =
+        '<tr><td colspan="8" style="text-align:center;padding:40px;color:#c04040">Erro ao carregar: ' + err.message + '</td></tr>';
+    })
+    .getLeadsMetaAds();
+}
+
+function _lmaAtualizarResumo(r) {
+  document.getElementById('lmaTotalVal').textContent = r.total || 0;
+  document.getElementById('lmaConvVal').textContent  = r.convertidos || 0;
+  document.getElementById('lmaPendVal').textContent  = r.pendentes || 0;
+  document.getElementById('lmaDesqVal').textContent  = r.desq || 0;
+  document.getElementById('lmaTaxaSub').textContent  = 'taxa ' + (r.taxa_conv || '0') + '%';
+}
+
+function _lmaPopularFiltrosCampanha() {
+  var campanhas = {};
+  _lmaDados.forEach(function(l) { if (l.utm_campaign) campanhas[l.utm_campaign] = true; });
+  var sel = document.getElementById('lmaFiltroCampanha');
+  sel.innerHTML = '<option value="">Todas</option>';
+  Object.keys(campanhas).sort().forEach(function(c) {
+    sel.innerHTML += '<option value="' + _esc(c) + '">' + _esc(c) + '</option>';
+  });
+}
+
+function _lmaFiltrar() {
+  var filtroStatus   = document.getElementById('lmaFiltroStatus').value;
+  var filtroCampanha = document.getElementById('lmaFiltroCampanha').value;
+  var busca          = (document.getElementById('lmaBusca').value || '').toLowerCase();
+
+  var lista = _lmaDados.filter(function(l) {
+    if (filtroStatus === 'pendente' && l.status_final) return false;
+    if (filtroStatus && filtroStatus !== 'pendente' && l.status_final !== filtroStatus) return false;
+    if (filtroCampanha && l.utm_campaign !== filtroCampanha) return false;
+    if (busca) {
+      var haystack = ((l.nome || '') + ' ' + (l.telefone || '')).toLowerCase();
+      if (haystack.indexOf(busca) < 0) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('lmaCount').textContent = lista.length + ' lead' + (lista.length !== 1 ? 's' : '');
+  _lmaRenderizarTabela(lista);
+}
+
+function _lmaRenderizarTabela(lista) {
+  if (!lista.length) {
+    document.getElementById('lmaTbody').innerHTML =
+      '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">Nenhum lead encontrado.</td></tr>';
+    return;
+  }
+
+  var html = lista.map(function(l) {
+    var badge = _lmaBadge(l.status_final);
+    var dataEntrada = l.data_entrada ? _lmaFmtData(l.data_entrada) : '—';
+    var dataStatus  = l.data_status  ? _lmaFmtData(l.data_status)  : '—';
+    return '<tr>' +
+      '<td><span class="lma-mono">' + _esc(dataEntrada) + '</span></td>' +
+      '<td>' +
+        '<div class="lma-nome">' + _esc(l.nome || '—') + '</div>' +
+        '<div class="lma-sub">' + _esc(l.telefone || '') + '</div>' +
+        '<div class="lma-sub">' + _esc(l.cidade || '') + '</div>' +
+      '</td>' +
+      '<td class="lma-mono">' + _esc(l.cidade || '—') + '</td>' +
+      '<td class="lma-utmcell" title="' + _esc(l.utm_campaign || '') + '">' + _esc(l.utm_campaign || '—') + '</td>' +
+      '<td class="lma-utmcell" title="' + _esc(l.utm_ad || '') + '">' + _esc(l.utm_ad || '—') + '</td>' +
+      '<td>' + badge + '</td>' +
+      '<td class="lma-mono">' + _esc(l.motivo_desq || '—') + '</td>' +
+      '<td><span class="lma-mono">' + _esc(dataStatus) + '</span></td>' +
+    '</tr>';
+  }).join('');
+
+  document.getElementById('lmaTbody').innerHTML = html;
+}
+
+function _lmaBadge(status) {
+  if (!status) return '<span class="lma-badge pendente">Pendente</span>';
+  var cls = {
+    'Converteu':      'converteu',
+    'Desqualificado': 'desqualificado',
+    'Em negociação':  'negociacao',
+    'Sem contato':    'sem-contato',
+  }[status] || 'pendente';
+  return '<span class="lma-badge ' + cls + '">' + _esc(status) + '</span>';
+}
+
+function _lmaFmtData(val) {
+  if (!val) return '—';
+  try {
+    var d = new Date(val);
+    if (isNaN(d)) return String(val);
+    var dd = String(d.getDate()).padStart(2,'0');
+    var mm = String(d.getMonth()+1).padStart(2,'0');
+    var hh = String(d.getHours()).padStart(2,'0');
+    var mi = String(d.getMinutes()).padStart(2,'0');
+    return dd + '/' + mm + '/' + d.getFullYear() + ' ' + hh + ':' + mi;
+  } catch(e) { return String(val); }
+}
+
+function _esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>

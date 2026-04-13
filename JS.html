@@ -1008,7 +1008,7 @@ function confirmarAlteracaoSenha() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -1018,6 +1018,7 @@ var _menuMap = {
   'leads':       'menuLeads',
   'pap':         'menuPAP',
   'filaPAP':     'menuFilaPAP',
+  'metaads':     'menuLeadsMetaAds',
   'indicacao':   'menuIndicacoes',
   'docs':        'menuDocs',
   'cruzamento':  'menuCruzamento',
@@ -1126,6 +1127,12 @@ function navegar(pagina) {
     document.getElementById('pagePAP').classList.add('ativa');
     document.getElementById('breadcrumbTexto').textContent = 'Pagamentos PAP';
     carregarPAP();
+
+  } else if (pagina === 'metaads') {
+    document.getElementById('menuLeadsMetaAds').classList.add('ativo');
+    document.getElementById('pageLeadsMetaAds').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Leads Meta Ads';
+    carregarLeadsMetaAds();
 
   } else if (pagina === 'indicacao') {
     document.getElementById('menuIndicacoes').classList.add('ativo');
@@ -5816,7 +5823,7 @@ function _resetarTimerInatividade() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -5826,6 +5833,7 @@ var _menuMap = {
   'leads':       'menuLeads',
   'pap':         'menuPAP',
   'filaPAP':     'menuFilaPAP',
+  'metaads':     'menuLeadsMetaAds',
   'indicacao':   'menuIndicacoes',
   'docs':        'menuDocs',
   'cruzamento':  'menuCruzamento',
@@ -5934,6 +5942,12 @@ function navegar(pagina) {
     document.getElementById('pagePAP').classList.add('ativa');
     document.getElementById('breadcrumbTexto').textContent = 'Pagamentos PAP';
     carregarPAP();
+
+  } else if (pagina === 'metaads') {
+    document.getElementById('menuLeadsMetaAds').classList.add('ativo');
+    document.getElementById('pageLeadsMetaAds').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Leads Meta Ads';
+    carregarLeadsMetaAds();
 
   } else if (pagina === 'indicacao') {
     document.getElementById('menuIndicacoes').classList.add('ativo');

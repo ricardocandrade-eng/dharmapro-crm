@@ -119,6 +119,60 @@ function exportarLeadsMetaAds() {
 
 
 /**
+ * Retorna todos os leads da aba "Leads Meta Ads" para a UI.
+ * Chamado via google.script.run.getLeadsMetaAds()
+ */
+function getLeadsMetaAds() {
+  try {
+    var ss  = SpreadsheetApp.getActiveSpreadsheet();
+    var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+    if (!aba) return { leads: [], resumo: {}, erro: 'Aba "Leads Meta Ads" não encontrada.' };
+
+    var ult = aba.getLastRow();
+    if (ult < 2) return { leads: [], resumo: { total: 0, convertidos: 0, desq: 0, pendentes: 0, taxa_conv: '0' } };
+
+    var raw = aba.getRange(2, 1, ult - 1, 12).getValues();
+    var leads = [];
+
+    for (var i = 0; i < raw.length; i++) {
+      var r = raw[i];
+      if (!r[0]) continue;
+      leads.push({
+        linha:        i + 2,
+        data_entrada: r[0],
+        nome:         String(r[1] || '').trim(),
+        telefone:     String(r[2] || '').trim(),
+        cidade:       String(r[3] || '').trim(),
+        utm_source:   String(r[4] || '').trim(),
+        utm_campaign: String(r[5] || '').trim(),
+        utm_ad:       String(r[6] || '').trim(),
+        utm_medium:   String(r[7] || '').trim(),
+        status_final: String(r[8] || '').trim(),
+        motivo_desq:  String(r[9] || '').trim(),
+        data_status:  r[10] || '',
+        observacao:   String(r[11] || '').trim(),
+      });
+    }
+
+    leads.reverse();
+
+    var total       = leads.length;
+    var convertidos = leads.filter(function(l) { return l.status_final === 'Converteu'; }).length;
+    var desq        = leads.filter(function(l) { return l.status_final === 'Desqualificado'; }).length;
+    var pendentes   = leads.filter(function(l) { return !l.status_final; }).length;
+    var taxa_conv   = total > 0 ? ((convertidos / total) * 100).toFixed(1) : '0';
+
+    return {
+      leads: leads,
+      resumo: { total: total, convertidos: convertidos, desq: desq, pendentes: pendentes, taxa_conv: taxa_conv }
+    };
+  } catch(e) {
+    return { leads: [], resumo: {}, erro: e.message };
+  }
+}
+
+
+/**
  * Teste manual — selecione e execute no editor GAS para
  * simular um lead chegando da Renata e verificar se está funcionando.
  */
