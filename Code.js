@@ -65,7 +65,11 @@ var CONFIG = {
     VEROHUB_PEDIDO_DT:44,  // AS - Data/hora do pedido VeroHub
     BC_TAGS:          45,  // AT - BotConversa etiquetas (separadas por ' | ')
     BC_STATUS:        46,  // AU - BotConversa status atendimento (Aberto/Concluído)
-    VIABILIDADE:      47   // AV - Resultado da consulta de viabilidade VeroHub
+    NOME_MAE:         47,  // AV - Nome da mãe
+    DT_NASC:          48,  // AW - Data de nascimento
+    RG:               49,  // AX - RG
+    //                50,  // AY - reservada
+    VIABILIDADE:      51   // AZ - Resultado da consulta de viabilidade VeroHub (movido de AV)
   }
 };
 
@@ -105,7 +109,7 @@ function buscarVendaGlobal(termo) {
     var sheet = _getSheet();
     var ult   = sheet.getLastRow();
     if (ult < 3) return { dados: [], total: 0 };
-    var raw   = sheet.getRange(3, 1, ult - 2, 47).getValues();
+    var raw   = sheet.getRange(3, 1, ult - 2, 59).getValues();
 
     // normaliza o termo: remove pontos, traços, espaços extras, minúsculas
     var t     = String(termo).trim().toLowerCase();
@@ -212,7 +216,7 @@ function arquivarVenda(linha) {
     if (linha > ult) return { sucesso: false, mensagem: 'Linha não encontrada.' };
 
     var c = CONFIG.COLUNAS;
-    var row = sheet.getRange(linha, 1, 1, 48).getValues()[0];
+    var row = sheet.getRange(linha, 1, 1, 59).getValues()[0];
 
     // Dados para a aba Arquivo
     var nome  = row[c.CLIENTE] || '';
@@ -234,7 +238,7 @@ function arquivarVenda(linha) {
     abaArquivo.appendRow([nome, cpf, whats, plano, valor, dataExclusao]);
 
     // Limpa a linha na aba principal (preserva a linha para não deslocar índices)
-    sheet.getRange(linha, 1, 1, 48).clearContent();
+    sheet.getRange(linha, 1, 1, 59).clearContent();
 
     // Limpa cache
     _limparCache();
@@ -654,7 +658,7 @@ function getSincronizacaoInicial() {
     var total  = ultima - 2;
     var tz     = Session.getScriptTimeZone();
     if (total <= 0) return { vendas: { dados: [], total: 0 }, contratos: [] };
-    var raw = sheet.getRange(3, 1, total, 47).getValues();
+    var raw = sheet.getRange(3, 1, total, 59).getValues();
 
     // ── Contratos (para Cruzamento Vero) ─────────────────────────────────
     var contratos = [];
@@ -724,9 +728,9 @@ function getContratosParaCruzamento() {
       return { dados: [] };
     }
 
-    // Lê TODAS as 43 colunas para garantir que temos todos os dados
+    // Lê TODAS as colunas até BG (59)
     var total = ultima - 2;
-    var raw   = sheet.getRange(3, 1, total, 43).getValues();
+    var raw   = sheet.getRange(3, 1, total, 59).getValues();
 
     var tz   = Session.getScriptTimeZone();
     var dados = [];
@@ -1061,7 +1065,7 @@ function doPost(e) {
     var agora    = new Date();
     var dataAtiv = Utilities.formatDate(agora, tz, 'dd/MM/yyyy');
 
-    var linha = new Array(45).fill('');
+    var linha = new Array(59).fill('');
     linha[CONFIG.COLUNAS.CANAL]    = 'LEAD';
     linha[CONFIG.COLUNAS.PRODUTO]  = String(payload.produto  || '').trim();
     linha[CONFIG.COLUNAS.STATUS]   = '1- Conferencia/Ativação';
@@ -1643,9 +1647,9 @@ function getPagamentosPAP() {
     }
     Logger.log('getPagamentosPAP: mapa PAP com ' + Object.keys(mapaPAP).length + ' vendedores');
 
-    // Lê aba 1 - Vendas: colunas A até AQ (43 colunas)
+    // Lê aba 1 - Vendas: colunas A até BG (59 colunas)
     var totalDados = ultimaLinha - 2;
-    var raw = sheet.getRange(3, 1, totalDados, 43).getValues();
+    var raw = sheet.getRange(3, 1, totalDados, 59).getValues();
     var tz  = Session.getScriptTimeZone();
 
     var resultado = [];
@@ -2601,7 +2605,7 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
 function getVendaPorLinha(numeroLinha) {
   try {
     var sheet = _getSheet();
-    var dados = sheet.getRange(numeroLinha, 1, 1, 44).getValues()[0];
+    var dados = sheet.getRange(numeroLinha, 1, 1, 59).getValues()[0];
     return _mapearLinha(dados, numeroLinha);
   } catch (erro) {
     throw new Error('Erro ao buscar venda: ' + erro.message);
@@ -3150,13 +3154,16 @@ function _mapearLinha(row, numeroLinha) {
     preStatus:   String(row[c.PRE_STATUS] || ''),  // AK - Pré-Status
     bcTags:      String(row[c.BC_TAGS]    || '').trim(),  // AT - BotConversa etiquetas
     bcStatus:    String(row[c.BC_STATUS]  || '').trim(),  // AU - BotConversa status
+    nomeMae:     String(row[c.NOME_MAE]   || '').trim(),  // AV - Nome da mãe
+    dtNasc:      String(row[c.DT_NASC]    || '').trim(),  // AW - Data de nascimento
+    rg:          String(row[c.RG]         || '').trim(),  // AX - RG
     mapsLink:    '',
     reagendamentos: parseInt(row[10]) || 0
   };
 }
 
 function _construirLinhaDados(d) {
-  var linha = new Array(45).fill('');
+  var linha = new Array(59).fill('');
   var c = CONFIG.COLUNAS;
   linha[c.CANAL]       = d.canal       || '';
   linha[c.PRODUTO]     = d.produto     || '';
@@ -3188,6 +3195,9 @@ function _construirLinhaDados(d) {
   linha[c.LINHA_MOVEL]   = d.linhaMovel    || '';
   linha[c.PORTABILIDADE] = d.portabilidade || '';
   linha[c.PRE_STATUS]    = d.preStatus     || '';  // AK - Pré-Status
+  linha[c.NOME_MAE]      = d.nomeMae       || '';  // AV - Nome da mãe
+  linha[c.DT_NASC]       = d.dtNasc        || '';  // AW - Data de nascimento
+  linha[c.RG]            = d.rg            || '';  // AX - RG
   linha[26]            = d.segmentacao  || '';  // AA - Segmentação
   linha[10]            = d.reagendamentos || '';  // K - Contador de reagendamentos
   linha[42]            = d.statusPAP   || '';  // AQ - Status Pagamento PAP
@@ -3236,7 +3246,7 @@ function getDashboard(mes, ano) {
     // ── Lê planilha completa (43 colunas) ─────────────────────────────────
     var ultima = sheet.getLastRow();
     if (ultima < 3) return { erro: false, vazio: true };
-    var raw = sheet.getRange(3, 1, ultima - 2, 43).getValues();
+    var raw = sheet.getRange(3, 1, ultima - 2, 59).getValues();
 
     // ── Helpers ────────────────────────────────────────────────────────────
     function isMesAno(d) {
@@ -3594,7 +3604,7 @@ function diagnosticoDashboard() {
   Logger.log('Hoje: ' + hStr);
 
   var ultima = sheet.getLastRow();
-  var raw    = sheet.getRange(3, 1, ultima - 2, 43).getValues();
+  var raw    = sheet.getRange(3, 1, ultima - 2, 59).getValues();
 
   var contTotal    = 0;
   var contHojeFibra = 0;
@@ -3761,7 +3771,7 @@ function getVendasVeroHubVencidas() {
     var ultima = sheet.getLastRow();
     if (ultima < 3) return { dados: [] };
 
-    var raw  = sheet.getRange(3, 1, ultima - 2, 43).getValues();
+    var raw  = sheet.getRange(3, 1, ultima - 2, 59).getValues();
     var tz   = Session.getScriptTimeZone();
     var hoje = new Date();
     hoje.setHours(0, 0, 0, 0);

@@ -212,6 +212,9 @@ function painelToggleEdicao() {
     _pifSet('pif-tel',        v.tel        || '');
     _pifSet('pif-codCli',     v.codCli     || '');
     _pifSet('pif-contrato',   v.contrato   || '');
+    _pifSet('pif-nomeMae',    v.nomeMae    || '');
+    _pifSet('pif-dtNasc',     v.dtNasc     || '');
+    _pifSet('pif-rg',         v.rg         || '');
     _pifSet('pif-cep',        v.cep        || '');
     _pifSet('pif-rua',        v.rua        || '');
     _pifSet('pif-num',        v.num        || '');
@@ -370,6 +373,9 @@ function pifSalvar() {
     tel:           document.getElementById('pif-tel').value.trim(),
     codCli:        document.getElementById('pif-codCli').value.trim(),
     contrato:      document.getElementById('pif-contrato').value.trim(),
+    nomeMae:       document.getElementById('pif-nomeMae').value.trim(),
+    dtNasc:        document.getElementById('pif-dtNasc').value,
+    rg:            document.getElementById('pif-rg').value.trim(),
     venc:          document.getElementById('pif-venc').value.trim(),
     fat:           document.getElementById('pif-fat').value.trim(),
     linhaMovel:    document.getElementById('pif-linhaMovel').value.trim(),
@@ -7866,7 +7872,10 @@ function mostrarPainel(v) {
       ['WhatsApp',    v.whats],
       ['Código',      v.codCli    || '—'],
       ['ID Contrato', v.contrato  || '—'],
-      ['Telefone',    v.tel       || '—']
+      ['Telefone',    v.tel       || '—'],
+      ['Nome da Mãe', v.nomeMae   || '—', true],
+      ['Dt. Nasc.',   v.dtNasc    || '—'],
+      ['RG',          v.rg        || '—']
     ]) +
 
     // ── 3. ENDEREÇO ─────────────────────────────────────────────────────────
