@@ -3503,6 +3503,7 @@ function getDashboard(mes, ano) {
       backlog:            backlog,
       projecaoBacklog:    instalacoesMes + backlog,
       vendaBrutaMes:      vendaBrutaMes,
+      vendaDU:            duPassados > 0 ? vendaBrutaMes / duPassados : 0,
       tendenciaVendas:    tendenciaVendas,
       tendenciaInstal:    tendenciaInstal,
       tendenciaReceita:   tendenciaReceita,
@@ -3856,56 +3857,44 @@ function limparPedidoDesbloqueio() {
  * Retorna HTML do parcial de vendas para o modal no CRM Web.
  */
 function exibirMensagemAguardandoWeb() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var dashSheet = ss.getSheetByName('2 - Dashboard');
-  var vendasSheet = ss.getSheetByName('1 - Vendas');
+  try {
+    var hoje         = new Date();
+    var dataFormatada= Utilities.formatDate(hoje, Session.getScriptTimeZone(), 'dd/MM');
+    var mesCorrente  = Utilities.formatDate(hoje, Session.getScriptTimeZone(), 'MM/yyyy');
 
-  if (!dashSheet || !vendasSheet) return '<div style="padding:12px;color:red;">Abas não encontradas.</div>';
+    // Usa getDashboard() para garantir dados do mês vigente calculados ao vivo
+    var d = getDashboard(null, null);
+    if (!d || d.erro) return '<div style="padding:12px;color:red;">Erro ao calcular dados: ' + (d && d.erro ? d.erro : 'tente novamente') + '</div>';
 
-  var dataRange = dashSheet.getRange('D6:S26').getValues();
-  var vendaHojenumero = Math.round(_num(dataRange[0][0]));
-  var movelHoje       = Math.round(_num(dataRange[2][0]));
-  var totalInstalacoes= Math.round(_num(dataRange[0][5]));
-  var emCampo         = Math.round(_num(dataRange[2][7]));
-  var totalVBR        = Math.round(_num(dataRange[6][7]));
-  var tendenciaVBR    = Math.round(_num(dataRange[8][7]));
-  var ticketMedio     = _num(dataRange[7][9]);
-  var cancelamento    = (_num(dataRange[7][11]) * 100).toFixed(1);
-  var backlog         = _num(dataRange[6][13]);
-  var tendenciaInst   = Math.round(_num(dataRange[0][15]));
-  var vendaDU         = _num(dataRange[20][1]);
+    // Funil a partir dos dados calculados pelo getDashboard
+    var funil   = d.funil || {};
+    var quente  = (funil['AG ACEITE']  || 0) + (funil['AG AUDITORIA']  || 0);
+    var morno   = (funil['AG COMPROVANTE'] || 0) + (funil['AG DOC'] || 0);
+    var frio    = (funil['EM NEGOCIACAO'] || 0) + (funil['AG QUALIDADE'] || 0);
+    var totalFunil = quente + morno + frio;
 
-  var hoje         = new Date();
-  var dataFormatada= Utilities.formatDate(hoje, Session.getScriptTimeZone(), 'dd/MM');
-  var mesCorrente  = Utilities.formatDate(hoje, Session.getScriptTimeZone(), 'MM/yyyy');
+    var mensagem =
+      '🚀 *Parcial do dia:* ' + dataFormatada + '\n' +
+      '🌐 ' + Math.round(d.fibraHoje || 0) + ' Fibras Ativadas\n' +
+      '📱 ' + Math.round(d.movelHoje || 0) + ' Chips Ativados\n' +
+      '👷‍♂️ ' + Math.round(d.emCampo  || 0) + ' Inst. em campo\n' +
+      '\n📊 *Funil de Vendas*: ' + totalFunil + '\n' +
+      '🔥 ' + quente + ' Quente\n' +
+      '🕑 ' + morno  + ' Morno\n' +
+      '❄️ ' + frio   + ' Frio\n' +
+      '\n🗓 *Consolidado:* ' + mesCorrente + '\n' +
+      '👷🏻 ' + Math.round(d.instalacoesMes || 0) + ' Instalações (' + Math.round(d.tendenciaInstal || 0) + ')\n' +
+      '📄 ' + Math.round(d.vendaBrutaMes  || 0) + ' Venda Bruta ('  + Math.round(d.tendenciaVendas || 0) + ')\n' +
+      '🏷 ' + (d.vendaDU || 0).toFixed(2)   + ' Venda DU\n' +
+      '💰 R$ ' + (d.ticketMedio || 0).toFixed(2) + ' Ticket Médio\n' +
+      '⏳ ' + Math.round(d.backlog || 0) + ' Backlog\n' +
+      '❌ ' + (d.cancelPct || 0).toFixed(1) + '% Canc. Comercial';
 
-  var mensagem = '🚀 *Parcial do dia:* ' + dataFormatada + '\n🌐 ' + vendaHojenumero + ' Fibras Ativadas\n📱 ' + movelHoje + ' Chips Ativados\n👷‍♂️ ' + emCampo + ' Inst. em campo\n';
-
-  var ultimaLinha = vendasSheet.getLastRow();
-  if (ultimaLinha >= 2) {
-    var dadosVendas = vendasSheet.getRange(2, 2, ultimaLinha - 1, 3).getValues();
-    var grupos = {
-      '🔥 Quente': { total: 0, chaves: ['AG ACEITE','AG AUDITORIA'] },
-      '🕑 Morno':  { total: 0, chaves: ['AG COMPROVANTE','AG DOC'] },
-      '❄️ Frio':   { total: 0, chaves: ['EM NEGOCIAÇÃO','AG QUALIDADE'] }
-    };
-    dadosVendas.forEach(function(linha) {
-      var produto = String(linha[0]).trim().toUpperCase();
-      if (produto.indexOf('FIBRA') > -1) {
-        var st = String(linha[2]).trim().toUpperCase();
-        if (grupos['🔥 Quente'].chaves.indexOf(st) > -1) grupos['🔥 Quente'].total++;
-        else if (grupos['🕑 Morno'].chaves.indexOf(st) > -1) grupos['🕑 Morno'].total++;
-        else if (grupos['❄️ Frio'].chaves.indexOf(st) > -1) grupos['❄️ Frio'].total++;
-      }
-    });
-    var totalFunil = grupos['🔥 Quente'].total + grupos['🕑 Morno'].total + grupos['❄️ Frio'].total;
-    mensagem += '\n📊 *Funil de Vendas*: ' + totalFunil + '\n🔥 ' + grupos['🔥 Quente'].total + ' Quente\n🕑 ' + grupos['🕑 Morno'].total + ' Morno\n❄️ ' + grupos['❄️ Frio'].total + ' Frio\n';
+    return '<pre id="texto" style="white-space:pre-wrap;font-size:13px;line-height:1.6;font-family:monospace;background:var(--surface2,#1e1e2e);color:var(--text,#cdd6f4);padding:12px;border-radius:6px;border:1px solid var(--border,#313244);">' + mensagem.trim() + '</pre>'
+      + '<button onclick="navigator.clipboard.writeText(document.getElementById(\'texto\').innerText).then(function(){var b=this;b.innerText=\'✅ Copiado!\';setTimeout(function(){b.innerText=\'📋 Copiar WhatsApp\'},2500)}.bind(this))" style="width:100%;margin-top:10px;background:#25d366;color:#fff;border:none;padding:12px;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">📋 Copiar WhatsApp</button>';
+  } catch(e) {
+    return '<div style="padding:12px;color:red;">❌ Erro: ' + e.message + '</div>';
   }
-
-  mensagem += '\n🗓 *Consolidado:* ' + mesCorrente + '\n👷🏻 ' + totalInstalacoes + ' Instalações (' + tendenciaInst + ')\n📄 ' + totalVBR + ' Venda Bruta (' + tendenciaVBR + ')\n🏷 ' + vendaDU.toFixed(2) + ' Venda DU\n💰 R$ ' + ticketMedio.toFixed(2) + ' Ticket Médio\n⏳ ' + backlog + ' Backlog\n❌ ' + cancelamento + '% Canc. Comercial';
-
-  return '<pre id="texto" style="white-space:pre-wrap;font-size:13px;line-height:1.6;font-family:monospace;background:var(--surface2,#1e1e2e);color:var(--text,#cdd6f4);padding:12px;border-radius:6px;border:1px solid var(--border,#313244);">' + mensagem.trim() + '</pre>'
-    + '<button onclick="navigator.clipboard.writeText(document.getElementById(\'texto\').innerText).then(function(){var b=this;b.innerText=\'✅ Copiado!\';setTimeout(function(){b.innerText=\'📋 Copiar WhatsApp\'},2500)}.bind(this))" style="width:100%;margin-top:10px;background:#25d366;color:#fff;border:none;padding:12px;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">📋 Copiar WhatsApp</button>';
 }
 
 /**
