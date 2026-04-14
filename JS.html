@@ -7812,47 +7812,52 @@ function mostrarPainel(v) {
   var mapsUrl = endCompleto ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(endCompleto) : '';
 
   var html =
-    // ── 1. CLIENTE ───────────────��──────────────────────────────────────────
-    _secaoPainel('👤 Cliente', [
-      ['Nome',       v.cliente],
-      ['CPF/CNPJ',   v.cpf],
-      ['Código',     v.codCli],
-      ['ID Contrato',v.contrato],
-      ['WhatsApp',   v.whats],
-      ['Telefone',   v.tel]
-    ]) +
-    // Endereço com link Maps
-// Endereço com link Maps
-    '<div class="painel-secao">' +
-      '<div class="painel-secao-titulo">📍 Endereço</div>' +
-      (v.rua    ? _linhaPainelHtml('Rua', esc((v.rua || '') + (v.num ? ', ' + v.num : '') + (v.complemento ? ' — ' + v.complemento : ''))) : '') +
-      (v.bairro ? _linhaPainelHtml('Bairro', esc(v.bairro)) : '') +
-      (v.cidade ? _linhaPainelHtml('Cidade / UF', esc((v.cidade || '') + (v.uf ? ' / ' + v.uf : ''))) : '') +
-      (v.cep    ? _linhaPainelHtml('CEP', esc(v.cep)) : '') +
-      _linhaPainelHtml('Sistema', esc(v.sistema || '—')) +
-      _linhaPainelHtml('Segmentação', esc(v.segmentacao || '—')) +
-      (mapsUrl  ? _linhaPainelHtml('Maps', '<a href="' + mapsUrl + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;font-size:12px;">Abrir no Google Maps ↗</a>') : '') +
-    '</div>' +
-
-    // ── 2. STATUS ───────────────────────────────────────────────────────────
-    _secaoPainel('📌 Status', [
+    // ── 1. CLASSIFICAÇÃO ────────────────────────────────────────────────────
+    _secaoGrid2('⭐ Classificação', [
       ['Status',      v.status],
       ['Pré-Status',  v.preStatus],
       ['Responsável', v.resp],
       ['Canal',       v.canal]
     ]) +
 
-    // ── 3. PLANO / PRODUTO ──────────────────────────────────────────────────
-    _secaoPainel('📦 Plano & Produto', [
-      ['Produto',      v.produto],
-      ['Plano',        v.plano],
-      ['Valor',        v.valor],
-      ['Vencimento',   v.venc],
-      ['Pagamento',    v.fat],
-      ['Linha Móvel',  v.linhaMovel]
+    // ── 2. CLIENTE ──────────────────────────────────────────────────────────
+    _secaoGrid2('👤 Cliente', [
+      ['Nome',        v.cliente,  true],
+      ['CPF/CNPJ',    v.cpf],
+      ['WhatsApp',    v.whats],
+      ['Código',      v.codCli    || '—'],
+      ['ID Contrato', v.contrato  || '—'],
+      ['Telefone',    v.tel       || '—']
     ]) +
 
-    // ── 4. DATAS ────────────────────────────────────────────────────────────
+    // ── 3. ENDEREÇO ─────────────────────────────────────────────────────────
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📍 Endereço</div>' +
+      '<div class="painel-grid-2">' +
+        '<div class="painel-linha"><span class="painel-lbl">Rua</span><span class="painel-val">' + esc(v.rua || '—') + '</span></div>' +
+        '<div class="painel-linha"><span class="painel-lbl">Nº Fachada</span><span class="painel-val">' + esc(v.num || '—') + '</span></div>' +
+        '<div class="painel-linha"><span class="painel-lbl">Complemento</span><span class="painel-val">' + esc(v.complemento || '—') + '</span></div>' +
+        '<div class="painel-linha"><span class="painel-lbl">Bairro</span><span class="painel-val">' + esc(v.bairro || '—') + '</span></div>' +
+        '<div class="painel-linha"><span class="painel-lbl">Cidade</span><span class="painel-val">' + esc(v.cidade || '—') + '</span></div>' +
+        '<div class="painel-linha"><span class="painel-lbl">UF</span><span class="painel-val">' + esc(v.uf || '—') + '</span></div>' +
+        '<div class="painel-linha"><span class="painel-lbl">CEP</span><span class="painel-val">' + esc(v.cep || '—') + '</span></div>' +
+        '<div class="painel-linha"><span class="painel-lbl">Sistema</span><span class="painel-val">' + esc(v.sistema || '—') + '</span></div>' +
+        '<div class="painel-linha-full"><span class="painel-lbl">Segmentação</span><span class="painel-val">' + esc(v.segmentacao || '—') + '</span></div>' +
+        (mapsUrl ? '<div class="painel-linha-full"><span class="painel-lbl">Maps</span><span class="painel-val"><a href="' + mapsUrl + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">Abrir no Google Maps ↗</a></span></div>' : '') +
+      '</div>' +
+    '</div>' +
+
+    // ── 4. PLANO & PRODUTO ──────────────────────────────────────────────────
+    _secaoGrid2('📦 Plano & Produto', [
+      ['Produto',     v.produto],
+      ['Plano',       v.plano],
+      ['Valor',       v.valor,    true],
+      ['Vencimento',  v.venc      || '—'],
+      ['Pagamento',   v.fat       || '—'],
+      ['Linha Móvel', v.linhaMovel|| '—']
+    ]) +
+
+    // ── 5. DATAS ────────────────────────────────────────────────────────────
     '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">📅 Datas</div>' +
       ((function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? _linhaPainelHtml('Ativação', esc(d)) : ''; })()) +
@@ -7873,15 +7878,15 @@ function mostrarPainel(v) {
       (v.instal ? _linhaPainelHtml('Instalação', esc(_fmtData(v.instal))) : '') +
     '</div>' +
 
-    // ── 5. OBSERVAÇÃO ───────────────────────────────────────────────────────
-    (v.observacao ?
-      '<div class="painel-secao">' +
-        '<div class="painel-secao-titulo">📝 Observação</div>' +
-        '<div class="painel-linha" style="display:block;padding:8px 0">' +
-          '<span class="painel-val" style="color:var(--muted);font-size:12px;line-height:1.6;white-space:pre-wrap;text-align:left;">' + esc(v.observacao) + '</span>' +
-        '</div>' +
-      '</div>'
-    : '');
+    // ── 6. OBSERVAÇÃO ───────────────────────────────────────────────────────
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📝 Observação</div>' +
+      '<div class="painel-linha" style="display:block;padding:8px 0">' +
+        '<span class="painel-val" style="color:' + (v.observacao ? 'var(--text)' : 'var(--muted)') + ';font-size:12px;line-height:1.6;white-space:pre-wrap;text-align:left;">' +
+          esc(v.observacao || '—') +
+        '</span>' +
+      '</div>' +
+    '</div>';
 
   document.getElementById('painelScroll').innerHTML = html;
 
@@ -7930,6 +7935,26 @@ function _linhaPainelHtml(lbl, htmlVal) {
   return '<div class="painel-linha">' +
     '<span class="painel-lbl">' + esc(lbl) + '</span>' +
     '<span class="painel-val">' + htmlVal + '</span>' +
+  '</div>';
+}
+
+// Seção com grid 2 colunas — pares de campos lado a lado; cada item: [lbl, val, full?]
+// full=true força a linha a ocupar as 2 colunas
+function _secaoGrid2(titulo, itens) {
+  var rows = '';
+  for (var i = 0; i < itens.length; i++) {
+    var lbl  = itens[i][0];
+    var val  = String(itens[i][1] != null && itens[i][1] !== '' ? itens[i][1] : '—');
+    var full = itens[i][2] || false;
+    var cls  = full ? 'painel-linha-full' : 'painel-linha';
+    rows += '<div class="' + cls + '">' +
+      '<span class="painel-lbl">' + esc(lbl) + '</span>' +
+      '<span class="painel-val">' + esc(val) + '</span>' +
+    '</div>';
+  }
+  return '<div class="painel-secao">' +
+    '<div class="painel-secao-titulo">' + titulo + '</div>' +
+    '<div class="painel-grid-2">' + rows + '</div>' +
   '</div>';
 }
 

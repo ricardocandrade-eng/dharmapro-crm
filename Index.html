@@ -38,7 +38,7 @@
       --text:     #e4e8f5;
       --muted:    #7a82a0;
       --radius:   12px;
-      --panel-w:  320px;
+      --panel-w:  400px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -493,6 +493,14 @@
     .painel-linha:last-child { border-bottom: none; }
     .painel-lbl { color: var(--muted); flex-shrink: 0; margin-right: 8px; }
     .painel-val { color: var(--text); font-weight: 600; text-align: right; word-break: break-word; max-width: 65%; }
+    /* Layout 2 colunas no painel read-only */
+    .painel-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+    .painel-grid-2 .painel-linha { flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 8px 6px 0; border-bottom: 1px solid var(--border); }
+    .painel-grid-2 .painel-linha:nth-child(odd) { padding-right: 10px; border-right: 1px solid var(--border); }
+    .painel-grid-2 .painel-linha .painel-val { text-align: left; max-width: 100%; }
+    .painel-linha-full { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: flex-start; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+    .painel-linha-full:last-child { border-bottom: none; }
+    .painel-linha-full .painel-val { color: var(--text); font-weight: 600; text-align: right; word-break: break-word; max-width: 65%; }
 
     /* Ações do painel */
     .painel-acoes {
