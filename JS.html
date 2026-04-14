@@ -300,6 +300,12 @@ function painelToggleEdicao() {
       }
     }
 
+    // Seção Datas (agendamento + turno)
+    var _secaoDatas = document.getElementById('pif-secao-datas');
+    if (_secaoDatas) _secaoDatas.style.display = v.agenda ? '' : 'none';
+    _pifSet('pif-agenda', _agendaToInputDate(v.agenda || ''));
+    _pifSetSelect('pif-turno', v.turno || '');
+
     // Seção Móvel
     var _ehMovel = (v.produto || '').toUpperCase().indexOf('MÓVEL') > -1 || (v.produto || '').toUpperCase().indexOf('MOVEL') > -1;
     var _secaoMovel = document.getElementById('pif-secao-movel');
@@ -370,11 +376,23 @@ function pifSalvar() {
     portabilidade: document.getElementById('pif-portabilidade').value,
     // Campos não editados no inline — preserva os originais
     dataAtiv:      v.dataAtiv   || '',
-    agenda:        v.agenda     || '',
-    turno:         v.turno      || '',
     instal:        v.instal     || '',
-    statusPAP:     v.statusPAP  || '',
-    reagendamentos: v.reagendamentos || 0
+    // Agenda: converte YYYY-MM-DD → DD/MM/YYYY para o backend
+    agenda: (function() {
+      var raw = document.getElementById('pif-agenda') ? document.getElementById('pif-agenda').value : '';
+      if (!raw) return v.agenda || '';
+      var p = raw.split('-');
+      return p[2] + '/' + p[1] + '/' + p[0];
+    })(),
+    turno: document.getElementById('pif-turno') ? document.getElementById('pif-turno').value : (v.turno || ''),
+    // Reagendamentos: incrementa se a data mudou
+    reagendamentos: (function() {
+      var raw = document.getElementById('pif-agenda') ? document.getElementById('pif-agenda').value : '';
+      var novaData = raw ? (function(){ var p=raw.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; })() : '';
+      var dataOriginal = v.agenda || '';
+      return (novaData && novaData !== dataOriginal) ? (v.reagendamentos || 0) + 1 : (v.reagendamentos || 0);
+    })(),
+    statusPAP:     v.statusPAP  || ''
   };
 
   // Diagnóstico temporário
