@@ -209,6 +209,9 @@ function painelToggleEdicao() {
     _pifSet('pif-cliente',    v.cliente    || '');
     _pifSet('pif-cpf',        v.cpf        || '');
     _pifSet('pif-whats',      v.whats      || '');
+    _pifSet('pif-tel',        v.tel        || '');
+    _pifSet('pif-codCli',     v.codCli     || '');
+    _pifSet('pif-contrato',   v.contrato   || '');
     _pifSet('pif-cep',        v.cep        || '');
     _pifSet('pif-rua',        v.rua        || '');
     _pifSet('pif-num',        v.num        || '');
@@ -219,6 +222,8 @@ function painelToggleEdicao() {
     _pifSet('pif-sistema',    v.sistema    || '');
     _pifSet('pif-segmentacao',v.segmentacao|| '');
     _pifSet('pif-valor',      v.valor      || '');
+    _pifSet('pif-venc',       v.venc       || '');
+    _pifSet('pif-fat',        v.fat        || '');
     _pifSet('pif-observacao', v.observacao || '');
 
     // Preencher responsável — carrega lista completa do servidor
@@ -356,12 +361,15 @@ function pifSalvar() {
     plano:       document.getElementById('pif-plano').value,
     valor:       document.getElementById('pif-valor').value.trim(),
     observacao:    document.getElementById('pif-observacao').value.trim(),
+    tel:           document.getElementById('pif-tel').value.trim(),
+    codCli:        document.getElementById('pif-codCli').value.trim(),
+    contrato:      document.getElementById('pif-contrato').value.trim(),
+    venc:          document.getElementById('pif-venc').value.trim(),
+    fat:           document.getElementById('pif-fat').value.trim(),
     linhaMovel:    document.getElementById('pif-linhaMovel').value.trim(),
     portabilidade: document.getElementById('pif-portabilidade').value,
     // Campos não editados no inline — preserva os originais
     dataAtiv:      v.dataAtiv   || '',
-    codCli:        v.codCli     || '',
-    contrato:      v.contrato   || '',
     agenda:        v.agenda     || '',
     turno:         v.turno      || '',
     instal:        v.instal     || '',
