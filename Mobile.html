@@ -1483,7 +1483,7 @@ function abrirSheet(idx) {
   // Dados cadastrais
   body += '<div class="sheet-secao"><div class="sheet-secao-titulo">📋 Dados Cadastrais</div>';
   [
-    ['CPF/CNPJ', v.cpf], ['Contrato', v.contrato], ['Cod. Cliente', v.codCli],
+    ['CPF/CNPJ', v.cpf], ['Contrato', v.contrato],
     ['Plano', v.plano], ['Valor', v.valor ? fmtBRL(v.valor) : ''], ['Sistema', v.sistema]
   ].forEach(function(r) {
     if (r[1]) body += '<div class="sheet-linha"><span class="sheet-lbl">' + r[0] + '</span><span class="sheet-val">' + esc(r[1]) + '</span></div>';

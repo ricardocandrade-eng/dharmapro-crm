@@ -150,6 +150,17 @@ function pifOnProdutoChange() {
   _filtrarStatusPorProduto(produto);
 }
 
+function _validarContratoFormato(valor, sistema) {
+  if (!valor) return null;
+  var v = String(valor).trim();
+  if (!/^\d+$/.test(v)) return 'ID inválido. Use apenas números.';
+  var sis = (sistema || '').toUpperCase();
+  var msgErro = 'ID inválido. Use:\n• NG: 9 dígitos começando com 202\n• Adapter: 7 dígitos começando com 3';
+  if (sis.indexOf('NG') > -1)      return /^202\d{6}$/.test(v) ? null : msgErro;
+  if (sis.indexOf('ADAPTER') > -1) return /^3\d{6}$/.test(v)   ? null : msgErro;
+  return (/^202\d{6}$/.test(v) || /^3\d{6}$/.test(v)) ? null : msgErro;
+}
+
 function _filtrarStatusPorProduto(produto, statusAtual) {
   var sel = document.getElementById('pif-status');
   if (!sel) return;
@@ -259,7 +270,6 @@ function painelToggleEdicao() {
     _pifSet('pif-cpf',        v.cpf        || '');
     _pifSet('pif-whats',      v.whats      || '');
     _pifSet('pif-tel',        v.tel        || '');
-    _pifSet('pif-codCli',     v.codCli     || '');
     _pifSet('pif-contrato',   v.contrato   || '');
     _pifSet('pif-nomeMae',    v.nomeMae    || '');
     _pifSet('pif-dtNasc',     v.dtNasc     || '');
@@ -420,7 +430,6 @@ function pifSalvar() {
     valor:       document.getElementById('pif-valor').value.trim(),
     observacao:    document.getElementById('pif-observacao').value.trim(),
     tel:           document.getElementById('pif-tel').value.trim(),
-    codCli:        document.getElementById('pif-codCli').value.trim(),
     contrato:      document.getElementById('pif-contrato').value.trim(),
     nomeMae:       document.getElementById('pif-nomeMae').value.trim(),
     dtNasc:        document.getElementById('pif-dtNasc').value,
@@ -449,6 +458,14 @@ function pifSalvar() {
     })(),
     statusPAP:     v.statusPAP  || ''
   };
+
+  var _errPifContrato = _validarContratoFormato(dados.contrato, document.getElementById('pif-sistema').value);
+  if (_errPifContrato) {
+    mostrarToast(_errPifContrato, 'warning');
+    var _elC = document.getElementById('pif-contrato');
+    if (_elC) _elC.focus();
+    return;
+  }
 
   // Diagnóstico temporário
   mostrarToast('🔍 Salvando linha ' + String(v.linha) + ' — ' + dados.cliente, 'info');
@@ -509,7 +526,7 @@ function _abrirModalStatus2() {
   if (!v) return;
 
   // Limpa erros
-  ['ms2-dataAtiv','ms2-codCli','ms2-contrato','ms2-agenda','ms2-turno'].forEach(function(id) {
+  ['ms2-dataAtiv','ms2-contrato','ms2-agenda','ms2-turno'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.classList.remove('erro');
     var err = document.getElementById(id.replace('ms2-','ms2-err-'));
@@ -518,7 +535,6 @@ function _abrirModalStatus2() {
 
   // Pré-preenche campos existentes
   _ms2Set('ms2-dataAtiv', v.dataAtiv || '');
-  _ms2Set('ms2-codCli',   v.codCli   || '');
   _ms2Set('ms2-contrato', v.contrato || '');
   _ms2Set('ms2-agenda',   v.agenda   || '');
   _ms2Set('ms2-turno',    v.turno    || '');
@@ -642,10 +658,17 @@ function _confirmarStatus2() {
   // Valida obrigatórios
   var ok = true;
   ok = _ms2MarcaErro('ms2-dataAtiv', 'ms2-err-dataAtiv', !document.getElementById('ms2-dataAtiv').value) && ok;
-  // ok = _ms2MarcaErro('ms2-codCli',   'ms2-err-codCli',   !document.getElementById('ms2-codCli').value.trim()) && ok;
-  // ok = _ms2MarcaErro('ms2-contrato', 'ms2-err-contrato', !document.getElementById('ms2-contrato').value.trim()) && ok;
   ok = _ms2MarcaErro('ms2-agenda',   'ms2-err-agenda',   !document.getElementById('ms2-agenda').value) && ok;
   ok = _ms2MarcaErro('ms2-turno',    'ms2-err-turno',    !document.getElementById('ms2-turno').value) && ok;
+  var _errMs2Contrato = _validarContratoFormato(
+    document.getElementById('ms2-contrato').value,
+    (AppState.get('vendaSelecionada') || {}).sistema || ''
+  );
+  if (_errMs2Contrato) {
+    _ms2MarcaErro('ms2-contrato', 'ms2-err-contrato', true);
+    document.getElementById('ms2-err-contrato').textContent = _errMs2Contrato;
+    ok = false;
+  }
   if (!ok) { mostrarToast('⚠️ Preencha todos os campos obrigatórios.', 'warning'); return; }
 
   var v = AppState.get('vendaSelecionada');
@@ -673,7 +696,6 @@ function _confirmarStatus2() {
     sistema:     document.getElementById('ms2-sistema').value     || v.sistema     || '',
     segmentacao: document.getElementById('ms2-segmentacao').value || v.segmentacao || '',
     dataAtiv:   document.getElementById('ms2-dataAtiv').value,
-    codCli:     document.getElementById('ms2-codCli').value.trim(),
     contrato:   document.getElementById('ms2-contrato').value.trim(),
     agenda:     document.getElementById('ms2-agenda').value,
     turno:      document.getElementById('ms2-turno').value,
@@ -769,7 +791,6 @@ function _confirmarStatus3() {
     sistema:     v.sistema     || '',
     segmentacao: v.segmentacao || '',
     dataAtiv:   v.dataAtiv   || '',
-    codCli:     v.codCli     || '',
     contrato:   v.contrato   || '',
     agenda:     v.agenda     || '',
     turno:      v.turno      || '',
@@ -1554,8 +1575,7 @@ var _CAMPOS_AG_INST = [
   { fld: 'fat',       id: 'f_fat',       lbl: 'Pagamento'               },
   { fld: 'agenda',    id: 'f_agenda',    lbl: 'Data Agendamento'        },
   { fld: 'turno',     id: 'f_turno',     lbl: 'Turno'                   },
-  { fld: 'contrato',  id: 'f_contrato',  lbl: 'ID Contrato / ID Móvel'  },
-  { fld: 'codCli',    id: 'f_codCli',    lbl: 'Código Cliente'          }
+  { fld: 'contrato',  id: 'f_contrato',  lbl: 'ID Contrato / ID Móvel'  }
 ];
 
 function _validarCamposAguardandoInstalacao() {
@@ -1670,8 +1690,7 @@ function _abrirModalPendencias(v) {
     _fldHtml('mp_fat','Pagamento', _sel('mp_fat',['Boleto Bancário','Cartão de Crédito','Pix Automático','Débito em Conta'],v.fat)) +
     _fldHtml('mp_agenda','Data Agendamento', _inp('mp_agenda','date',v.agenda)) +
     _fldHtml('mp_turno','Turno', _sel('mp_turno',['Manhã (08h às 12h)','Tarde (13h às 17h)'],v.turno)) +
-    _fldHtml('mp_contrato','ID Contrato / ID Móvel', _inp('mp_contrato','text',v.contrato,'Gerado no sistema')) +
-    _fldHtml('mp_codCli','Código Cliente', _inp('mp_codCli','text',v.codCli,'Gerado no sistema'));
+    _fldHtml('mp_contrato','ID Contrato / ID Móvel', _inp('mp_contrato','text',v.contrato,'Gerado no sistema'));
   var overlay = document.createElement('div');
   overlay.id = 'modalPendencias';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:8000;display:flex;align-items:center;justify-content:center;padding:16px;';
@@ -1707,7 +1726,7 @@ function _cancelarModalPendencias() {
 function _confirmarModalPendencias() {
   var mapa = { mp_dataAtiv:'f_dataAtiv', mp_produto:'f_produto', mp_plano:'f_plano',
     mp_valor:'f_valor', mp_venc:'f_venc', mp_fat:'f_fat',
-    mp_agenda:'f_agenda', mp_turno:'f_turno', mp_contrato:'f_contrato', mp_codCli:'f_codCli' };
+    mp_agenda:'f_agenda', mp_turno:'f_turno', mp_contrato:'f_contrato' };
   var ok = true;
   Object.keys(mapa).forEach(function(mpId) {
     var el = document.getElementById(mpId); var err = document.getElementById(mpId+'_err');
@@ -1828,6 +1847,8 @@ function validarFormulario(dados) {
     clearFieldError('instal');
     if (!dados.instal) { setFieldError('instal', 'Data de Instalação é obrigatória para este status.'); ok = false; }
   }
+  var _errWizContrato = _validarContratoFormato(dados.contrato, dados.sistema);
+  if (_errWizContrato) { mostrarToast(_errWizContrato, 'warning'); ok = false; }
   return ok;
 }
 
@@ -3429,7 +3450,6 @@ function _criarItemVenda(v, index) {
           '<span class="vi-nome" style="color:' + cores.text + ' !important;">' + esc(v.cliente || 'Sem nome') + '</span>' +
           '<div class="vi-ids">' +
             (v.cpf      ? '<span class="vi-id">'                                          + esc(v.cpf)      + '</span>' : '') +
-            (v.codCli   ? '<span class="vi-id-sep">·</span><span class="vi-id">Cód '      + esc(v.codCli)   + '</span>' : '') +
             (v.contrato ? '<span class="vi-id-sep">·</span><span class="vi-id">OS '       + esc(v.contrato) + '</span>' : '') +
           '</div>' +
         '</div>' +
@@ -3497,7 +3517,6 @@ function mostrarPainel(v) {
   document.getElementById('pNome').style.color = '';
   document.getElementById('pCpf').textContent  =
     (v.cpf      ? 'CPF/CNPJ: ' + v.cpf : '') +
-    (v.codCli   ? '  ·  Cód: ' + v.codCli : '') +
     (v.contrato ? '  ·  OS: '  + v.contrato : '');
   document.getElementById('pStatusWrap').innerHTML =
     '<span class="badge badge-status" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
@@ -3512,7 +3531,6 @@ function mostrarPainel(v) {
     _secaoPainel('👤 Cliente', [
       ['Nome',       v.cliente],
       ['CPF/CNPJ',   v.cpf],
-      ['Código',     v.codCli],
       ['ID Contrato',v.contrato],
       ['WhatsApp',   v.whats],
       ['Telefone',   v.tel]
@@ -4266,9 +4284,6 @@ function _criarFunilCard(v, col) {
       (v.dataAtiv
         ? '<div class="funil-card-row">⚡ Ativação: ' + esc(_fmtData(v.dataAtiv)) + '</div>'
         : '') +
-      (v.codCli
-        ? '<div class="funil-card-row" style="font-size:10px;color:var(--muted)">Cód: ' + esc(v.codCli) + '</div>'
-        : '') +
       (v.contrato
         ? '<div class="funil-card-row" style="font-size:10px;color:var(--muted)">ID Contrato: ' + esc(v.contrato) + '</div>'
         : '') +
@@ -4928,9 +4943,6 @@ function _criarLeadCard(v) {
       (v.agenda   ? '<div class="leads-card-row">📅 ' + esc(v.agenda) + (v.turno ? ' · ' + esc(v.turno.split(' ')[0]) : '') + '</div>' : '') +
       (v.preStatus && v.temperatura !== 'aguardando'
         ? '<div class="leads-temp-badge ' + esc(v.temperatura) + '">' + t.emoji + ' ' + esc(v.preStatus) + '</div>'
-        : '') +
-      (v.codCli
-        ? '<div class="leads-card-row" style="font-size:10px;color:var(--muted)">Cód: ' + esc(v.codCli) + '</div>'
         : '') +
       (v.contrato
         ? '<div class="leads-card-row" style="font-size:10px;color:var(--muted)">ID Contrato: ' + esc(v.contrato) + '</div>'
@@ -5660,7 +5672,7 @@ var STATUS_CORES = {
 // ─── CAMPOS DO FORMULÁRIO ──────────────────────────────────────────────────
 var CAMPOS_FORM = [
   'linha','status','dataAtiv','canal','cliente','cpf',
-  'whats','tel','codCli','resp','cep','cidade',
+  'whats','tel','resp','cep','cidade',
   'bairro','rua','num','complemento','uf','sistema','produto',
   'plano','valor','venc','fat','agenda','turno',
   'contrato','instal','linhaMovel','statusPAP','preStatus'
@@ -6369,8 +6381,7 @@ var _CAMPOS_AG_INST = [
   { fld: 'fat',       id: 'f_fat',       lbl: 'Pagamento'               },
   { fld: 'agenda',    id: 'f_agenda',    lbl: 'Data Agendamento'        },
   { fld: 'turno',     id: 'f_turno',     lbl: 'Turno'                   },
-  { fld: 'contrato',  id: 'f_contrato',  lbl: 'ID Contrato / ID Móvel'  },
-  { fld: 'codCli',    id: 'f_codCli',    lbl: 'Código Cliente'          }
+  { fld: 'contrato',  id: 'f_contrato',  lbl: 'ID Contrato / ID Móvel'  }
 ];
 
 function _validarCamposAguardandoInstalacao() {
@@ -6485,8 +6496,7 @@ function _abrirModalPendencias(v) {
     _fldHtml('mp_fat','Pagamento', _sel('mp_fat',['Boleto Bancário','Cartão de Crédito','Pix Automático','Débito em Conta'],v.fat)) +
     _fldHtml('mp_agenda','Data Agendamento', _inp('mp_agenda','date',v.agenda)) +
     _fldHtml('mp_turno','Turno', _sel('mp_turno',['Manhã (08h às 12h)','Tarde (13h às 17h)'],v.turno)) +
-    _fldHtml('mp_contrato','ID Contrato / ID Móvel', _inp('mp_contrato','text',v.contrato,'Gerado no sistema')) +
-    _fldHtml('mp_codCli','Código Cliente', _inp('mp_codCli','text',v.codCli,'Gerado no sistema'));
+    _fldHtml('mp_contrato','ID Contrato / ID Móvel', _inp('mp_contrato','text',v.contrato,'Gerado no sistema'));
   var overlay = document.createElement('div');
   overlay.id = 'modalPendencias';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:8000;display:flex;align-items:center;justify-content:center;padding:16px;';
@@ -6522,7 +6532,7 @@ function _cancelarModalPendencias() {
 function _confirmarModalPendencias() {
   var mapa = { mp_dataAtiv:'f_dataAtiv', mp_produto:'f_produto', mp_plano:'f_plano',
     mp_valor:'f_valor', mp_venc:'f_venc', mp_fat:'f_fat',
-    mp_agenda:'f_agenda', mp_turno:'f_turno', mp_contrato:'f_contrato', mp_codCli:'f_codCli' };
+    mp_agenda:'f_agenda', mp_turno:'f_turno', mp_contrato:'f_contrato' };
   var ok = true;
   Object.keys(mapa).forEach(function(mpId) {
     var el = document.getElementById(mpId); var err = document.getElementById(mpId+'_err');
@@ -6643,6 +6653,8 @@ function validarFormulario(dados) {
     clearFieldError('instal');
     if (!dados.instal) { setFieldError('instal', 'Data de Instalação é obrigatória para este status.'); ok = false; }
   }
+  var _errWizContrato = _validarContratoFormato(dados.contrato, dados.sistema);
+  if (_errWizContrato) { mostrarToast(_errWizContrato, 'warning'); ok = false; }
   return ok;
 }
 
@@ -7825,7 +7837,6 @@ function _criarItemVenda(v, index) {
           '<span class="vi-nome" style="color:' + cores.text + ' !important;">' + esc(v.cliente || 'Sem nome') + '</span>' +
           '<div class="vi-ids">' +
             (v.cpf      ? '<span class="vi-id">'                                          + esc(v.cpf)      + '</span>' : '') +
-            (v.codCli   ? '<span class="vi-id-sep">·</span><span class="vi-id">Cód '      + esc(v.codCli)   + '</span>' : '') +
             (v.contrato ? '<span class="vi-id-sep">·</span><span class="vi-id">OS '       + esc(v.contrato) + '</span>' : '') +
           '</div>' +
         '</div>' +
@@ -7895,7 +7906,6 @@ function mostrarPainel(v) {
   document.getElementById('pNome').style.color = '';
   document.getElementById('pCpf').textContent  =
     (v.cpf      ? 'CPF/CNPJ: ' + v.cpf : '') +
-    (v.codCli   ? '  ·  Cód: ' + v.codCli : '') +
     (v.contrato ? '  ·  OS: '  + v.contrato : '');
   document.getElementById('pStatusWrap').innerHTML =
     '<span class="badge badge-status" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
@@ -7919,7 +7929,6 @@ function mostrarPainel(v) {
       ['Nome',        v.cliente,  true],
       ['CPF/CNPJ',    v.cpf],
       ['WhatsApp',    v.whats],
-      ['Código',      v.codCli    || '—'],
       ['ID Contrato', v.contrato  || '—'],
       ['Telefone',    v.tel       || '—'],
       ['Nome da Mãe', v.nomeMae   || '—', true],
