@@ -2996,6 +2996,80 @@ function _limparCacheListaV3() {
   } catch(e) { Logger.log('_limparCacheListaV3 erro: ' + e); }
 }
 
+
+// ── VALIDAÇÃO DE STATUS POR TIPO (onEdit) ────────────────────────────────────
+// Dispara quando o usuário edita a coluna C (Status) na aba "1 - Vendas".
+// Verifica se o status escolhido é permitido para o tipo de produto da col B.
+// Instalar: Extensões → Apps Script → Gatilhos → onEdit → Ao editar
+
+var _STATUS_MOVEL = [
+  '1- Conferencia/Ativação',
+  '2- Aguardando Entrega',
+  '3- Aguardando Retirada',
+  '4- Entregue',
+  '5 - Finalizado',
+  'Pendencia Vero',
+  'Cancelado',
+  'Cancelamento Técnico',
+  'Cancelamento Comercial',
+  'Churn',
+  'Devolvido'
+];
+
+var _STATUS_FIBRA = [
+  '1- Conferencia/Ativação',
+  '2- Aguardando Instalação',
+  '3 - Finalizada/Instalada',
+  'Pendencia Vero',
+  'Cancelado',
+  'Cancelamento Técnico',
+  'Cancelamento Comercial',
+  'Churn',
+  'Devolvido'
+];
+
+function onEdit(e) {
+  if (!e || !e.range) return;
+
+  var range = e.range;
+  var sheet = range.getSheet();
+
+  // Só atua na aba de vendas
+  if (sheet.getName() !== CONFIG.SHEET_NAME) return;
+
+  // Só atua na coluna C (3)
+  if (range.getColumn() !== 3) return;
+
+  // Ignora linha de cabeçalho
+  var row = range.getRow();
+  if (row < 2) return;
+
+  var novoStatus = String(range.getValue()).trim();
+  if (!novoStatus) return;
+
+  // Lê o tipo da coluna B da mesma linha
+  var tipo = String(sheet.getRange(row, 2).getValue()).trim();
+
+  var isMovel = /móvel alone|móvel combo|movel alone|movel combo/i.test(tipo);
+  var isFibra = /fibra alone|fibra combo/i.test(tipo);
+
+  // Se não for nem Móvel nem Fibra, não valida
+  if (!isMovel && !isFibra) return;
+
+  var permitidos = isMovel ? _STATUS_MOVEL : _STATUS_FIBRA;
+  var tipoLabel  = isMovel ? 'Móvel' : 'Fibra';
+
+  if (permitidos.indexOf(novoStatus) === -1) {
+    // Limpa o valor inválido
+    range.clearContent();
+
+    SpreadsheetApp.getUi().alert(
+      'Status inválido para o tipo selecionado (' + tipoLabel + ').\n\n' +
+      'Valores permitidos:\n• ' + permitidos.join('\n• ')
+    );
+  }
+}
+
 function _limparCache() {
   var cache = CacheService.getScriptCache();
   // Remove todos os caches conhecidos de uma vez
