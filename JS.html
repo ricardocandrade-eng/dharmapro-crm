@@ -145,6 +145,55 @@ function pifOnProdutoChange() {
   var ehMovel = produto.toUpperCase().indexOf('MÓVEL') > -1 || produto.toUpperCase().indexOf('MOVEL') > -1;
   var secaoMovel = document.getElementById('pif-secao-movel');
   if (secaoMovel) secaoMovel.style.display = ehMovel ? '' : 'none';
+
+  // Atualiza opções de status conforme o tipo
+  _filtrarStatusPorProduto(produto);
+}
+
+function _filtrarStatusPorProduto(produto, statusAtual) {
+  var sel = document.getElementById('pif-status');
+  if (!sel) return;
+
+  var p = (produto || '').toUpperCase();
+  var ehMovel = p.indexOf('MÓVEL') > -1 || p.indexOf('MOVEL') > -1;
+  var ehFibra = p.indexOf('FIBRA') > -1;
+
+  if (!ehMovel && !ehFibra) return; // produto desconhecido — não mexe no select
+
+  var opcoesMovel = [
+    '1- Conferencia/Ativação',
+    '2- Aguardando Entrega',
+    '3- Aguardando Retirada',
+    '4- Entregue',
+    '5 - Finalizado',
+    'Pendencia Vero',
+    'Cancelado',
+    'Cancelamento Técnico',
+    'Cancelamento Comercial',
+    'Churn',
+    'Devolvido'
+  ];
+  var opcoesFibra = [
+    '1- Conferencia/Ativação',
+    '2- Aguardando Instalação',
+    '3 - Finalizada/Instalada',
+    'Pendencia Vero',
+    'Cancelado',
+    'Cancelamento Técnico',
+    'Cancelamento Comercial',
+    'Churn',
+    'Devolvido'
+  ];
+
+  var lista   = ehMovel ? opcoesMovel : opcoesFibra;
+  var atual   = statusAtual || sel.value;
+  sel.innerHTML = '';
+  lista.forEach(function(s) {
+    var opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    if (s === atual) opt.selected = true;
+    sel.appendChild(opt);
+  });
 }
 
 function _pifPreencherPlanos(planos) {
@@ -203,7 +252,7 @@ function painelToggleEdicao() {
     if (!v) { mostrarToast('Nenhuma venda selecionada.', 'warning'); return; }
 
     // Preencher campos com dados da venda atual
-    _pifSetSelect('pif-status',    v.status    || '');
+    _filtrarStatusPorProduto(v.produto || '', v.status || '');
     _pifSetSelect('pif-preStatus', v.preStatus || '');
     _pifSetSelect('pif-canal',     v.canal     || '');
     _pifSet('pif-cliente',    v.cliente    || '');
