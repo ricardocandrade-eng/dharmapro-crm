@@ -3060,12 +3060,11 @@ function onEdit(e) {
   var tipoLabel  = isMovel ? 'Móvel' : 'Fibra';
 
   if (permitidos.indexOf(novoStatus) === -1) {
-    // Limpa o valor inválido
     range.clearContent();
-
-    SpreadsheetApp.getUi().alert(
-      'Status inválido para o tipo selecionado (' + tipoLabel + ').\n\n' +
-      'Valores permitidos:\n• ' + permitidos.join('\n• ')
+    SpreadsheetApp.getActiveSpreadsheet().toast(
+      'Permitidos: ' + permitidos.join(' | '),
+      '⚠️ Status inválido para ' + tipoLabel,
+      8
     );
   }
 }
