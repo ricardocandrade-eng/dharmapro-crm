@@ -2997,6 +2997,51 @@ function _limparCacheListaV3() {
 }
 
 
+// ── REPARO: preenche Sistema (col Z) e Segmentação (col AA) vazios ────────────
+// Executa UMA vez manualmente no editor Apps Script.
+// Lê a cidade de cada linha e busca sistema/segmentação na aba CIDADES.
+// Só sobrescreve células VAZIAS — não toca em valores já preenchidos.
+function repararSistemaSegmentacao() {
+  var sheet    = _getSheet();
+  var ultLinha = sheet.getLastRow();
+  if (ultLinha < 3) { Logger.log('Nenhuma venda encontrada.'); return; }
+
+  var dados    = sheet.getRange(3, 1, ultLinha - 2, 59).getValues();
+  var cidades  = _getCidades();
+  var c        = CONFIG.COLUNAS;
+
+  // Monta mapa cidade normalizada → { sistema, segmentacao }
+  var mapaCidades = {};
+  for (var ci = 0; ci < cidades.length; ci++) {
+    var chave = _normalizarTexto(cidades[ci][6]);
+    if (chave) mapaCidades[chave] = { sistema: cidades[ci][2] || '', segmentacao: cidades[ci][3] || '' };
+  }
+
+  var corrigidos = 0;
+  for (var i = 0; i < dados.length; i++) {
+    var linha    = dados[i];
+    var cidade   = _normalizarTexto(String(linha[c.CIDADE] || ''));
+    var sistema  = String(linha[c.SISTEMA] || '').trim();
+    var segm     = String(linha[26]        || '').trim();
+
+    if (!cidade) continue;                    // linha sem cidade — pula
+    if (sistema && segm) continue;            // ambos já preenchidos — pula
+    var lookup = mapaCidades[cidade];
+    if (!lookup) continue;                    // cidade não mapeada — pula
+
+    var linhaSheet = i + 3;
+    if (!sistema && lookup.sistema)   sheet.getRange(linhaSheet, c.SISTEMA + 1).setValue(lookup.sistema);
+    if (!segm    && lookup.segmentacao) sheet.getRange(linhaSheet, 27).setValue(lookup.segmentacao);
+    corrigidos++;
+  }
+
+  _limparCache();
+  var msg = 'repararSistemaSegmentacao: ' + corrigidos + ' linha(s) corrigida(s) de ' + dados.length + ' total.';
+  Logger.log(msg);
+  SpreadsheetApp.getActiveSpreadsheet().toast(msg, '✅ Reparo concluído', 10);
+}
+
+
 // ── VALIDAÇÃO DE STATUS POR TIPO (onEdit) ────────────────────────────────────
 // Dispara quando o usuário edita a coluna C (Status) na aba "1 - Vendas".
 // Verifica se o status escolhido é permitido para o tipo de produto da col B.
