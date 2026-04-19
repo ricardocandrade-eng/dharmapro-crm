@@ -298,7 +298,7 @@
     }
     .lista-head h2 { font-size: 18px; font-weight: 800; margin-bottom: 12px; }
     .list-controls { display: flex; gap: 8px; flex-wrap: wrap; }
-    .search-wrap { flex: 1; min-width: 160px; position: relative; }
+    .search-wrap { flex: 1.2; min-width: 160px; position: relative; height: 40px; display: flex; align-items: center; }
     .search-wrap input { width: 100%; padding: 9px 12px 9px 34px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--text); font-family: 'Sora', sans-serif; transition: border-color 0.2s; }
     .search-wrap input:focus { outline: none; border-color: var(--accent); }
     .search-wrap input::placeholder { color: var(--muted); }
@@ -1577,14 +1577,14 @@
     .lista-col.painel-aberto { opacity: .45; filter: brightness(.7); pointer-events: none; }
 
     /* ── Filtros da Lista ───────────────────────────────────────────────── */
-    .list-filtros { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 10px; align-items: center; max-width: 660px; }
+    .list-filtros { display: flex; gap: 4px; flex-wrap: nowrap; margin-top: 10px; align-items: center; width: 100%; }
     .filtro-multi { position: relative; }
     .filtro-btn {
       display: flex; align-items: center; justify-content: center; gap: 6px;
-      padding: 0 16px; background: var(--surface2); border: 1.5px solid var(--border);
+      padding: 0 12px; background: var(--surface2); border: 1.5px solid var(--border);
       border-radius: 8px; color: var(--text); font-size: 12px; font-family: 'Sora', sans-serif;
       cursor: pointer; transition: border-color .2s, background .2s, color .2s;
-      flex: 0 1 auto; height: 40px;
+      flex: 1; height: 40px; min-width: 90px;
     }
     .filtro-btn:hover, .filtro-btn.aberto { border-color: var(--accent); }
     .filtro-btn.ativo { border-color: var(--accent); background: rgba(230,62,109,.07); color: var(--accent); }
@@ -2064,14 +2064,11 @@
         <div class="lista-col" id="listaCol">
           <div class="lista-head">
             <h2>Lista de Vendas</h2>
-            <div class="list-controls">
+            <div class="list-filtros" id="listFiltros">
               <div class="search-wrap">
                 <span class="search-icon">🔍</span>
                 <input type="text" id="campoBusca" placeholder="Nome, CPF ou contrato..." oninput="buscaListaInstantanea(this.value)" onkeydown="if(event.key==='Escape') limparBusca()">
               </div>
-              <button class="btn btn-ghost" onclick="recarregarLista()" style="padding:9px 12px;" title="Buscar novos registros da planilha">🔄</button>
-            </div>
-            <div class="list-filtros" id="listFiltros">
               <div class="filtro-multi" data-filtro="status">
                 <button type="button" class="filtro-btn" id="filtroBtnStatus" onclick="_toggleFiltroMenu('status', event)">
                   <span class="filtro-btn-text">Status</span>
@@ -2112,6 +2109,7 @@
                 </button>
                 <div class="filtro-menu" id="filtroMenuResp"></div>
               </div>
+              <button class="btn btn-ghost" onclick="recarregarLista()" style="padding:9px 12px; flex-shrink:0; height:40px;" title="Buscar novos registros da planilha">🔄</button>
               <div class="filtro-chips" id="filtroChipsAtivos"></div>
             </div>
           </div>
