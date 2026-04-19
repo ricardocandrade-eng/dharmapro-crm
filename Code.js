@@ -3469,9 +3469,11 @@ function getDashboard(mes, ano) {
           fibraHoje++;
           fibraHojeCanal[canal] = (fibraHojeCanal[canal] || 0) + 1;
         }
-        // Móvel hoje: mesma lógica
+        // Móvel hoje: statuses ativos de móvel com data de ativação = hoje
         if (isMovel(produto) &&
-          (status === '2- Aguardando Instalação' || status === '3 - Finalizada/Instalada') &&
+          (status === '1- Conferencia/Ativação' || status === '2- Aguardando Entrega' ||
+           status === '3- Aguardando Retirada'  || status === '4- Entregue' ||
+           status === '5 - Finalizado') &&
           isHoje(dAtiv)) {
           movelHoje++;
         }
