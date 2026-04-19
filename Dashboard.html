@@ -251,11 +251,20 @@ function _render(d){
   // Barra instaladas / venda bruta
   (function(){
     var rb=document.getElementById('d_rankBar'),rt=document.getElementById('d_rankTrack'),ri=document.getElementById('d_rankInfo');
-    if(!rb||!rt||!ri||!d.vendaBrutaMes)return;
-    var vb=d.vendaBrutaMes,ins=d.instalacoesMes,tks='';
-    for(var t=0;t<vb;t++)tks+='<div style="flex:1;height:100%;background:'+(t<ins?'#ff4570':'rgba(255,255,255,.10)')+'"></div>';
+    if(!rb||!rt||!ri)return;
+    var vb=Math.max(0,parseInt(d.vendaBrutaMes,10)||0);
+    var ins=Math.max(0,parseInt(d.instalacoesMes,10)||0);
+    var base=Math.max(vb,ins,1),tks='';
+    for(var t=0;t<base;t++){
+      var cor='rgba(255,255,255,.10)';
+      if(t<vb&&t<ins) cor='#ff4570';
+      else if(t<vb) cor='rgba(255,255,255,.22)';
+      else if(t<ins) cor='rgba(255,69,112,.38)';
+      tks+='<div style="flex:1;height:100%;background:'+cor+'"></div>';
+    }
     rt.innerHTML=tks;
     ri.textContent=ins+' / '+vb;
+    ri.style.color=ins>vb?'var(--g4)':'var(--g3)';
     rb.style.display='flex';
   })();
 
