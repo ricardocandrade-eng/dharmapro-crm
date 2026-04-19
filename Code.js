@@ -1837,7 +1837,7 @@ function enviarResumoPAPAdmin(resumoTexto) {
 function getVendasLeads() {
   try {
     // ── Cache com chunks (suporta JSON > 100KB) ────────────────────────
-    var CACHE_KEY = CONFIG.CACHE_PREFIX + 'leads_v1';
+    var CACHE_KEY = CONFIG.CACHE_PREFIX + 'leads_v2';
     var cached = _cacheGetChunked(CACHE_KEY);
     if (cached && Array.isArray(cached.dados) && cached.dados.length > 0) {
       Logger.log('getVendasLeads cache hit: ' + cached.dados.length);
@@ -1974,110 +1974,6 @@ function getVendasLeads() {
     var retornoFast = { dados: resultadoFast, total: resultadoFast.length };
     _cachePutChunked(CACHE_KEY, retornoFast, 300);
     return retornoFast;
-    var linhasMatch = _preScanColuna(sheet, ultimaLinha, colStatus, function(v) {
-      return !!STATUS_LEADS[String(v || '').trim()];
-    });
-    Logger.log('getVendasLeads: pre-scan → ' + linhasMatch.length + ' linhas com status leads');
-    if (linhasMatch.length === 0) return { dados: [], total: 0 };
-
-    // ── FASE 2: LER APENAS OS BLOCOS RELEVANTES ───────────────────────────
-    var blocos    = _agruparBlocos(linhasMatch, 8);
-    var colunasLeads = _getMaxColunaLida([CONFIG.COLUNAS.WHATS]);
-    var registros = _lerBlocos(sheet, blocos, colunasLeads);
-    Logger.log('getVendasLeads: ' + blocos.length + ' blocos lidos, ' + registros.length + ' registros');
-
-    // ── FASE 3: MAPEAR, FILTRAR por produto e classificar temperatura ─────
-    var contadores = { quente: 0, morno: 0, frio: 0, aguardando: 0 };
-    var resultado  = [];
-
-    // Processa em ordem reversa (mais recentes primeiro)
-    for (var j = registros.length - 1; j >= 0; j--) {
-      var entry   = registros[j];
-      var row     = entry.row;
-      var cf = CONFIG.COLUNAS;
-      var status  = String(row[cf.STATUS]  || '').trim();
-      var produto = String(row[cf.PRODUTO] || '').trim().toUpperCase()
-                      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-      // Só FIBRA ALONE ou FIBRA COMBO
-      if (!PRODUTOS_FIBRA[produto.replace(/\s+/g, ' ')]) continue;
-
-      var colAK = String(row[cf.PRE_STATUS] || '').trim().toUpperCase()
-                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-      var temperatura = null;
-
-      if (status === STATUS_CONF) {
-        if (PRE_VENDA_QUENTE[colAK]) {
-          if (contadores.quente >= LIMITE) continue;
-          temperatura = 'quente';
-          contadores.quente++;
-        } else if (PRE_VENDA_MORNO[colAK]) {
-          if (contadores.morno >= LIMITE) continue;
-          temperatura = 'morno';
-          contadores.morno++;
-        } else if (PRE_VENDA_FRIO[colAK] || colAK === 'EM NEGOCIACAO') {
-          if (contadores.frio >= LIMITE) continue;
-          temperatura = 'frio';
-          contadores.frio++;
-        } else {
-          continue; // pré-status não mapeado
-        }
-      } else if (status === STATUS_AGU) {
-        if (contadores.aguardando >= LIMITE) continue;
-        temperatura = 'aguardando';
-        contadores.aguardando++;
-      } else {
-        continue;
-      }
-
-      var cliente = String(row[cf.CLIENTE] || '').trim();
-      var cpf     = String(row[cf.CPF]     || '').trim();
-      if (!cliente && !cpf) continue;
-
-      var dAtiv = row[cf.DATA_ATIV];
-      var dataAtivStr = (dAtiv instanceof Date && !isNaN(dAtiv))
-        ? Utilities.formatDate(dAtiv, tz, 'dd/MM/yyyy') : '';
-
-      var dAg = row[cf.AGENDA];
-      var agendaStr = (dAg instanceof Date && !isNaN(dAg))
-        ? Utilities.formatDate(dAg, tz, 'dd/MM/yyyy') : (dAg ? String(dAg) : '');
-
-      resultado.push({
-        linha:       entry.linhaSheet,
-        status:      status,
-        temperatura: temperatura,
-        preStatus:   String(row[cf.PRE_STATUS]  || '').trim(),
-        cliente:     cliente,
-        cpf:         cpf,
-        produto:     String(row[cf.PRODUTO]     || '').trim(),
-        plano:       String(row[cf.PLANO]       || '').trim(),
-        resp:        String(row[cf.RESP]        || '').trim(),
-        whats:       String(row[cf.WHATS]       || '').trim(),
-        dataAtiv:    dataAtivStr,
-        agenda:      agendaStr,
-        turno:       String(row[cf.TURNO]       || '').trim(),
-        codCli:      String(row[cf.COD_CLI]     || '').trim(),
-        contrato:    String(row[cf.CONTRATO]    || '').trim()
-      });
-
-      // Para quando todos os baldes estão cheios
-      if (contadores.quente     >= LIMITE &&
-          contadores.morno      >= LIMITE &&
-          contadores.frio       >= LIMITE &&
-          contadores.aguardando >= LIMITE) break;
-    }
-
-    Logger.log('getVendasLeads: ' + resultado.length + ' registros. Q=' +
-      contadores.quente + ' M=' + contadores.morno +
-      ' F=' + contadores.frio + ' Ag=' + contadores.aguardando);
-
-    var retorno = { dados: resultado, total: resultado.length };
-
-    // Cache com chunks — suporta qualquer tamanho de JSON
-    _cachePutChunked(CACHE_KEY, retorno, 300); // TTL 5 minutos (era 2 min)
-
-    return retorno;
   } catch(e) {
     Logger.log('Erro em getVendasLeads: ' + e);
     return { dados: [], total: 0, erro: e.message };
@@ -2915,99 +2811,6 @@ function getVendasFunil() {
     var retornoFast = { dados: resultadoFast, total: resultadoFast.length };
     _cachePutChunked(CACHE_KEY, retornoFast, 300);
     return retornoFast;
-
-    // ── FASE 1: PRE-SCAN — lê apenas a coluna de status configurada ──────
-    var colStatus = CONFIG.COLUNAS.STATUS + 1;
-    var linhasMatch = _preScanColuna(sheet, ultimaLinha, colStatus, function(v) {
-      return !!statusFunil[String(v || '').trim()];
-    });
-    Logger.log('getVendasFunil: pre-scan → ' + linhasMatch.length + ' linhas com status funil');
-    if (linhasMatch.length === 0) return { dados: [], total: 0 };
-
-    // ── FASE 2: LER APENAS OS BLOCOS RELEVANTES ───────────────────────────
-    var blocos    = _agruparBlocos(linhasMatch, 8);
-    var colunasFunil = _getMaxColunaLida([CONFIG.COLUNAS.WHATS]);
-    var registros = _lerBlocos(sheet, blocos, colunasFunil);
-    Logger.log('getVendasFunil: ' + blocos.length + ' blocos lidos, ' + registros.length + ' registros');
-
-    // ── FASE 3: MAPEAR, FILTRAR e LIMITAR ────────────────────────────────
-    var contadores = {
-      '2- Aguardando Instalação': 0,
-      '3 - Finalizada/Instalada': 0,
-      'Pendencia Vero':           0
-    };
-    var resultado = [];
-
-    // Processa em ordem reversa (mais recentes primeiro)
-    for (var j = registros.length - 1; j >= 0; j--) {
-      var entry  = registros[j];
-      var row    = entry.row;
-      var cf = CONFIG.COLUNAS;
-      var status = String(row[cf.STATUS] || '').trim();
-
-      if (!statusFunil[status]) continue;
-      if (contadores[status] >= (LIMITES[status] || 150)) continue;
-
-      // Para "Finalizada": somente registros do mês vigente (col INSTAL)
-      if (status === '3 - Finalizada/Instalada') {
-        var dInstalRaw = row[cf.INSTAL];
-        var dInstal = (dInstalRaw instanceof Date && !isNaN(dInstalRaw)) ? dInstalRaw : null;
-        if (!dInstal) {
-          var dStr = String(dInstalRaw || '').trim();
-          if (dStr) {
-            var pts = dStr.split('/');
-            if (pts.length === 3) dInstal = new Date(parseInt(pts[2]), parseInt(pts[1])-1, parseInt(pts[0]));
-          }
-        }
-        if (!dInstal || dInstal.getMonth()+1 !== mesAtual || dInstal.getFullYear() !== anoAtual) continue;
-      }
-
-      var cliente = String(row[cf.CLIENTE] || '').trim();
-      var cpf     = String(row[cf.CPF]     || '').trim();
-      if (!cliente && !cpf) continue;
-
-      contadores[status]++;
-
-      var dAtiv = row[cf.DATA_ATIV];
-      var dataAtivStr = (dAtiv instanceof Date && !isNaN(dAtiv))
-        ? Utilities.formatDate(dAtiv, tz, 'dd/MM/yyyy') : '';
-
-      var dAg = row[cf.AGENDA];
-      var agendaStr = (dAg instanceof Date && !isNaN(dAg))
-        ? Utilities.formatDate(dAg, tz, 'dd/MM/yyyy') : (dAg ? String(dAg) : '');
-
-      var dIns = row[cf.INSTAL];
-      var instalStr = (dIns instanceof Date && !isNaN(dIns))
-        ? Utilities.formatDate(dIns, tz, 'dd/MM/yyyy') : (dIns ? String(dIns) : '');
-
-      resultado.push({
-        linha:     entry.linhaSheet,
-        status:    status,
-        cliente:   cliente,
-        produto:   String(row[cf.PRODUTO]    || '').trim(),
-        plano:     String(row[cf.PLANO]      || '').trim(),
-        resp:      String(row[cf.RESP]       || '').trim(),
-        whats:     String(row[cf.WHATS]      || '').trim(),
-        codCli:    String(row[cf.COD_CLI]    || '').trim(),
-        contrato:  String(row[cf.CONTRATO]   || '').trim(),
-        dataAtiv:  dataAtivStr,
-        agenda:    agendaStr,
-        turno:     String(row[cf.TURNO]      || '').trim(),
-        instal:    instalStr,
-        preStatus: String(row[cf.PRE_STATUS] || '').trim()
-      });
-    }
-
-    Logger.log('getVendasFunil: ' + resultado.length + ' registros. Ag=' +
-      contadores['2- Aguardando Instalação'] + ' Fin=' +
-      contadores['3 - Finalizada/Instalada'] + ' Pen=' + contadores['Pendencia Vero']);
-
-    var retorno = { dados: resultado, total: resultado.length };
-
-    // Cache com chunks — suporta qualquer tamanho de JSON
-    _cachePutChunked(CACHE_KEY, retorno, 300); // TTL 5 minutos (era 3 min)
-
-    return retorno;
 
   } catch (e) {
     Logger.log('Erro em getVendasFunil: ' + e.toString());
