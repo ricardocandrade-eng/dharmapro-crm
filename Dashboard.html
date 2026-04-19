@@ -159,6 +159,11 @@
   </div>
   <span class="du-info" id="d_duInfo">— / —</span>
 </div>
+<div class="du-bar-wrap" id="d_rankBar" style="display:none">
+  <span class="du-label">Instaladas</span>
+  <div class="rdu-track" id="d_rankTrack" style="flex:1;height:6px"></div>
+  <span class="du-info" id="d_rankInfo" style="color:var(--g3)">— / —</span>
+</div>
 <div class="canvas" id="d_root">
   <div style="display:flex;align-items:center;justify-content:center;height:55vh">
     <span style="font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase">carregando...</span>
@@ -242,6 +247,17 @@ function _render(d){
   var h='';
 
   _updDuBar(d.duPassados,d.duMes);
+
+  // Barra instaladas / venda bruta
+  (function(){
+    var rb=document.getElementById('d_rankBar'),rt=document.getElementById('d_rankTrack'),ri=document.getElementById('d_rankInfo');
+    if(!rb||!rt||!ri||!d.vendaBrutaMes)return;
+    var vb=d.vendaBrutaMes,ins=d.instalacoesMes,tks='';
+    for(var t=0;t<vb;t++)tks+='<div style="flex:1;height:100%;background:'+(t<ins?'#ff4570':'rgba(255,255,255,.10)')+'"></div>';
+    rt.innerHTML=tks;
+    ri.textContent=ins+' / '+vb;
+    rb.style.display='flex';
+  })();
 
   // filtro internos
   var INTERNOS=['joysse coelho','vanessa andrade','tuany rodrigues'];
