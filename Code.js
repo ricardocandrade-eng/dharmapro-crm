@@ -240,8 +240,8 @@ function arquivarVenda(linha) {
     }
     abaArquivo.appendRow([nome, cpf, whats, plano, valor, dataExclusao]);
 
-    // Remove a linha da aba principal (sem deixar buraco)
-    sheet.deleteRow(linha);
+    // Limpa a linha na aba principal (preserva a linha para não deslocar índices)
+    sheet.getRange(linha, 1, 1, CONFIG.TOTAL_COLUNAS).clearContent();
 
     // Limpa cache
     _limparCache();
@@ -2648,10 +2648,10 @@ function salvarVenda(dados) {
       if (ultimaSheet < 3) {
         novaLinha = 3;
       } else {
-        var colStatus = sheet.getRange(3, CONFIG.COLUNAS.STATUS + 1, ultimaSheet - 2, 1).getValues();
+        var colC = sheet.getRange(3, 3, ultimaSheet - 2, 1).getValues();
         var ultimaReal = 0;
-        for (var r = colStatus.length - 1; r >= 0; r--) {
-          if (colStatus[r][0] !== '' && colStatus[r][0] !== null && colStatus[r][0] !== undefined) {
+        for (var r = colC.length - 1; r >= 0; r--) {
+          if (colC[r][0] !== '' && colC[r][0] !== null && colC[r][0] !== undefined) {
             ultimaReal = r;
             break;
           }
@@ -3305,7 +3305,7 @@ function _construirLinhaDados(d) {
   linha[c.RG]                = d.rg                || '';
   linha[c.SEGMENTACAO]       = d.segmentacao       || '';
   linha[c.REAGENDAMENTOS]    = d.reagendamentos    || '';
-  linha[c.STATUS_PAP]        = d.statusPAP         || 'Em Aberto';
+  linha[c.STATUS_PAP]        = d.statusPAP         || '';
   linha[c.VEROHUB_PEDIDO]    = d.verohubPedido     || '';
   linha[c.VEROHUB_PEDIDO_DT] = d.verohubPedidoDt   || '';
   return linha;

@@ -848,7 +848,7 @@
 
     .fab-container {
       position: fixed;
-      bottom: 20px; right: 4px;
+      bottom: 28px; right: 12px;
       display: flex; flex-direction: column; align-items: center;
       gap: 10px;
       z-index: 2000;
@@ -2190,11 +2190,10 @@
                     <input type="tel" id="pif-tel">
                   </div>
                   <div class="pif-group">
-                    <label style="font-weight:700;color:var(--accent);">ID Contrato <span style="font-size:10px;font-weight:400;color:var(--muted);">(NG: 202xxxxxx · Adapter: 3xxxxxx)</span></label>
-                    <input type="text" id="pif-contrato" oninput="pifValidarContrato(this.value)" style="border-color:var(--accent);">
-                    <span class="pif-hint" id="pif-contrato-hint" style="color:var(--danger,#e63e6d);font-size:11px;display:none;"></span>
+                    <label>ID Contrato / OS</label>
+                    <input type="text" id="pif-contrato">
                   </div>
-                  <div class="pif-group" style="display:none;">
+                  <div class="pif-group">
                     <label>Cód. Cliente Vero</label>
                     <input type="text" id="pif-codCli" placeholder="Ex: 123456">
                   </div>
@@ -2247,7 +2246,7 @@
                     <input type="text" id="pif-uf" maxlength="2" style="text-transform:uppercase;">
                   </div>
                 </div>
-                <div class="pif-info-grid" id="pif-infoGeoWrap">
+                <div class="pif-info-grid" id="pif-infoGeoWrap" style="display:none;">
                   <div class="pif-info-card"><div class="lbl">📡 Sistema</div><div class="val" id="pif-sistema-display">—</div></div>
                   <div class="pif-info-card"><div class="lbl">🗺️ Segmentação</div><div class="val" id="pif-segmentacao-display">—</div></div>
                 </div>
@@ -2765,10 +2764,9 @@
             <span class="ms-err" id="ms2-err-dataAtiv">Obrigatório.</span>
           </div>
           <div class="ms-group">
-            <label style="font-weight:700;color:var(--accent);">ID Contrato <span class="ms-req">*</span> <span style="font-size:10px;font-weight:400;color:var(--muted);">(NG: 202xxxxxx · Adapter: 3xxxxxx)</span></label>
-            <input type="text" id="ms2-contrato" placeholder="Número do contrato" oninput="ms2ValidarContrato(this.value)" style="border-color:var(--accent);">
+            <label>ID Contrato / OS <span class="ms-req">*</span></label>
+            <input type="text" id="ms2-contrato" placeholder="Número do contrato">
             <span class="ms-err" id="ms2-err-contrato">Obrigatório.</span>
-            <span id="ms2-err-contrato-fmt" style="color:var(--danger,#e63e6d);font-size:11px;display:none;"></span>
           </div>
           <div class="ms-group">
             <label>Cód. Cliente Vero</label>
