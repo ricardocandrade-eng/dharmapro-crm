@@ -3514,7 +3514,7 @@ function _criarItemVenda(v, index) {
 
         // Esquerda: produto + plano/valor + etiquetas BotConversa
         '<div class="vi-bot-left">' +
-          (v.produto ? '<span class="vi-produto ' + prodCls + '">' + esc(v.produto) + '</span>' : '') +
+          (v.produto ? '<span class="vi-produto ' + prodCls + '">' + esc(_produtoComEmoji(v.produto)) + '</span>' : '') +
           (planoVal  ? '<span class="vi-plano-val">' + esc(planoVal) + '</span>' : '') +
           (v.bcTags || v.bcStatus ? '<span class="vi-bc-tags">' +
             (v.bcStatus ? '<span class="vi-bc-status vi-bc-status--' + (v.bcStatus === 'Aberto' ? 'aberto' : 'ok') + '">' + esc(v.bcStatus) + '</span>' : '') +
@@ -3558,7 +3558,8 @@ function mostrarPainel(v) {
   var cores      = STATUS_CORES[v.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
   var badgeStyle = 'background:' + cores.bg + ';color:' + cores.text + ';border:1.5px solid ' + (cores.border || cores.text) + ';';
 
-  document.getElementById('pNome').innerHTML = '<span style="color:' + cores.text + ' !important;">' + esc(v.cliente || 'Sem nome') + '</span>';
+  document.getElementById('pNome').innerHTML = '<span style="color:' + cores.text + ' !important;">' + esc(v.cliente || 'Sem nome') + '</span>' +
+    (_produtoEmoji(v.produto) ? '<span style="margin-left:8px;">' + _produtoEmoji(v.produto) + '</span>' : '');
   document.getElementById('pNome').style.color = '';
   document.getElementById('pCpf').textContent  =
     (v.cpf      ? 'CPF/CNPJ: ' + v.cpf : '') +
@@ -5758,6 +5759,22 @@ function esc(str) {
   return d.innerHTML;
 }
 
+function _produtoComEmoji(produto) {
+  var txt = String(produto || '').trim();
+  var up = txt.toUpperCase();
+  if (!txt) return '';
+  if (up.indexOf('FIBRA') !== -1) return '🌐 ' + txt;
+  if (up.indexOf('MOVEL') !== -1 || up.indexOf('MÓVEL') !== -1 || up.indexOf('MÃ“VEL') !== -1) return '📱 ' + txt;
+  return txt;
+}
+
+function _produtoEmoji(produto) {
+  var txt = String(produto || '').trim().toUpperCase();
+  if (txt.indexOf('FIBRA') !== -1) return '🌐';
+  if (txt.indexOf('MOVEL') !== -1 || txt.indexOf('MÓVEL') !== -1 || txt.indexOf('MÃ“VEL') !== -1) return '📱';
+  return '';
+}
+
 // Converte qualquer formato de data para DD/MM/AAAA
 function _fmtData(val) {
   if (!val) return '';
@@ -7928,7 +7945,7 @@ function _criarItemVenda(v, index) {
 
         // Esquerda: produto + plano/valor + etiquetas BotConversa
         '<div class="vi-bot-left">' +
-          (v.produto ? '<span class="vi-produto ' + prodCls + '">' + esc(v.produto) + '</span>' : '') +
+          (v.produto ? '<span class="vi-produto ' + prodCls + '">' + esc(_produtoComEmoji(v.produto)) + '</span>' : '') +
           (planoVal  ? '<span class="vi-plano-val">' + esc(planoVal) + '</span>' : '') +
           (v.bcTags || v.bcStatus ? '<span class="vi-bc-tags">' +
             (v.bcStatus ? '<span class="vi-bc-status vi-bc-status--' + (v.bcStatus === 'Aberto' ? 'aberto' : 'ok') + '">' + esc(v.bcStatus) + '</span>' : '') +
@@ -7974,7 +7991,8 @@ function mostrarPainel(v) {
   var cores      = STATUS_CORES[v.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
   var badgeStyle = 'background:' + cores.bg + ';color:' + cores.text + ';border:1.5px solid ' + (cores.border || cores.text) + ';';
 
-  document.getElementById('pNome').innerHTML = '<span style="color:' + cores.text + ' !important;">' + esc(v.cliente || 'Sem nome') + '</span>';
+  document.getElementById('pNome').innerHTML = '<span style="color:' + cores.text + ' !important;">' + esc(v.cliente || 'Sem nome') + '</span>' +
+    (_produtoEmoji(v.produto) ? '<span style="margin-left:8px;">' + _produtoEmoji(v.produto) + '</span>' : '');
   document.getElementById('pNome').style.color = '';
   document.getElementById('pCpf').textContent  =
     (v.cpf      ? 'CPF/CNPJ: ' + v.cpf : '') +

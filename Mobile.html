@@ -899,8 +899,9 @@ function statusBadgeClass(s) {
 }
 function prodBadge(p) {
   var s = String(p||'').trim().toUpperCase();
-  if (s.includes('FIBRA')) return '<span style="font-family:\'DM Mono\',monospace;font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(79,158,255,.1);border:1px solid rgba(79,158,255,.2);color:#4f9eff">' + esc(p) + '</span>';
-  if (s.includes('MOVEL') || s.includes('MÓVEL')) return '<span style="font-family:\'DM Mono\',monospace;font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.25);color:#a78bfa">' + esc(p) + '</span>';
+  var label = String(p||'').trim();
+  if (s.includes('FIBRA')) return '<span style="font-family:\'DM Mono\',monospace;font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(79,158,255,.1);border:1px solid rgba(79,158,255,.2);color:#4f9eff">🌐 ' + esc(label) + '</span>';
+  if (s.includes('MOVEL') || s.includes('MÓVEL')) return '<span style="font-family:\'DM Mono\',monospace;font-size:10px;padding:2px 8px;border-radius:5px;background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.25);color:#a78bfa">📱 ' + esc(label) + '</span>';
   return '<span style="font-family:\'DM Mono\',monospace;font-size:10px;padding:2px 8px;border-radius:5px;background:var(--surface2);border:1px solid var(--border2);color:var(--muted)">' + esc(p) + '</span>';
 }
 
