@@ -1862,8 +1862,9 @@ function getVendasLeads() {
     var LIMITE = 200; // últimas 200 de cada temperatura
     var tz     = Session.getScriptTimeZone();
 
-    // ── FASE 1: PRE-SCAN — lê APENAS col C (status), 43× mais leve ───────
-    var linhasMatch = _preScanColuna(sheet, ultimaLinha, 3, function(v) {
+    // ── FASE 1: PRE-SCAN — lê apenas a coluna de status configurada ──────
+    var colStatus = CONFIG.COLUNAS.STATUS + 1;
+    var linhasMatch = _preScanColuna(sheet, ultimaLinha, colStatus, function(v) {
       return !!STATUS_LEADS[String(v || '').trim()];
     });
     Logger.log('getVendasLeads: pre-scan → ' + linhasMatch.length + ' linhas com status leads');
@@ -1871,7 +1872,8 @@ function getVendasLeads() {
 
     // ── FASE 2: LER APENAS OS BLOCOS RELEVANTES ───────────────────────────
     var blocos    = _agruparBlocos(linhasMatch, 8);
-    var registros = _lerBlocos(sheet, blocos, 47);
+    var colunasLeads = _getMaxColunaLida([CONFIG.COLUNAS.WHATS]);
+    var registros = _lerBlocos(sheet, blocos, colunasLeads);
     Logger.log('getVendasLeads: ' + blocos.length + ' blocos lidos, ' + registros.length + ' registros');
 
     // ── FASE 3: MAPEAR, FILTRAR por produto e classificar temperatura ─────
@@ -2712,8 +2714,9 @@ function getVendasFunil() {
     var anoAtual = agora.getFullYear();
     var tz       = Session.getScriptTimeZone();
 
-    // ── FASE 1: PRE-SCAN — lê APENAS col C (status), 43× mais leve ───────
-    var linhasMatch = _preScanColuna(sheet, ultimaLinha, 3, function(v) {
+    // ── FASE 1: PRE-SCAN — lê apenas a coluna de status configurada ──────
+    var colStatus = CONFIG.COLUNAS.STATUS + 1;
+    var linhasMatch = _preScanColuna(sheet, ultimaLinha, colStatus, function(v) {
       return !!statusFunil[String(v || '').trim()];
     });
     Logger.log('getVendasFunil: pre-scan → ' + linhasMatch.length + ' linhas com status funil');
@@ -2721,7 +2724,8 @@ function getVendasFunil() {
 
     // ── FASE 2: LER APENAS OS BLOCOS RELEVANTES ───────────────────────────
     var blocos    = _agruparBlocos(linhasMatch, 8);
-    var registros = _lerBlocos(sheet, blocos, 47);
+    var colunasFunil = _getMaxColunaLida([CONFIG.COLUNAS.WHATS]);
+    var registros = _lerBlocos(sheet, blocos, colunasFunil);
     Logger.log('getVendasFunil: ' + blocos.length + ' blocos lidos, ' + registros.length + ' registros');
 
     // ── FASE 3: MAPEAR, FILTRAR e LIMITAR ────────────────────────────────
@@ -2919,6 +2923,14 @@ function _preScanColuna(sheet, ultimaLinha, coluna, filtroFn) {
   return resultado;
 }
 
+function _getMaxColunaLida(indices) {
+  var maior = 0;
+  for (var i = 0; i < indices.length; i++) {
+    if (indices[i] > maior) maior = indices[i];
+  }
+  return maior + 1; // 0-based -> 1-based
+}
+
 // Agrupa linhas próximas em blocos contíguos (para leitura eficiente em batch)
 // Ex: [5,6,7, 20,21, 50] com gap=8 → [{inicio:5, fim:7}, {inicio:20, fim:21}, {inicio:50, fim:50}]
 function _agruparBlocos(linhas, gap) {
@@ -2942,11 +2954,35 @@ function _agruparBlocos(linhas, gap) {
 
 // Lê apenas os blocos necessários da planilha (evita ler a planilha inteira)
 function _lerBlocos(sheet, blocos, numColunas) {
+  if (!blocos || blocos.length === 0) return [];
+  var maxCols = Math.max(1, Math.min(numColunas || CONFIG.TOTAL_COLUNAS, sheet.getMaxColumns()));
+
+  var menorLinha = blocos[0].inicio;
+  var maiorLinha = blocos[0].fim;
+  var totalLinhasBlocos = 0;
+  for (var i = 0; i < blocos.length; i++) {
+    var item = blocos[i];
+    totalLinhasBlocos += (item.fim - item.inicio + 1);
+    if (item.inicio < menorLinha) menorLinha = item.inicio;
+    if (item.fim > maiorLinha) maiorLinha = item.fim;
+  }
+
+  var spanTotal = maiorLinha - menorLinha + 1;
+  var leituraContiguaVale = spanTotal <= 800 || spanTotal <= Math.ceil(totalLinhasBlocos * 1.6);
   var registros = [];
+
+  if (leituraContiguaVale) {
+    var dadosSpan = sheet.getRange(menorLinha, 1, spanTotal, maxCols).getValues();
+    for (var s = 0; s < dadosSpan.length; s++) {
+      registros.push({ linhaSheet: menorLinha + s, row: dadosSpan[s] });
+    }
+    return registros;
+  }
+
   for (var b = 0; b < blocos.length; b++) {
     var bloco = blocos[b];
     var numLinhas = bloco.fim - bloco.inicio + 1;
-    var dados = sheet.getRange(bloco.inicio, 1, numLinhas, numColunas).getValues();
+    var dados = sheet.getRange(bloco.inicio, 1, numLinhas, maxCols).getValues();
     for (var r = 0; r < dados.length; r++) {
       registros.push({ linhaSheet: bloco.inicio + r, row: dados[r] });
     }
@@ -3030,8 +3066,8 @@ function repararSistemaSegmentacao() {
 
 
 // ── VALIDAÇÃO DE STATUS POR TIPO (onEdit) ────────────────────────────────────
-// Dispara quando o usuário edita a coluna C (Status) na aba "1 - Vendas".
-// Verifica se o status escolhido é permitido para o tipo de produto da col B.
+// Dispara quando o usuário edita a coluna de Status na aba "1 - Vendas".
+// Verifica se o status escolhido é permitido para o produto da linha.
 // Instalar: Extensões → Apps Script → Gatilhos → onEdit → Ao editar
 
 var _STATUS_MOVEL = [
@@ -3069,18 +3105,18 @@ function onEdit(e) {
   // Só atua na aba de vendas
   if (sheet.getName() !== CONFIG.SHEET_NAME) return;
 
-  // Só atua na coluna C (3)
-  if (range.getColumn() !== 3) return;
+  // Só atua na coluna de status configurada
+  if (range.getColumn() !== (CONFIG.COLUNAS.STATUS + 1)) return;
 
   // Ignora linha de cabeçalho
   var row = range.getRow();
-  if (row < 2) return;
+  if (row < 3) return;
 
   var novoStatus = String(range.getValue()).trim();
   if (!novoStatus) return;
 
-  // Lê o tipo da coluna B da mesma linha
-  var tipo = String(sheet.getRange(row, 2).getValue()).trim();
+  // Lê o produto configurado da mesma linha
+  var tipo = String(sheet.getRange(row, CONFIG.COLUNAS.PRODUTO + 1).getValue()).trim();
 
   var isMovel = /móvel alone|móvel combo|movel alone|movel combo/i.test(tipo);
   var isFibra = /fibra alone|fibra combo/i.test(tipo);
