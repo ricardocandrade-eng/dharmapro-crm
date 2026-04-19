@@ -121,17 +121,12 @@
 #dashContainer .hl-fill{height:100%;border-radius:2px;transition:width 1s ease}
 /* ── RANKING DU ── */
 #dashContainer .rank-du-wrap{display:flex;flex-direction:column;gap:8px;padding:4px 0}
-#dashContainer .rank-du-item{display:grid;grid-template-columns:36px 1fr 3fr 44px 80px;align-items:center;gap:12px;padding:10px 18px;background:var(--s2);border-radius:10px;border:1px solid var(--rim);transition:background .15s}
+#dashContainer .rank-du-item{display:grid;grid-template-columns:36px 1fr 3fr 70px 72px;align-items:center;gap:12px;padding:10px 18px;background:var(--s2);border-radius:10px;border:1px solid var(--rim);transition:background .15s}
 #dashContainer .rank-du-item:hover{background:var(--s3)}
 #dashContainer .rfi-medal{font-size:20px;text-align:center}
 #dashContainer .rfi-nome{font-size:13px;font-weight:600;color:var(--txt)}
-#dashContainer .rdu-track{height:6px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden;position:relative}
-#dashContainer .rdu-fill{height:100%;border-radius:3px;transition:width 1.2s cubic-bezier(.34,1.56,.64,1)}
-#dashContainer .rdu-ticks{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;pointer-events:none}
-#dashContainer .rdu-tick{flex:1;border-right:1px solid rgba(8,9,14,.6);background:rgba(255,255,255,.06)}
-#dashContainer .rdu-tick.rdu-tick-on{background:transparent}
-#dashContainer .rdu-tick:last-child{border-right:none}
-#dashContainer .rfi-qtd{font-family:var(--mono);font-size:17px;font-weight:700;text-align:right}
+#dashContainer .rdu-track{display:flex;height:8px;border-radius:3px;overflow:hidden;gap:1px;background:rgba(255,255,255,.03)}
+#dashContainer .rfi-qtd{font-family:var(--mono);font-size:15px;font-weight:700;text-align:right;white-space:nowrap}
 #dashContainer .rfi-delta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-family:var(--mono);font-size:12px;font-weight:600}
 #dashContainer .rfi-delta-lbl{font-size:9px;color:var(--dim);letter-spacing:.1em;font-weight:400}
 /* ── MEDIA ── */
@@ -409,13 +404,12 @@ function _render(d){
     var dTxt=delta>0?'<span style="color:var(--g1)">▲'+delta+'</span>':delta<0?'<span style="color:var(--g3)">▼'+Math.abs(delta)+'</span>':'<span style="color:var(--dim)">—</span>';
     var cor=i===0?'var(--g4)':i===1?'var(--g2)':i===2?'var(--g1)':'var(--dim2)';
     var medal=medalhas[i]||'<span style="font-family:var(--mono);color:var(--dim)">'+('0'+(i+1)).slice(-2)+'</span>';
-    var pct=r.qtd>0?Math.min(100,Math.round(instl/r.qtd*100)):0;
-    var tks='';for(var t=0;t<r.qtd;t++)tks+='<div class="rdu-tick'+(t<instl?' rdu-tick-on':'')+'"></div>';
+    var tks='';for(var t=0;t<r.qtd;t++)tks+='<div style="flex:1;height:100%;background:'+(t<instl?cor:'rgba(255,255,255,.08)')+'"></div>';
     h+='<div class="rank-du-item"'+(i===0?' style="border-color:rgba(255,170,0,.25)"':'')+'>';
     h+='<div class="rfi-medal">'+medal+'</div>';
     h+='<div class="rfi-nome">'+e(r.nome)+'</div>';
-    h+='<div class="rdu-track"><div class="rdu-fill" style="width:'+pct+'%;background:linear-gradient(90deg,'+cor+','+cor+'99)"></div><div class="rdu-ticks">'+tks+'</div></div>';
-    h+='<div class="rfi-qtd" style="color:'+cor+'">'+instl+' <span style="font-size:11px;color:var(--dim)">/ '+r.qtd+'</span></div>';
+    h+='<div class="rdu-track">'+tks+'</div>';
+    h+='<div class="rfi-qtd" style="color:'+cor+'">'+instl+'<span style="font-size:10px;color:var(--dim)"> /'+r.qtd+'</span></div>';
     h+='<div class="rfi-delta">'+dTxt+'<span class="rfi-delta-lbl">vs '+MO_PREV+'</span></div>';
     h+='</div>';
   });}
