@@ -2190,7 +2190,7 @@
                     <input type="text" id="pif-contrato" oninput="pifValidarContrato(this.value)" style="border-color:var(--accent);">
                     <span class="pif-hint" id="pif-contrato-hint" style="color:var(--danger,#e63e6d);font-size:11px;display:none;"></span>
                   </div>
-                  <div class="pif-group" style="display:none;">
+                  <div class="pif-group">
                     <label>Cód. Cliente Vero</label>
                     <input type="text" id="pif-codCli" placeholder="Ex: 123456">
                   </div>
@@ -2243,12 +2243,20 @@
                     <input type="text" id="pif-uf" maxlength="2" style="text-transform:uppercase;">
                   </div>
                 </div>
-                <div class="pif-info-grid" id="pif-infoGeoWrap">
-                  <div class="pif-info-card"><div class="lbl">📡 Sistema</div><div class="val" id="pif-sistema-display">—</div></div>
-                  <div class="pif-info-card"><div class="lbl">🗺️ Segmentação</div><div class="val" id="pif-segmentacao-display">—</div></div>
+                <div class="pif-grid" style="margin-top:8px;">
+                  <div class="pif-group">
+                    <label>Sistema</label>
+                    <select id="pif-sistema">
+                      <option value="">—</option>
+                      <option value="NG">NG</option>
+                      <option value="Adapter">Adapter</option>
+                    </select>
+                  </div>
+                  <div class="pif-group">
+                    <label>Segmentação</label>
+                    <input type="text" id="pif-segmentacao" placeholder="Ex: Fibra FTTH">
+                  </div>
                 </div>
-                <input type="hidden" id="pif-sistema">
-                <input type="hidden" id="pif-segmentacao">
               </div>
 
               <!-- Plano -->

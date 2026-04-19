@@ -110,22 +110,14 @@ function _pifAoEnderecoOk(hint) {
 function _pifCarregarSistemaSegmentacao(cidade) {
   google.script.run
     .withSuccessHandler(function(s) {
-      if (s) {
-        document.getElementById('pif-sistema').value           = s;
-        document.getElementById('pif-sistema-display').textContent = s;
-        document.getElementById('pif-infoGeoWrap').style.display   = 'grid';
-      }
+      if (s) document.getElementById('pif-sistema').value = s;
     })
     .withFailureHandler(function() {})
     .getSistemaPorCidade(cidade);
 
   google.script.run
     .withSuccessHandler(function(s) {
-      if (s) {
-        document.getElementById('pif-segmentacao').value              = s;
-        document.getElementById('pif-segmentacao-display').textContent = s;
-        document.getElementById('pif-infoGeoWrap').style.display      = 'grid';
-      }
+      if (s) document.getElementById('pif-segmentacao').value = s;
     })
     .withFailureHandler(function() {})
     .getSegmentacaoPorCidade(cidade);
@@ -310,10 +302,6 @@ function painelToggleEdicao() {
     _pifSet('pif-uf',         v.uf         || '');
     _pifSet('pif-sistema',    v.sistema    || '');
     _pifSet('pif-segmentacao',v.segmentacao|| '');
-    var sDisplay  = document.getElementById('pif-sistema-display');
-    var sgDisplay = document.getElementById('pif-segmentacao-display');
-    if (sDisplay)  sDisplay.textContent  = v.sistema     || '—';
-    if (sgDisplay) sgDisplay.textContent = v.segmentacao || '—';
 
     // preStatus só editável no status 1- Conferencia/Ativação
     var elPre = document.getElementById('pif-preStatus');
@@ -414,13 +402,6 @@ function painelToggleEdicao() {
     _pifSet('pif-linhaMovel', v.linhaMovel || '');
     _pifSetSelect('pif-portabilidade', v.portabilidade || '');
 
-    // Info geo
-    var infoGeo = document.getElementById('pif-infoGeoWrap');
-    if (infoGeo) infoGeo.style.display = (v.sistema || v.segmentacao) ? 'grid' : 'none';
-    var sDisplay = document.getElementById('pif-sistema-display');
-    var sgDisplay = document.getElementById('pif-segmentacao-display');
-    if (sDisplay)  sDisplay.textContent  = v.sistema      || '—';
-    if (sgDisplay) sgDisplay.textContent = v.segmentacao  || '—';
 
     // Alternar visibilidade
     if (scroll)    scroll.style.display = 'none';
@@ -3590,61 +3571,76 @@ function mostrarPainel(v) {
   var endCompleto = [v.rua, v.num, v.complemento, v.bairro, v.cidade, v.uf].filter(Boolean).join(', ');
   var mapsUrl = endCompleto ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(endCompleto) : '';
 
+  var _c = function(lbl, val, full) {
+    return '<div class="painel-campo' + (full ? ' full' : '') + '"><span class="painel-lbl">' + esc(lbl) + '</span><span class="painel-val">' + esc(val || '—') + '</span></div>';
+  };
+
   var html =
     // ── 1. CLIENTE ──────────────────────────────────────────────────────────
-    _secaoPainel('👤 Cliente', [
-      ['Nome',        v.cliente, true],
-      ['CPF/CNPJ',    v.cpf],
-      ['WhatsApp',    v.whats],
-      ['Telefone',    v.tel],
-      ['ID Contrato', v.contrato],
-      ['RG',          v.rg],
-      ['Nome da Mãe', v.nomeMae, true],
-      ['Dt. Nascimento', v.dtNasc]
-    ]) +
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">👤 Cliente</div>' +
+      '<div class="painel-campos">' +
+        _c('Nome',           v.cliente, true) +
+        _c('CPF / CNPJ',     v.cpf) +
+        _c('WhatsApp',       v.whats) +
+        _c('Telefone',       v.tel) +
+        _c('ID Contrato',    v.contrato) +
+        _c('Cód. Cliente',   v.codCli) +
+        _c('RG',             v.rg) +
+        _c('Nome da Mãe',    v.nomeMae, true) +
+        _c('Dt. Nascimento', v.dtNasc) +
+      '</div>' +
+    '</div>' +
 
     // ── 2. ENDEREÇO ─────────────────────────────────────────────────────────
-    (v.rua || v.cidade || v.cep ? '<div class="painel-secao">' +
-      '<div class="painel-secao-titulo">📍 Endereço</div>' +
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📍 Endereço & Sistema</div>' +
       '<div class="painel-campos">' +
-        (v.rua    ? '<div class="painel-campo full"><span class="painel-lbl">Logradouro</span><span class="painel-val">' + esc((v.rua||'') + (v.num?', '+v.num:'') + (v.complemento?' — '+v.complemento:'')) + '</span></div>' : '') +
-        (v.bairro ? '<div class="painel-campo"><span class="painel-lbl">Bairro</span><span class="painel-val">' + esc(v.bairro) + '</span></div>' : '') +
-        (v.cidade ? '<div class="painel-campo"><span class="painel-lbl">Cidade / UF</span><span class="painel-val">' + esc((v.cidade||'') + (v.uf?' / '+v.uf:'')) + '</span></div>' : '') +
-        (v.cep    ? '<div class="painel-campo"><span class="painel-lbl">CEP</span><span class="painel-val">' + esc(v.cep) + '</span></div>' : '') +
-        (v.sistema ? '<div class="painel-campo"><span class="painel-lbl">Sistema</span><span class="painel-val">' + esc(v.sistema) + '</span></div>' : '') +
-        (v.segmentacao ? '<div class="painel-campo full"><span class="painel-lbl">Segmentação</span><span class="painel-val">' + esc(v.segmentacao) + '</span></div>' : '') +
+        (v.rua ? _c('Logradouro', (v.rua||'') + (v.num?', '+v.num:'') + (v.complemento?' — '+v.complemento:''), true) : '') +
+        _c('Bairro',        v.bairro) +
+        _c('Cidade / UF',   (v.cidade||'') + (v.uf ? ' / '+v.uf : '') || '') +
+        _c('CEP',           v.cep) +
+        _c('Sistema',       v.sistema) +
+        _c('Segmentação',   v.segmentacao, true) +
+        _c('Viabilidade',   v.viabilidade, true) +
         (mapsUrl ? '<div class="painel-campo full"><span class="painel-lbl">Maps</span><span class="painel-val"><a href="' + mapsUrl + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">Abrir no Google Maps ↗</a></span></div>' : '') +
       '</div>' +
-    '</div>' : '') +
+    '</div>' +
 
     // ── 3. STATUS ───────────────────────────────────────────────────────────
-    _secaoPainel('📌 Status', [
-      ['Status',      v.status],
-      ['Pré-Status',  v.status === '1- Conferencia/Ativação' ? v.preStatus : ''],
-      ['Responsável', v.resp],
-      ['Canal',       v.canal]
-    ]) +
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📌 Status</div>' +
+      '<div class="painel-campos">' +
+        _c('Status',     v.status, true) +
+        _c('Pré-Status', v.status === '1- Conferencia/Ativação' ? v.preStatus : '') +
+        _c('Responsável',v.resp) +
+        _c('Canal',      v.canal) +
+      '</div>' +
+    '</div>' +
 
     // ── 4. PLANO & PRODUTO ──────────────────────────────────────────────────
     (function() {
       var _ehMovel = (v.produto||'').toUpperCase().indexOf('MÓVEL') > -1 || (v.produto||'').toUpperCase().indexOf('MOVEL') > -1;
-      var itens = [
-        ['Produto',    v.produto],
-        ['Plano',      v.plano],
-        ['Valor',      v.valor],
-        ['Vencimento', v.venc],
-        ['Pagamento',  v.fat]
-      ];
-      if (_ehMovel) { itens.push(['Linha Móvel', v.linhaMovel]); itens.push(['Portabilidade', v.portabilidade]); }
-      return _secaoPainel('📦 Plano & Produto', itens);
+      return '<div class="painel-secao">' +
+        '<div class="painel-secao-titulo">📦 Plano & Produto</div>' +
+        '<div class="painel-campos">' +
+          _c('Produto',    v.produto) +
+          _c('Plano',      v.plano, true) +
+          _c('Valor',      v.valor) +
+          _c('Vencimento', v.venc) +
+          _c('Pagamento',  v.fat) +
+          (_ehMovel ? _c('Linha Móvel',   v.linhaMovel) : '') +
+          (_ehMovel ? _c('Portabilidade', v.portabilidade) : '') +
+        '</div>' +
+      '</div>';
     })() +
 
     // ── 5. DATAS ────────────────────────────────────────────────────────────
     '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">📅 Datas</div>' +
       '<div class="painel-campos">' +
-        (function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? '<div class="painel-campo"><span class="painel-lbl">Ativação</span><span class="painel-val">' + esc(d) + '</span></div>' : ''; })() +
-        (v.instal ? '<div class="painel-campo"><span class="painel-lbl">Instalação</span><span class="painel-val">' + esc(_fmtData(v.instal)) + '</span></div>' : '') +
+        (function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? _c('Ativação', d) : ''; })() +
+        (v.instal ? _c('Instalação', _fmtData(v.instal)) : '') +
       '</div>' +
       _linhaPainelHtml('Agendamento',
         '<div class="painel-agenda-wrap">' +
@@ -3659,19 +3655,29 @@ function mostrarPainel(v) {
         '</select>') +
     '</div>' +
 
-    // ── 6. VEROHUB ──────────────────────────────────────────────────────────
+    // ── 6. BOTCONVERSA ──────────────────────────────────────────────────────
+    (v.bcTags || v.bcStatus ?
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">💬 BotConversa</div>' +
+      '<div class="painel-campos">' +
+        _c('Status BC',  v.bcStatus) +
+        _c('Tags BC',    v.bcTags, true) +
+      '</div>' +
+    '</div>' : '') +
+
+    // ── 7. VEROHUB ──────────────────────────────────────────────────────────
     '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">🔒 VeroHub</div>' +
       '<div style="padding:8px 12px;">' + _veroHubHtml(v, -1) + '</div>' +
     '</div>' +
 
-    // ── 7. OBSERVAÇÃO ───────────────────────────────────────────────────────
+    // ── 8. OBSERVAÇÃO ───────────────────────────────────────────────────────
     (v.observacao ? '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">📝 Observação</div>' +
       '<div class="painel-campos"><div class="painel-campo full"><span class="painel-val" style="color:var(--muted);font-weight:400;line-height:1.6;white-space:pre-wrap;">' + esc(v.observacao) + '</span></div></div>' +
     '</div>' : '') +
 
-    // ── 8. STATUS PAP ───────────────────────────────────────────────────────
+    // ── 9. STATUS PAP ───────────────────────────────────────────────────────
     '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">💰 Pagamento PAP</div>' +
       _linhaPainelHtml('Status',
@@ -7982,61 +7988,76 @@ function mostrarPainel(v) {
   var endCompleto = [v.rua, v.num, v.complemento, v.bairro, v.cidade, v.uf].filter(Boolean).join(', ');
   var mapsUrl = endCompleto ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(endCompleto) : '';
 
+  var _c2 = function(lbl, val, full) {
+    return '<div class="painel-campo' + (full ? ' full' : '') + '"><span class="painel-lbl">' + esc(lbl) + '</span><span class="painel-val">' + esc(val || '—') + '</span></div>';
+  };
+
   var html =
-    // ── 1. CLASSIFICAÇÃO ────────────────────────────────────────────────────
-    _secaoGrid2('⭐ Classificação', [
-      ['Status',      v.status],
-      v.status === '1- Conferencia/Ativação' ? ['Pré-Status', v.preStatus] : null,
-      ['Responsável', v.resp],
-      ['Canal',       v.canal]
-    ].filter(Boolean)) +
-
-    // ── 2. CLIENTE ──────────────────────────────────────────────────────────
-    _secaoGrid2('👤 Cliente', [
-      ['Nome',        v.cliente,  true],
-      ['CPF/CNPJ',    v.cpf],
-      ['WhatsApp',    v.whats],
-      ['ID Contrato', v.contrato  || '—'],
-      ['Telefone',    v.tel       || '—'],
-      ['Nome da Mãe', v.nomeMae   || '—', true],
-      ['Dt. Nasc.',   v.dtNasc    || '—'],
-      ['RG',          v.rg        || '—']
-    ]) +
-
-    // ── 3. ENDEREÇO ─────────────────────────────────────────────────────────
-    (v.rua || v.cidade || v.cep ? '<div class="painel-secao">' +
-      '<div class="painel-secao-titulo">📍 Endereço</div>' +
+    // ── 1. CLIENTE ──────────────────────────────────────────────────────────
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">👤 Cliente</div>' +
       '<div class="painel-campos">' +
-        (v.rua    ? '<div class="painel-campo full"><span class="painel-lbl">Logradouro</span><span class="painel-val">' + esc((v.rua||'') + (v.num?', '+v.num:'') + (v.complemento?' — '+v.complemento:'')) + '</span></div>' : '') +
-        (v.bairro ? '<div class="painel-campo"><span class="painel-lbl">Bairro</span><span class="painel-val">' + esc(v.bairro) + '</span></div>' : '') +
-        (v.cidade ? '<div class="painel-campo"><span class="painel-lbl">Cidade / UF</span><span class="painel-val">' + esc((v.cidade||'') + (v.uf?' / '+v.uf:'')) + '</span></div>' : '') +
-        (v.cep    ? '<div class="painel-campo"><span class="painel-lbl">CEP</span><span class="painel-val">' + esc(v.cep) + '</span></div>' : '') +
-        (v.sistema ? '<div class="painel-campo"><span class="painel-lbl">Sistema</span><span class="painel-val">' + esc(v.sistema) + '</span></div>' : '') +
-        (v.segmentacao ? '<div class="painel-campo full"><span class="painel-lbl">Segmentação</span><span class="painel-val">' + esc(v.segmentacao) + '</span></div>' : '') +
+        _c2('Nome',           v.cliente, true) +
+        _c2('CPF / CNPJ',     v.cpf) +
+        _c2('WhatsApp',       v.whats) +
+        _c2('Telefone',       v.tel) +
+        _c2('ID Contrato',    v.contrato) +
+        _c2('Cód. Cliente',   v.codCli) +
+        _c2('RG',             v.rg) +
+        _c2('Nome da Mãe',    v.nomeMae, true) +
+        _c2('Dt. Nascimento', v.dtNasc) +
+      '</div>' +
+    '</div>' +
+
+    // ── 2. CLASSIFICAÇÃO ────────────────────────────────────────────────────
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">⭐ Classificação</div>' +
+      '<div class="painel-campos">' +
+        _c2('Status',     v.status, true) +
+        _c2('Pré-Status', v.status === '1- Conferencia/Ativação' ? v.preStatus : '') +
+        _c2('Responsável',v.resp) +
+        _c2('Canal',      v.canal) +
+      '</div>' +
+    '</div>' +
+
+    // ── 3. ENDEREÇO & SISTEMA ───────────────────────────────────────────────
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📍 Endereço & Sistema</div>' +
+      '<div class="painel-campos">' +
+        (v.rua ? _c2('Logradouro', (v.rua||'') + (v.num?', '+v.num:'') + (v.complemento?' — '+v.complemento:''), true) : '') +
+        _c2('Bairro',        v.bairro) +
+        _c2('Cidade / UF',   (v.cidade||'') + (v.uf ? ' / '+v.uf : '') || '') +
+        _c2('CEP',           v.cep) +
+        _c2('Sistema',       v.sistema) +
+        _c2('Segmentação',   v.segmentacao, true) +
+        _c2('Viabilidade',   v.viabilidade, true) +
         (mapsUrl ? '<div class="painel-campo full"><span class="painel-lbl">Maps</span><span class="painel-val"><a href="' + mapsUrl + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">Abrir no Google Maps ↗</a></span></div>' : '') +
       '</div>' +
-    '</div>' : '') +
+    '</div>' +
 
     // ── 4. PLANO & PRODUTO ──────────────────────────────────────────────────
     (function() {
       var _ehMovel = (v.produto||'').toUpperCase().indexOf('MÓVEL') > -1 || (v.produto||'').toUpperCase().indexOf('MOVEL') > -1;
-      var itens = [
-        ['Produto',    v.produto],
-        ['Plano',      v.plano],
-        ['Valor',      v.valor],
-        ['Vencimento', v.venc],
-        ['Pagamento',  v.fat]
-      ];
-      if (_ehMovel) { itens.push(['Linha Móvel', v.linhaMovel]); itens.push(['Portabilidade', v.portabilidade]); }
-      return _secaoPainel('📦 Plano & Produto', itens);
+      return '<div class="painel-secao">' +
+        '<div class="painel-secao-titulo">📦 Plano & Produto</div>' +
+        '<div class="painel-campos">' +
+          _c2('Produto',    v.produto) +
+          _c2('Plano',      v.plano, true) +
+          _c2('Valor',      v.valor) +
+          _c2('Vencimento', v.venc) +
+          _c2('Pagamento',  v.fat) +
+          (_ehMovel ? _c2('Linha Móvel',   v.linhaMovel) : '') +
+          (_ehMovel ? _c2('Portabilidade', v.portabilidade) : '') +
+        '</div>' +
+      '</div>';
     })() +
 
     // ── 5. DATAS ────────────────────────────────────────────────────────────
     '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">📅 Datas</div>' +
       '<div class="painel-campos">' +
-        (function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? '<div class="painel-campo"><span class="painel-lbl">Ativação</span><span class="painel-val">' + esc(d) + '</span></div>' : ''; })() +
-        (v.instal ? '<div class="painel-campo"><span class="painel-lbl">Instalação</span><span class="painel-val">' + esc(_fmtData(v.instal)) + '</span></div>' : '') +
+        (function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? _c2('Ativação', d) : ''; })() +
+        (v.instal ? _c2('Instalação', _fmtData(v.instal)) : '') +
       '</div>' +
       _linhaPainelHtml('Agendamento',
         '<div class="painel-agenda-wrap">' +
@@ -8051,7 +8072,17 @@ function mostrarPainel(v) {
         '</select>') +
     '</div>' +
 
-    // ── 6. OBSERVAÇÃO ───────────────────────────────────────────────────────
+    // ── 6. BOTCONVERSA ──────────────────────────────────────────────────────
+    (v.bcTags || v.bcStatus ?
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">💬 BotConversa</div>' +
+      '<div class="painel-campos">' +
+        _c2('Status BC',  v.bcStatus) +
+        _c2('Tags BC',    v.bcTags, true) +
+      '</div>' +
+    '</div>' : '') +
+
+    // ── 7. OBSERVAÇÃO ───────────────────────────────────────────────────────
     (v.observacao ? '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">📝 Observação</div>' +
       '<div class="painel-campos"><div class="painel-campo full"><span class="painel-val" style="color:var(--muted);font-weight:400;line-height:1.6;white-space:pre-wrap;">' + esc(v.observacao) + '</span></div></div>' +

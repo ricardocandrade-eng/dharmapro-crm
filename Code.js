@@ -3199,8 +3199,12 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     preStatus:        String(row[c.PRE_STATUS]         || ''),
     bcTags:           String(row[c.BC_TAGS]            || '').trim(),
     bcStatus:         String(row[c.BC_STATUS]          || '').trim(),
+    nomeMae:          String(row[c.NOME_MAE]           || '').trim(),
+    dtNasc:           String(row[c.DT_NASC]            || '').trim(),
+    rg:               String(row[c.RG]                 || '').trim(),
     mapsLink:         '',
-    reagendamentos:   parseInt(row[c.REAGENDAMENTOS]) || 0
+    reagendamentos:   parseInt(row[c.REAGENDAMENTOS]) || 0,
+    viabilidade:      String(row[c.VIABILIDADE]        || '').trim()
   };
 }
 
@@ -3263,7 +3267,8 @@ function _mapearLinha(row, numeroLinha) {
     dtNasc:           String(row[c.DT_NASC]            || '').trim(),
     rg:               String(row[c.RG]                 || '').trim(),
     mapsLink:         '',
-    reagendamentos:   parseInt(row[c.REAGENDAMENTOS]) || 0
+    reagendamentos:   parseInt(row[c.REAGENDAMENTOS]) || 0,
+    viabilidade:      String(row[c.VIABILIDADE]        || '').trim()
   };
 }
 
