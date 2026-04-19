@@ -39,8 +39,18 @@ git add .
 echo.
 set /p msg="O que voce mudou? "
 git commit -m "%msg%"
-git push origin main
 
+echo.
+echo [..] Sincronizando com o servidor...
+git pull --rebase origin main
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo [ERRO] git pull falhou. Verifique sua conexao.
+    pause
+    exit /b 1
+)
+
+git push origin main
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [ERRO] git push falhou. Verifique sua conexao.
