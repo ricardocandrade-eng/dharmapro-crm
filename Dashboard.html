@@ -253,7 +253,8 @@ function _render(d){
     var rb=document.getElementById('d_rankBar'),rt=document.getElementById('d_rankTrack'),ri=document.getElementById('d_rankInfo');
     if(!rb||!rt||!ri)return;
     var vb=Math.max(0,parseInt(d.vendaBrutaMes,10)||0);
-    var ins=Math.max(0,parseInt(d.instalacoesMes,10)||0);
+    var insBase=(d.instaladasDaVendaBrutaMes!==undefined)?d.instaladasDaVendaBrutaMes:d.instalacoesMes;
+    var ins=Math.max(0,parseInt(insBase,10)||0);
     var base=Math.max(vb,ins,1),tks='';
     for(var t=0;t<base;t++){
       var cor='rgba(255,255,255,.10)';

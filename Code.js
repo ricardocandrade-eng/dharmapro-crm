@@ -3483,7 +3483,7 @@ function getDashboard(mes, ano) {
     // ── Acumuladores ───────────────────────────────────────────────────────
     var fibraHoje = 0, movelHoje = 0;
     var fibraHojeCanal = {};
-    var instalacoesMes = 0, vendaBrutaMes = 0;
+    var instalacoesMes = 0, vendaBrutaMes = 0, instaladasDaVendaBrutaMes = 0;
     var cancelComercialMes = 0, ticketSoma = 0, ticketQtd = 0;
     var backlog = 0, pendenciaVero = 0;
     var agendadosHoje = 0, instaladosHoje = 0, pendenciadoHoje = 0;
@@ -3559,6 +3559,7 @@ function getDashboard(mes, ano) {
         vendaBrutaMes++;
         vendaBrutaCanal[canal] = (vendaBrutaCanal[canal] || 0) + 1;
         if (resp) rankingMes[resp] = (rankingMes[resp] || 0) + 1;
+        if (status === '3 - Finalizada/Instalada') instaladasDaVendaBrutaMes++;
       }
       // Venda bruta mês anterior por responsável
       var isVendaMesAnt = isFibra(produto) &&
@@ -3695,6 +3696,7 @@ function getDashboard(mes, ano) {
 
       // Mês
       instalacoesMes:     instalacoesMes,
+      instaladasDaVendaBrutaMes: instaladasDaVendaBrutaMes,
       backlog:            backlog,
       projecaoBacklog:    instalacoesMes + backlog,
       vendaBrutaMes:      vendaBrutaMes,
