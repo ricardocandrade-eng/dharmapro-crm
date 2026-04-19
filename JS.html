@@ -3593,29 +3593,31 @@ function mostrarPainel(v) {
   var html =
     // ── 1. CLIENTE ──────────────────────────────────────────────────────────
     _secaoPainel('👤 Cliente', [
-      ['Nome',         v.cliente],
-      ['CPF/CNPJ',     v.cpf],
-      ['ID Contrato',  v.contrato],
-      ['WhatsApp',     v.whats],
-      ['Telefone',     v.tel],
-      ['Nome da Mãe',  v.nomeMae],
-      ['Dt. Nasc.',    v.dtNasc],
-      ['RG',           v.rg]
+      ['Nome',        v.cliente, true],
+      ['CPF/CNPJ',    v.cpf],
+      ['WhatsApp',    v.whats],
+      ['Telefone',    v.tel],
+      ['ID Contrato', v.contrato],
+      ['RG',          v.rg],
+      ['Nome da Mãe', v.nomeMae, true],
+      ['Dt. Nascimento', v.dtNasc]
     ]) +
-    // Endereço com link Maps
-// Endereço com link Maps
-    '<div class="painel-secao">' +
-      '<div class="painel-secao-titulo">📍 Endereço</div>' +
-      (v.rua    ? _linhaPainelHtml('Rua', esc((v.rua || '') + (v.num ? ', ' + v.num : '') + (v.complemento ? ' — ' + v.complemento : ''))) : '') +
-      (v.bairro ? _linhaPainelHtml('Bairro', esc(v.bairro)) : '') +
-      (v.cidade ? _linhaPainelHtml('Cidade / UF', esc((v.cidade || '') + (v.uf ? ' / ' + v.uf : ''))) : '') +
-      (v.cep    ? _linhaPainelHtml('CEP', esc(v.cep)) : '') +
-      _linhaPainelHtml('Sistema', esc(v.sistema || '—')) +
-      _linhaPainelHtml('Segmentação', esc(v.segmentacao || '—')) +
-      (mapsUrl  ? _linhaPainelHtml('Maps', '<a href="' + mapsUrl + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;font-size:12px;">Abrir no Google Maps ↗</a>') : '') +
-    '</div>' +
 
-    // ── 2. STATUS ───────────────────────────────────────────────────────────
+    // ── 2. ENDEREÇO ─────────────────────────────────────────────────────────
+    (v.rua || v.cidade || v.cep ? '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📍 Endereço</div>' +
+      '<div class="painel-campos">' +
+        (v.rua    ? '<div class="painel-campo full"><span class="painel-lbl">Logradouro</span><span class="painel-val">' + esc((v.rua||'') + (v.num?', '+v.num:'') + (v.complemento?' — '+v.complemento:'')) + '</span></div>' : '') +
+        (v.bairro ? '<div class="painel-campo"><span class="painel-lbl">Bairro</span><span class="painel-val">' + esc(v.bairro) + '</span></div>' : '') +
+        (v.cidade ? '<div class="painel-campo"><span class="painel-lbl">Cidade / UF</span><span class="painel-val">' + esc((v.cidade||'') + (v.uf?' / '+v.uf:'')) + '</span></div>' : '') +
+        (v.cep    ? '<div class="painel-campo"><span class="painel-lbl">CEP</span><span class="painel-val">' + esc(v.cep) + '</span></div>' : '') +
+        (v.sistema ? '<div class="painel-campo"><span class="painel-lbl">Sistema</span><span class="painel-val">' + esc(v.sistema) + '</span></div>' : '') +
+        (v.segmentacao ? '<div class="painel-campo full"><span class="painel-lbl">Segmentação</span><span class="painel-val">' + esc(v.segmentacao) + '</span></div>' : '') +
+        (mapsUrl ? '<div class="painel-campo full"><span class="painel-lbl">Maps</span><span class="painel-val"><a href="' + mapsUrl + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">Abrir no Google Maps ↗</a></span></div>' : '') +
+      '</div>' +
+    '</div>' : '') +
+
+    // ── 3. STATUS ───────────────────────────────────────────────────────────
     _secaoPainel('📌 Status', [
       ['Status',      v.status],
       ['Pré-Status',  v.status === '1- Conferencia/Ativação' ? v.preStatus : ''],
@@ -3623,65 +3625,61 @@ function mostrarPainel(v) {
       ['Canal',       v.canal]
     ]) +
 
-    // ── 3. PLANO / PRODUTO ─��────────────────────────────────────────────────
-    _secaoPainel('📦 Plano & Produto', [
-      ['Produto',      v.produto],
-      ['Plano',        v.plano],
-      ['Valor',        v.valor],
-      ['Vencimento',   v.venc],
-      ['Pagamento',    v.fat],
-      ['Linha Móvel',  v.linhaMovel]
-    ]) +
+    // ── 4. PLANO & PRODUTO ──────────────────────────────────────────────────
+    (function() {
+      var _ehMovel = (v.produto||'').toUpperCase().indexOf('MÓVEL') > -1 || (v.produto||'').toUpperCase().indexOf('MOVEL') > -1;
+      var itens = [
+        ['Produto',    v.produto],
+        ['Plano',      v.plano],
+        ['Valor',      v.valor],
+        ['Vencimento', v.venc],
+        ['Pagamento',  v.fat]
+      ];
+      if (_ehMovel) { itens.push(['Linha Móvel', v.linhaMovel]); itens.push(['Portabilidade', v.portabilidade]); }
+      return _secaoPainel('📦 Plano & Produto', itens);
+    })() +
 
-    // ── 4. DATAS ────────────────────────────────────────────────────────────
+    // ── 5. DATAS ────────────────────────────────────────────────────────────
     '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">📅 Datas</div>' +
-      ((function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? _linhaPainelHtml('Ativação', esc(d)) : ''; })()) +
+      '<div class="painel-campos">' +
+        (function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? '<div class="painel-campo"><span class="painel-lbl">Ativação</span><span class="painel-val">' + esc(d) + '</span></div>' : ''; })() +
+        (v.instal ? '<div class="painel-campo"><span class="painel-lbl">Instalação</span><span class="painel-val">' + esc(_fmtData(v.instal)) + '</span></div>' : '') +
+      '</div>' +
       _linhaPainelHtml('Agendamento',
         '<div class="painel-agenda-wrap">' +
-          '<input type="date" class="agenda-input" id="painel-agenda-input" value="' + _agendaToInputDate(v.agenda) + '" ' +
-          'onchange="_salvarAgendamento(' + v.linha + ',this,-1)">' +
-          (v.reagendamentos ? '<span class="painel-reag-badge painel-reag-tooltip-wrap">🔄 ' + v.reagendamentos + '<span class="painel-reag-tooltip">Esta venda foi reagendada <b>' + v.reagendamentos + '</b> vez' + (v.reagendamentos > 1 ? 'es' : '') + '.<br>O contador incrementa a cada alteração de data de agendamento.</span></span>' : '') +
-        '</div>'
-      ) +
+          '<input type="date" class="agenda-input" id="painel-agenda-input" value="' + _agendaToInputDate(v.agenda) + '" onchange="_salvarAgendamento(' + v.linha + ',this,-1)">' +
+          (v.reagendamentos ? '<span class="painel-reag-badge painel-reag-tooltip-wrap">🔄 ' + v.reagendamentos + '<span class="painel-reag-tooltip">Reagendada <b>' + v.reagendamentos + '</b> vez' + (v.reagendamentos > 1 ? 'es' : '') + '.</span></span>' : '') +
+        '</div>') +
       _linhaPainelHtml('Turno',
         '<select class="painel-turno-select" id="painel-turno-select" onchange="_salvarTurno(' + v.linha + ',this)">' +
           '<option value=""' + (!v.turno ? ' selected' : '') + '>—</option>' +
-          '<option value="Manhã (08h às 12h)"' + (v.turno === 'Manhã (08h às 12h)' ? ' selected' : '') + '>☀️ Manhã (08h às 12h)</option>' +
-          '<option value="Tarde (13h às 17h)"' + (v.turno === 'Tarde (13h às 17h)' ? ' selected' : '') + '>🌤️ Tarde (13h às 17h)</option>' +
-        '</select>'
-      ) +
-      (v.instal ? _linhaPainelHtml('Instalação', esc(_fmtData(v.instal))) : '') +
+          '<option value="Manhã (08h às 12h)"' + (v.turno === 'Manhã (08h às 12h)' ? ' selected' : '') + '>☀️ Manhã</option>' +
+          '<option value="Tarde (13h às 17h)"' + (v.turno === 'Tarde (13h às 17h)' ? ' selected' : '') + '>🌤️ Tarde</option>' +
+        '</select>') +
     '</div>' +
 
-    // ── 5. VEROHUB ──────────────────────────────────────────────────────────
+    // ── 6. VEROHUB ──────────────────────────────────────────────────────────
     '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">🔒 VeroHub</div>' +
-      '<div style="padding:6px 0;">' + _veroHubHtml(v, -1) + '</div>' +
+      '<div style="padding:8px 12px;">' + _veroHubHtml(v, -1) + '</div>' +
     '</div>' +
 
-    // ── 6. OBSERVAÇÃO ───────────────────────────────────────────────────────
-    (v.observacao ?
-      '<div class="painel-secao">' +
-        '<div class="painel-secao-titulo">📝 Observação</div>' +
-        '<div class="painel-linha" style="display:block;padding:8px 0">' +
-          '<span class="painel-val" style="color:var(--muted);font-size:12px;line-height:1.6;white-space:pre-wrap;text-align:left;">' + esc(v.observacao) + '</span>' +
-        '</div>' +
-      '</div>'
-    : '') +
+    // ── 7. OBSERVAÇÃO ───────────────────────────────────────────────────────
+    (v.observacao ? '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📝 Observação</div>' +
+      '<div class="painel-campos"><div class="painel-campo full"><span class="painel-val" style="color:var(--muted);font-weight:400;line-height:1.6;white-space:pre-wrap;">' + esc(v.observacao) + '</span></div></div>' +
+    '</div>' : '') +
 
-    // ── 7. STATUS PAP ───────────────────────────────────────────────────────
+    // ── 8. STATUS PAP ───────────────────────────────────────────────────────
     '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">💰 Pagamento PAP</div>' +
-      _linhaPainelHtml('Status PAP',
-        '<select onchange="_salvarStatusPAP(' + v.linha + ', this)" ' +
-        'style="background:var(--surface2);border:1px solid var(--border);color:var(--text);' +
-        'border-radius:6px;padding:3px 8px;font-size:12px;font-family:\'Sora\',sans-serif;cursor:pointer;">' +
-          '<option value=""'          + (!v.statusPAP || v.statusPAP === ''    ? ' selected' : '') + '>—</option>' +
-          '<option value="Em aberto"' + (v.statusPAP === 'Em Aberto'           ? ' selected' : '') + '>🔴 Em aberto</option>' +
-          '<option value="Pago"'      + (v.statusPAP === 'Pago'                ? ' selected' : '') + '>✅ Pago</option>' +
-        '</select>'
-      ) +
+      _linhaPainelHtml('Status',
+        '<select onchange="_salvarStatusPAP(' + v.linha + ', this)" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 8px;font-size:12px;font-family:\'Sora\',sans-serif;cursor:pointer;">' +
+          '<option value=""'           + (!v.statusPAP || v.statusPAP === '' ? ' selected' : '') + '>—</option>' +
+          '<option value="Em Aberto"'  + (v.statusPAP === 'Em Aberto'        ? ' selected' : '') + '>🔴 Em Aberto</option>' +
+          '<option value="Pago"'       + (v.statusPAP === 'Pago'             ? ' selected' : '') + '>✅ Pago</option>' +
+        '</select>') +
     '</div>';
 
   document.getElementById('painelScroll').innerHTML = html;
@@ -3709,20 +3707,22 @@ function mostrarPainel(v) {
 }
 
 function _secaoPainel(titulo, linhas) {
-  var rows = '';
+  var campos = '';
   for (var i = 0; i < linhas.length; i++) {
-    var lbl = linhas[i][0];
-    var val = linhas[i][1];
+    if (!linhas[i]) continue;
+    var lbl  = linhas[i][0];
+    var val  = linhas[i][1];
+    var full = linhas[i][2] || false;
     if (!val || String(val).trim() === '') continue;
-    rows += '<div class="painel-linha">' +
+    campos += '<div class="painel-campo' + (full ? ' full' : '') + '">' +
       '<span class="painel-lbl">' + esc(lbl) + '</span>' +
-      '<span class="painel-val">' + esc(val) + '</span>' +
+      '<span class="painel-val">' + esc(String(val)) + '</span>' +
     '</div>';
   }
-  if (!rows) return '';
+  if (!campos) return '';
   return '<div class="painel-secao">' +
     '<div class="painel-secao-titulo">' + titulo + '</div>' +
-    rows +
+    '<div class="painel-campos">' + campos + '</div>' +
   '</div>';
 }
 
@@ -8004,69 +8004,58 @@ function mostrarPainel(v) {
     ]) +
 
     // ── 3. ENDEREÇO ─────────────────────────────────────────────────────────
-    '<div class="painel-secao">' +
+    (v.rua || v.cidade || v.cep ? '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">📍 Endereço</div>' +
-      '<div class="painel-grid-2">' +
-        '<div class="painel-linha"><span class="painel-lbl">Rua</span><span class="painel-val">' + esc(v.rua || '—') + '</span></div>' +
-        '<div class="painel-linha"><span class="painel-lbl">Nº Fachada</span><span class="painel-val">' + esc(v.num || '—') + '</span></div>' +
-        '<div class="painel-linha"><span class="painel-lbl">Complemento</span><span class="painel-val">' + esc(v.complemento || '—') + '</span></div>' +
-        '<div class="painel-linha"><span class="painel-lbl">Bairro</span><span class="painel-val">' + esc(v.bairro || '—') + '</span></div>' +
-        '<div class="painel-linha"><span class="painel-lbl">Cidade</span><span class="painel-val">' + esc(v.cidade || '—') + '</span></div>' +
-        '<div class="painel-linha"><span class="painel-lbl">UF</span><span class="painel-val">' + esc(v.uf || '—') + '</span></div>' +
-        '<div class="painel-linha"><span class="painel-lbl">CEP</span><span class="painel-val">' + esc(v.cep || '—') + '</span></div>' +
-        '<div class="painel-linha"><span class="painel-lbl">Sistema</span><span class="painel-val">' + esc(v.sistema || '—') + '</span></div>' +
-        '<div class="painel-linha-full"><span class="painel-lbl">Segmentação</span><span class="painel-val">' + esc(v.segmentacao || '—') + '</span></div>' +
-        (mapsUrl ? '<div class="painel-linha-full"><span class="painel-lbl">Maps</span><span class="painel-val"><a href="' + mapsUrl + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">Abrir no Google Maps ↗</a></span></div>' : '') +
+      '<div class="painel-campos">' +
+        (v.rua    ? '<div class="painel-campo full"><span class="painel-lbl">Logradouro</span><span class="painel-val">' + esc((v.rua||'') + (v.num?', '+v.num:'') + (v.complemento?' — '+v.complemento:'')) + '</span></div>' : '') +
+        (v.bairro ? '<div class="painel-campo"><span class="painel-lbl">Bairro</span><span class="painel-val">' + esc(v.bairro) + '</span></div>' : '') +
+        (v.cidade ? '<div class="painel-campo"><span class="painel-lbl">Cidade / UF</span><span class="painel-val">' + esc((v.cidade||'') + (v.uf?' / '+v.uf:'')) + '</span></div>' : '') +
+        (v.cep    ? '<div class="painel-campo"><span class="painel-lbl">CEP</span><span class="painel-val">' + esc(v.cep) + '</span></div>' : '') +
+        (v.sistema ? '<div class="painel-campo"><span class="painel-lbl">Sistema</span><span class="painel-val">' + esc(v.sistema) + '</span></div>' : '') +
+        (v.segmentacao ? '<div class="painel-campo full"><span class="painel-lbl">Segmentação</span><span class="painel-val">' + esc(v.segmentacao) + '</span></div>' : '') +
+        (mapsUrl ? '<div class="painel-campo full"><span class="painel-lbl">Maps</span><span class="painel-val"><a href="' + mapsUrl + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">Abrir no Google Maps ↗</a></span></div>' : '') +
       '</div>' +
-    '</div>' +
+    '</div>' : '') +
 
     // ── 4. PLANO & PRODUTO ──────────────────────────────────────────────────
     (function() {
-      var _ehMovel = (v.produto || '').toUpperCase().indexOf('MÓVEL') > -1 || (v.produto || '').toUpperCase().indexOf('MOVEL') > -1;
+      var _ehMovel = (v.produto||'').toUpperCase().indexOf('MÓVEL') > -1 || (v.produto||'').toUpperCase().indexOf('MOVEL') > -1;
       var itens = [
-        ['Produto',  v.produto],
-        ['Plano',    v.plano],
-        ['Valor',    v.valor, true],
-        ['Vencimento', v.venc || '—'],
-        ['Pagamento',  v.fat  || '—']
+        ['Produto',    v.produto],
+        ['Plano',      v.plano],
+        ['Valor',      v.valor],
+        ['Vencimento', v.venc],
+        ['Pagamento',  v.fat]
       ];
-      if (_ehMovel) {
-        itens.push(['Linha Móvel',  v.linhaMovel   || '—']);
-        itens.push(['Portabilidade', v.portabilidade || '—']);
-      }
-      return _secaoGrid2('📦 Plano & Produto', itens);
+      if (_ehMovel) { itens.push(['Linha Móvel', v.linhaMovel]); itens.push(['Portabilidade', v.portabilidade]); }
+      return _secaoPainel('📦 Plano & Produto', itens);
     })() +
 
     // ── 5. DATAS ────────────────────────────────────────────────────────────
     '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">📅 Datas</div>' +
-      ((function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? _linhaPainelHtml('Ativação', esc(d)) : ''; })()) +
+      '<div class="painel-campos">' +
+        (function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? '<div class="painel-campo"><span class="painel-lbl">Ativação</span><span class="painel-val">' + esc(d) + '</span></div>' : ''; })() +
+        (v.instal ? '<div class="painel-campo"><span class="painel-lbl">Instalação</span><span class="painel-val">' + esc(_fmtData(v.instal)) + '</span></div>' : '') +
+      '</div>' +
       _linhaPainelHtml('Agendamento',
         '<div class="painel-agenda-wrap">' +
-          '<input type="date" class="agenda-input" id="painel-agenda-input" value="' + _agendaToInputDate(v.agenda) + '" ' +
-          'onchange="_salvarAgendamento(' + v.linha + ',this,-1)">' +
-          (v.reagendamentos ? '<span class="painel-reag-badge painel-reag-tooltip-wrap">🔄 ' + v.reagendamentos + '<span class="painel-reag-tooltip">Esta venda foi reagendada <b>' + v.reagendamentos + '</b> vez' + (v.reagendamentos > 1 ? 'es' : '') + '.<br>O contador incrementa a cada alteração de data de agendamento.</span></span>' : '') +
-        '</div>'
-      ) +
+          '<input type="date" class="agenda-input" id="painel-agenda-input" value="' + _agendaToInputDate(v.agenda) + '" onchange="_salvarAgendamento(' + v.linha + ',this,-1)">' +
+          (v.reagendamentos ? '<span class="painel-reag-badge painel-reag-tooltip-wrap">🔄 ' + v.reagendamentos + '<span class="painel-reag-tooltip">Reagendada <b>' + v.reagendamentos + '</b> vez' + (v.reagendamentos > 1 ? 'es' : '') + '.</span></span>' : '') +
+        '</div>') +
       _linhaPainelHtml('Turno',
         '<select class="painel-turno-select" id="painel-turno-select" onchange="_salvarTurno(' + v.linha + ',this)">' +
           '<option value=""' + (!v.turno ? ' selected' : '') + '>—</option>' +
-          '<option value="Manhã (08h às 12h)"' + (v.turno === 'Manhã (08h às 12h)' ? ' selected' : '') + '>☀️ Manhã (08h às 12h)</option>' +
-          '<option value="Tarde (13h às 17h)"' + (v.turno === 'Tarde (13h às 17h)' ? ' selected' : '') + '>🌤️ Tarde (13h às 17h)</option>' +
-        '</select>'
-      ) +
-      (v.instal ? _linhaPainelHtml('Instalação', esc(_fmtData(v.instal))) : '') +
+          '<option value="Manhã (08h às 12h)"' + (v.turno === 'Manhã (08h às 12h)' ? ' selected' : '') + '>☀️ Manhã</option>' +
+          '<option value="Tarde (13h às 17h)"' + (v.turno === 'Tarde (13h às 17h)' ? ' selected' : '') + '>🌤️ Tarde</option>' +
+        '</select>') +
     '</div>' +
 
     // ── 6. OBSERVAÇÃO ───────────────────────────────────────────────────────
-    '<div class="painel-secao">' +
+    (v.observacao ? '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">📝 Observação</div>' +
-      '<div class="painel-linha" style="display:block;padding:8px 0">' +
-        '<span class="painel-val" style="color:' + (v.observacao ? 'var(--text)' : 'var(--muted)') + ';font-size:12px;line-height:1.6;white-space:pre-wrap;text-align:left;">' +
-          esc(v.observacao || '—') +
-        '</span>' +
-      '</div>' +
-    '</div>';
+      '<div class="painel-campos"><div class="painel-campo full"><span class="painel-val" style="color:var(--muted);font-weight:400;line-height:1.6;white-space:pre-wrap;">' + esc(v.observacao) + '</span></div></div>' +
+    '</div>' : '');
 
   document.getElementById('painelScroll').innerHTML = html;
 
@@ -8094,20 +8083,22 @@ function mostrarPainel(v) {
 }
 
 function _secaoPainel(titulo, linhas) {
-  var rows = '';
+  var campos = '';
   for (var i = 0; i < linhas.length; i++) {
-    var lbl = linhas[i][0];
-    var val = linhas[i][1];
+    if (!linhas[i]) continue;
+    var lbl  = linhas[i][0];
+    var val  = linhas[i][1];
+    var full = linhas[i][2] || false;
     if (!val || String(val).trim() === '') continue;
-    rows += '<div class="painel-linha">' +
+    campos += '<div class="painel-campo' + (full ? ' full' : '') + '">' +
       '<span class="painel-lbl">' + esc(lbl) + '</span>' +
-      '<span class="painel-val">' + esc(val) + '</span>' +
+      '<span class="painel-val">' + esc(String(val)) + '</span>' +
     '</div>';
   }
-  if (!rows) return '';
+  if (!campos) return '';
   return '<div class="painel-secao">' +
     '<div class="painel-secao-titulo">' + titulo + '</div>' +
-    rows +
+    '<div class="painel-campos">' + campos + '</div>' +
   '</div>';
 }
 
@@ -8118,23 +8109,21 @@ function _linhaPainelHtml(lbl, htmlVal) {
   '</div>';
 }
 
-// Seção com grid 2 colunas — pares de campos lado a lado; cada item: [lbl, val, full?]
-// full=true força a linha a ocupar as 2 colunas
 function _secaoGrid2(titulo, itens) {
-  var rows = '';
+  var campos = '';
   for (var i = 0; i < itens.length; i++) {
+    if (!itens[i]) continue;
     var lbl  = itens[i][0];
-    var val  = String(itens[i][1] != null && itens[i][1] !== '' ? itens[i][1] : '—');
+    var val  = itens[i][1] != null && itens[i][1] !== '' ? itens[i][1] : '—';
     var full = itens[i][2] || false;
-    var cls  = full ? 'painel-linha-full' : 'painel-linha';
-    rows += '<div class="' + cls + '">' +
+    campos += '<div class="painel-campo' + (full ? ' full' : '') + '">' +
       '<span class="painel-lbl">' + esc(lbl) + '</span>' +
-      '<span class="painel-val">' + esc(val) + '</span>' +
+      '<span class="painel-val">' + esc(String(val)) + '</span>' +
     '</div>';
   }
   return '<div class="painel-secao">' +
     '<div class="painel-secao-titulo">' + titulo + '</div>' +
-    '<div class="painel-grid-2">' + rows + '</div>' +
+    '<div class="painel-campos">' + campos + '</div>' +
   '</div>';
 }
 
