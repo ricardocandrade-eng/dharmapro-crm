@@ -320,9 +320,9 @@
     .venda-item {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-top-width: 2px; /* cor definida inline via JS */
+      border-top-width: 2px;
       border-radius: 10px;
-      margin-bottom: 6px;
+      margin-bottom: 4px;
       cursor: pointer;
       overflow: hidden;
       transition: border-color 0.15s, background 0.15s;
@@ -336,38 +336,37 @@
     /* ── ZONA 1: nome + status ── */
     .vi-top {
       display: flex; align-items: center; justify-content: space-between;
-      gap: 12px; padding: 10px 13px 7px;
+      gap: 8px; padding: 8px 12px 6px;
     }
-    .vi-nome-bloco { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-    .vi-nome { font-size: 13px; font-weight: 800; color: #fff; text-transform: uppercase;
+    .vi-nome-bloco { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+    .vi-nome { font-size: 12px; font-weight: 800; color: #fff; text-transform: uppercase;
                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .vi-ids  { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-    .vi-id   { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); white-space: nowrap; }
-    .vi-id-sep { color: var(--border2); font-size: 10px; }
-    .vi-prestatus-badge { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--yellow); font-weight: 600; white-space: nowrap; }
+    .vi-ids  { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+    .vi-id   { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); white-space: nowrap; }
+    .vi-id-sep { color: var(--border2); font-size: 9px; }
+    .vi-prestatus-badge { font-size: 9px; font-family: 'DM Mono', monospace; color: var(--yellow); font-weight: 600; white-space: nowrap; }
     .vi-status {
-      font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 600;
-      padding: 3px 10px; border-radius: 20px; border: 1.5px solid;
+      font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 600;
+      padding: 2px 8px; border-radius: 20px; border: 1.5px solid;
       white-space: nowrap; flex-shrink: 0;
     }
 
     /* ── Divisor entre zonas ── */
-    .vi-divider { height: 1px; background: var(--border); margin: 0 13px; }
+    .vi-divider { height: 0px; background: transparent; margin: 0; display: none; }
 
     /* ── ZONA 2: rodapé ── */
     .vi-bot {
-      display: grid;
-      grid-template-columns: 1fr;
-      padding: 6px 13px 9px; gap: 8px;
+      display: flex; flex-direction: column;
+      padding: 4px 12px 6px; gap: 3px;
     }
 
     /* Esquerda: produto + plano/valor — linha inteira */
-    .vi-bot-left { grid-column: 1; display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: nowrap; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    .vi-bot-left { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: nowrap; width: 100%; }
     .vi-produto {
       display: inline-flex; align-items: center; justify-content: center;
-      width: 90px; flex-shrink: 0;
-      padding: 3px 0; border-radius: 5px;
-      font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 500;
+      width: 80px; flex-shrink: 0;
+      padding: 2px 0; border-radius: 4px;
+      font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500;
       text-align: center; white-space: nowrap;
     }
     .vi-prod-fa { background: rgba(79,158,255,.12);  border: 1px solid rgba(79,158,255,.25);  color: var(--blue);   }
@@ -375,25 +374,25 @@
     .vi-prod-mc { background: rgba(167,139,250,.12); border: 1px solid rgba(167,139,250,.25); color: var(--purple); }
     .vi-prod-ma { background: rgba(247,162,59,.10);  border: 1px solid rgba(247,162,59,.22);  color: var(--yellow); }
     .vi-prod-xx { background: var(--surface2);       border: 1px solid var(--border2);        color: var(--muted);  }
-    .vi-plano-val { font-size: 11px; color: var(--muted); font-weight: 600;
-                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .vi-plano-val { font-size: 10px; color: var(--muted); font-weight: 600;
+                    flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     /* BotConversa: etiquetas e status de atendimento */
-    .vi-bc-tags  { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
-                   width: 100%; font-size: 10px; color: var(--muted); opacity: .75; }
-    .vi-bc-status { border-radius: 3px; padding: 1px 5px; font-size: 9px; font-weight: 700;
+    .vi-bc-tags  { display: flex; align-items: center; flex-wrap: wrap; gap: 3px;
+                   width: 100%; font-size: 9px; color: var(--muted); opacity: .75; }
+    .vi-bc-status { border-radius: 3px; padding: 1px 5px; font-size: 8px; font-weight: 700;
                     letter-spacing: .4px; text-transform: uppercase; flex-shrink: 0; display: none; }
     .vi-bc-status--aberto { background: rgba(247,162,59,.12); color: #f7a23b; border: 1px solid rgba(247,162,59,.25); }
     .vi-bc-status--ok     { background: rgba(34,217,138,.10); color: var(--green); border: 1px solid rgba(34,217,138,.2); }
 
     /* Separador vertical */
-    .vi-vsep { width: 1px; height: 32px; background: var(--border); flex-shrink: 0; }
+    .vi-vsep { width: 0px; height: 0px; background: transparent; flex-shrink: 0; display: none; }
 
-    /* Direita: 3 linhas empilhadas — agora abaixo */
-    .vi-bot-right { grid-column: 1; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; width: 100%; align-items: flex-start; justify-content: flex-start; }
-    .vi-row-vhub  { display: flex; align-items: center; }
-    .vi-row-dates { display: flex; align-items: center; gap: 8px; }
-    .vi-row-resp  { display: flex; align-items: center; gap: 5px; }
+    /* Direita: 3 linhas empilhadas — compacto */
+    .vi-bot-right { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; width: 100%; align-items: flex-start; justify-content: flex-start; }
+    .vi-row-vhub  { display: flex; align-items: center; gap: 3px; }
+    .vi-row-dates { display: flex; align-items: center; gap: 5px; }
+    .vi-row-resp  { display: flex; align-items: center; gap: 3px; }
 
     /* Datas */
     .vi-ditem { display: flex; align-items: center; gap: 3px; font-family: 'DM Mono', monospace; font-size: 10px; white-space: nowrap; }
