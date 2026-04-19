@@ -119,14 +119,18 @@
 #dashContainer .hl-name{font-size:12px;font-weight:500;color:var(--txt);line-height:1.3;margin-bottom:4px}
 #dashContainer .hl-track{height:3px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden;margin-top:8px}
 #dashContainer .hl-fill{height:100%;border-radius:2px;transition:width 1s ease}
-/* ── RANKING FULL ── */
-#dashContainer .rank-full-wrap{display:flex;flex-direction:column;gap:8px;padding:4px 0}
-#dashContainer .rank-full-item{display:grid;grid-template-columns:36px 1fr 2fr 44px 80px;align-items:center;gap:12px;padding:10px 18px;background:var(--s2);border-radius:10px;border:1px solid var(--rim);transition:background .15s}
-#dashContainer .rank-full-item:hover{background:var(--s3)}
+/* ── RANKING DU ── */
+#dashContainer .rank-du-wrap{display:flex;flex-direction:column;gap:8px;padding:4px 0}
+#dashContainer .rank-du-item{display:grid;grid-template-columns:36px 1fr 3fr 44px 80px;align-items:center;gap:12px;padding:10px 18px;background:var(--s2);border-radius:10px;border:1px solid var(--rim);transition:background .15s}
+#dashContainer .rank-du-item:hover{background:var(--s3)}
 #dashContainer .rfi-medal{font-size:20px;text-align:center}
 #dashContainer .rfi-nome{font-size:13px;font-weight:600;color:var(--txt)}
-#dashContainer .rfi-bar-wrap{height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden}
-#dashContainer .rfi-bar{height:100%;border-radius:3px;transition:width .6s ease}
+#dashContainer .rdu-track{height:6px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden;position:relative}
+#dashContainer .rdu-fill{height:100%;border-radius:3px;transition:width 1.2s cubic-bezier(.34,1.56,.64,1)}
+#dashContainer .rdu-ticks{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;pointer-events:none}
+#dashContainer .rdu-tick{flex:1;border-right:1px solid rgba(8,9,14,.6);background:rgba(255,255,255,.06)}
+#dashContainer .rdu-tick.rdu-tick-on{background:transparent}
+#dashContainer .rdu-tick:last-child{border-right:none}
 #dashContainer .rfi-qtd{font-family:var(--mono);font-size:17px;font-weight:700;text-align:right}
 #dashContainer .rfi-delta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-family:var(--mono);font-size:12px;font-weight:600}
 #dashContainer .rfi-delta-lbl{font-size:9px;color:var(--dim);letter-spacing:.1em;font-weight:400}
@@ -249,10 +253,8 @@ function _render(d){
   function _isInt(nome){var nn=String(nome||'').toLowerCase().trim();return INTERNOS.some(function(i){return nn.indexOf(i)>-1;});}
   var rkMesF=(d.rankingMes||[]).filter(function(r){return !_isInt(r.nome);});
   var rkAntF=(d.rankingMesAnt||[]).filter(function(r){return !_isInt(r.nome);});
-  var rkVndF=(d.rankingMes||[]).filter(function(r){return !_isInt(r.nome);});
   var mapAnt={};rkAntF.forEach(function(r){mapAnt[r.nome]=r.qtd;});
-  var rkMax2=rkMesF.length>0?rkMesF[0].qtd:1;
-  var rkVMax=rkVndF.length>0?rkVndF[0].qtd:1;
+  var mapInstal={};(d.rankingInstalMes||[]).forEach(function(r){mapInstal[r.nome]=r.qtd;});
 
   // ═══ HOJE — só exibe no mês vigente ═══
   var today=new Date();
@@ -395,46 +397,29 @@ function _render(d){
   h+='</div></div>';
   h+='</div>'; // /grid-canais
 
-  // ═══ RANKING DUPLO ═══
+  // ═══ RANKING ÚNICO ═══
   h+='<div class="section-row" style="margin-top:8px"><span>Ranking de Vendedores · '+MO[d.mes-1]+'</span></div>';
-  h+='<div class="grid-rank">';
-
-  // Por Instalações
   h+='<div class="card" style="animation-delay:.3s">';
-  h+='<div class="card-head"><span class="card-title">Por Instalações</span><span class="card-badge badge-lime">'+MO[d.mes-1]+'</span></div>';
-  h+='<div class="rank-full-wrap">';
+  h+='<div class="card-head"><span class="card-title">Instaladas / Venda Bruta</span><span class="card-badge badge-lime">'+MO[d.mes-1]+'</span></div>';
+  h+='<div class="rank-du-wrap">';
   if(!rkMesF.length){h+='<div style="color:var(--dim);font-family:var(--mono);font-size:11px;padding:20px">— sem dados para o período —</div>';}
   else{rkMesF.forEach(function(r,i){
+    var instl=mapInstal[r.nome]||0;
     var ant=mapAnt[r.nome]||0,delta=r.qtd-ant;
     var dTxt=delta>0?'<span style="color:var(--g1)">▲'+delta+'</span>':delta<0?'<span style="color:var(--g3)">▼'+Math.abs(delta)+'</span>':'<span style="color:var(--dim)">—</span>';
-    var pct=Math.round(r.qtd/rkMax2*100),cor=i===0?'var(--g4)':i===1?'var(--g2)':i===2?'var(--g1)':'var(--dim2)';
+    var cor=i===0?'var(--g4)':i===1?'var(--g2)':i===2?'var(--g1)':'var(--dim2)';
     var medal=medalhas[i]||'<span style="font-family:var(--mono);color:var(--dim)">'+('0'+(i+1)).slice(-2)+'</span>';
-    h+='<div class="rank-full-item"'+(i===0?' style="border-color:rgba(255,170,0,.25)"':'')+'>';
-    h+='<div class="rfi-medal">'+medal+'</div><div class="rfi-nome">'+e(r.nome)+'</div>';
-    h+='<div class="rfi-bar-wrap"><div class="rfi-bar" style="width:'+pct+'%;background:'+cor+'"></div></div>';
-    h+='<div class="rfi-qtd" style="color:'+cor+'">'+r.qtd+'</div>';
-    h+='<div class="rfi-delta">'+dTxt+'<span class="rfi-delta-lbl">vs '+MO_PREV+'</span></div></div>';
+    var pct=r.qtd>0?Math.min(100,Math.round(instl/r.qtd*100)):0;
+    var tks='';for(var t=0;t<r.qtd;t++)tks+='<div class="rdu-tick'+(t<instl?' rdu-tick-on':'')+'"></div>';
+    h+='<div class="rank-du-item"'+(i===0?' style="border-color:rgba(255,170,0,.25)"':'')+'>';
+    h+='<div class="rfi-medal">'+medal+'</div>';
+    h+='<div class="rfi-nome">'+e(r.nome)+'</div>';
+    h+='<div class="rdu-track"><div class="rdu-fill" style="width:'+pct+'%;background:linear-gradient(90deg,'+cor+','+cor+'99)"></div><div class="rdu-ticks">'+tks+'</div></div>';
+    h+='<div class="rfi-qtd" style="color:'+cor+'">'+instl+' <span style="font-size:11px;color:var(--dim)">/ '+r.qtd+'</span></div>';
+    h+='<div class="rfi-delta">'+dTxt+'<span class="rfi-delta-lbl">vs '+MO_PREV+'</span></div>';
+    h+='</div>';
   });}
   h+='</div></div>';
-
-  // Por Venda Bruta
-  h+='<div class="card" style="animation-delay:.35s">';
-  h+='<div class="card-head"><span class="card-title">Por Venda Bruta</span><span class="card-badge badge-amber">'+MO[d.mes-1]+'</span></div>';
-  h+='<div class="rank-full-wrap">';
-  if(!rkVndF.length){h+='<div style="color:var(--dim);font-family:var(--mono);font-size:11px;padding:20px">— sem dados de venda bruta —</div>';}
-  else{rkVndF.forEach(function(r,i){
-    var ant=mapAnt[r.nome]||0,delta=r.qtd-ant;
-    var dTxt=delta>0?'<span style="color:var(--g1)">▲'+delta+'</span>':delta<0?'<span style="color:var(--g3)">▼'+Math.abs(delta)+'</span>':'<span style="color:var(--dim)">—</span>';
-    var pct=Math.round(r.qtd/rkVMax*100),cor=i===0?'var(--g4)':i===1?'var(--g2)':i===2?'var(--g1)':'var(--dim2)';
-    var medal=medalhas[i]||'<span style="font-family:var(--mono);color:var(--dim)">'+('0'+(i+1)).slice(-2)+'</span>';
-    h+='<div class="rank-full-item"'+(i===0?' style="border-color:rgba(255,170,0,.25)"':'')+'>';
-    h+='<div class="rfi-medal">'+medal+'</div><div class="rfi-nome">'+e(r.nome)+'</div>';
-    h+='<div class="rfi-bar-wrap"><div class="rfi-bar" style="width:'+pct+'%;background:'+cor+'"></div></div>';
-    h+='<div class="rfi-qtd" style="color:'+cor+'">'+r.qtd+'</div>';
-    h+='<div class="rfi-delta">'+dTxt+'<span class="rfi-delta-lbl">vs '+MO_PREV+'</span></div></div>';
-  });}
-  h+='</div></div>';
-  h+='</div>'; // /grid-rank
 
   var root=document.getElementById('d_root');
   if(root)root.innerHTML=h;

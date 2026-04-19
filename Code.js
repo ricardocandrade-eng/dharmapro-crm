@@ -3432,9 +3432,10 @@ function getDashboard(mes, ano) {
     var vendaBrutaCanal = {}, instalacaoCanal = {};
     var planoCount = {}, cidadeCount = {};
     var instalacoesMesAnt = 0;
-    var rankingHoje   = {};
-    var rankingMes    = {}; // venda bruta do mês por responsável
-    var rankingMesAnt = {}; // venda bruta do mês anterior por responsável
+    var rankingHoje      = {};
+    var rankingMes       = {}; // venda bruta do mês por responsável
+    var rankingMesAnt    = {}; // venda bruta do mês anterior por responsável
+    var rankingInstalMes = {}; // instalações finalizadas do mês por responsável
     var funil = { 'EM NEGOCIACAO': 0, 'AG COMPROVANTE': 0, 'AG DOC': 0,
                   'AG ACEITE': 0, 'AG AUDITORIA': 0, 'AG QUALIDADE': 0,
                   'CRUZAMENTO DE CA': 0 };
@@ -3511,6 +3512,7 @@ function getDashboard(mes, ano) {
           ticketSoma += valor; ticketQtd++;
           if (plano) planoCount[plano] = (planoCount[plano] || 0) + 1;
           if (cidade) cidadeCount[cidade] = (cidadeCount[cidade] || 0) + 1;
+          if (resp) rankingInstalMes[resp] = (rankingInstalMes[resp] || 0) + 1;
         }
       }
 
@@ -3620,6 +3622,9 @@ function getDashboard(mes, ano) {
       }).sort(function(a, b) { return b.qtd - a.qtd; }),
       rankingMesAnt:      Object.keys(rankingMesAnt).map(function(k) {
         return { nome: k, qtd: rankingMesAnt[k] };
+      }).sort(function(a, b) { return b.qtd - a.qtd; }),
+      rankingInstalMes:   Object.keys(rankingInstalMes).map(function(k) {
+        return { nome: k, qtd: rankingInstalMes[k] };
       }).sort(function(a, b) { return b.qtd - a.qtd; }),
       agendadosHoje:      agendadosHoje,
       instaladosHoje:     instaladosHoje,
