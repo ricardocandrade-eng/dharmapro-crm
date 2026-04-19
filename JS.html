@@ -15,7 +15,6 @@ function pifOnStatusChange(novoStatus) {
 
   // Status 2 — Aguardando Instalação
   if (novoStatus === '2- Aguardando Instalação' && statusAtual !== '2- Aguardando Instalação') {
-    // Reverte o select por enquanto (o modal vai confirmar)
     document.getElementById('pif-status').value = statusAtual;
     _abrirModalStatus2();
     return;
@@ -32,6 +31,33 @@ function pifOnStatusChange(novoStatus) {
     _abrirModalStatus3();
     return;
   }
+
+  // Pré-Status só faz sentido em Conferencia/Ativação
+  var grpPreStatus = document.getElementById('pif-preStatus');
+  if (grpPreStatus) {
+    var ehConf = novoStatus === '1- Conferencia/Ativação';
+    grpPreStatus.disabled = !ehConf;
+    grpPreStatus.style.opacity = ehConf ? '' : '0.35';
+    if (!ehConf) grpPreStatus.value = '';
+  }
+}
+
+function pifValidarContrato(valor) {
+  var sistema = document.getElementById('pif-sistema') ? document.getElementById('pif-sistema').value : '';
+  var hint = document.getElementById('pif-contrato-hint');
+  if (!hint) return;
+  var err = _validarContratoFormato(valor, sistema);
+  hint.textContent = err || '';
+  hint.style.display = err ? '' : 'none';
+}
+
+function ms2ValidarContrato(valor) {
+  var sistema = document.getElementById('ms2-sistema') ? document.getElementById('ms2-sistema').value : '';
+  var hint = document.getElementById('ms2-err-contrato-fmt');
+  if (!hint) return;
+  var err = _validarContratoFormato(valor, sistema);
+  hint.textContent = err || '';
+  hint.style.display = err ? '' : 'none';
 }
 
 // Busca CEP no formulário inline
@@ -284,6 +310,18 @@ function painelToggleEdicao() {
     _pifSet('pif-uf',         v.uf         || '');
     _pifSet('pif-sistema',    v.sistema    || '');
     _pifSet('pif-segmentacao',v.segmentacao|| '');
+    var sDisplay  = document.getElementById('pif-sistema-display');
+    var sgDisplay = document.getElementById('pif-segmentacao-display');
+    if (sDisplay)  sDisplay.textContent  = v.sistema     || '—';
+    if (sgDisplay) sgDisplay.textContent = v.segmentacao || '—';
+
+    // preStatus só editável no status 1- Conferencia/Ativação
+    var elPre = document.getElementById('pif-preStatus');
+    if (elPre) {
+      var ehConf = (v.status || '') === '1- Conferencia/Ativação';
+      elPre.disabled    = !ehConf;
+      elPre.style.opacity = ehConf ? '' : '0.35';
+    }
     _pifSet('pif-valor',      v.valor      || '');
     _pifSet('pif-venc',       v.venc       || '');
     _pifSet('pif-fat',        v.fat        || '');
@@ -3481,7 +3519,7 @@ function _criarItemVenda(v, index) {
         '</div>' +
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">' +
           '<div style="display:flex;align-items:center;gap:6px;">' +
-            (v.preStatus ? '<span class="vi-prestatus-badge">' + esc(v.preStatus) + '</span>' : '') +
+            (v.preStatus && v.status === '1- Conferencia/Ativação' ? '<span class="vi-prestatus-badge">' + esc(v.preStatus) + '</span>' : '') +
             '<span class="vi-status" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
           '</div>' +
           (respHtml ? '<div class="vi-row-resp" style="justify-content:flex-end">' + respHtml + '</div>' : '') +
@@ -3555,11 +3593,14 @@ function mostrarPainel(v) {
   var html =
     // ── 1. CLIENTE ──────────────────────────────────────────────────────────
     _secaoPainel('👤 Cliente', [
-      ['Nome',       v.cliente],
-      ['CPF/CNPJ',   v.cpf],
-      ['ID Contrato',v.contrato],
-      ['WhatsApp',   v.whats],
-      ['Telefone',   v.tel]
+      ['Nome',         v.cliente],
+      ['CPF/CNPJ',     v.cpf],
+      ['ID Contrato',  v.contrato],
+      ['WhatsApp',     v.whats],
+      ['Telefone',     v.tel],
+      ['Nome da Mãe',  v.nomeMae],
+      ['Dt. Nasc.',    v.dtNasc],
+      ['RG',           v.rg]
     ]) +
     // Endereço com link Maps
 // Endereço com link Maps
@@ -3577,7 +3618,7 @@ function mostrarPainel(v) {
     // ── 2. STATUS ───────────────────────────────────────────────────────────
     _secaoPainel('📌 Status', [
       ['Status',      v.status],
-      ['Pré-Status',  v.preStatus],
+      ['Pré-Status',  v.status === '1- Conferencia/Ativação' ? v.preStatus : ''],
       ['Responsável', v.resp],
       ['Canal',       v.canal]
     ]) +
@@ -7868,7 +7909,7 @@ function _criarItemVenda(v, index) {
         '</div>' +
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">' +
           '<div style="display:flex;align-items:center;gap:6px;">' +
-            (v.preStatus ? '<span class="vi-prestatus-badge">' + esc(v.preStatus) + '</span>' : '') +
+            (v.preStatus && v.status === '1- Conferencia/Ativação' ? '<span class="vi-prestatus-badge">' + esc(v.preStatus) + '</span>' : '') +
             '<span class="vi-status" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
           '</div>' +
           (respHtml ? '<div class="vi-row-resp" style="justify-content:flex-end">' + respHtml + '</div>' : '') +
@@ -7945,10 +7986,10 @@ function mostrarPainel(v) {
     // ── 1. CLASSIFICAÇÃO ────────────────────────────────────────────────────
     _secaoGrid2('⭐ Classificação', [
       ['Status',      v.status],
-      ['Pré-Status',  v.preStatus],
+      v.status === '1- Conferencia/Ativação' ? ['Pré-Status', v.preStatus] : null,
       ['Responsável', v.resp],
       ['Canal',       v.canal]
-    ]) +
+    ].filter(Boolean)) +
 
     // ── 2. CLIENTE ──────────────────────────────────────────────────────────
     _secaoGrid2('👤 Cliente', [
