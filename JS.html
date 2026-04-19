@@ -9048,82 +9048,211 @@ function _campoAssertiva(label, valor) {
   '</div>';
 }
 
-// ── CONSULTA TELEFONE ──────────────────────────────────────────────────────
+// ── CONSULTA ASSERTIVA (CPF / Telefone / Nome) ────────────────────────────
 
-function abrirModalConsultaTelefone() {
-  var modal = document.getElementById('modalAssertiva');
-  var body  = document.getElementById('modalAssertivaBody');
-  var foot  = document.getElementById('modalAssertivaFoot');
-  document.getElementById('modalAssertivaTitulo').textContent = '📞 Consultar Telefone';
+function abrirModalConsultaAssertiva() {
+  document.getElementById('modalAssertivaTitulo').textContent = '🔍 Consultar Assertiva';
+  document.getElementById('modalAssertivaFoot').style.display = 'none';
+  _renderAbaAssertiva('telefone');
+  document.getElementById('modalAssertiva').classList.add('ativo');
+}
 
-  body.innerHTML =
+// mantém compatibilidade caso algum outro lugar ainda chame o nome antigo
+function abrirModalConsultaTelefone() { abrirModalConsultaAssertiva(); }
+
+function _renderAbaAssertiva(tipo) {
+  var defs = {
+    cpf:      { label: 'CPF',          icon: '🪪', placeholder: '000.000.000-00', maxlen: 14, inputType: 'text',  oninput: 'oninput="_maskCpfAssertiva(this)"' },
+    telefone: { label: 'Telefone',     icon: '📞', placeholder: '(00) 00000-0000', maxlen: 15, inputType: 'tel',   oninput: 'oninput="_maskTelAssertiva(this)"' },
+    nome:     { label: 'Nome Completo',icon: '🔤', placeholder: 'Nome completo da pessoa', maxlen: 100, inputType: 'text', oninput: '' }
+  };
+
+  var tabsHtml = '<div class="assertiva-tabs">';
+  ['cpf','telefone','nome'].forEach(function(t) {
+    var d = defs[t];
+    tabsHtml += '<button class="assertiva-tab' + (t === tipo ? ' ativo' : '') + '" onclick="_renderAbaAssertiva(\'' + t + '\')">' +
+      d.icon + ' ' + d.label + '</button>';
+  });
+  tabsHtml += '</div>';
+
+  var cf = defs[tipo];
+  var inputHtml =
     '<div class="assertiva-input-row">' +
-      '<input type="tel" id="assertivaTelInput" placeholder="(00) 00000-0000" maxlength="15" ' +
-        'oninput="_maskTelAssertiva(this)" onkeydown="if(event.key===\'Enter\')_executarConsultaTelefone()">' +
-      '<button onclick="_executarConsultaTelefone()" id="btnAssertivaTelBuscar">Buscar</button>' +
-    '</div>' +
-    '<div id="assertivaResultado"></div>';
-  foot.style.display = 'none';
-  modal.classList.add('ativo');
-  setTimeout(function() { document.getElementById('assertivaTelInput').focus(); }, 150);
+      '<input type="' + cf.inputType + '" id="assertivaInput" placeholder="' + cf.placeholder + '" maxlength="' + cf.maxlen + '" ' +
+        cf.oninput + ' onkeydown="if(event.key===\'Enter\')_executarConsultaAssertiva()">' +
+      '<button onclick="_executarConsultaAssertiva()" id="btnAssertivaBuscar">Buscar</button>' +
+    '</div>';
+
+  var body = document.getElementById('modalAssertivaBody');
+  body.innerHTML = tabsHtml + inputHtml + '<div id="assertivaResultado"></div>';
+  body.dataset.tipo = tipo;
+
+  setTimeout(function() {
+    var inp = document.getElementById('assertivaInput');
+    if (inp) inp.focus();
+  }, 80);
+}
+
+function _maskCpfAssertiva(el) {
+  var v = el.value.replace(/\D/g, '').substring(0, 11);
+  if (v.length > 9)      el.value = v.replace(/(\d{3})(\d{3})(\d{3})(\d+)/, '$1.$2.$3-$4');
+  else if (v.length > 6) el.value = v.replace(/(\d{3})(\d{3})(\d+)/, '$1.$2.$3');
+  else if (v.length > 3) el.value = v.replace(/(\d{3})(\d+)/, '$1.$2');
+  else                   el.value = v;
 }
 
 function _maskTelAssertiva(el) {
   var v = el.value.replace(/\D/g, '').substring(0, 11);
-  if (v.length > 10)
-    el.value = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
-  else if (v.length > 6)
-    el.value = v.replace(/(\d{2})(\d{4,5})(\d*)/, '($1) $2-$3');
-  else if (v.length > 2)
-    el.value = v.replace(/(\d{2})(\d+)/, '($1) $2');
-  else
-    el.value = v;
+  if (v.length > 10)     el.value = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+  else if (v.length > 6) el.value = v.replace(/(\d{2})(\d{4,5})(\d*)/, '($1) $2-$3');
+  else if (v.length > 2) el.value = v.replace(/(\d{2})(\d+)/, '($1) $2');
+  else                   el.value = v;
 }
 
-function _executarConsultaTelefone() {
-  var inp = document.getElementById('assertivaTelInput');
-  var tel = (inp ? inp.value : '').replace(/\D/g, '');
-  if (tel.length < 10 || tel.length > 11) {
-    mostrarToast('Informe um telefone com DDD (10 ou 11 dígitos).', 'error'); return;
+function _executarConsultaAssertiva() {
+  var inp  = document.getElementById('assertivaInput');
+  var val  = (inp ? inp.value : '').trim();
+  var tipo = (document.getElementById('modalAssertivaBody').dataset.tipo) || 'telefone';
+  var btn  = document.getElementById('btnAssertivaBuscar');
+  var res  = document.getElementById('assertivaResultado');
+
+  var loading = '<div class="assertiva-loading"><div class="assertiva-loading-spin"></div>Consultando Assertiva...</div>';
+
+  function onErr(err) {
+    btn.disabled = false; btn.textContent = 'Buscar';
+    res.innerHTML = '<div class="assertiva-erro">❌ ' + esc((err && err.message) || 'Erro desconhecido') + '</div>';
   }
 
-  var btn = document.getElementById('btnAssertivaTelBuscar');
-  var res = document.getElementById('assertivaResultado');
-  btn.disabled = true; btn.textContent = '...';
-  res.innerHTML = '<div class="assertiva-loading"><div class="assertiva-loading-spin"></div>Consultando Assertiva...</div>';
+  if (tipo === 'cpf') {
+    var digitos = val.replace(/\D/g, '');
+    if (digitos.length !== 11) { mostrarToast('Informe um CPF válido (11 dígitos).', 'error'); return; }
+    btn.disabled = true; btn.textContent = '...';
+    res.innerHTML = loading;
+    google.script.run
+      .withSuccessHandler(function(data) { btn.disabled = false; btn.textContent = 'Buscar'; _renderResultadoCPF(data); })
+      .withFailureHandler(onErr)
+      .consultarAssertivaCPF(digitos);
 
-  google.script.run
-    .withSuccessHandler(function(data) {
-      btn.disabled = false; btn.textContent = 'Buscar';
-      _renderResultadoTelefone(data);
-    })
-    .withFailureHandler(function(err) {
-      btn.disabled = false; btn.textContent = 'Buscar';
-      res.innerHTML = '<div class="assertiva-erro">❌ ' + esc(err.message || 'Erro desconhecido') + '</div>';
-    })
-    .consultarAssertivaTelefone(tel);
+  } else if (tipo === 'telefone') {
+    var tel = val.replace(/\D/g, '');
+    if (tel.length < 10 || tel.length > 11) { mostrarToast('Informe um telefone com DDD (10 ou 11 dígitos).', 'error'); return; }
+    btn.disabled = true; btn.textContent = '...';
+    res.innerHTML = loading;
+    google.script.run
+      .withSuccessHandler(function(data) { btn.disabled = false; btn.textContent = 'Buscar'; _renderResultadoPessoas(data, 'telefone'); })
+      .withFailureHandler(onErr)
+      .consultarAssertivaTelefone(tel);
+
+  } else {
+    if (val.length < 5) { mostrarToast('Informe ao menos 5 letras do nome.', 'error'); return; }
+    btn.disabled = true; btn.textContent = '...';
+    res.innerHTML = loading;
+    google.script.run
+      .withSuccessHandler(function(data) { btn.disabled = false; btn.textContent = 'Buscar'; _renderResultadoPessoas(data, 'nome'); })
+      .withFailureHandler(onErr)
+      .consultarAssertivaNome(val);
+  }
 }
 
-function _renderResultadoTelefone(data) {
+// Renderiza resultado da consulta por CPF (dados completos: 1 pessoa + telefones/endereços/emails)
+function _renderResultadoCPF(data) {
+  var container = document.getElementById('assertivaResultado');
+  var foot      = document.getElementById('modalAssertivaFoot');
+
+  if (!data || data.erro || !data.dados) {
+    container.innerHTML = '<div class="assertiva-erro">⚠ ' + esc(data ? data.mensagem : 'Sem resposta') + '</div>';
+    foot.style.display = 'flex'; return;
+  }
+
+  var d = data.dados;
+  var iniciais = (d.nome || '?').trim().split(' ').map(function(p){ return p[0]; }).slice(0,2).join('');
+
+  var statusClass = d.obitoProvavel ? 'obito' :
+                    (d.situacaoCadastral && d.situacaoCadastral.toLowerCase().indexOf('regular') >= 0 ? 'regular' : 'irregular');
+  var statusLabel = d.obitoProvavel ? '⚠ Óbito Provável' : (d.situacaoCadastral || '');
+
+  var html =
+    '<div class="assertiva-id-card">' +
+      '<div class="assertiva-id-avatar">' + esc(iniciais) + '</div>' +
+      '<div class="assertiva-id-info">' +
+        '<div class="assertiva-id-nome">' + esc(d.nome || '—') + '</div>' +
+        '<div class="assertiva-id-cpf">' + esc(_formatarCpfAssertiva(d.cpf || '')) +
+          (d.dataNascimento ? ' · ' + esc(d.dataNascimento) : '') +
+        '</div>' +
+        (statusLabel ? '<span class="assertiva-status-badge ' + statusClass + '">' + esc(statusLabel) + '</span>' : '') +
+      '</div>' +
+    '</div>';
+
+  var campos = '';
+  if (d.nomeMae)       campos += _campoAssertiva('Nome da Mãe', d.nomeMae);
+  if (d.sexo)          campos += _campoAssertiva('Sexo', d.sexo);
+  if (d.idade)         campos += _campoAssertiva('Idade', d.idade + ' anos');
+  if (campos) html += '<div class="assertiva-secao"><div class="assertiva-secao-titulo">Dados Pessoais</div>' + campos + '</div>';
+
+  if (d.telefones && d.telefones.length) {
+    var telHtml = '<div class="assertiva-secao"><div class="assertiva-secao-titulo">📞 Telefones</div>';
+    d.telefones.forEach(function(t) {
+      var isCel = (t.tipo || '').toLowerCase().indexOf('cel') >= 0;
+      telHtml += '<div class="assertiva-lista-item">' +
+        '<span class="assertiva-lista-icon">' + (isCel ? '📱' : '☎️') + '</span>' +
+        '<div class="assertiva-lista-info">' +
+          '<div class="assertiva-lista-principal">' + esc(t.numero || '') +
+            (t.tipo ? '<span class="assertiva-tag' + (isCel ? ' celular' : '') + '">' + esc(t.tipo) + '</span>' : '') +
+          '</div>' +
+          (t.operadora ? '<div class="assertiva-lista-detalhe">' + esc(t.operadora) + '</div>' : '') +
+        '</div></div>';
+    });
+    html += telHtml + '</div>';
+  }
+
+  if (d.enderecos && d.enderecos.length) {
+    var endHtml = '<div class="assertiva-secao"><div class="assertiva-secao-titulo">📍 Endereços</div>';
+    d.enderecos.forEach(function(e) {
+      var linha1 = [e.logradouro, e.numero, e.complemento].filter(Boolean).join(', ');
+      var linha2 = [e.bairro, e.cidade + (e.uf ? '/' + e.uf : ''), e.cep].filter(Boolean).join(' · ');
+      endHtml += '<div class="assertiva-lista-item">' +
+        '<span class="assertiva-lista-icon">🏠</span>' +
+        '<div class="assertiva-lista-info">' +
+          (linha1 ? '<div class="assertiva-lista-principal">' + esc(linha1) + '</div>' : '') +
+          (linha2 ? '<div class="assertiva-lista-detalhe">' + esc(linha2) + '</div>' : '') +
+        '</div></div>';
+    });
+    html += endHtml + '</div>';
+  }
+
+  if (d.emails && d.emails.length) {
+    var emHtml = '<div class="assertiva-secao"><div class="assertiva-secao-titulo">✉️ E-mails</div>';
+    d.emails.forEach(function(em) {
+      emHtml += '<div class="assertiva-lista-item">' +
+        '<span class="assertiva-lista-icon">✉️</span>' +
+        '<div class="assertiva-lista-info"><div class="assertiva-lista-principal">' + esc(em) + '</div></div></div>';
+    });
+    html += emHtml + '</div>';
+  }
+
+  container.innerHTML = html;
+  foot.style.display = 'flex';
+}
+
+// Renderiza lista de pessoas (resultado de busca por telefone ou nome)
+function _renderResultadoPessoas(data, origem) {
   var container = document.getElementById('assertivaResultado');
   var foot      = document.getElementById('modalAssertivaFoot');
 
   if (!data || data.erro) {
     container.innerHTML = '<div class="assertiva-erro">⚠ ' + esc(data ? data.mensagem : 'Sem resposta') + '</div>';
-    foot.style.display = 'flex';
-    return;
+    foot.style.display = 'flex'; return;
   }
 
   var pessoas = data.pessoas || [];
   if (!pessoas.length) {
-    container.innerHTML = '<div class="assertiva-erro">Nenhum resultado encontrado para este telefone.</div>';
-    foot.style.display = 'flex';
-    return;
+    var label = origem === 'nome' ? 'este nome' : 'este telefone';
+    container.innerHTML = '<div class="assertiva-erro">Nenhum resultado encontrado para ' + label + '.</div>';
+    foot.style.display = 'flex'; return;
   }
 
   var html = '';
-  for (var i = 0; i < pessoas.length; i++) {
-    var d = pessoas[i];
+  pessoas.forEach(function(d) {
     var iniciais = (d.nome || '?').trim().split(' ').map(function(p){ return p[0]; }).slice(0,2).join('');
     html += '<div class="assertiva-id-card">' +
       '<div class="assertiva-id-avatar">' + esc(iniciais) + '</div>' +
@@ -9134,24 +9263,24 @@ function _renderResultadoTelefone(data) {
         '</div>' +
       '</div>' +
     '</div>';
-    if (d.nomeMae) {
-      html += '<div class="assertiva-secao"><div class="assertiva-secao-titulo">Dados Pessoais</div>' +
-        _campoAssertiva('Nome da Mãe', d.nomeMae) +
-      '</div>';
-    }
+    var campos = '';
+    if (d.nomeMae) campos += _campoAssertiva('Nome da Mãe', d.nomeMae);
+    if (campos) html += '<div class="assertiva-secao"><div class="assertiva-secao-titulo">Dados Pessoais</div>' + campos + '</div>';
     if (d.cidade || d.uf) {
       html += '<div class="assertiva-secao"><div class="assertiva-secao-titulo">Localização</div>' +
         '<div class="assertiva-lista-item"><span class="assertiva-lista-icon">📍</span>' +
         '<div class="assertiva-lista-info"><div class="assertiva-lista-principal">' +
           esc([d.cidade, d.uf].filter(Boolean).join(' — ')) +
-        '</div></div></div>' +
-      '</div>';
+        '</div></div></div></div>';
     }
-  }
+  });
 
   container.innerHTML = html;
   foot.style.display = 'flex';
 }
+
+// alias legado
+function _renderResultadoTelefone(data) { _renderResultadoPessoas(data, 'telefone'); }
 
 // Confirma e dispara o fluxo selecionado
 function _bcConfirmar() {

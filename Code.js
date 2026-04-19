@@ -4499,6 +4499,69 @@ function consultarAssertivaTelefone(telefone) {
   }
 }
 
+/**
+ * Consulta dados cadastrais por nome via Assertiva Localize.
+ * Chamável pelo frontend: google.script.run.consultarAssertivaNome(nome)
+ */
+function consultarAssertivaNome(nome) {
+  try {
+    var limpo = (nome || '').trim();
+    if (limpo.length < 5)
+      return { erro: true, mensagem: 'Informe ao menos 5 caracteres do nome.' };
+
+    var token = _getTokenAssertiva();
+
+    var resp = UrlFetchApp.fetch(
+      'https://api.assertivasolucoes.com.br/localize/v3/nome?nome=' + encodeURIComponent(limpo) + '&idFinalidade=2',
+      {
+        method:             'get',
+        headers:            { 'Authorization': 'Bearer ' + token },
+        muteHttpExceptions: true
+      }
+    );
+
+    var code    = resp.getResponseCode();
+    var rawText = resp.getContentText();
+    var body    = JSON.parse(rawText);
+
+    Logger.log('Assertiva Nome RAW [' + code + ']: ' + rawText.substring(0, 800));
+
+    if (code !== 200) {
+      var msg = (body && body.mensagem) || (body && body.alerta) || ('HTTP ' + code);
+      return { erro: true, mensagem: 'Erro Assertiva: ' + msg };
+    }
+
+    var resposta = (body && body.resposta) || {};
+    var lista = Array.isArray(resposta) ? resposta :
+                (Array.isArray(resposta.pessoaFisica) ? resposta.pessoaFisica :
+                (Array.isArray(resposta.pessoas) ? resposta.pessoas :
+                (resposta.dadosCadastrais ? [resposta] : [])));
+
+    var pessoas = [];
+    for (var i = 0; i < lista.length; i++) {
+      var r = lista[i];
+      pessoas.push({
+        nome:           r.nome           || '',
+        cpf:            r.cpf            || '',
+        dataNascimento: r.dataNascimento  || '',
+        nomeMae:        r.nomeMae        || '',
+        cidade:         r.cidade         || '',
+        uf:             r.uf             || ''
+      });
+    }
+
+    return {
+      erro:      false,
+      protocolo: (body.cabecalho && body.cabecalho.protocolo) || '',
+      pessoas:   pessoas
+    };
+
+  } catch (ex) {
+    Logger.log('consultarAssertivaNome erro: ' + ex);
+    return { erro: true, mensagem: ex.message || 'Erro desconhecido.' };
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 //  EXTRATO MENSAL — Persistência no Google Drive
 //  Pasta: "DharmaPro - Extratos" (criada automaticamente na raiz do Drive)

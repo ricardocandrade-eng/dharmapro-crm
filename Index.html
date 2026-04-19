@@ -848,7 +848,7 @@
 
     .fab-container {
       position: fixed;
-      bottom: 28px; right: 28px;
+      bottom: 28px; right: 12px;
       display: flex; flex-direction: column; align-items: center;
       gap: 10px;
       z-index: 2000;
@@ -912,8 +912,8 @@
       width: 50px; height: 50px;
       border-radius: 50%;
       border: none;
-      background: rgba(230,62,109,0.30);
-      color: rgba(255,255,255,0.55);
+      background: rgba(230,62,109,0.82);
+      color: rgba(255,255,255,0.92);
       font-size: 26px; font-weight: 300;
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
@@ -1048,6 +1048,25 @@
       width: 32px; height: 32px; border: 3px solid var(--border2);
       border-top-color: var(--purple); border-radius: 50%;
       animation: spin .8s linear infinite;
+    }
+
+    /* Tabs do modal Assertiva */
+    .assertiva-tabs {
+      display: flex; margin-bottom: 16px;
+      border-radius: 9px; overflow: hidden;
+      border: 1px solid var(--border2); background: var(--surface2);
+    }
+    .assertiva-tab {
+      flex: 1; padding: 9px 4px; text-align: center;
+      cursor: pointer; font-size: 12px; font-weight: 600;
+      color: var(--muted); border: none; background: none;
+      transition: background .15s, color .15s;
+      border-right: 1px solid var(--border2);
+    }
+    .assertiva-tab:last-child { border-right: none; }
+    .assertiva-tab.ativo {
+      background: linear-gradient(135deg,#9b59b6,#7d3c98);
+      color: #fff;
     }
 
     /* Modal de ofertas — usa modal-overlay existente mas com estilos próprios */
@@ -2429,9 +2448,9 @@
 
       <div class="fab-children">
 
-        <div class="fab-item" onclick="abrirModalConsultaTelefone(); fecharFabMenu()">
-          <span class="fab-item-label">Consultar Telefone</span>
-          <button class="fab-item-btn color-cpf">📞</button>
+        <div class="fab-item" onclick="abrirModalConsultaAssertiva(); fecharFabMenu()">
+          <span class="fab-item-label">Consultar Assertiva</span>
+          <button class="fab-item-btn color-cpf">🔍</button>
         </div>
 
         <div class="fab-item" onclick="abrirModalOfertas(); fecharFabMenu()">
@@ -2465,7 +2484,7 @@
     <div class="modal-overlay" id="modalAssertiva">
       <div class="modal-box">
         <div class="modal-head">
-          <h3 id="modalAssertivaTitulo">📞 Consultar Telefone</h3>
+          <h3 id="modalAssertivaTitulo">🔍 Consultar Assertiva</h3>
           <button class="modal-close" onclick="fecharModalAssertiva()">✕</button>
         </div>
         <div class="modal-body" id="modalAssertivaBody">

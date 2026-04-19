@@ -544,6 +544,21 @@ function nvBuscarNomeCPF(val) {
       }
       nomeInput.value = data.dados.nome;
       tag.style.display = 'inline';
+
+      if (data.dados.nomeMae) {
+        document.getElementById('nv-nomeMae').value = data.dados.nomeMae;
+      }
+
+      if (data.dados.dataNascimento) {
+        var dn = data.dados.dataNascimento.replace(/\D/g, '');
+        var dtFormatada = '';
+        if (dn.length === 8) {
+          // DDMMYYYY → YYYY-MM-DD
+          dtFormatada = dn.slice(4) + '-' + dn.slice(2, 4) + '-' + dn.slice(0, 2);
+        }
+        if (dtFormatada) document.getElementById('nv-dtNasc').value = dtFormatada;
+      }
+
       hint.textContent = '✓ Nome preenchido automaticamente';
       hint.style.color = 'var(--success, #10b981)';
       document.getElementById('nv-whats').focus();
