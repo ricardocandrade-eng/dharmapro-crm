@@ -1580,17 +1580,17 @@
     .list-filtros { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; justify-content: space-between; width: 100%; }
     .filtro-multi { position: relative; }
     .filtro-btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: 3px; flex-direction: column;
-      padding: 8px 12px; background: var(--surface2); border: 1.5px solid var(--border);
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 10px 12px; background: var(--surface2); border: 1.5px solid var(--border);
       border-radius: 8px; color: var(--text); font-size: 12px; font-family: 'Sora', sans-serif;
       cursor: pointer; transition: border-color .2s, background .2s, color .2s;
-      flex: 1; min-width: 100px;
+      flex: 1; min-width: 100px; height: 44px;
     }
     .filtro-btn:hover, .filtro-btn.aberto { border-color: var(--accent); }
     .filtro-btn.ativo { border-color: var(--accent); background: rgba(230,62,109,.07); color: var(--accent); }
     .filtro-btn-text { text-align: center; white-space: normal; word-break: break-word; line-height: 1.2; }
     .filtro-btn-count { font-family: 'DM Mono', monospace; font-size: 9px; opacity: .8; display: none; }
-    .filtro-btn-caret { font-size: 8px; color: var(--muted); }
+    .filtro-btn-caret { font-size: 8px; color: var(--muted); display: none; }
     .filtro-menu {
       position: absolute; top: calc(100% + 6px); left: 0; min-width: 240px; max-width: 300px;
       background: var(--surface); border: 1px solid var(--border2); border-radius: 12px;
