@@ -361,7 +361,7 @@
     }
 
     /* Esquerda: produto + plano/valor */
-    .vi-bot-left { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+    .vi-bot-left { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: nowrap; }
     .vi-produto {
       display: inline-flex; align-items: center; justify-content: center;
       width: 108px; flex-shrink: 0;
@@ -381,7 +381,7 @@
     .vi-bc-tags  { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
                    width: 100%; font-size: 10px; color: var(--muted); opacity: .75; }
     .vi-bc-status { border-radius: 3px; padding: 1px 5px; font-size: 9px; font-weight: 700;
-                    letter-spacing: .4px; text-transform: uppercase; flex-shrink: 0; }
+                    letter-spacing: .4px; text-transform: uppercase; flex-shrink: 0; display: none; }
     .vi-bc-status--aberto { background: rgba(247,162,59,.12); color: #f7a23b; border: 1px solid rgba(247,162,59,.25); }
     .vi-bc-status--ok     { background: rgba(34,217,138,.10); color: var(--green); border: 1px solid rgba(34,217,138,.2); }
 
@@ -389,7 +389,7 @@
     .vi-vsep { width: 1px; height: 32px; background: var(--border); flex-shrink: 0; }
 
     /* Direita: 3 linhas empilhadas */
-    .vi-bot-right { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; width: 220px; align-items: flex-start; justify-content: center; }
+    .vi-bot-right { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; width: 160px; align-items: flex-start; justify-content: center; }
     .vi-row-vhub  { display: flex; align-items: center; }
     .vi-row-dates { display: flex; align-items: center; gap: 8px; }
     .vi-row-resp  { display: flex; align-items: center; gap: 5px; }
