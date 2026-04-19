@@ -1578,9 +1578,41 @@
 
     /* ── Filtros da Lista ───────────────────────────────────────────────── */
     .list-filtros { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
-    .filtro-sel { padding: 7px 10px; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; color: var(--text); font-size: 12px; font-family: 'Sora', sans-serif; cursor: pointer; transition: border-color .2s; min-width: 160px; }
-    .filtro-sel:focus { outline: none; border-color: var(--accent); }
-    .filtro-sel.ativo { border-color: var(--accent); background: rgba(230,62,109,.07); color: var(--accent); }
+    .filtro-multi { position: relative; }
+    .filtro-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 7px 10px; background: var(--surface2); border: 1.5px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: 12px; font-family: 'Sora', sans-serif;
+      cursor: pointer; transition: border-color .2s, background .2s, color .2s; min-width: 150px;
+    }
+    .filtro-btn:hover, .filtro-btn.aberto { border-color: var(--accent); }
+    .filtro-btn.ativo { border-color: var(--accent); background: rgba(230,62,109,.07); color: var(--accent); }
+    .filtro-btn-text { flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .filtro-btn-count { font-family: 'DM Mono', monospace; font-size: 10px; opacity: .8; }
+    .filtro-btn-caret { font-size: 10px; color: var(--muted); }
+    .filtro-menu {
+      position: absolute; top: calc(100% + 6px); left: 0; min-width: 240px; max-width: 300px;
+      background: var(--surface); border: 1px solid var(--border2); border-radius: 12px;
+      box-shadow: 0 20px 40px rgba(0,0,0,.35); padding: 10px; z-index: 120; display: none;
+    }
+    .filtro-menu.aberto { display: block; }
+    .filtro-menu-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .filtro-menu-title { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-family: 'DM Mono', monospace; }
+    .filtro-menu-clear { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 11px; font-family: 'DM Mono', monospace; }
+    .filtro-menu-list { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
+    .filtro-opt {
+      display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px;
+      cursor: pointer; color: var(--text); font-size: 12px; background: transparent; transition: background .15s;
+    }
+    .filtro-opt:hover { background: var(--surface2); }
+    .filtro-opt input { accent-color: #e63e6d; }
+    .filtro-chips { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; }
+    .filtro-chip {
+      display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px;
+      border-radius: 999px; background: rgba(230,62,109,.08); border: 1px solid rgba(230,62,109,.22);
+      color: var(--accent); font-size: 10px; font-family: 'DM Mono', monospace;
+    }
+    .filtro-chip button { background: none; border: none; color: inherit; cursor: pointer; font-size: 11px; line-height: 1; }
     .filtro-toggle { display: flex; align-items: center; gap: 6px; padding: 7px 12px; background: var(--surface2); border: 1.5px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 12px; color: var(--muted); transition: all .2s; user-select: none; }
     .filtro-toggle:hover { border-color: var(--accent); color: var(--text); }
     .filtro-toggle input { display: none; }
@@ -2039,40 +2071,31 @@
               <button class="btn btn-ghost" onclick="recarregarLista()" style="padding:9px 12px;" title="Buscar novos registros da planilha">🔄</button>
             </div>
             <div class="list-filtros" id="listFiltros">
-              <select class="filtro-sel" id="filtroStatus" onchange="aplicarFiltros()">
-                <option value="">Status da Venda</option>
-                <option>1- Conferencia/Ativação</option>
-                <option>2- Aguardando Instalação</option>
-                <option>2- Aguardando Entrega</option>
-                <option>3 - Finalizada/Instalada</option>
-                <option>3- Aguardando Retirada</option>
-                <option>4- Entregue</option>
-                <option>5 - Finalizado</option>
-                <option>Pendencia Vero</option>
-                <option>Cancelado</option>
-                <option>Cancelamento Técnico</option>
-                <option>Cancelamento Comercial</option>
-                <option>Churn</option>
-                <option>Devolvido</option>
-              </select>
-              <select class="filtro-sel" id="filtroPreVenda" onchange="aplicarFiltros()">
-                <option value="">Status Pré-Venda</option>
-                <option>EM NEGOCIACAO</option>
-                <option>AG COMPROVANTE</option>
-                <option>AG DOC</option>
-                <option>AG ACEITE</option>
-                <option>AG AUDITORIA</option>
-                <option>AG QUALIDADE</option>
-                <option>CRUZAMENTO DE CA</option>
-              </select>
-              <select class="filtro-sel" id="filtroProduto" onchange="aplicarFiltros()">
-                <option value="">Produto</option>
-                <option value="Fibra Alone">Fibra Alone</option>
-                <option value="Fibra Combo">Fibra Combo</option>
-                <option value="Móvel Combo">Móvel Combo</option>
-                <option value="Móvel Alone">Móvel Alone</option>
-              </select>
-
+              <div class="filtro-multi" data-filtro="status">
+                <button type="button" class="filtro-btn" id="filtroBtnStatus" onclick="_toggleFiltroMenu('status', event)">
+                  <span class="filtro-btn-text">Status da Venda</span>
+                  <span class="filtro-btn-count" id="filtroCountStatus"></span>
+                  <span class="filtro-btn-caret">▾</span>
+                </button>
+                <div class="filtro-menu" id="filtroMenuStatus"></div>
+              </div>
+              <div class="filtro-multi" data-filtro="preStatus">
+                <button type="button" class="filtro-btn" id="filtroBtnPreStatus" onclick="_toggleFiltroMenu('preStatus', event)">
+                  <span class="filtro-btn-text">Status Pré-Venda</span>
+                  <span class="filtro-btn-count" id="filtroCountPreStatus"></span>
+                  <span class="filtro-btn-caret">▾</span>
+                </button>
+                <div class="filtro-menu" id="filtroMenuPreStatus"></div>
+              </div>
+              <div class="filtro-multi" data-filtro="produto">
+                <button type="button" class="filtro-btn" id="filtroBtnProduto" onclick="_toggleFiltroMenu('produto', event)">
+                  <span class="filtro-btn-text">Produto</span>
+                  <span class="filtro-btn-count" id="filtroCountProduto"></span>
+                  <span class="filtro-btn-caret">▾</span>
+                </button>
+                <div class="filtro-menu" id="filtroMenuProduto"></div>
+              </div>
+              <div class="filtro-chips" id="filtroChipsAtivos"></div>
             </div>
           </div>
           <div class="list-meta"><span id="totalRegistros">—</span></div>

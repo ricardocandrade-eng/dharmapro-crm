@@ -1933,20 +1933,149 @@ function salvar() {
 }
 
 // ─── LISTA ─────────────────────────────────────────────────────────────────
+var LISTA_FILTROS_CONFIG = {
+  status: {
+    label: 'Status da Venda',
+    options: [
+      '1- Conferencia/Ativação',
+      '2- Aguardando Instalação',
+      '2- Aguardando Entrega',
+      '3 - Finalizada/Instalada',
+      '3- Aguardando Retirada',
+      '4- Entregue',
+      '5 - Finalizado',
+      'Pendencia Vero',
+      'Cancelado',
+      'Cancelamento Técnico',
+      'Cancelamento Comercial',
+      'Churn',
+      'Devolvido'
+    ]
+  },
+  preStatus: {
+    label: 'Status Pré-Venda',
+    options: [
+      'EM NEGOCIACAO',
+      'AG COMPROVANTE',
+      'AG DOC',
+      'AG ACEITE',
+      'AG AUDITORIA',
+      'AG QUALIDADE',
+      'CRUZAMENTO DE CA'
+    ]
+  },
+  produto: {
+    label: 'Produto',
+    options: ['Fibra Alone', 'Fibra Combo', 'Móvel Combo', 'Móvel Alone']
+  }
+};
+var _listaFiltrosSelecionados = { status: [], preStatus: [], produto: [] };
+
+function _ensureFiltrosListaUI() {
+  if (!document.getElementById('filtroMenuStatus')) return;
+  if (document.getElementById('filtroMenuStatus').innerHTML.trim()) {
+    _atualizarResumoFiltros();
+    return;
+  }
+  Object.keys(LISTA_FILTROS_CONFIG).forEach(function(tipo) {
+    var cfg = LISTA_FILTROS_CONFIG[tipo];
+    var menu = document.getElementById('filtroMenu' + (tipo === 'preStatus' ? 'PreStatus' : tipo.charAt(0).toUpperCase() + tipo.slice(1)));
+    if (!menu) return;
+    var html = '<div class="filtro-menu-head">' +
+      '<span class="filtro-menu-title">' + esc(cfg.label) + '</span>' +
+      '<button type="button" class="filtro-menu-clear" onclick="_clearFiltroGrupo(\'' + tipo + '\')">Limpar</button>' +
+      '</div><div class="filtro-menu-list">';
+    cfg.options.forEach(function(opt, idx) {
+      html += '<label class="filtro-opt">' +
+        '<input type="checkbox" id="flt_' + tipo + '_' + idx + '" onchange="_toggleFiltroItem(\'' + tipo + '\', \'' + esc(String(opt)).replace(/&#39;/g, "\\'") + '\')">' +
+        '<span>' + esc(opt) + '</span>' +
+      '</label>';
+    });
+    html += '</div>';
+    menu.innerHTML = html;
+  });
+  _atualizarResumoFiltros();
+}
+
+function _atualizarResumoFiltros() {
+  if (!document.getElementById('filtroBtnStatus')) return;
+  Object.keys(LISTA_FILTROS_CONFIG).forEach(function(tipo) {
+    var cfg = LISTA_FILTROS_CONFIG[tipo];
+    var vals = _listaFiltrosSelecionados[tipo] || [];
+    var suffix = (tipo === 'preStatus' ? 'PreStatus' : tipo.charAt(0).toUpperCase() + tipo.slice(1));
+    var btn = document.getElementById('filtroBtn' + suffix);
+    var count = document.getElementById('filtroCount' + suffix);
+    if (btn) btn.classList.toggle('ativo', vals.length > 0);
+    if (count) count.textContent = vals.length > 0 ? vals.length + 'x' : '';
+    (cfg.options || []).forEach(function(opt, idx) {
+      var cb = document.getElementById('flt_' + tipo + '_' + idx);
+      if (cb) cb.checked = vals.indexOf(opt) > -1;
+    });
+  });
+  var chips = document.getElementById('filtroChipsAtivos');
+  if (!chips) return;
+  var html = '';
+  Object.keys(LISTA_FILTROS_CONFIG).forEach(function(tipo) {
+    (_listaFiltrosSelecionados[tipo] || []).forEach(function(val) {
+      html += '<span class="filtro-chip">' + esc(val) +
+        '<button type="button" onclick="_removerFiltroChip(\'' + tipo + '\', \'' + esc(String(val)).replace(/&#39;/g, "\\'") + '\')">✕</button></span>';
+    });
+  });
+  chips.innerHTML = html;
+}
+
+function _toggleFiltroMenu(tipo, ev) {
+  if (ev) ev.stopPropagation();
+  _ensureFiltrosListaUI();
+  var alvo = 'filtroMenu' + (tipo === 'preStatus' ? 'PreStatus' : tipo.charAt(0).toUpperCase() + tipo.slice(1));
+  document.querySelectorAll('.filtro-menu').forEach(function(el) {
+    el.classList.toggle('aberto', el.id === alvo ? !el.classList.contains('aberto') : false);
+  });
+  document.querySelectorAll('.filtro-btn').forEach(function(el) { el.classList.remove('aberto'); });
+  var btn = document.getElementById('filtroBtn' + (tipo === 'preStatus' ? 'PreStatus' : tipo.charAt(0).toUpperCase() + tipo.slice(1)));
+  var menu = document.getElementById(alvo);
+  if (btn && menu && menu.classList.contains('aberto')) btn.classList.add('aberto');
+}
+
+function _closeFiltroMenus() {
+  document.querySelectorAll('.filtro-menu').forEach(function(el) { el.classList.remove('aberto'); });
+  document.querySelectorAll('.filtro-btn').forEach(function(el) { el.classList.remove('aberto'); });
+}
+
+function _toggleFiltroItem(tipo, valor) {
+  var arr = _listaFiltrosSelecionados[tipo] || [];
+  var idx = arr.indexOf(valor);
+  if (idx > -1) arr.splice(idx, 1); else arr.push(valor);
+  _listaFiltrosSelecionados[tipo] = arr;
+  _atualizarResumoFiltros();
+  aplicarFiltros();
+}
+
+function _clearFiltroGrupo(tipo) {
+  _listaFiltrosSelecionados[tipo] = [];
+  _atualizarResumoFiltros();
+  aplicarFiltros();
+}
+
+function _removerFiltroChip(tipo, valor) {
+  var arr = _listaFiltrosSelecionados[tipo] || [];
+  _listaFiltrosSelecionados[tipo] = arr.filter(function(v) { return v !== valor; });
+  _atualizarResumoFiltros();
+  aplicarFiltros();
+}
+
+document.addEventListener('click', function(ev) {
+  if (!ev.target.closest || !ev.target.closest('.filtro-multi')) _closeFiltroMenus();
+});
+
 function _coletarOpcoesFiltro() {
   try {
-    var elStatus    = document.getElementById('filtroStatus');
-    var elPreStatus = document.getElementById('filtroPreVenda');
-    var elProduto   = document.getElementById('filtroProduto');
+    _ensureFiltrosListaUI();
     var elVeroHub   = document.getElementById('filtroVeroHub');
-    var status    = elStatus    ? (elStatus.value    || '') : '';
-    var preStatus = elPreStatus ? (elPreStatus.value || '') : '';
-    var produto   = elProduto   ? (elProduto.value   || '') : '';
+    var status    = (_listaFiltrosSelecionados.status || []).slice();
+    var preStatus = (_listaFiltrosSelecionados.preStatus || []).slice();
+    var produto   = (_listaFiltrosSelecionados.produto || []).slice();
     var verohub   = elVeroHub   ? (elVeroHub.checked || false) : false;
-    ['filtroStatus','filtroPreVenda','filtroProduto'].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.classList.toggle('ativo', !!el.value);
-    });
     var toggleLabel = document.getElementById('filtroVeroHub');
     if (toggleLabel && toggleLabel.closest) toggleLabel.closest('label') && toggleLabel.closest('label').classList.toggle('ativo', verohub);
     return { status: status, preStatus: preStatus, produto: produto, verohub: verohub };
@@ -1975,8 +2104,8 @@ function recarregarLista() {
   _dadosListaTotal    = 0;
   _dadosTotalServidor = 0;
   // Limpa filtros ativos
-  var selects = ['filtroStatus', 'filtroPreVenda', 'filtroProduto'];
-  selects.forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+  _listaFiltrosSelecionados = { status: [], preStatus: [], produto: [] };
+  _atualizarResumoFiltros();
   var busca = document.getElementById('campoBusca'); if (busca) busca.value = '';
   AppState.set('filtroAtual', '');
   AppState.set('paginaAtual', 1);
@@ -2006,8 +2135,8 @@ function aplicarFiltros() {
 }
 
 function limparFiltros() {
-  var ids = ['filtroStatus','filtroPreVenda','filtroProduto'];
-  ids.forEach(function(id){ var el = document.getElementById(id); if(el){ el.value=''; el.classList.remove('ativo'); }});
+  _listaFiltrosSelecionados = { status: [], preStatus: [], produto: [] };
+  _atualizarResumoFiltros();
   var cb = document.getElementById('filtroVeroHub'); if(cb) cb.checked = false;
   var tgl = cb ? cb.closest('label') : null; if(tgl) tgl.classList.remove('ativo');
   document.getElementById('campoBusca').value = '';
@@ -6786,18 +6915,12 @@ function salvar() {
 // ─── LISTA ─────────────────────────────────────────────────────────────────
 function _coletarOpcoesFiltro() {
   try {
-    var elStatus    = document.getElementById('filtroStatus');
-    var elPreStatus = document.getElementById('filtroPreVenda');
-    var elProduto   = document.getElementById('filtroProduto');
+    _ensureFiltrosListaUI();
     var elVeroHub   = document.getElementById('filtroVeroHub');
-    var status    = elStatus    ? (elStatus.value    || '') : '';
-    var preStatus = elPreStatus ? (elPreStatus.value || '') : '';
-    var produto   = elProduto   ? (elProduto.value   || '') : '';
+    var status    = (_listaFiltrosSelecionados.status || []).slice();
+    var preStatus = (_listaFiltrosSelecionados.preStatus || []).slice();
+    var produto   = (_listaFiltrosSelecionados.produto || []).slice();
     var verohub   = elVeroHub   ? (elVeroHub.checked || false) : false;
-    ['filtroStatus','filtroPreVenda','filtroProduto'].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.classList.toggle('ativo', !!el.value);
-    });
     var toggleLabel = document.getElementById('filtroVeroHub');
     if (toggleLabel && toggleLabel.closest) toggleLabel.closest('label') && toggleLabel.closest('label').classList.toggle('ativo', verohub);
     return { status: status, preStatus: preStatus, produto: produto, verohub: verohub };
@@ -6826,8 +6949,8 @@ function recarregarLista() {
   _dadosListaTotal    = 0;
   _dadosTotalServidor = 0;
   // Limpa filtros ativos
-  var selects = ['filtroStatus', 'filtroPreVenda', 'filtroProduto'];
-  selects.forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+  _listaFiltrosSelecionados = { status: [], preStatus: [], produto: [] };
+  _atualizarResumoFiltros();
   var busca = document.getElementById('campoBusca'); if (busca) busca.value = '';
   AppState.set('filtroAtual', '');
   AppState.set('paginaAtual', 1);
@@ -6857,8 +6980,8 @@ function aplicarFiltros() {
 }
 
 function limparFiltros() {
-  var ids = ['filtroStatus','filtroPreVenda','filtroProduto'];
-  ids.forEach(function(id){ var el = document.getElementById(id); if(el){ el.value=''; el.classList.remove('ativo'); }});
+  _listaFiltrosSelecionados = { status: [], preStatus: [], produto: [] };
+  _atualizarResumoFiltros();
   var cb = document.getElementById('filtroVeroHub'); if(cb) cb.checked = false;
   var tgl = cb ? cb.closest('label') : null; if(tgl) tgl.classList.remove('ativo');
   document.getElementById('campoBusca').value = '';
@@ -6882,7 +7005,7 @@ function _filtrarLocalmente(dados, filtro, opcoes) {
   filtro = String(filtro || '').trim().toLowerCase();
   var filtroNum = filtro.replace(/\D/g, '');
   var temFiltroTexto  = filtro.length > 0;
-  var temFiltroOpcoes = !!(opcoes.status || opcoes.preStatus || opcoes.produto || opcoes.verohub);
+  var temFiltroOpcoes = !!((opcoes.status && opcoes.status.length) || (opcoes.preStatus && opcoes.preStatus.length) || (opcoes.produto && opcoes.produto.length) || opcoes.verohub);
 
   if (!temFiltroTexto && !temFiltroOpcoes) return dados; // sem filtros → retorna tudo
 
@@ -6891,9 +7014,9 @@ function _filtrarLocalmente(dados, filtro, opcoes) {
 
   return dados.filter(function(v) {
     // Filtros de dropdown — normaliza acentos, espaços e maiúsculas/minúsculas
-    if (opcoes.status    && _n(v.status)    !== _n(opcoes.status))    return false;
-    if (opcoes.preStatus && _n(v.preStatus) !== _n(opcoes.preStatus)) return false;
-    if (opcoes.produto   && _n(v.produto)   !== _n(opcoes.produto))   return false;
+    if (opcoes.status && opcoes.status.length && opcoes.status.map(_n).indexOf(_n(v.status)) === -1) return false;
+    if (opcoes.preStatus && opcoes.preStatus.length && opcoes.preStatus.map(_n).indexOf(_n(v.preStatus)) === -1) return false;
+    if (opcoes.produto && opcoes.produto.length && opcoes.produto.map(_n).indexOf(_n(v.produto)) === -1) return false;
     if (opcoes.verohub   && !v.verohub)                               return false;
 
     // Filtro de texto livre (mesmos campos que o backend busca)
@@ -6933,7 +7056,11 @@ function carregarVendas(pagina, filtro) {
     var fim = ini + CONFIG_JS.MAX_RESULTS;
 
     // Verifica se o usuário quer uma página além do que está no cache (sem filtro ativo)
-    var temFiltro = !!(filtro || opcoes.status || opcoes.preStatus || opcoes.produto || opcoes.verohub);
+    var temFiltro = !!(filtro ||
+      (opcoes.status && opcoes.status.length) ||
+      (opcoes.preStatus && opcoes.preStatus.length) ||
+      (opcoes.produto && opcoes.produto.length) ||
+      opcoes.verohub);
     if (!temFiltro && ini >= _dadosListaCache.length && _dadosTotalServidor > _dadosListaCache.length) {
       _carregarMaisDoServidor(pagina);
       return;
