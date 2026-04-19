@@ -1863,7 +1863,117 @@ function getVendasLeads() {
     var tz     = Session.getScriptTimeZone();
 
     // ── FASE 1: PRE-SCAN — lê apenas a coluna de status configurada ──────
-    var colStatus = CONFIG.COLUNAS.STATUS + 1;
+    var cf = CONFIG.COLUNAS;
+    var colStatus = cf.STATUS + 1;
+    var primeiraLinhaDados = 3;
+    var totalLinhas = ultimaLinha - primeiraLinhaDados + 1;
+    var statusValsFast = sheet.getRange(primeiraLinhaDados, colStatus, totalLinhas, 1).getValues();
+    var produtoValsFast = sheet.getRange(primeiraLinhaDados, cf.PRODUTO + 1, totalLinhas, 1).getValues();
+    var preStatusValsFast = sheet.getRange(primeiraLinhaDados, cf.PRE_STATUS + 1, totalLinhas, 1).getValues();
+    var contadoresFast = { quente: 0, morno: 0, frio: 0, aguardando: 0 };
+    var linhasSelecionadasFast = [];
+    var temperaturasPorLinhaFast = {};
+
+    for (var idxFast = statusValsFast.length - 1; idxFast >= 0; idxFast--) {
+      var statusFast = String(statusValsFast[idxFast][0] || '').trim();
+      if (!STATUS_LEADS[statusFast]) continue;
+
+      var produtoFast = _normalizarTexto(produtoValsFast[idxFast][0]);
+      if (!PRODUTOS_FIBRA[produtoFast]) continue;
+
+      var preStatusFast = _normalizarTexto(preStatusValsFast[idxFast][0]);
+      var temperaturaFast = null;
+
+      if (statusFast === STATUS_CONF) {
+        if (PRE_VENDA_QUENTE[preStatusFast]) {
+          if (contadoresFast.quente >= LIMITE) continue;
+          temperaturaFast = 'quente';
+          contadoresFast.quente++;
+        } else if (PRE_VENDA_MORNO[preStatusFast]) {
+          if (contadoresFast.morno >= LIMITE) continue;
+          temperaturaFast = 'morno';
+          contadoresFast.morno++;
+        } else if (PRE_VENDA_FRIO[preStatusFast] || preStatusFast === 'EM NEGOCIACAO') {
+          if (contadoresFast.frio >= LIMITE) continue;
+          temperaturaFast = 'frio';
+          contadoresFast.frio++;
+        } else {
+          continue;
+        }
+      } else if (statusFast === STATUS_AGU) {
+        if (contadoresFast.aguardando >= LIMITE) continue;
+        temperaturaFast = 'aguardando';
+        contadoresFast.aguardando++;
+      } else {
+        continue;
+      }
+
+      var linhaSheetFast = primeiraLinhaDados + idxFast;
+      linhasSelecionadasFast.push(linhaSheetFast);
+      temperaturasPorLinhaFast[linhaSheetFast] = temperaturaFast;
+
+      if (contadoresFast.quente     >= LIMITE &&
+          contadoresFast.morno      >= LIMITE &&
+          contadoresFast.frio       >= LIMITE &&
+          contadoresFast.aguardando >= LIMITE) break;
+    }
+
+    Logger.log('getVendasLeads fast-select: ' + linhasSelecionadasFast.length + ' linhas');
+    if (linhasSelecionadasFast.length === 0) return { dados: [], total: 0 };
+
+    var linhasAscFast = linhasSelecionadasFast.slice().sort(function(a, b) { return a - b; });
+    var blocosFast = _agruparBlocos(linhasAscFast, 8);
+    var colunasLeadsFast = _getMaxColunaLida([cf.WHATS]);
+    var registrosFast = _lerBlocos(sheet, blocosFast, colunasLeadsFast);
+    var mapaFast = {};
+    for (var rf = 0; rf < registrosFast.length; rf++) {
+      mapaFast[registrosFast[rf].linhaSheet] = registrosFast[rf].row;
+    }
+
+    var resultadoFast = [];
+    for (var lf = 0; lf < linhasSelecionadasFast.length; lf++) {
+      var linhaFast = linhasSelecionadasFast[lf];
+      var rowFast = mapaFast[linhaFast];
+      if (!rowFast) continue;
+
+      var clienteFast = String(rowFast[cf.CLIENTE] || '').trim();
+      var cpfFast     = String(rowFast[cf.CPF]     || '').trim();
+      if (!clienteFast && !cpfFast) continue;
+
+      var dAtivFast = rowFast[cf.DATA_ATIV];
+      var dataAtivStrFast = (dAtivFast instanceof Date && !isNaN(dAtivFast))
+        ? Utilities.formatDate(dAtivFast, tz, 'dd/MM/yyyy') : '';
+
+      var dAgFast = rowFast[cf.AGENDA];
+      var agendaStrFast = (dAgFast instanceof Date && !isNaN(dAgFast))
+        ? Utilities.formatDate(dAgFast, tz, 'dd/MM/yyyy') : (dAgFast ? String(dAgFast) : '');
+
+      resultadoFast.push({
+        linha:       linhaFast,
+        status:      String(rowFast[cf.STATUS] || '').trim(),
+        temperatura: temperaturasPorLinhaFast[linhaFast] || '',
+        preStatus:   String(rowFast[cf.PRE_STATUS] || '').trim(),
+        cliente:     clienteFast,
+        cpf:         cpfFast,
+        produto:     String(rowFast[cf.PRODUTO]  || '').trim(),
+        plano:       String(rowFast[cf.PLANO]    || '').trim(),
+        resp:        String(rowFast[cf.RESP]     || '').trim(),
+        whats:       String(rowFast[cf.WHATS]    || '').trim(),
+        dataAtiv:    dataAtivStrFast,
+        agenda:      agendaStrFast,
+        turno:       String(rowFast[cf.TURNO]    || '').trim(),
+        codCli:      String(rowFast[cf.COD_CLI]  || '').trim(),
+        contrato:    String(rowFast[cf.CONTRATO] || '').trim()
+      });
+    }
+
+    Logger.log('getVendasLeads fast: ' + resultadoFast.length + ' registros. Q=' +
+      contadoresFast.quente + ' M=' + contadoresFast.morno +
+      ' F=' + contadoresFast.frio + ' Ag=' + contadoresFast.aguardando);
+
+    var retornoFast = { dados: resultadoFast, total: resultadoFast.length };
+    _cachePutChunked(CACHE_KEY, retornoFast, 300);
+    return retornoFast;
     var linhasMatch = _preScanColuna(sheet, ultimaLinha, colStatus, function(v) {
       return !!STATUS_LEADS[String(v || '').trim()];
     });
@@ -2713,6 +2823,98 @@ function getVendasFunil() {
     var mesAtual = agora.getMonth() + 1;
     var anoAtual = agora.getFullYear();
     var tz       = Session.getScriptTimeZone();
+    var cf       = CONFIG.COLUNAS;
+    var colStatus = cf.STATUS + 1;
+    var primeiraLinhaDados = 3;
+    var totalLinhas = ultimaLinha - primeiraLinhaDados + 1;
+    var statusValsFast = sheet.getRange(primeiraLinhaDados, colStatus, totalLinhas, 1).getValues();
+    var instalValsFast = sheet.getRange(primeiraLinhaDados, cf.INSTAL + 1, totalLinhas, 1).getValues();
+    var linhasSelecionadasFast = [];
+    var contadoresFast = {
+      '2- Aguardando Instalação': 0,
+      '3 - Finalizada/Instalada': 0,
+      'Pendencia Vero':           0
+    };
+
+    for (var idxFast = statusValsFast.length - 1; idxFast >= 0; idxFast--) {
+      var statusFast = String(statusValsFast[idxFast][0] || '').trim();
+      if (!statusFunil[statusFast]) continue;
+
+      if (statusFast === '3 - Finalizada/Instalada') {
+        var dInstalFast = _parseDataFlex(instalValsFast[idxFast][0]);
+        if (!dInstalFast ||
+            dInstalFast.getMonth() + 1 !== mesAtual ||
+            dInstalFast.getFullYear() !== anoAtual) {
+          continue;
+        }
+      } else if (contadoresFast[statusFast] >= (LIMITES[statusFast] || 150)) {
+        continue;
+      }
+
+      var linhaSheetFast = primeiraLinhaDados + idxFast;
+      linhasSelecionadasFast.push(linhaSheetFast);
+      contadoresFast[statusFast]++;
+    }
+
+    Logger.log('getVendasFunil fast-select: ' + linhasSelecionadasFast.length + ' linhas');
+    if (linhasSelecionadasFast.length === 0) return { dados: [], total: 0 };
+
+    var linhasAscFast = linhasSelecionadasFast.slice().sort(function(a, b) { return a - b; });
+    var blocosFast = _agruparBlocos(linhasAscFast, 8);
+    var colunasFunilFast = _getMaxColunaLida([cf.WHATS]);
+    var registrosFast = _lerBlocos(sheet, blocosFast, colunasFunilFast);
+    var mapaFast = {};
+    for (var rf = 0; rf < registrosFast.length; rf++) {
+      mapaFast[registrosFast[rf].linhaSheet] = registrosFast[rf].row;
+    }
+
+    var resultadoFast = [];
+    for (var lf = 0; lf < linhasSelecionadasFast.length; lf++) {
+      var linhaFast = linhasSelecionadasFast[lf];
+      var rowFast = mapaFast[linhaFast];
+      if (!rowFast) continue;
+
+      var clienteFast = String(rowFast[cf.CLIENTE] || '').trim();
+      var cpfFast     = String(rowFast[cf.CPF]     || '').trim();
+      if (!clienteFast && !cpfFast) continue;
+
+      var dAtivFast = rowFast[cf.DATA_ATIV];
+      var dataAtivStrFast = (dAtivFast instanceof Date && !isNaN(dAtivFast))
+        ? Utilities.formatDate(dAtivFast, tz, 'dd/MM/yyyy') : '';
+
+      var dAgFast = rowFast[cf.AGENDA];
+      var agendaStrFast = (dAgFast instanceof Date && !isNaN(dAgFast))
+        ? Utilities.formatDate(dAgFast, tz, 'dd/MM/yyyy') : (dAgFast ? String(dAgFast) : '');
+
+      var dInsFast = rowFast[cf.INSTAL];
+      var instalStrFast = (dInsFast instanceof Date && !isNaN(dInsFast))
+        ? Utilities.formatDate(dInsFast, tz, 'dd/MM/yyyy') : (dInsFast ? String(dInsFast) : '');
+
+      resultadoFast.push({
+        linha:     linhaFast,
+        status:    String(rowFast[cf.STATUS]    || '').trim(),
+        cliente:   clienteFast,
+        produto:   String(rowFast[cf.PRODUTO]   || '').trim(),
+        plano:     String(rowFast[cf.PLANO]     || '').trim(),
+        resp:      String(rowFast[cf.RESP]      || '').trim(),
+        whats:     String(rowFast[cf.WHATS]     || '').trim(),
+        codCli:    String(rowFast[cf.COD_CLI]   || '').trim(),
+        contrato:  String(rowFast[cf.CONTRATO]  || '').trim(),
+        dataAtiv:  dataAtivStrFast,
+        agenda:    agendaStrFast,
+        turno:     String(rowFast[cf.TURNO]     || '').trim(),
+        instal:    instalStrFast,
+        preStatus: String(rowFast[cf.PRE_STATUS] || '').trim()
+      });
+    }
+
+    Logger.log('getVendasFunil fast: ' + resultadoFast.length + ' registros. Ag=' +
+      contadoresFast['2- Aguardando Instalação'] + ' Fin=' +
+      contadoresFast['3 - Finalizada/Instalada'] + ' Pen=' + contadoresFast['Pendencia Vero']);
+
+    var retornoFast = { dados: resultadoFast, total: resultadoFast.length };
+    _cachePutChunked(CACHE_KEY, retornoFast, 300);
+    return retornoFast;
 
     // ── FASE 1: PRE-SCAN — lê apenas a coluna de status configurada ──────
     var colStatus = CONFIG.COLUNAS.STATUS + 1;
@@ -2929,6 +3131,32 @@ function _getMaxColunaLida(indices) {
     if (indices[i] > maior) maior = indices[i];
   }
   return maior + 1; // 0-based -> 1-based
+}
+
+function _normalizarTexto(valor) {
+  return String(valor || '')
+    .trim()
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function _parseDataFlex(valor) {
+  if (valor instanceof Date && !isNaN(valor)) return valor;
+  if (typeof valor === 'number' && valor > 0) {
+    var dNum = new Date(Math.round((valor - 25569) * 86400 * 1000));
+    return isNaN(dNum) ? null : dNum;
+  }
+  var txt = String(valor || '').trim();
+  if (!txt) return null;
+  var partes = txt.split('/');
+  if (partes.length === 3) {
+    var dBr = new Date(parseInt(partes[2], 10), parseInt(partes[1], 10) - 1, parseInt(partes[0], 10));
+    return isNaN(dBr) ? null : dBr;
+  }
+  var d = new Date(txt);
+  return isNaN(d) ? null : d;
 }
 
 // Agrupa linhas próximas em blocos contíguos (para leitura eficiente em batch)
