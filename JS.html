@@ -3562,7 +3562,7 @@ function mostrarPainel(v) {
   document.getElementById('pNome').style.color = '';
   document.getElementById('pCpf').textContent  =
     (v.cpf      ? 'CPF/CNPJ: ' + v.cpf : '') +
-    (v.contrato ? '  ·  OS: '  + v.contrato : '');
+    (v.contrato ? '  ·  ID: '  + v.contrato : '');
   document.getElementById('pStatusWrap').innerHTML =
     '<span class="badge badge-status" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
     '<span class="badge badge-meta" style="margin-left:4px;">Linha ' + esc(v.linha) + '</span>';
@@ -3585,7 +3585,6 @@ function mostrarPainel(v) {
         _c('WhatsApp',       v.whats) +
         _c('Telefone',       v.tel) +
         _c('ID Contrato',    v.contrato) +
-        _c('Cód. Cliente',   v.codCli) +
         _c('RG',             v.rg) +
         _c('Nome da Mãe',    v.nomeMae, true) +
         _c('Dt. Nascimento', v.dtNasc) +
@@ -7979,7 +7978,7 @@ function mostrarPainel(v) {
   document.getElementById('pNome').style.color = '';
   document.getElementById('pCpf').textContent  =
     (v.cpf      ? 'CPF/CNPJ: ' + v.cpf : '') +
-    (v.contrato ? '  ·  OS: '  + v.contrato : '');
+    (v.contrato ? '  ·  ID: '  + v.contrato : '');
   document.getElementById('pStatusWrap').innerHTML =
     '<span class="badge badge-status" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
     '<span class="badge badge-meta" style="margin-left:4px;">Linha ' + esc(v.linha) + '</span>';
@@ -8002,7 +8001,6 @@ function mostrarPainel(v) {
         _c2('WhatsApp',       v.whats) +
         _c2('Telefone',       v.tel) +
         _c2('ID Contrato',    v.contrato) +
-        _c2('Cód. Cliente',   v.codCli) +
         _c2('RG',             v.rg) +
         _c2('Nome da Mãe',    v.nomeMae, true) +
         _c2('Dt. Nascimento', v.dtNasc) +
