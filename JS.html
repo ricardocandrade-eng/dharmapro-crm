@@ -271,6 +271,7 @@ function painelToggleEdicao() {
     _pifSet('pif-whats',      v.whats      || '');
     _pifSet('pif-tel',        v.tel        || '');
     _pifSet('pif-contrato',   v.contrato   || '');
+    _pifSet('pif-codCli',     v.codCli     || '');
     _pifSet('pif-nomeMae',    v.nomeMae    || '');
     _pifSet('pif-dtNasc',     v.dtNasc     || '');
     _pifSet('pif-rg',         v.rg         || '');
@@ -431,6 +432,7 @@ function pifSalvar() {
     observacao:    document.getElementById('pif-observacao').value.trim(),
     tel:           document.getElementById('pif-tel').value.trim(),
     contrato:      document.getElementById('pif-contrato').value.trim(),
+    codCli:        document.getElementById('pif-codCli').value.trim(),
     nomeMae:       document.getElementById('pif-nomeMae').value.trim(),
     dtNasc:        document.getElementById('pif-dtNasc').value,
     rg:            document.getElementById('pif-rg').value.trim(),
@@ -534,12 +536,13 @@ function _abrirModalStatus2() {
   });
 
   // Pré-preenche campos existentes
-  _ms2Set('ms2-dataAtiv', v.dataAtiv || '');
-  _ms2Set('ms2-contrato', v.contrato || '');
-  _ms2Set('ms2-agenda',   v.agenda   || '');
-  _ms2Set('ms2-turno',    v.turno    || '');
-  _ms2Set('ms2-produto',  v.produto  || '');
-  _ms2Set('ms2-valor',    v.valor    || '');
+  _ms2Set('ms2-dataAtiv',    v.dataAtiv    || '');
+  _ms2Set('ms2-contrato',    v.contrato    || '');
+  _ms2Set('ms2-codCli',      v.codCli      || '');
+  _ms2Set('ms2-agenda',      v.agenda      || '');
+  _ms2Set('ms2-turno',       v.turno       || '');
+  _ms2Set('ms2-produto',     v.produto     || '');
+  _ms2Set('ms2-valor',       v.valor       || '');
   _ms2Set('ms2-sistema',     v.sistema     || '');
   _ms2Set('ms2-segmentacao', v.segmentacao || '');
 
@@ -697,6 +700,7 @@ function _confirmarStatus2() {
     segmentacao: document.getElementById('ms2-segmentacao').value || v.segmentacao || '',
     dataAtiv:   document.getElementById('ms2-dataAtiv').value,
     contrato:   document.getElementById('ms2-contrato').value.trim(),
+    codCli:     document.getElementById('ms2-codCli').value.trim(),
     agenda:     document.getElementById('ms2-agenda').value,
     turno:      document.getElementById('ms2-turno').value,
     produto:    document.getElementById('ms2-produto').value || v.produto || '',

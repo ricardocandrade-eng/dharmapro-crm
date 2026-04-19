@@ -21,55 +21,58 @@ var CONFIG = {
   SHEET_USUARIOS:  'Usuarios',   // aba: A=usuario | B=senha | C=nome exibição
   SHEET_HISTORICO: 'Histórico',  // aba de arquivo — criada por criarAbaHistorico()
   CACHE_TTL:       300, // 5 min — era 60s; invalidado corretamente por _limparCache() após escritas
-  CACHE_PREFIX:    'crm_v2_',   // prefixo único — v2 invalida cache antigo (adicionado statusPAP col AQ)
+  CACHE_PREFIX:    'crm_v3_',   // prefixo v3 — invalida cache após reorganização de colunas
   MAX_RESULTS:     50,
+  TOTAL_COLUNAS:   42,          // A (0) até AP (41) — sem buracos
   COLUNAS: {
-    CANAL:        0,  // A  - Canal de venda (ATIVO, PAP, etc.)
-    PRODUTO:      1,  // B  - Produto
-    STATUS:       2,  // C  - Status do pedido
-    DATA_ATIV:    3,  // D  - Data de ativação
-    //              4,  // E  - reservada
-    COD_CLI:      5,  // F  - Código do cliente no sistema
-    CONTRATO:     6,  // G  - Contrato / OS
-    AGENDA:       7,  // H  - Data agendamento
-    TURNO:        8,  // I  - Turno da instalação
-    INSTAL:       9,  // J  - Data instalação
-    //             10,  // K  - reservada
-    OBSERVACAO:  11,  // L  - Motivo Cancelamento / Observação
-    RESP:        12,  // M  - Responsável
-    CPF:         13,  // N  - CPF ou CNPJ
-    CLIENTE:     14,  // O  - Nome completo do cliente
-    WHATS:       15,  // P  - WhatsApp
-    TEL:         16,  // Q  - Telefone ligação
-    CEP:         17,  // R  - CEP
-    RUA:         18,  // S  - Logradouro
-    NUM:         19,  // T  - NúmerogetVendasPaginadas 
-    COMPLEMENTO: 20,  // U  - Complemento
-    BAIRRO:      21,  // V  - Bairro
-    CIDADE:      22,  // W  - Cidade
-    UF:          23,  // X  - Estado
-    //             24,  // Y  - reservada
-    SISTEMA:     25,  // Z  - Sistema
-    //          26-28,  // AA-AC - reservadas
-    VENC:        29,  // AD - Vencimento
-    FAT:         30,  // AE - Pagamento/Faturamento
-    //          31-32,  // AF-AG - reservadas
-    PLANO:       33,  // AH - Plano
-    //             34,  // AI - reservada
-    VALOR:       35,  // AJ - Valor
-    PRE_STATUS:  36,  // AK - Pré-Status
-    LINHA_MOVEL:    37,  // AL - Linha Móvel
-    PORTABILIDADE:  40,  // AO - Portabilidade (Sim/Não)
-    VEROHUB:        41,  // AP - Data blindagem VeroHub
-    VEROHUB_PEDIDO:   43,  // AR - Número do pedido VeroHub
-    VEROHUB_PEDIDO_DT:44,  // AS - Data/hora do pedido VeroHub
-    BC_TAGS:          45,  // AT - BotConversa etiquetas (separadas por ' | ')
-    BC_STATUS:        46,  // AU - BotConversa status atendimento (Aberto/Concluído)
-    NOME_MAE:         47,  // AV - Nome da mãe
-    DT_NASC:          48,  // AW - Data de nascimento
-    RG:               49,  // AX - RG
-    //                50,  // AY - reservada
-    VIABILIDADE:      51   // AZ - Resultado da consulta de viabilidade VeroHub (movido de AV)
+    // ── Bloco 1: Venda (A–G) ────────────────────────────────────────
+    CANAL:              0,  // A  - Canal de venda (PAP, META ADS, INDICAÇÃO, ATIVO, GOOGLE ADS)
+    STATUS:             1,  // B  - Status do pedido
+    PRE_STATUS:         2,  // C  - Pré-Status (EM NEGOCIACAO, AG DOC, etc.)
+    DATA_ATIV:          3,  // D  - Data de ativação
+    CONTRATO:           4,  // E  - Contrato / OS
+    COD_CLI:            5,  // F  - Código do cliente no sistema Vero
+    RESP:               6,  // G  - Responsável
+    // ── Bloco 2: Instalação (H–L) ───────────────────────────────────
+    AGENDA:             7,  // H  - Data agendamento
+    TURNO:              8,  // I  - Turno da instalação
+    INSTAL:             9,  // J  - Data instalação
+    REAGENDAMENTOS:    10,  // K  - Contador de reagendamentos
+    OBSERVACAO:        11,  // L  - Motivo Cancelamento / Observação
+    // ── Bloco 3: Produto (M–S) ──────────────────────────────────────
+    PRODUTO:           12,  // M  - Produto
+    PLANO:             13,  // N  - Plano
+    VALOR:             14,  // O  - Valor
+    VENC:              15,  // P  - Vencimento
+    FAT:               16,  // Q  - Pagamento/Faturamento
+    LINHA_MOVEL:       17,  // R  - Linha Móvel
+    PORTABILIDADE:     18,  // S  - Portabilidade (Sim/Não)
+    // ── Bloco 4: Cliente (T–Z) ──────────────────────────────────────
+    CLIENTE:           19,  // T  - Nome completo do cliente
+    CPF:               20,  // U  - CPF ou CNPJ
+    WHATS:             21,  // V  - WhatsApp
+    TEL:               22,  // W  - Telefone ligação
+    NOME_MAE:          23,  // X  - Nome da mãe
+    DT_NASC:           24,  // Y  - Data de nascimento
+    RG:                25,  // Z  - RG
+    // ── Bloco 5: Endereço (AA–AI) ───────────────────────────────────
+    CEP:               26,  // AA - CEP
+    RUA:               27,  // AB - Logradouro
+    NUM:               28,  // AC - Número
+    COMPLEMENTO:       29,  // AD - Complemento
+    BAIRRO:            30,  // AE - Bairro
+    CIDADE:            31,  // AF - Cidade
+    UF:                32,  // AG - Estado
+    SISTEMA:           33,  // AH - Sistema
+    SEGMENTACAO:       34,  // AI - Segmentação
+    // ── Bloco 6: Automático (AJ–AP) ─────────────────────────────────
+    VEROHUB:           35,  // AJ - Data blindagem VeroHub
+    VEROHUB_PEDIDO:    36,  // AK - Número do pedido VeroHub
+    VEROHUB_PEDIDO_DT: 37,  // AL - Data/hora do pedido VeroHub
+    STATUS_PAP:        38,  // AM - Status Pagamento PAP
+    BC_TAGS:           39,  // AN - BotConversa etiquetas (separadas por ' | ')
+    BC_STATUS:         40,  // AO - BotConversa status atendimento (Aberto/Concluído)
+    VIABILIDADE:       41   // AP - Resultado da consulta de viabilidade VeroHub
   }
 };
 
@@ -109,7 +112,7 @@ function buscarVendaGlobal(termo) {
     var sheet = _getSheet();
     var ult   = sheet.getLastRow();
     if (ult < 3) return { dados: [], total: 0 };
-    var raw   = sheet.getRange(3, 1, ult - 2, 59).getValues();
+    var raw   = sheet.getRange(3, 1, ult - 2, CONFIG.TOTAL_COLUNAS).getValues();
 
     // normaliza o termo: remove pontos, traços, espaços extras, minúsculas
     var t     = String(termo).trim().toLowerCase();
@@ -216,7 +219,7 @@ function arquivarVenda(linha) {
     if (linha > ult) return { sucesso: false, mensagem: 'Linha não encontrada.' };
 
     var c = CONFIG.COLUNAS;
-    var row = sheet.getRange(linha, 1, 1, 59).getValues()[0];
+    var row = sheet.getRange(linha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
 
     // Dados para a aba Arquivo
     var nome  = row[c.CLIENTE] || '';
@@ -238,7 +241,7 @@ function arquivarVenda(linha) {
     abaArquivo.appendRow([nome, cpf, whats, plano, valor, dataExclusao]);
 
     // Limpa a linha na aba principal (preserva a linha para não deslocar índices)
-    sheet.getRange(linha, 1, 1, 59).clearContent();
+    sheet.getRange(linha, 1, 1, CONFIG.TOTAL_COLUNAS).clearContent();
 
     // Limpa cache
     _limparCache();
@@ -259,13 +262,13 @@ function excluirVenda(linha) {
 }
 
 
-// ── VEROHUB — salva data de blindagem na col AP ──────────────────────────
+// ── VEROHUB — salva data de blindagem na col VEROHUB ────────────────────
 function salvarVeroHub(linha, data) {
   try {
     linha = parseInt(linha);
     if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
     var sheet = _getSheet();
-    sheet.getRange(linha, 42).setValue(data || ''); // col AP = índice 41 = coluna 42
+    sheet.getRange(linha, CONFIG.COLUNAS.VEROHUB + 1).setValue(data || '');
     _limparCacheListaCompleta();
     return { sucesso: true };
   } catch(e) {
@@ -281,7 +284,7 @@ function salvarAgendamento(linha, data) {
 }
 
 
-// ── VEROHUB PEDIDO — salva data manual + timestamp de edição na col AS ───
+// ── VEROHUB PEDIDO — salva data manual na col VEROHUB ──────────────────
 function salvarVeroHubPedidoManual(linha, data) {
   try {
     linha = parseInt(linha);
@@ -289,7 +292,7 @@ function salvarVeroHubPedidoManual(linha, data) {
     var tz = Session.getScriptTimeZone();
     var horaEdit = Utilities.formatDate(new Date(), tz, 'HH:mm');
     var sheet = _getSheet();
-    sheet.getRange(linha, 42).setValue(data || ''); // col AP = coluna 42
+    sheet.getRange(linha, CONFIG.COLUNAS.VEROHUB + 1).setValue(data || '');
     _limparCacheListaCompleta();
     return { sucesso: true, horaEdit: horaEdit };
   } catch(e) {
@@ -297,13 +300,13 @@ function salvarVeroHubPedidoManual(linha, data) {
   }
 }
 
-// ── TURNO — salva turno na col I ────────────────────────────────────────
+// ── TURNO — salva turno na col TURNO ────────────────────────────────────
 function salvarTurno(linha, turno) {
   try {
     linha = parseInt(linha);
     if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
     var sheet = _getSheet();
-    sheet.getRange(linha, 9).setValue(turno || ''); // col I = coluna 9
+    sheet.getRange(linha, CONFIG.COLUNAS.TURNO + 1).setValue(turno || '');
     _limparCacheListaCompleta();
     return { sucesso: true };
   } catch(e) {
@@ -318,8 +321,9 @@ function salvarAgendamentoComContador(linha, data) {
     if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
     var sheet = _getSheet();
 
+    var c = CONFIG.COLUNAS;
     // Lê agenda anterior — pode ser Date ou string
-    var agendaRaw = sheet.getRange(linha, 8).getValue(); // col H
+    var agendaRaw = sheet.getRange(linha, c.AGENDA + 1).getValue();
     var tinhaAgenda = false;
     if (agendaRaw) {
       if (agendaRaw instanceof Date) {
@@ -330,14 +334,13 @@ function salvarAgendamentoComContador(linha, data) {
     }
 
     // Grava nova data
-    sheet.getRange(linha, 8).setValue(data || ''); // col H = Agendamento
+    sheet.getRange(linha, c.AGENDA + 1).setValue(data || '');
 
-    // Contador de reagendamentos na col K (coluna 11)
-    var contAtual = parseInt(sheet.getRange(linha, 11).getValue()) || 0;
+    // Contador de reagendamentos
+    var contAtual = parseInt(sheet.getRange(linha, c.REAGENDAMENTOS + 1).getValue()) || 0;
     if (tinhaAgenda && data) {
-      // Tinha data anterior e está mudando → reagendamento
       contAtual = contAtual + 1;
-      sheet.getRange(linha, 11).setValue(contAtual);
+      sheet.getRange(linha, c.REAGENDAMENTOS + 1).setValue(contAtual);
     }
 
     _limparCacheListaCompleta();
@@ -348,19 +351,19 @@ function salvarAgendamentoComContador(linha, data) {
 }
 
 
-// ── VEROHUB — salva número e data/hora do pedido nas cols AR e AS ─────────
+// ── VEROHUB — salva número e data/hora do pedido ────────────────────────
 function salvarPedidoVeroHub(linha, numeroPedido, dataHoraPedido) {
   try {
     linha = parseInt(linha);
     if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
-    // Se não veio data/hora, gerar agora
     if (!dataHoraPedido) {
       var tz = Session.getScriptTimeZone();
       dataHoraPedido = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm');
     }
+    var c = CONFIG.COLUNAS;
     var sheet = _getSheet();
-    sheet.getRange(linha, 44).setValue(numeroPedido  || '');
-    sheet.getRange(linha, 45).setValue(dataHoraPedido || '');
+    sheet.getRange(linha, c.VEROHUB_PEDIDO    + 1).setValue(numeroPedido   || '');
+    sheet.getRange(linha, c.VEROHUB_PEDIDO_DT + 1).setValue(dataHoraPedido || '');
     _limparCacheListaCompleta();
     return { sucesso: true, numeroPedido: numeroPedido, dataHoraPedido: dataHoraPedido };
   } catch(e) {
@@ -467,9 +470,10 @@ function criarPedidoVeroHub(dados) {
     var dtHora = Utilities.formatDate(agora, tz, 'dd/MM/yyyy HH:mm');
 
     if (linha >= 3) {
+      var c = CONFIG.COLUNAS;
       var sheet = _getSheet();
-      sheet.getRange(linha, 44).setValue(String(novoId));  // AR
-      sheet.getRange(linha, 45).setValue(dtHora);           // AS
+      sheet.getRange(linha, c.VEROHUB_PEDIDO    + 1).setValue(String(novoId));
+      sheet.getRange(linha, c.VEROHUB_PEDIDO_DT + 1).setValue(dtHora);
       _limparCacheListaCompleta();
     }
 
@@ -658,7 +662,7 @@ function getSincronizacaoInicial() {
     var total  = ultima - 2;
     var tz     = Session.getScriptTimeZone();
     if (total <= 0) return { vendas: { dados: [], total: 0 }, contratos: [] };
-    var raw = sheet.getRange(3, 1, total, 59).getValues();
+    var raw = sheet.getRange(3, 1, total, CONFIG.TOTAL_COLUNAS).getValues();
 
     // ── Contratos (para Cruzamento Vero) ─────────────────────────────────
     var contratos = [];
@@ -728,36 +732,27 @@ function getContratosParaCruzamento() {
       return { dados: [] };
     }
 
-    // Lê TODAS as colunas até BG (59)
     var total = ultima - 2;
-    var raw   = sheet.getRange(3, 1, total, 59).getValues();
+    var raw   = sheet.getRange(3, 1, total, CONFIG.TOTAL_COLUNAS).getValues();
 
     var tz   = Session.getScriptTimeZone();
     var dados = [];
 
     Logger.log('getContratosParaCruzamento: processando ' + raw.length + ' linhas');
 
+    var c = CONFIG.COLUNAS;
     for (var i = 0; i < raw.length; i++) {
       var row = raw[i];
-      
-      // Pega contrato da coluna G (índice 6)
-      var contratoRaw = row[6];
+
+      var contratoRaw = row[c.CONTRATO];
       var contrato = String(contratoRaw || '').trim().replace(/\.0$/, '');
-      
-      // Pula linhas sem contrato
       if (!contrato) continue;
-      
-      // Pega status da coluna C (índice 2)
-      var status = String(row[2] || '').trim();
-      
-      // Pega cliente da coluna O (índice 14)
-      var cliente = String(row[14] || '').trim();
-      
-      // Pega produto da coluna B (índice 1)
-      var produto = String(row[1] || '').trim();
-      
-      // Data ativação: col D (índice 3)
-      var dAtivRaw = row[3];
+
+      var status  = String(row[c.STATUS]  || '').trim();
+      var cliente = String(row[c.CLIENTE] || '').trim();
+      var produto = String(row[c.PRODUTO] || '').trim();
+
+      var dAtivRaw = row[c.DATA_ATIV];
       var dataAtiv = '';
       if (dAtivRaw instanceof Date && !isNaN(dAtivRaw)) {
         dataAtiv = Utilities.formatDate(dAtivRaw, tz, 'yyyy-MM-dd');
@@ -771,8 +766,7 @@ function getContratosParaCruzamento() {
         dataAtiv = String(dAtivRaw || '');
       }
       
-      // Data instalação: col J (índice 9)
-      var dInstalRaw = row[9];
+      var dInstalRaw = row[c.INSTAL];
       var instal = '';
       if (dInstalRaw instanceof Date && !isNaN(dInstalRaw)) {
         instal = Utilities.formatDate(dInstalRaw, tz, 'yyyy-MM-dd');
@@ -1065,7 +1059,7 @@ function doPost(e) {
     var agora    = new Date();
     var dataAtiv = Utilities.formatDate(agora, tz, 'dd/MM/yyyy');
 
-    var linha = new Array(59).fill('');
+    var linha = new Array(CONFIG.TOTAL_COLUNAS).fill('');
     linha[CONFIG.COLUNAS.CANAL]    = 'LEAD';
     linha[CONFIG.COLUNAS.PRODUTO]  = String(payload.produto  || '').trim();
     linha[CONFIG.COLUNAS.STATUS]   = '1- Conferencia/Ativação';
@@ -1647,9 +1641,8 @@ function getPagamentosPAP() {
     }
     Logger.log('getPagamentosPAP: mapa PAP com ' + Object.keys(mapaPAP).length + ' vendedores');
 
-    // Lê aba 1 - Vendas: colunas A até BG (59 colunas)
     var totalDados = ultimaLinha - 2;
-    var raw = sheet.getRange(3, 1, totalDados, 59).getValues();
+    var raw = sheet.getRange(3, 1, totalDados, CONFIG.TOTAL_COLUNAS).getValues();
     var tz  = Session.getScriptTimeZone();
 
     var resultado = [];
@@ -1658,26 +1651,26 @@ function getPagamentosPAP() {
 
     for (var i = 0; i < raw.length; i++) {
       var row      = raw[i];
-      var canal    = String(row[0]  || '').trim().toUpperCase(); // A
-      var produto  = String(row[1]  || '').trim().toUpperCase(); // B
-      var status   = String(row[2]  || '').trim();               // C
-      var statusPAP= String(row[42] || '').trim().toUpperCase(); // AQ
+      var c2 = CONFIG.COLUNAS;
+      var canal     = String(row[c2.CANAL]       || '').trim().toUpperCase();
+      var produto   = String(row[c2.PRODUTO]     || '').trim().toUpperCase();
+      var status    = String(row[c2.STATUS]      || '').trim();
+      var statusPAP = String(row[c2.STATUS_PAP]  || '').trim().toUpperCase();
 
       // Filtros
       if (canal !== 'PAP') continue;
       var prodNorm = produto.normalize('NFD').replace(/[̀-ͯ]/g,'');
       if (prodNorm !== 'FIBRA ALONE' && prodNorm !== 'FIBRA COMBO') continue;
       if (status !== '3 - Finalizada/Instalada') continue;
-      if (statusPAP.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'') !== 'EM ABERTO') continue;
+      if (statusPAP.normalize('NFD').replace(/[\u0300-\u036f]/g,'') !== 'EM ABERTO') continue;
 
-      var cliente  = String(row[14] || '').trim(); // O
-      var resp     = String(row[12] || '').trim(); // M
-      var contrato = String(row[6]  || '').trim(); // G
-      var plano    = String(row[33] || '').trim(); // AH
-      var valor    = parseFloat(row[35]) || 0;     // AJ
+      var cliente  = String(row[c2.CLIENTE]  || '').trim();
+      var resp     = String(row[c2.RESP]     || '').trim();
+      var contrato = String(row[c2.CONTRATO] || '').trim();
+      var plano    = String(row[c2.PLANO]    || '').trim();
+      var valor    = parseFloat(row[c2.VALOR]) || 0;
 
-      // Data instalação col J (índice 9)
-      var dInstal = row[9];
+      var dInstal = row[c2.INSTAL];
       var dataInstalStr = (dInstal instanceof Date && !isNaN(dInstal))
         ? Utilities.formatDate(dInstal, tz, 'dd/MM/yyyy') : String(dInstal || '');
 
@@ -1698,14 +1691,14 @@ function getPagamentosPAP() {
         cliente:     cliente,
         resp:        resp,
         contrato:    contrato,
-        produto:     String(row[1] || '').trim(),
+        produto:     produto,
         plano:       plano,
         valor:       valor,
         comissao:    comissao,
         dataInstal:  dataInstalStr,
         chavePix:    infoPAP.chavePix,
         whatsapp:    infoPAP.whatsapp,
-        statusPAP:   String(row[42] || '').trim()
+        statusPAP:   statusPAP
       });
     }
 
@@ -1730,11 +1723,11 @@ function getPagamentosPAP() {
 }
 
 
-// Salva apenas o Status Pagamento PAP (col AQ = coluna 43) de uma linha
+// Salva apenas o Status Pagamento PAP
 function salvarStatusPAP(linha, novoStatus) {
   try {
     var sheet = _getSheet();
-    sheet.getRange(linha, 43).setValue(novoStatus || '');
+    sheet.getRange(linha, CONFIG.COLUNAS.STATUS_PAP + 1).setValue(novoStatus || '');
     _limparCacheListaCompleta();
     Logger.log('salvarStatusPAP: linha ' + linha + ' = "' + novoStatus + '"');
     return { sucesso: true };
@@ -1744,11 +1737,11 @@ function salvarStatusPAP(linha, novoStatus) {
   }
 }
 
-// Marca uma venda como paga na coluna AQ
+// Marca uma venda como paga
 function marcarPagoPAP(linha) {
   try {
     var sheet = _getSheet();
-    sheet.getRange(linha, 43).setValue('Pago'); // col AQ = coluna 43
+    sheet.getRange(linha, CONFIG.COLUNAS.STATUS_PAP + 1).setValue('Pago');
     _limparCacheListaCompleta();
     Logger.log('marcarPagoPAP: linha ' + linha + ' marcada como Pago.');
     return { sucesso: true };
@@ -1889,14 +1882,15 @@ function getVendasLeads() {
     for (var j = registros.length - 1; j >= 0; j--) {
       var entry   = registros[j];
       var row     = entry.row;
-      var status  = String(row[2] || '').trim();
-      var produto = String(row[1] || '').trim().toUpperCase()
+      var cf = CONFIG.COLUNAS;
+      var status  = String(row[cf.STATUS]  || '').trim();
+      var produto = String(row[cf.PRODUTO] || '').trim().toUpperCase()
                       .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
       // Só FIBRA ALONE ou FIBRA COMBO
       if (!PRODUTOS_FIBRA[produto.replace(/\s+/g, ' ')]) continue;
 
-      var colAK = String(row[36] || '').trim().toUpperCase()
+      var colAK = String(row[cf.PRE_STATUS] || '').trim().toUpperCase()
                     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
       var temperatura = null;
@@ -1925,15 +1919,15 @@ function getVendasLeads() {
         continue;
       }
 
-      var cliente = String(row[14] || '').trim();
-      var cpf     = String(row[13] || '').trim();
+      var cliente = String(row[cf.CLIENTE] || '').trim();
+      var cpf     = String(row[cf.CPF]     || '').trim();
       if (!cliente && !cpf) continue;
 
-      var dAtiv = row[3];
+      var dAtiv = row[cf.DATA_ATIV];
       var dataAtivStr = (dAtiv instanceof Date && !isNaN(dAtiv))
         ? Utilities.formatDate(dAtiv, tz, 'dd/MM/yyyy') : '';
 
-      var dAg = row[7];
+      var dAg = row[cf.AGENDA];
       var agendaStr = (dAg instanceof Date && !isNaN(dAg))
         ? Utilities.formatDate(dAg, tz, 'dd/MM/yyyy') : (dAg ? String(dAg) : '');
 
@@ -1941,18 +1935,18 @@ function getVendasLeads() {
         linha:       entry.linhaSheet,
         status:      status,
         temperatura: temperatura,
-        preStatus:   String(row[36] || '').trim(), // col AK
+        preStatus:   String(row[cf.PRE_STATUS]  || '').trim(),
         cliente:     cliente,
         cpf:         cpf,
-        produto:     String(row[1]  || '').trim(),
-        plano:       String(row[33] || '').trim(),
-        resp:        String(row[12] || '').trim(),
-        whats:       String(row[15] || '').trim(),
+        produto:     String(row[cf.PRODUTO]     || '').trim(),
+        plano:       String(row[cf.PLANO]       || '').trim(),
+        resp:        String(row[cf.RESP]        || '').trim(),
+        whats:       String(row[cf.WHATS]       || '').trim(),
         dataAtiv:    dataAtivStr,
         agenda:      agendaStr,
-        turno:       String(row[8]  || '').trim(),
-        codCli:      String(row[5]  || '').trim(),
-        contrato:    String(row[6]  || '').trim()
+        turno:       String(row[cf.TURNO]       || '').trim(),
+        codCli:      String(row[cf.COD_CLI]     || '').trim(),
+        contrato:    String(row[cf.CONTRATO]    || '').trim()
       });
 
       // Para quando todos os baldes estão cheios
@@ -1989,21 +1983,13 @@ function moverLeadAguardando(payload) {
     if (!sheet) return { sucesso: false, mensagem: 'Planilha não encontrada.' };
 
     var linha = parseInt(payload.linha);
+    var c = CONFIG.COLUNAS;
 
-    // Status → col C (índice 2 = coluna 3)
-    sheet.getRange(linha, 3).setValue('2- Aguardando Instalação');
-
-    // Agenda → col H (índice 7 = coluna 8)
-    if (payload.agenda) sheet.getRange(linha, 8).setValue(payload.agenda);
-
-    // Turno → col I (índice 8 = coluna 9)
-    if (payload.turno) sheet.getRange(linha, 9).setValue(payload.turno);
-
-    // Contrato/OS → col G (índice 6 = coluna 7)
-    if (payload.contrato) sheet.getRange(linha, 7).setValue(payload.contrato);
-
-    // Observação → col AK (coluna 37)
-    if (payload.obs) sheet.getRange(linha, 37).setValue(payload.obs);
+    sheet.getRange(linha, c.STATUS    + 1).setValue('2- Aguardando Instalação');
+    if (payload.agenda)   sheet.getRange(linha, c.AGENDA    + 1).setValue(payload.agenda);
+    if (payload.turno)    sheet.getRange(linha, c.TURNO     + 1).setValue(payload.turno);
+    if (payload.contrato) sheet.getRange(linha, c.CONTRATO  + 1).setValue(payload.contrato);
+    if (payload.obs)      sheet.getRange(linha, c.OBSERVACAO + 1).setValue(payload.obs);
 
     _limparCache();
 
@@ -2605,7 +2591,7 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
 function getVendaPorLinha(numeroLinha) {
   try {
     var sheet = _getSheet();
-    var dados = sheet.getRange(numeroLinha, 1, 1, 59).getValues()[0];
+    var dados = sheet.getRange(numeroLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
     return _mapearLinha(dados, numeroLinha);
   } catch (erro) {
     throw new Error('Erro ao buscar venda: ' + erro.message);
@@ -2750,14 +2736,15 @@ function getVendasFunil() {
     for (var j = registros.length - 1; j >= 0; j--) {
       var entry  = registros[j];
       var row    = entry.row;
-      var status = String(row[2] || '').trim();
+      var cf = CONFIG.COLUNAS;
+      var status = String(row[cf.STATUS] || '').trim();
 
       if (!statusFunil[status]) continue;
       if (contadores[status] >= (LIMITES[status] || 150)) continue;
 
-      // Para "Finalizada": somente registros do mês vigente (col J = índice 9)
+      // Para "Finalizada": somente registros do mês vigente (col INSTAL)
       if (status === '3 - Finalizada/Instalada') {
-        var dInstalRaw = row[9];
+        var dInstalRaw = row[cf.INSTAL];
         var dInstal = (dInstalRaw instanceof Date && !isNaN(dInstalRaw)) ? dInstalRaw : null;
         if (!dInstal) {
           var dStr = String(dInstalRaw || '').trim();
@@ -2769,21 +2756,21 @@ function getVendasFunil() {
         if (!dInstal || dInstal.getMonth()+1 !== mesAtual || dInstal.getFullYear() !== anoAtual) continue;
       }
 
-      var cliente = String(row[14] || '').trim();
-      var cpf     = String(row[13] || '').trim();
+      var cliente = String(row[cf.CLIENTE] || '').trim();
+      var cpf     = String(row[cf.CPF]     || '').trim();
       if (!cliente && !cpf) continue;
 
       contadores[status]++;
 
-      var dAtiv = row[3];
+      var dAtiv = row[cf.DATA_ATIV];
       var dataAtivStr = (dAtiv instanceof Date && !isNaN(dAtiv))
         ? Utilities.formatDate(dAtiv, tz, 'dd/MM/yyyy') : '';
 
-      var dAg = row[7];
+      var dAg = row[cf.AGENDA];
       var agendaStr = (dAg instanceof Date && !isNaN(dAg))
         ? Utilities.formatDate(dAg, tz, 'dd/MM/yyyy') : (dAg ? String(dAg) : '');
 
-      var dIns = row[9];
+      var dIns = row[cf.INSTAL];
       var instalStr = (dIns instanceof Date && !isNaN(dIns))
         ? Utilities.formatDate(dIns, tz, 'dd/MM/yyyy') : (dIns ? String(dIns) : '');
 
@@ -2791,17 +2778,17 @@ function getVendasFunil() {
         linha:     entry.linhaSheet,
         status:    status,
         cliente:   cliente,
-        produto:   String(row[1]  || '').trim(),
-        plano:     String(row[33] || '').trim(),
-        resp:      String(row[12] || '').trim(),
-        whats:     String(row[15] || '').trim(),
-        codCli:    String(row[5]  || '').trim(),
-        contrato:  String(row[6]  || '').trim(),
+        produto:   String(row[cf.PRODUTO]    || '').trim(),
+        plano:     String(row[cf.PLANO]      || '').trim(),
+        resp:      String(row[cf.RESP]       || '').trim(),
+        whats:     String(row[cf.WHATS]      || '').trim(),
+        codCli:    String(row[cf.COD_CLI]    || '').trim(),
+        contrato:  String(row[cf.CONTRATO]   || '').trim(),
         dataAtiv:  dataAtivStr,
         agenda:    agendaStr,
-        turno:     String(row[8]  || '').trim(),
+        turno:     String(row[cf.TURNO]      || '').trim(),
         instal:    instalStr,
-        preStatus: String(row[36] || '').trim()  // col AK
+        preStatus: String(row[cf.PRE_STATUS] || '').trim()
       });
     }
 
@@ -2859,7 +2846,7 @@ function moverVendaFunil(payload) {
       sheet.getRange(linha, CONFIG.COLUNAS.INSTAL + 1).setValue(dataInstal);
     }
     if (campoExtra === 'observacao' && valorExtra) {
-      sheet.getRange(linha, 37).setValue(valorExtra);
+      sheet.getRange(linha, CONFIG.COLUNAS.OBSERVACAO + 1).setValue(valorExtra);
     }
 
     _limparCache();
@@ -3006,7 +2993,7 @@ function repararSistemaSegmentacao() {
   var ultLinha = sheet.getLastRow();
   if (ultLinha < 3) { Logger.log('Nenhuma venda encontrada.'); return; }
 
-  var dados    = sheet.getRange(3, 1, ultLinha - 2, 59).getValues();
+  var dados    = sheet.getRange(3, 1, ultLinha - 2, CONFIG.TOTAL_COLUNAS).getValues();
   var cidades  = _getCidades();
   var c        = CONFIG.COLUNAS;
 
@@ -3022,7 +3009,7 @@ function repararSistemaSegmentacao() {
     var linha    = dados[i];
     var cidade   = _normalizarTexto(String(linha[c.CIDADE] || ''));
     var sistema  = String(linha[c.SISTEMA] || '').trim();
-    var segm     = String(linha[26]        || '').trim();
+    var segm     = String(linha[c.SEGMENTACAO] || '').trim();
 
     if (!cidade) continue;                    // linha sem cidade — pula
     if (sistema && segm) continue;            // ambos já preenchidos — pula
@@ -3205,15 +3192,15 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
       if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, tz, 'dd/MM/yyyy');
       return String(v).trim();
     })(row[c.VEROHUB]),
-    statusPAP:        String(row[42] || ''),
-    verohubPedido:    String(row[43] || '').trim(),
-    verohubPedidoDt:  String(row[44] || '').trim(),
-    segmentacao: String(row[26] || '').trim(),
-    preStatus:   String(row[c.PRE_STATUS] || ''),
-    bcTags:      String(row[c.BC_TAGS]    || '').trim(),
-    bcStatus:    String(row[c.BC_STATUS]  || '').trim(),
-    mapsLink:    '',
-    reagendamentos: parseInt(row[10]) || 0
+    statusPAP:        String(row[c.STATUS_PAP]        || ''),
+    verohubPedido:    String(row[c.VEROHUB_PEDIDO]    || '').trim(),
+    verohubPedidoDt:  String(row[c.VEROHUB_PEDIDO_DT] || '').trim(),
+    segmentacao:      String(row[c.SEGMENTACAO]        || '').trim(),
+    preStatus:        String(row[c.PRE_STATUS]         || ''),
+    bcTags:           String(row[c.BC_TAGS]            || '').trim(),
+    bcStatus:         String(row[c.BC_STATUS]          || '').trim(),
+    mapsLink:         '',
+    reagendamentos:   parseInt(row[c.REAGENDAMENTOS]) || 0
   };
 }
 
@@ -3265,23 +3252,23 @@ function _mapearLinha(row, numeroLinha) {
       if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'dd/MM/yyyy');
       return String(v).trim();
     })(row[c.VEROHUB]),  // AP - Data blindagem VeroHub
-    statusPAP:        String(row[42] || ''),  // AQ - Status Pagamento PAP
-    verohubPedido:    String(row[43] || '').trim(),  // AR - Número pedido VeroHub
-    verohubPedidoDt:  String(row[44] || '').trim(),  // AS - Data/hora pedido VeroHub
-    segmentacao: String(row[26] || '').trim(),  // AA - Segmentação
-    preStatus:   String(row[c.PRE_STATUS] || ''),  // AK - Pré-Status
-    bcTags:      String(row[c.BC_TAGS]    || '').trim(),  // AT - BotConversa etiquetas
-    bcStatus:    String(row[c.BC_STATUS]  || '').trim(),  // AU - BotConversa status
-    nomeMae:     String(row[c.NOME_MAE]   || '').trim(),  // AV - Nome da mãe
-    dtNasc:      String(row[c.DT_NASC]    || '').trim(),  // AW - Data de nascimento
-    rg:          String(row[c.RG]         || '').trim(),  // AX - RG
-    mapsLink:    '',
-    reagendamentos: parseInt(row[10]) || 0
+    statusPAP:        String(row[c.STATUS_PAP]        || ''),
+    verohubPedido:    String(row[c.VEROHUB_PEDIDO]    || '').trim(),
+    verohubPedidoDt:  String(row[c.VEROHUB_PEDIDO_DT] || '').trim(),
+    segmentacao:      String(row[c.SEGMENTACAO]        || '').trim(),
+    preStatus:        String(row[c.PRE_STATUS]         || ''),
+    bcTags:           String(row[c.BC_TAGS]            || '').trim(),
+    bcStatus:         String(row[c.BC_STATUS]          || '').trim(),
+    nomeMae:          String(row[c.NOME_MAE]           || '').trim(),
+    dtNasc:           String(row[c.DT_NASC]            || '').trim(),
+    rg:               String(row[c.RG]                 || '').trim(),
+    mapsLink:         '',
+    reagendamentos:   parseInt(row[c.REAGENDAMENTOS]) || 0
   };
 }
 
 function _construirLinhaDados(d) {
-  var linha = new Array(59).fill('');
+  var linha = new Array(CONFIG.TOTAL_COLUNAS).fill('');
   var c = CONFIG.COLUNAS;
   linha[c.CANAL]       = d.canal       || '';
   linha[c.PRODUTO]     = d.produto     || '';
@@ -3312,15 +3299,15 @@ function _construirLinhaDados(d) {
   linha[c.VALOR]       = d.valor       || '';
   linha[c.LINHA_MOVEL]   = d.linhaMovel    || '';
   linha[c.PORTABILIDADE] = d.portabilidade || '';
-  linha[c.PRE_STATUS]    = d.preStatus     || '';  // AK - Pré-Status
-  linha[c.NOME_MAE]      = d.nomeMae       || '';  // AV - Nome da mãe
-  linha[c.DT_NASC]       = d.dtNasc        || '';  // AW - Data de nascimento
-  linha[c.RG]            = d.rg            || '';  // AX - RG
-  linha[26]            = d.segmentacao  || '';  // AA - Segmentação
-  linha[10]            = d.reagendamentos || '';  // K - Contador de reagendamentos
-  linha[42]            = d.statusPAP   || '';  // AQ - Status Pagamento PAP
-  linha[43]            = d.verohubPedido   || '';  // AR - Número pedido VeroHub
-  linha[44]            = d.verohubPedidoDt || '';  // AS - Data/hora pedido VeroHub
+  linha[c.PRE_STATUS]        = d.preStatus        || '';
+  linha[c.NOME_MAE]          = d.nomeMae           || '';
+  linha[c.DT_NASC]           = d.dtNasc            || '';
+  linha[c.RG]                = d.rg                || '';
+  linha[c.SEGMENTACAO]       = d.segmentacao       || '';
+  linha[c.REAGENDAMENTOS]    = d.reagendamentos    || '';
+  linha[c.STATUS_PAP]        = d.statusPAP         || '';
+  linha[c.VEROHUB_PEDIDO]    = d.verohubPedido     || '';
+  linha[c.VEROHUB_PEDIDO_DT] = d.verohubPedidoDt   || '';
   return linha;
 }
 
@@ -3364,7 +3351,7 @@ function getDashboard(mes, ano) {
     // ── Lê planilha completa (43 colunas) ─────────────────────────────────
     var ultima = sheet.getLastRow();
     if (ultima < 3) return { erro: false, vazio: true };
-    var raw = sheet.getRange(3, 1, ultima - 2, 59).getValues();
+    var raw = sheet.getRange(3, 1, ultima - 2, CONFIG.TOTAL_COLUNAS).getValues();
 
     // ── Helpers ────────────────────────────────────────────────────────────
     function isMesAno(d) {
@@ -3444,19 +3431,20 @@ function getDashboard(mes, ano) {
     var mesAnt = mesRef === 1 ? 12 : mesRef - 1;
     var anoAnt = mesRef === 1 ? anoRef - 1 : anoRef;
 
+    var c = CONFIG.COLUNAS;
     for (var i = 0; i < raw.length; i++) {
       var row     = raw[i];
-      var canal   = String(row[0]  || '').trim();
-      var produto = String(row[1]  || '').trim();
-      var status  = String(row[2]  || '').trim();
-      var dAtiv   = toDate(row[3]);   // col D
-      var dInstal = toDate(row[9]);   // col J
-      var dAgenda = toDate(row[7]);   // col H
-      var resp    = String(row[12] || '').trim();
-      var cidade  = String(row[22] || '').trim();
-      var plano   = String(row[33] || '').trim();
-      var valor   = parseFloat(row[35]) || 0;  // col AJ
-      var colD    = String(row[3]  || '').trim().toUpperCase()
+      var canal   = String(row[c.CANAL]     || '').trim();
+      var produto = String(row[c.PRODUTO]   || '').trim();
+      var status  = String(row[c.STATUS]    || '').trim();
+      var dAtiv   = toDate(row[c.DATA_ATIV]);
+      var dInstal = toDate(row[c.INSTAL]);
+      var dAgenda = toDate(row[c.AGENDA]);
+      var resp    = String(row[c.RESP]      || '').trim();
+      var cidade  = String(row[c.CIDADE]    || '').trim();
+      var plano   = String(row[c.PLANO]     || '').trim();
+      var valor   = parseFloat(row[c.VALOR]) || 0;
+      var colD    = String(row[c.DATA_ATIV] || '').trim().toUpperCase()
                       .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 
       // ── HOJE (fixos) ───────────────────────��────────────────────────────
@@ -3532,7 +3520,7 @@ function getDashboard(mes, ano) {
 
       // Funil de leads: status 1- Conferencia/Ativação, col AK = pré-status
       if (status === '1- Conferencia/Ativação' && (isFibra(produto))) {
-        var pv = String(row[36] || '').trim().toUpperCase()
+        var pv = String(row[c.PRE_STATUS] || '').trim().toUpperCase()
                    .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
         if      (pv === 'EM NEGOCIACAO')    funil['EM NEGOCIACAO']++;
         else if (pv === 'AG COMPROVANTE')   funil['AG COMPROVANTE']++;
@@ -3545,7 +3533,7 @@ function getDashboard(mes, ano) {
 
       // Instalações mês anterior (col J, fibra)
       if (status === '3 - Finalizada/Instalada' && isFibra(produto)) {
-        var dI = toDate(row[9]);
+        var dI = toDate(row[c.INSTAL]);
         if (dI && (dI.getMonth() + 1) === mesAnt && dI.getFullYear() === anoAnt) {
           instalacoesMesAnt++;
         }
@@ -3729,7 +3717,7 @@ function diagnosticoDashboard() {
   Logger.log('Hoje: ' + hStr);
 
   var ultima = sheet.getLastRow();
-  var raw    = sheet.getRange(3, 1, ultima - 2, 59).getValues();
+  var raw    = sheet.getRange(3, 1, ultima - 2, CONFIG.TOTAL_COLUNAS).getValues();
 
   var contTotal    = 0;
   var contHojeFibra = 0;
@@ -3737,9 +3725,10 @@ function diagnosticoDashboard() {
 
   for (var i = 0; i < raw.length; i++) {
     var row     = raw[i];
-    var produto = String(row[1]  || '').trim();
-    var status  = String(row[2]  || '').trim();
-    var dAtivRaw = row[3]; // col D — valor bruto
+    var cd = CONFIG.COLUNAS;
+    var produto = String(row[cd.PRODUTO]   || '').trim();
+    var status  = String(row[cd.STATUS]    || '').trim();
+    var dAtivRaw = row[cd.DATA_ATIV];
     var dAtiv    = null;
 
     // Tenta converter para Date
@@ -3896,7 +3885,7 @@ function getVendasVeroHubVencidas() {
     var ultima = sheet.getLastRow();
     if (ultima < 3) return { dados: [] };
 
-    var raw  = sheet.getRange(3, 1, ultima - 2, 59).getValues();
+    var raw  = sheet.getRange(3, 1, ultima - 2, CONFIG.TOTAL_COLUNAS).getValues();
     var tz   = Session.getScriptTimeZone();
     var hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -3913,7 +3902,7 @@ function getVendasVeroHubVencidas() {
       var status = String(row[CONFIG.COLUNAS.STATUS] || '').trim();
       if (ignorar.indexOf(status) > -1) continue;
 
-      var vhRaw  = row[41]; // col AP
+      var vhRaw  = row[CONFIG.COLUNAS.VEROHUB];
       var vhDate = null;
       if (vhRaw instanceof Date && !isNaN(vhRaw)) {
         vhDate = new Date(vhRaw); vhDate.setHours(0,0,0,0);
@@ -4052,15 +4041,16 @@ function exibirAgendamentosDoDiaWeb() {
   var listaFinalizados = '';
 
   if (ultimaLinha >= 3) {
-    var dados   = abaVendas.getRange(3, 1, ultimaLinha - 2, 15).getValues();
+    var ca = CONFIG.COLUNAS;
+    var dados   = abaVendas.getRange(3, 1, ultimaLinha - 2, CONFIG.TOTAL_COLUNAS).getValues();
     var hojeData = new Date();
     hojeData.setHours(0,0,0,0);
 
     dados.forEach(function(linha) {
-      var status           = linha[2];
-      var dataAgendamento  = linha[7];
-      var dataFinalizada   = linha[9];
-      var nomeCompleto     = String(linha[14]).trim();
+      var status           = linha[ca.STATUS];
+      var dataAgendamento  = linha[ca.AGENDA];
+      var dataFinalizada   = linha[ca.INSTAL];
+      var nomeCompleto     = String(linha[ca.CLIENTE]).trim();
       var partes           = nomeCompleto.split(' ');
       var nomeCurto        = partes.length > 1 ? partes[0] + ' ' + partes[partes.length - 1] : partes[0];
 
@@ -4630,4 +4620,88 @@ function epApagarExtratoDrive(fileId) {
   } catch (e) {
     return { ok: false, mensagem: e.message };
   }
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════
+//  MIGRAÇÃO DE COLUNAS — rodar UMA VEZ após reorganização
+//  ATENÇÃO: testar em CÓPIA da planilha antes de rodar na original.
+//  Remapeia os dados do layout antigo (59 colunas com buracos) para
+//  o novo layout compacto (42 colunas, A–AP, sem buracos).
+// ══════════════════════════════════════════════════════════════════════════
+function migrarColunas() {
+  var MAPA = [
+    // [índice_antigo, índice_novo]
+    [0,0],   // CANAL         A→A
+    [2,1],   // STATUS        C→B
+    [36,2],  // PRE_STATUS    AK→C
+    [3,3],   // DATA_ATIV     D→D
+    [6,4],   // CONTRATO      G→E
+    [5,5],   // COD_CLI       F→F
+    [12,6],  // RESP          M→G
+    [7,7],   // AGENDA        H→H
+    [8,8],   // TURNO         I→I
+    [9,9],   // INSTAL        J→J
+    [10,10], // REAGENDAMENTOS K→K
+    [11,11], // OBSERVACAO    L→L
+    [1,12],  // PRODUTO       B→M
+    [33,13], // PLANO         AH→N
+    [35,14], // VALOR         AJ→O
+    [29,15], // VENC          AD→P
+    [30,16], // FAT           AE→Q
+    [37,17], // LINHA_MOVEL   AL→R
+    [40,18], // PORTABILIDADE AO→S
+    [14,19], // CLIENTE       O→T
+    [13,20], // CPF           N→U
+    [15,21], // WHATS         P→V
+    [16,22], // TEL           Q→W
+    [47,23], // NOME_MAE      AV→X
+    [48,24], // DT_NASC       AW→Y
+    [49,25], // RG            AX→Z
+    [17,26], // CEP           R→AA
+    [18,27], // RUA           S→AB
+    [19,28], // NUM           T→AC
+    [20,29], // COMPLEMENTO   U→AD
+    [21,30], // BAIRRO        V→AE
+    [22,31], // CIDADE        W→AF
+    [23,32], // UF            X→AG
+    [25,33], // SISTEMA       Z→AH
+    [26,34], // SEGMENTACAO   AA→AI
+    [41,35], // VEROHUB       AP→AJ
+    [43,36], // VEROHUB_PEDIDO AR→AK
+    [44,37], // VEROHUB_PEDIDO_DT AS→AL
+    [42,38], // STATUS_PAP    AQ→AM
+    [45,39], // BC_TAGS       AT→AN
+    [46,40], // BC_STATUS     AU→AO
+    [51,41]  // VIABILIDADE   AZ→AP
+  ];
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAME);
+  if (!sheet) return 'Aba "' + CONFIG.SHEET_NAME + '" não encontrada.';
+
+  var totalLinhas = sheet.getLastRow();
+  if (totalLinhas < 1) return 'Planilha vazia — nada a migrar.';
+
+  var totalColsAtual = sheet.getLastColumn();
+  var dados = sheet.getRange(1, 1, totalLinhas, totalColsAtual).getValues();
+
+  var novosDados = dados.map(function(row) {
+    var nova = new Array(CONFIG.TOTAL_COLUNAS).fill('');
+    MAPA.forEach(function(par) {
+      nova[par[1]] = (par[0] < row.length) ? row[par[0]] : '';
+    });
+    return nova;
+  });
+
+  sheet.getRange(1, 1, totalLinhas, CONFIG.TOTAL_COLUNAS).setValues(novosDados);
+
+  // Apaga colunas excedentes (além da col AP = coluna 42)
+  var maxCol = sheet.getMaxColumns();
+  if (maxCol > CONFIG.TOTAL_COLUNAS) {
+    sheet.deleteColumns(CONFIG.TOTAL_COLUNAS + 1, maxCol - CONFIG.TOTAL_COLUNAS);
+  }
+
+  var msg = 'migrarColunas() OK — ' + (totalLinhas - 2) + ' linhas de dados remapeadas para ' + CONFIG.TOTAL_COLUNAS + ' colunas.';
+  Logger.log(msg);
+  return msg;
 }
