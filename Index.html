@@ -354,19 +354,24 @@
     /* ── Divisor entre zonas ── */
     .vi-divider { height: 1px; background: var(--border); margin: 0 11px; }
 
-    /* ── ZONA 2: rodapé (3 linhas horizontais) ── */
+    /* ── ZONA 2: 2 linhas horizontais (produto/vhub | datas/botões/tags) ── */
     .vi-bot {
       display: grid;
-      grid-template-columns: 1fr auto;
-      padding: 5px 11px 7px; gap: 6px;
+      grid-template-columns: auto 1fr auto auto;
+      grid-template-rows: auto auto;
+      padding: 5px 11px 7px;
+      column-gap: 8px;
+      row-gap: 4px;
       width: 100%;
+      align-items: center;
     }
 
-    /* Linha 2: Produto | Plano | Valor (esquerda) | VeroHub (direita) */
+    /* Linha A (linha 2 do card): Produto + Plano à esquerda */
     .vi-bot-left {
-      grid-column: 1 / -1;
-      display: flex; align-items: center; gap: 6px; min-width: 0;
-      padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,.05);
+      grid-column: 1 / 4;
+      grid-row: 1;
+      display: flex; align-items: center; gap: 6px;
+      min-width: 0; flex-wrap: nowrap;
     }
     .vi-produto {
       display: inline-flex; align-items: center; justify-content: center;
@@ -392,23 +397,40 @@
     /* Separador vertical */
     .vi-vsep { width: 1px; height: 32px; background: var(--border); flex-shrink: 0; }
 
-    /* Linha 2 (à direita): VeroHub */
-    .vi-bot-right {
-      grid-column: 2;
+    /* Desmonta .vi-bot-right para posicionar filhos direto no grid */
+    .vi-bot-right { display: contents; }
+
+    /* Linha A (direita): VeroHub */
+    .vi-row-vhub {
+      grid-column: 4;
       grid-row: 1;
-      display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; align-items: flex-end; justify-content: center;
+      display: flex; align-items: center; justify-self: end;
+      flex-shrink: 0; white-space: nowrap;
     }
 
-    /* Linha 3: Datas + Botões + BC Tags */
-    .vi-bc-tags {
-      grid-column: 1 / -1;
+    /* Linha B (linha 3 do card): Datas + BC Tags + Botões */
+    .vi-row-dates {
+      grid-column: 1;
+      grid-row: 2;
       display: flex; align-items: center; gap: 6px;
-      width: 100%; margin-top: 4px; padding-top: 4px;
-      font-size: 10px; color: var(--muted); opacity: .75;
+      white-space: nowrap; flex-shrink: 0;
     }
-    .vi-row-vhub  { display: flex; align-items: center; }
-    .vi-row-dates { display: flex; align-items: center; gap: 8px; }
-    .vi-row-resp  { display: flex; align-items: center; gap: 5px; }
+
+    .vi-bc-tags {
+      grid-column: 2;
+      grid-row: 2;
+      display: flex; align-items: center; gap: 4px;
+      min-width: 0; overflow: hidden;
+      font-size: 10px; color: var(--muted); opacity: .75;
+      white-space: nowrap;
+    }
+
+    .vi-row-resp {
+      grid-column: 3;
+      grid-row: 2;
+      display: flex; align-items: center; gap: 5px;
+      flex-shrink: 0; white-space: nowrap;
+    }
 
     /* Datas */
     .vi-ditem { display: flex; align-items: center; gap: 3px; font-family: 'DM Mono', monospace; font-size: 10px; white-space: nowrap; }
@@ -432,7 +454,12 @@
     }
 
     /* Botões copiar + seta */
-    .vi-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; align-self: center; margin-left: 2px; }
+    .vi-actions {
+      grid-column: 4;
+      grid-row: 2;
+      display: flex; align-items: center; gap: 4px;
+      flex-shrink: 0; justify-self: end;
+    }
     .btn-popup { background: rgba(230,62,109,0.1); border: 1px solid rgba(230,62,109,0.25); color: var(--accent);
                  border-radius: 6px; padding: 4px 7px; font-size: 12px; cursor: pointer;
                  transition: background 0.15s; line-height: 1; }
