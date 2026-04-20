@@ -3764,7 +3764,7 @@ function mostrarPainel(v) {
   document.getElementById('pNome').style.color = '';
   document.getElementById('pCpf').textContent  =
     (v.cpf      ? 'CPF/CNPJ: ' + v.cpf : '') +
-    (v.contrato ? '  ·  ID: '  + v.contrato : '');
+    (v.contrato ? ' | ID Contrato: ' + v.contrato : '');
   document.getElementById('pStatusWrap').innerHTML =
     '<span class="badge badge-status" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
     '<span class="badge badge-meta" style="margin-left:4px;">Linha ' + esc(v.linha) + '</span>';
@@ -3778,26 +3778,6 @@ function mostrarPainel(v) {
   };
 
   var html =
-    // ── 1. CLIENTE ──────────────────────────────────────────────────────────
-    '<div class="painel-secao">' +
-      '<div class="painel-secao-titulo">👤 Cliente</div>' +
-      '<div class="painel-campos">' +
-        _c('Nome',           v.cliente, true) +
-        '<div class="painel-campo full painel-campo-contrato"><span class="painel-lbl">ID Contrato</span><span class="painel-val">' + esc(v.contrato || '—') + '</span></div>' +
-        _c('CPF / CNPJ',     v.cpf) +
-        _c('WhatsApp',       v.whats) +
-        (function() {
-          var extras = '';
-          if (v.tel) extras += _c('Telefone', v.tel);
-          if (v.rg) extras += _c('RG', v.rg);
-          if (v.nomeMae) extras += _c('Nome da Mãe', v.nomeMae, true);
-          if (v.dtNasc) extras += _c('Dt. Nascimento', v.dtNasc);
-          if (!extras) return '';
-          return '<details class="painel-mais"><summary class="painel-mais-toggle">Mostrar mais</summary><div class="painel-mais-conteudo">' + extras + '</div></details>';
-        })() +
-      '</div>' +
-    '</div>' +
-
     // ── 2. ENDEREÇO ─────────────────────────────────────────────────────────
     '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">📍 Endereço & Sistema</div>' +
@@ -3892,7 +3872,13 @@ function mostrarPainel(v) {
           '<option value="Em Aberto"'  + (v.statusPAP === 'Em Aberto'        ? ' selected' : '') + '>🔴 Em Aberto</option>' +
           '<option value="Pago"'       + (v.statusPAP === 'Pago'             ? ' selected' : '') + '>✅ Pago</option>' +
         '</select>') +
-    '</div>';
+    '</div>' +
+    _secaoPainel('Dados Complementares', [
+      ['Telefone', v.tel],
+      ['RG', v.rg],
+      ['Nome da Mãe', v.nomeMae, true],
+      ['Dt. Nascimento', v.dtNasc]
+    ]);
 
   document.getElementById('painelScroll').innerHTML = html;
 
@@ -8217,7 +8203,7 @@ function mostrarPainel(v) {
   document.getElementById('pNome').style.color = '';
   document.getElementById('pCpf').textContent  =
     (v.cpf      ? 'CPF/CNPJ: ' + v.cpf : '') +
-    (v.contrato ? '  ·  ID: '  + v.contrato : '');
+    (v.contrato ? ' | ID Contrato: ' + v.contrato : '');
   document.getElementById('pStatusWrap').innerHTML =
     '<span class="badge badge-status" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
     '<span class="badge badge-meta" style="margin-left:4px;">Linha ' + esc(v.linha) + '</span>';
@@ -8231,26 +8217,6 @@ function mostrarPainel(v) {
   };
 
   var html =
-    // ── 1. CLIENTE ──────────────────────────────────────────────────────────
-    '<div class="painel-secao">' +
-      '<div class="painel-secao-titulo">👤 Cliente</div>' +
-      '<div class="painel-campos">' +
-        _c2('Nome',           v.cliente, true) +
-        '<div class="painel-campo full painel-campo-contrato"><span class="painel-lbl">ID Contrato</span><span class="painel-val">' + esc(v.contrato || '—') + '</span></div>' +
-        _c2('CPF / CNPJ',     v.cpf) +
-        _c2('WhatsApp',       v.whats) +
-        (function() {
-          var extras = '';
-          if (v.tel) extras += _c2('Telefone', v.tel);
-          if (v.rg) extras += _c2('RG', v.rg);
-          if (v.nomeMae) extras += _c2('Nome da Mãe', v.nomeMae, true);
-          if (v.dtNasc) extras += _c2('Dt. Nascimento', v.dtNasc);
-          if (!extras) return '';
-          return '<details class="painel-mais"><summary class="painel-mais-toggle">Mostrar mais</summary><div class="painel-mais-conteudo">' + extras + '</div></details>';
-        })() +
-      '</div>' +
-    '</div>' +
-
     // ── 2. CLASSIFICAÇÃO ────────────────────────────────────────────────────
     '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">⭐ Classificação</div>' +
@@ -8328,7 +8294,13 @@ function mostrarPainel(v) {
     (v.observacao ? '<div class="painel-secao">' +
       '<div class="painel-secao-titulo">📝 Observação</div>' +
       '<div class="painel-campos"><div class="painel-campo full"><span class="painel-val" style="color:var(--muted);font-weight:400;line-height:1.6;white-space:pre-wrap;">' + esc(v.observacao) + '</span></div></div>' +
-    '</div>' : '');
+    '</div>' : '') +
+    _secaoPainel('Dados Complementares', [
+      ['Telefone', v.tel],
+      ['RG', v.rg],
+      ['Nome da Mãe', v.nomeMae, true],
+      ['Dt. Nascimento', v.dtNasc]
+    ]);
 
   document.getElementById('painelScroll').innerHTML = html;
 
