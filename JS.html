@@ -9038,7 +9038,7 @@ function _confirmarMovelCombo() {
   var erro          = document.getElementById('mmc-erro');
 
   if (!plano)         { erro.textContent = 'Selecione o plano.';              erro.style.display = 'block'; return; }
-  // if (!contrato)   { erro.textContent = 'Preencha o ID Contrato Móvel.';   erro.style.display = 'block'; return; }
+  if (!contrato)      { erro.textContent = 'Preencha o ID Contrato Móvel.';   erro.style.display = 'block'; return; }
   if (!portabilidade) { erro.textContent = 'Selecione a portabilidade.';      erro.style.display = 'block'; return; }
   erro.style.display = 'none';
 
@@ -9077,9 +9077,12 @@ function _confirmarMovelCombo() {
 }
 
 function _cancelarMovelCombo() {
-  document.getElementById('modalMovelCombo').style.display = 'none';
-  mostrarToast('✅ Fibra Combo salva. Móvel Combo não cadastrado.', 'info');
-  setTimeout(function() { navegar('lista'); }, 600);
+  var erro = document.getElementById('mmc-erro');
+  if (erro) {
+    erro.textContent = 'O cadastro do Móvel Combo é obrigatório para vendas de Fibra Combo.';
+    erro.style.display = 'block';
+  }
+  mostrarToast('Preencha o Móvel Combo para concluir a venda.', 'warning');
 }
 
 // ══════════════════════════════════════════════════════════════════════════

@@ -3224,6 +3224,7 @@ function _valorListaSemDuplicar(plano, valor) {
 
 function _mapearLinhaLista(row, numeroLinha, tz) {
   var c = CONFIG.COLUNAS;
+  var clienteLegado = _normalizarCamposClienteLegado(row, c);
   return {
     linha:       numeroLinha,
     canal:       row[c.CANAL]        || '',
@@ -3276,9 +3277,9 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     preStatus:        String(row[c.PRE_STATUS]         || ''),
     bcTags:           String(row[c.BC_TAGS]            || '').trim(),
     bcStatus:         String(row[c.BC_STATUS]          || '').trim(),
-    nomeMae:          String(row[c.NOME_MAE]           || '').trim(),
-    dtNasc:           _formatarDataNascimento(row[c.DT_NASC], 'yyyy-MM-dd'),
-    rg:               String(row[c.RG]                 || '').trim(),
+    nomeMae:          clienteLegado.nomeMae,
+    dtNasc:           clienteLegado.dtNasc,
+    rg:               clienteLegado.rg,
     mapsLink:         '',
     reagendamentos:   parseInt(row[c.REAGENDAMENTOS]) || 0,
     viabilidade:      String(row[c.VIABILIDADE]        || '').trim()
@@ -3287,6 +3288,7 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
 
 function _mapearLinha(row, numeroLinha) {
   var c = CONFIG.COLUNAS;
+  var clienteLegado = _normalizarCamposClienteLegado(row, c);
   return {
     linha:       numeroLinha,
     canal:       row[c.CANAL]        || '',
@@ -3340,9 +3342,9 @@ function _mapearLinha(row, numeroLinha) {
     preStatus:        String(row[c.PRE_STATUS]         || ''),
     bcTags:           String(row[c.BC_TAGS]            || '').trim(),
     bcStatus:         String(row[c.BC_STATUS]          || '').trim(),
-    nomeMae:          String(row[c.NOME_MAE]           || '').trim(),
-    dtNasc:           _formatarDataNascimento(row[c.DT_NASC], 'yyyy-MM-dd'),
-    rg:               String(row[c.RG]                 || '').trim(),
+    nomeMae:          clienteLegado.nomeMae,
+    dtNasc:           clienteLegado.dtNasc,
+    rg:               clienteLegado.rg,
     mapsLink:         '',
     reagendamentos:   parseInt(row[c.REAGENDAMENTOS]) || 0,
     viabilidade:      String(row[c.VIABILIDADE]        || '').trim()
@@ -3432,6 +3434,31 @@ function _formatarDataNascimento(valor, formato) {
   }
 
   return txt;
+}
+
+function _normalizarCamposClienteLegado(row, c) {
+  var rgRaw = String(row[c.RG] || '').trim();
+  var nomeMaeRaw = String(row[c.NOME_MAE] || '').trim();
+  var dtNascRaw = row[c.DT_NASC];
+
+  var dtNascIso = _formatarDataNascimento(dtNascRaw, 'yyyy-MM-dd');
+  var nomeMaeEhData = !!_formatarDataNascimento(nomeMaeRaw, 'yyyy-MM-dd');
+  var rgPareceNome = /[A-Za-zÀ-ÿ]/.test(rgRaw);
+  var dtNascPareceRg = /^\d{5,20}$/.test(String(dtNascRaw || '').trim());
+
+  if (rgPareceNome && nomeMaeEhData && dtNascPareceRg) {
+    return {
+      rg: String(dtNascRaw || '').trim(),
+      nomeMae: rgRaw,
+      dtNasc: _formatarDataNascimento(nomeMaeRaw, 'yyyy-MM-dd')
+    };
+  }
+
+  return {
+    rg: rgRaw,
+    nomeMae: nomeMaeRaw,
+    dtNasc: dtNascIso
+  };
 }
 
 // ══════════════════════════════════════════════════════════════════════════
