@@ -35,25 +35,6 @@ const PAP_FIRST_ROW     = 5;
 const PAP_COL_NOME      = 19; // S
 const PAP_COL_CPF       = 23; // W
 
-// Aba "1 - Vendas" — índices 1-based das colunas relevantes
-const VENDAS_A_CANAL    = 1;
-const VENDAS_C_STATUS   = 3;
-const VENDAS_M_RESP     = 13;
-const VENDAS_N_CPF      = 14;
-const VENDAS_O_NOME     = 15;
-const VENDAS_P_WHATS    = 16;
-const VENDAS_R_CEP      = 18;
-const VENDAS_S_RUA      = 19;
-const VENDAS_T_NUM      = 20;
-const VENDAS_U_COMP     = 21;
-const VENDAS_V_BAIRRO   = 22;
-const VENDAS_W_CIDADE   = 23;
-const VENDAS_X_UF       = 24;
-const VENDAS_AD_VENC    = 30;
-const VENDAS_AH_PLANO   = 34;
-const VENDAS_AL_MOVEL   = 38;
-const VENDAS_TOTAL_COLS = 47; // A até AU
-
 // Cabeçalhos das novas abas (criadas automaticamente se não existirem)
 const HEADERS_CONSULTAS = [
   'ID', 'Timestamp', 'Tipo', 'Status',
@@ -107,6 +88,12 @@ function _routePAP(payload) {
         break;
       case 'rejeitarPreVenda':
         result = rejeitarPreVenda(payload.id, payload.email);
+        break;
+      case 'apagarConsulta':
+        result = apagarConsulta(payload.id);
+        break;
+      case 'apagarPreVenda':
+        result = apagarPreVenda(payload.id);
         break;
       case 'listarPendentes':
         result = listarPendentes();
@@ -348,30 +335,34 @@ function aprovarPreVenda(id, emailAprovador) {
     // 2. Buscar endereço completo nas Consultas pelo CPF do cliente
     const end = _buscarEnderecoConsultas(pv[5]);
 
-    // 3. Montar e inserir linha em "1 - Vendas"
-    // Array de 47 posições (cols A-AU), 1-based → índice = col - 1
-    const novaVenda = new Array(VENDAS_TOTAL_COLS).fill('');
-    novaVenda[VENDAS_A_CANAL  - 1] = 'PAP';
-    novaVenda[VENDAS_C_STATUS - 1] = '1- Conferencia/Ativação';
-    novaVenda[VENDAS_M_RESP   - 1] = pv[3];   // nome parceiro
-    novaVenda[VENDAS_N_CPF    - 1] = pv[5];   // CPF cliente
-    novaVenda[VENDAS_O_NOME   - 1] = pv[6];   // nome cliente
-    novaVenda[VENDAS_P_WHATS  - 1] = pv[9];   // WhatsApp
-    novaVenda[VENDAS_AD_VENC  - 1] = pv[14];  // vencimento
-    novaVenda[VENDAS_AH_PLANO - 1] = pv[11];  // plano
-    novaVenda[VENDAS_AL_MOVEL - 1] = pv[12];  // móvel (SIM/NÃO)
+    // 3. Montar e inserir linha em "1 - Vendas" usando o layout oficial do CRM
+    const vendaPayload = {
+      canal:         'PAP',
+      produto:       _papInferirProduto(pv[12]),
+      status:        '1- Conferencia/Ativação',
+      preStatus:     'EM NEGOCIACAO',
+      resp:          pv[3]  || '',
+      cpf:           pv[5]  || '',
+      cliente:       pv[6]  || '',
+      whats:         pv[9]  || '',
+      cep:           end?.cep    || '',
+      rua:           end?.rua    || '',
+      num:           end?.numero || '',
+      complemento:   end?.comp   || '',
+      bairro:        end?.bairro || '',
+      cidade:        end?.cidade || '',
+      uf:            end?.uf     || '',
+      venc:          pv[14] || '',
+      fat:           pv[15] || '',
+      plano:         pv[11] || '',
+      linhaMovel:    pv[12] || '',
+      portabilidade: pv[13] || '',
+      observacao:    _papMontarObservacaoPreVenda(pv),
+      statusPAP:     'Em Aberto'
+    };
 
-    if (end) {
-      novaVenda[VENDAS_R_CEP    - 1] = end.cep;
-      novaVenda[VENDAS_S_RUA    - 1] = end.rua;
-      novaVenda[VENDAS_T_NUM    - 1] = end.numero;
-      novaVenda[VENDAS_U_COMP   - 1] = end.comp;
-      novaVenda[VENDAS_V_BAIRRO - 1] = end.bairro;
-      novaVenda[VENDAS_W_CIDADE - 1] = end.cidade;
-      novaVenda[VENDAS_X_UF     - 1] = end.uf;
-    }
-
-    sheetV.appendRow(novaVenda);
+    const novaVenda = _papConstruirLinhaVenda(vendaPayload);
+    sheetV.getRange(sheetV.getLastRow() + 1, 1, 1, novaVenda.length).setValues([novaVenda]);
     SpreadsheetApp.flush();
     return { ok: true };
   } finally {
@@ -404,6 +395,60 @@ function _buscarEnderecoConsultas(cpf) {
   return null;
 }
 
+function _papConstruirLinhaVenda(payload) {
+  if (typeof _construirLinhaDados === 'function') {
+    return _construirLinhaDados(payload);
+  }
+
+  if (typeof CONFIG === 'undefined' || !CONFIG.COLUNAS || !CONFIG.TOTAL_COLUNAS) {
+    throw new Error('CONFIG do CRM não disponível para montar a venda PAP.');
+  }
+
+  const linha = new Array(CONFIG.TOTAL_COLUNAS).fill('');
+  const c = CONFIG.COLUNAS;
+
+  linha[c.CANAL]         = payload.canal         || '';
+  linha[c.PRODUTO]       = payload.produto       || '';
+  linha[c.STATUS]        = payload.status        || '';
+  linha[c.RESP]          = payload.resp          || '';
+  linha[c.CPF]           = payload.cpf           || '';
+  linha[c.CLIENTE]       = payload.cliente       || '';
+  linha[c.WHATS]         = payload.whats         || '';
+  linha[c.CEP]           = payload.cep           || '';
+  linha[c.RUA]           = payload.rua           || '';
+  linha[c.NUM]           = payload.num           || '';
+  linha[c.COMPLEMENTO]   = payload.complemento   || '';
+  linha[c.BAIRRO]        = payload.bairro        || '';
+  linha[c.CIDADE]        = payload.cidade        || '';
+  linha[c.UF]            = payload.uf            || '';
+  linha[c.VENC]          = payload.venc          || '';
+  linha[c.FAT]           = payload.fat           || '';
+  linha[c.PLANO]         = payload.plano         || '';
+  linha[c.LINHA_MOVEL]   = payload.linhaMovel    || '';
+  linha[c.PORTABILIDADE] = payload.portabilidade || '';
+  linha[c.OBSERVACAO]    = payload.observacao    || '';
+  linha[c.PRE_STATUS]    = payload.preStatus     || '';
+  linha[c.STATUS_PAP]    = payload.statusPAP     || 'Em Aberto';
+
+  return linha;
+}
+
+function _papInferirProduto(movel) {
+  const movelNorm = String(movel || '').trim().toUpperCase();
+  return movelNorm === 'SIM' ? 'FIBRA COMBO' : 'FIBRA ALONE';
+}
+
+function _papMontarObservacaoPreVenda(pv) {
+  const detalhes = [
+    'Pré-venda PAP aprovada pelo backoffice',
+    pv[8]  ? 'Consulta: ' + pv[8] : '',
+    pv[10] ? 'Email: ' + pv[10] : '',
+    pv[7]  ? 'Endereço ref: ' + pv[7] : ''
+  ].filter(Boolean);
+
+  return detalhes.join(' | ');
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // 7. REJEITAR PRÉ-VENDA
 //    Marca como "Rejeitado" na aba "Pré-Vendas". Sem ação em "1 - Vendas".
@@ -427,6 +472,38 @@ function rejeitarPreVenda(id, emailRejeitor) {
     sheet.getRange(sheetRow, 3).setValue('Rejeitado');
     sheet.getRange(sheetRow, 17).setValue(_papNow());
     sheet.getRange(sheetRow, 18).setValue(emailRejeitor || 'backoffice');
+    SpreadsheetApp.flush();
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function apagarConsulta(id) {
+  return _papApagarRegistroPorId(PAP_SHEET_CONSULTAS, id, 'Consulta');
+}
+
+function apagarPreVenda(id) {
+  return _papApagarRegistroPorId(PAP_SHEET_PRE_VENDAS, id, 'Pré-venda');
+}
+
+function _papApagarRegistroPorId(nomeAba, id, rotulo) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(nomeAba);
+  if (!sheet) return { ok: false, error: `Aba "${nomeAba}" não encontrada` };
+
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { ok: false, error: `${rotulo} não encontrada: ${id}` };
+
+    const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    const idx = ids.findIndex(r => String(r[0] || '') === String(id || ''));
+    if (idx < 0) return { ok: false, error: `${rotulo} não encontrada: ${id}` };
+
+    sheet.deleteRow(idx + 2);
     SpreadsheetApp.flush();
     return { ok: true };
   } finally {

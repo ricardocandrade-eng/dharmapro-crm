@@ -248,6 +248,13 @@
       cursor: pointer; text-align: center; transition: background .15s, transform .1s;
     }
     .btn-rejeitar:active { transform: scale(0.97); background: rgba(230,62,109,.08); color: var(--accent); border-color: var(--accent); }
+    .btn-apagar {
+      flex: 1; background: rgba(230,62,109,.08); border: 1px solid rgba(230,62,109,.35);
+      border-radius: 8px; padding: 10px; color: var(--accent);
+      font-family: 'Sora', sans-serif; font-size: 13px; font-weight: 700;
+      cursor: pointer; text-align: center; transition: background .15s, transform .1s;
+    }
+    .btn-apagar:active { transform: scale(0.97); background: rgba(230,62,109,.14); }
 
     /* ══════════════════════════════════════════
        MODAL DE CONFIRMAÇÃO
@@ -610,6 +617,10 @@ function renderConsultas() {
             <span class="item-val mono">${_esc(localStr)}</span>
           </div>` : ''}
         </div>
+
+        <div class="item-actions" style="margin-top:14px">
+          <button class="btn-apagar" onclick="abrirModal('apagarConsulta','${_esc(item.id)}','${_esc(item.nomeCliente || item.cpfCliente)}')">Apagar</button>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -709,7 +720,11 @@ function renderPreVendas() {
         <div class="item-actions" style="margin-top:14px">
           <button class="btn-aprovar" onclick="abrirModal('aprovar','${_esc(item.id)}','${_esc(item.nomeCliente || item.cpfCliente)}')">✓ Aprovar</button>
           <button class="btn-rejeitar" onclick="abrirModal('rejeitar','${_esc(item.id)}','${_esc(item.nomeCliente || item.cpfCliente)}')">✕ Rejeitar</button>
-        </div>` : ''}
+          <button class="btn-apagar" onclick="abrirModal('apagarPreVenda','${_esc(item.id)}','${_esc(item.nomeCliente || item.cpfCliente)}')">Apagar</button>
+        </div>` : `
+        <div class="item-actions" style="margin-top:14px">
+          <button class="btn-apagar" onclick="abrirModal('apagarPreVenda','${_esc(item.id)}','${_esc(item.nomeCliente || item.cpfCliente)}')">Apagar</button>
+        </div>`}
       </div>
     </div>`;
   }).join('');
@@ -721,16 +736,31 @@ function renderPreVendas() {
 function abrirModal(tipo, id, nomeCliente) {
   _acaoPendente = { tipo, id };
   const isAprovar = tipo === 'aprovar';
+  const isRejeitar = tipo === 'rejeitar';
+  const isApagarConsulta = tipo === 'apagarConsulta';
+  const isApagarPreVenda = tipo === 'apagarPreVenda';
 
-  document.getElementById('modal-title').textContent = isAprovar ? '✓ Aprovar pré-venda?' : '✕ Rejeitar pré-venda?';
-  document.getElementById('modal-sub').textContent   = isAprovar
-    ? 'Esta pré-venda será aprovada e o cliente entrará na lista de vendas do CRM.'
-    : 'Esta pré-venda será marcada como rejeitada. O vendedor não será notificado automaticamente.';
+  document.getElementById('modal-title').textContent =
+    isAprovar ? '✓ Aprovar pré-venda?' :
+    isRejeitar ? '✕ Rejeitar pré-venda?' :
+    isApagarConsulta ? 'Apagar consulta?' :
+    'Apagar pré-venda?';
+  document.getElementById('modal-sub').textContent =
+    isAprovar
+      ? 'Esta pré-venda será aprovada e o cliente entrará na lista de vendas do CRM.'
+      : isRejeitar
+        ? 'Esta pré-venda será marcada como rejeitada. O vendedor não será notificado automaticamente.'
+        : isApagarConsulta
+          ? 'Esta consulta será removida da fila PAP permanentemente.'
+          : 'Esta pré-venda será removida da fila PAP permanentemente.';
   document.getElementById('modal-id').textContent    = id + (nomeCliente ? ' · ' + nomeCliente : '');
 
   const btnConfirm = document.getElementById('modal-btn-confirm');
-  btnConfirm.textContent = isAprovar ? '✓ Confirmar aprovação' : '✕ Confirmar rejeição';
-  btnConfirm.className   = 'modal-btn-confirm ' + tipo;
+  btnConfirm.textContent =
+    isAprovar ? '✓ Confirmar aprovação' :
+    isRejeitar ? '✕ Confirmar rejeição' :
+    'Apagar definitivamente';
+  btnConfirm.className   = 'modal-btn-confirm ' + (isAprovar ? 'aprovar' : 'rejeitar');
 
   document.getElementById('modal-overlay').classList.add('show');
 }
@@ -742,10 +772,13 @@ function fecharModal() {
 
 function confirmarAcao() {
   if (!_acaoPendente) return;
-  fecharModal();
-
   const { tipo, id } = _acaoPendente;
-  const fn = tipo === 'aprovar' ? aprovarPreVenda : rejeitarPreVenda;
+  fecharModal();
+  const fn =
+    tipo === 'aprovar' ? aprovarPreVenda :
+    tipo === 'rejeitar' ? rejeitarPreVenda :
+    tipo === 'apagarConsulta' ? apagarConsulta :
+    apagarPreVenda;
   fn(id);
 }
 
@@ -807,6 +840,60 @@ function rejeitarPreVenda(id) {
       recarregar();
     })
     .rejeitarPreVenda(id, '');
+}
+
+function apagarConsulta(id) {
+  const card = document.getElementById('card-' + id);
+  if (card) {
+    const btns = card.querySelector('.item-actions');
+    if (btns) btns.innerHTML = '<span style="font-size:12px;color:var(--muted);font-family:DM Mono,monospace">⏳ Apagando...</span>';
+  }
+
+  setLoading(true, 'Apagando consulta...');
+  google.script.run
+    .withSuccessHandler(res => {
+      setLoading(false);
+      if (res?.ok) {
+        toast('Consulta apagada.', 'ok');
+        recarregar();
+      } else {
+        toast('Erro: ' + (res?.error || 'falha ao apagar consulta'), 'err');
+        recarregar();
+      }
+    })
+    .withFailureHandler(err => {
+      setLoading(false);
+      toast('Erro ao apagar consulta: ' + (err?.message || err), 'err');
+      recarregar();
+    })
+    .apagarConsulta(id);
+}
+
+function apagarPreVenda(id) {
+  const card = document.getElementById('card-' + id);
+  if (card) {
+    const btns = card.querySelector('.item-actions');
+    if (btns) btns.innerHTML = '<span style="font-size:12px;color:var(--muted);font-family:DM Mono,monospace">⏳ Apagando...</span>';
+  }
+
+  setLoading(true, 'Apagando pré-venda...');
+  google.script.run
+    .withSuccessHandler(res => {
+      setLoading(false);
+      if (res?.ok) {
+        toast('Pré-venda apagada.', 'ok');
+        recarregar();
+      } else {
+        toast('Erro: ' + (res?.error || 'falha ao apagar pré-venda'), 'err');
+        recarregar();
+      }
+    })
+    .withFailureHandler(err => {
+      setLoading(false);
+      toast('Erro ao apagar pré-venda: ' + (err?.message || err), 'err');
+      recarregar();
+    })
+    .apagarPreVenda(id);
 }
 
 /* ─────────────────────────────────────────────────────
