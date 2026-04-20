@@ -100,6 +100,8 @@
     .nav-item { padding: 11px 24px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; display: flex; align-items: center; gap: 10px; border-left: 2px solid transparent; transition: all 0.15s; }
     .nav-item:hover { color: var(--text); background: var(--surface2); }
     .nav-item.ativo { color: var(--text); border-left-color: var(--accent); background: rgba(230,62,109,0.07); }
+    .nav-item.nav-alerta { color: #fff; border-left-color: #ffd166; background: linear-gradient(90deg, rgba(230,62,109,0.26), rgba(247,162,59,0.14)); box-shadow: inset 0 0 0 1px rgba(255,209,102,0.16); }
+    .nav-item.nav-alerta .icon { animation: badge-pulse 1s ease-in-out infinite; }
     .nav-item .icon { font-size: 15px; width: 20px; text-align: center; }
     .nav-badge { margin-left: auto; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; font-family: 'DM Mono', monospace; border-radius: 10px; padding: 1px 7px; min-width: 18px; text-align: center; display: none; }
     .nav-badge.visivel { display: block; }
@@ -695,6 +697,48 @@
     .toast.error   { background: #2a0d15; border: 1px solid rgba(230,62,109,0.4); color: var(--accent); }
     .toast.warning { background: #2a1e0d; border: 1px solid rgba(247,162,59,0.4); color: var(--yellow); }
     .toast.info    { background: #0d1a2a; border: 1px solid rgba(79,158,255,0.3); color: var(--blue); }
+    .pap-alert-pop {
+      position: fixed; right: 24px; bottom: 42px; width: min(420px, calc(100vw - 24px));
+      padding: 18px 18px 16px; border-radius: 18px; z-index: 10030; display: none;
+      background:
+        radial-gradient(circle at top right, rgba(255,209,102,0.28), transparent 35%),
+        linear-gradient(135deg, rgba(230,62,109,0.96), rgba(73,24,42,0.96));
+      color: #fff; border: 1px solid rgba(255,255,255,0.16);
+      box-shadow: 0 22px 60px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06) inset;
+      overflow: hidden;
+    }
+    .pap-alert-pop.show { display: block; animation: papAlertIn 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+    @keyframes papAlertIn {
+      from { transform: translateY(18px) scale(.96); opacity: 0; }
+      to   { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .pap-alert-top { display: flex; align-items: flex-start; gap: 12px; }
+    .pap-alert-icon {
+      width: 46px; height: 46px; border-radius: 14px; flex: 0 0 46px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.14); font-size: 24px; box-shadow: 0 0 0 1px rgba(255,255,255,0.1) inset;
+    }
+    .pap-alert-kicker { font-size: 10px; letter-spacing: .18em; text-transform: uppercase; font-family: 'DM Mono', monospace; opacity: .8; }
+    .pap-alert-title { margin-top: 4px; font-size: 20px; font-weight: 800; line-height: 1.15; }
+    .pap-alert-sub { margin-top: 7px; font-size: 12px; line-height: 1.55; color: rgba(255,255,255,0.88); }
+    .pap-alert-close {
+      margin-left: auto; width: 30px; height: 30px; border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.14); background: rgba(0,0,0,0.14); color: #fff;
+      cursor: pointer; font-size: 16px;
+    }
+    .pap-alert-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .pap-alert-pill {
+      padding: 6px 10px; border-radius: 999px; font-size: 11px; font-weight: 700;
+      font-family: 'DM Mono', monospace; background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.12);
+    }
+    .pap-alert-actions { display: flex; gap: 10px; margin-top: 16px; }
+    .pap-alert-btn {
+      border: none; border-radius: 12px; padding: 11px 14px; cursor: pointer; font-size: 12px; font-weight: 700;
+      transition: transform .14s ease, opacity .14s ease;
+    }
+    .pap-alert-btn:hover { transform: translateY(-1px); opacity: .95; }
+    .pap-alert-btn.principal { background: #fff; color: #32101c; flex: 1; }
+    .pap-alert-btn.secundario { background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.12); }
 
     @media (max-width: 900px) {
       .sidebar { display: none; }
@@ -1813,6 +1857,26 @@
   <div id="loading" role="status" aria-live="polite">
     <div class="spinner" aria-hidden="true"></div>
     <p>Processando...</p>
+  </div>
+  <div class="pap-alert-pop" id="papAlertPop" aria-live="assertive" aria-atomic="true">
+    <div class="pap-alert-top">
+      <div class="pap-alert-icon">🚨</div>
+      <div style="min-width:0;flex:1">
+        <div class="pap-alert-kicker">Nova Pré-Venda PAP</div>
+        <div class="pap-alert-title" id="papAlertTitle">Chegou uma nova pré-venda</div>
+        <div class="pap-alert-sub" id="papAlertSub">A fila PAP acabou de receber um novo cadastro pendente.</div>
+      </div>
+      <button class="pap-alert-close" onclick="fecharAlertaPreVenda()" title="Fechar">✕</button>
+    </div>
+    <div class="pap-alert-meta">
+      <div class="pap-alert-pill" id="papAlertCliente">Cliente</div>
+      <div class="pap-alert-pill" id="papAlertParceiro">Parceiro</div>
+      <div class="pap-alert-pill" id="papAlertPlano">Plano</div>
+    </div>
+    <div class="pap-alert-actions">
+      <button class="pap-alert-btn principal" onclick="abrirFilaPAPAlert()">Abrir Fila PAP agora</button>
+      <button class="pap-alert-btn secundario" onclick="fecharAlertaPreVenda()">Fechar</button>
+    </div>
   </div>
 
   <!-- Login -->

@@ -981,18 +981,135 @@ function _sincronizarAoLogar(nomeUsuario) {
   setInterval(_pollPendentes, 60000);
 }
 
+var PAP_ALERT_KEYS = {
+  alerted: 'dharmapro_pap_last_alerted_id',
+  seen:    'dharmapro_pap_last_seen_id'
+};
+var _papAlertBootstrapped = false;
+var _papAlertHideTimer = null;
+
+function _papLsGet(key) {
+  try { return localStorage.getItem(key) || ''; } catch (e) { return ''; }
+}
+
+function _papLsSet(key, value) {
+  try {
+    if (value) localStorage.setItem(key, String(value));
+  } catch (e) {}
+}
+
+function _papTemPreVendaNova(res) {
+  var pv = res && res.ultimaPreVenda;
+  if (!pv || !pv.id) return false;
+  var seenId = _papLsGet(PAP_ALERT_KEYS.seen);
+  return String(pv.id) !== String(seenId || '');
+}
+
+function _papAtualizarMenuFila(res) {
+  var total = (res && res.total) ? res.total : 0;
+  var badge = document.getElementById('badgeFilaPAP');
+  var menu = document.getElementById('menuFilaPAP');
+  if (!badge || !menu) return;
+
+  if (total > 0) {
+    badge.textContent = total;
+    badge.classList.add('visivel', 'pulsar');
+  } else {
+    badge.classList.remove('visivel', 'pulsar');
+  }
+
+  menu.classList.toggle('nav-alerta', _papTemPreVendaNova(res));
+}
+
+function _papTocarSomAlerta() {
+  try {
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    var ctx = new Ctx();
+    var now = ctx.currentTime;
+
+    [0, 0.12, 0.28].forEach(function(offset, idx) {
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = idx === 1 ? 'triangle' : 'sine';
+      osc.frequency.value = [740, 988, 1318][idx];
+      gain.gain.setValueAtTime(0.0001, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.09, now + offset + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.22);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.24);
+    });
+  } catch (e) {}
+}
+
+function fecharAlertaPreVenda() {
+  if (_papAlertHideTimer) clearTimeout(_papAlertHideTimer);
+  var pop = document.getElementById('papAlertPop');
+  if (pop) pop.classList.remove('show');
+}
+
+function _papTextoAlerta(value, fallback) {
+  return value ? String(value) : fallback;
+}
+
+function _papMostrarAlertaPreVenda(pv) {
+  var pop = document.getElementById('papAlertPop');
+  if (!pop || !pv) return;
+
+  document.getElementById('papAlertTitle').textContent =
+    pv.nomeCliente ? ('Nova pré-venda: ' + pv.nomeCliente) : 'Chegou uma nova pré-venda';
+  document.getElementById('papAlertSub').textContent =
+    'Parceiro ' + _papTextoAlerta(pv.parceiro, 'não informado') + ' acabou de enviar um cadastro para conferência do backoffice.';
+  document.getElementById('papAlertCliente').textContent =
+    'Cliente: ' + _papTextoAlerta(pv.nomeCliente || pv.cpfCliente, 'não informado');
+  document.getElementById('papAlertParceiro').textContent =
+    'Parceiro: ' + _papTextoAlerta(pv.parceiro, 'não informado');
+  document.getElementById('papAlertPlano').textContent =
+    'Plano: ' + _papTextoAlerta(pv.plano, 'não informado');
+
+  pop.classList.add('show');
+  _papTocarSomAlerta();
+  if (_papAlertHideTimer) clearTimeout(_papAlertHideTimer);
+  _papAlertHideTimer = setTimeout(fecharAlertaPreVenda, 20000);
+}
+
+function abrirFilaPAPAlert() {
+  var latestId = _papLsGet(PAP_ALERT_KEYS.alerted);
+  if (latestId) _papLsSet(PAP_ALERT_KEYS.seen, latestId);
+  var menu = document.getElementById('menuFilaPAP');
+  if (menu) menu.classList.remove('nav-alerta');
+  fecharAlertaPreVenda();
+  navegar('filaPAP');
+  setTimeout(function() {
+    if (typeof mudarTab === 'function') mudarTab('prevendas');
+    if (typeof fpRecarregar === 'function') fpRecarregar();
+  }, 450);
+}
+
 function _pollPendentes() {
   google.script.run
     .withSuccessHandler(function(res) {
       try {
-        var total = (res && res.total) ? res.total : 0;
-        var badge = document.getElementById('badgeFilaPAP');
-        if (!badge) return;
-        if (total > 0) {
-          badge.textContent = total;
-          badge.classList.add('visivel', 'pulsar');
-        } else {
-          badge.classList.remove('visivel', 'pulsar');
+        _papAtualizarMenuFila(res);
+
+        var latest = res && res.ultimaPreVenda;
+        var latestId = latest && latest.id ? String(latest.id) : '';
+        if (!_papAlertBootstrapped) {
+          if (latestId) {
+            _papLsSet(PAP_ALERT_KEYS.alerted, latestId);
+            if (!_papLsGet(PAP_ALERT_KEYS.seen)) _papLsSet(PAP_ALERT_KEYS.seen, latestId);
+          }
+          _papAtualizarMenuFila(res);
+          _papAlertBootstrapped = true;
+          return;
+        }
+
+        var alertedId = _papLsGet(PAP_ALERT_KEYS.alerted);
+        if (latestId && latestId !== alertedId) {
+          _papLsSet(PAP_ALERT_KEYS.alerted, latestId);
+          _papMostrarAlertaPreVenda(latest);
         }
       } catch(e) {}
     })

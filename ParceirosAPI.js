@@ -533,11 +533,45 @@ function listarPendentes() {
     return vals.filter(r => r[0] === 'Pendente').length;
   };
 
+  const resumirPreVendas = () => {
+    const sheet = ss.getSheetByName(PAP_SHEET_PRE_VENDAS);
+    if (!sheet || sheet.getLastRow() < 2) return { total: 0, ultima: null };
+
+    const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, 12).getValues();
+    let total = 0;
+    let ultima = null;
+
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const row = rows[i];
+      if (row[2] !== 'Pendente') continue;
+      total++;
+      if (!ultima) {
+        ultima = {
+          id:          String(row[0]  || ''),
+          ts:          row[1] instanceof Date ? row[1].toISOString() : String(row[1] || ''),
+          parceiro:    String(row[3]  || ''),
+          cpfCliente:  String(row[5]  || ''),
+          nomeCliente: String(row[6]  || ''),
+          whatsapp:    String(row[9]  || ''),
+          plano:       String(row[11] || '')
+        };
+      }
+    }
+
+    return { total, ultima };
+  };
+
   // Consultas: col D (4) = Status
   // Pré-Vendas: col C (3) = Status
-  const consultas = contar(PAP_SHEET_CONSULTAS,  4);
-  const preVendas = contar(PAP_SHEET_PRE_VENDAS, 3);
-  return { ok: true, consultas, preVendas, total: consultas + preVendas };
+  const consultas = contar(PAP_SHEET_CONSULTAS, 4);
+  const preResumo = resumirPreVendas();
+  return {
+    ok: true,
+    consultas,
+    preVendas: preResumo.total,
+    total: consultas + preResumo.total,
+    ultimaPreVenda: preResumo.ultima
+  };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

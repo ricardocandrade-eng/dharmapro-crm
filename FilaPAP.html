@@ -199,6 +199,19 @@
       transition: border-color .15s;
     }
     .item-card.pendente  { border-left: 3px solid var(--yellow); }
+    .item-card.nova-chegada {
+      border-left-color: #ffd166;
+      box-shadow: 0 0 0 1px rgba(255,209,102,.26), 0 18px 42px rgba(0,0,0,.22);
+      background:
+        radial-gradient(circle at top right, rgba(255,209,102,.16), transparent 36%),
+        linear-gradient(180deg, rgba(255,255,255,.01), rgba(255,255,255,0)),
+        var(--surface);
+      animation: novaPulse 1.8s ease-in-out infinite;
+    }
+    @keyframes novaPulse {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-1px); }
+    }
     .item-card.aprovado  { border-left: 3px solid var(--green);  }
     .item-card.rejeitado { border-left: 3px solid var(--muted);  }
     .item-card.credito   { border-left-color: var(--purple); }
@@ -219,6 +232,7 @@
       white-space: nowrap; flex-shrink: 0;
     }
     .status-pendente  { background: rgba(247,162,59,.12);  color: var(--yellow); border: 1px solid rgba(247,162,59,.3); }
+    .status-nova      { background: rgba(255,209,102,.16); color: #ffd166; border: 1px solid rgba(255,209,102,.28); }
     .status-aprovado  { background: rgba(34,217,138,.1);   color: var(--green);  border: 1px solid rgba(34,217,138,.3); }
     .status-rejeitado { background: rgba(122,130,160,.1);  color: var(--muted);  border: 1px solid var(--border2); }
     .status-viab      { background: rgba(34,217,138,.1);   color: var(--green);  border: 1px solid rgba(34,217,138,.3); }
@@ -449,10 +463,15 @@ const STATE = {
   consultas:       [],
   preVendas:       [],
   pendentes:       { consultas: 0, preVendas: 0, total: 0 },
+  ultimaPreVenda:  null,
+  preVendaNovaId:  '',
 };
 
 let _acaoPendente = null; // { tipo: 'aprovar'|'rejeitar', id: string }
 let _pollTimer    = null;
+const FP_PAP_ALERT_KEYS = {
+  seen: 'dharmapro_pap_last_seen_id'
+};
 
 /* ───────────────────────────────────────────────��─────
    TOAST + LOADING
@@ -479,6 +498,7 @@ function mudarTab(tab) {
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-btn-'  + tab).classList.add('active');
   document.getElementById('pane-'     + tab).classList.add('active');
+  if (tab === 'prevendas') _marcarUltimaPreVendaComoVista();
 }
 
 /* ──────��──────────────────────────────────────────────
@@ -502,6 +522,7 @@ function setFiltro(tab, valor, el) {
 ───────────────────────────────────────────────────── */
 function atualizarAlertas(p) {
   STATE.pendentes = p;
+  _sincronizarNovaPreVenda(p);
 
   // Badge total no header
   const badgeEl = document.getElementById('total-badge');
@@ -540,6 +561,29 @@ function _setTabCount(tab, n) {
   const el = document.getElementById('tab-count-' + tab);
   el.textContent = n;
   el.classList.toggle('show', n > 0);
+}
+
+function _papLsGet(key) {
+  try { return localStorage.getItem(key) || ''; } catch (e) { return ''; }
+}
+
+function _papLsSet(key, value) {
+  try {
+    if (value) localStorage.setItem(key, String(value));
+  } catch (e) {}
+}
+
+function _sincronizarNovaPreVenda(p) {
+  STATE.ultimaPreVenda = p?.ultimaPreVenda || null;
+  const latestId = STATE.ultimaPreVenda?.id ? String(STATE.ultimaPreVenda.id) : '';
+  const seenId = _papLsGet(FP_PAP_ALERT_KEYS.seen);
+  STATE.preVendaNovaId = latestId && latestId !== seenId ? latestId : '';
+}
+
+function _marcarUltimaPreVendaComoVista() {
+  const latestId = STATE.ultimaPreVenda?.id ? String(STATE.ultimaPreVenda.id) : '';
+  if (!latestId) return;
+  _papLsSet(FP_PAP_ALERT_KEYS.seen, latestId);
 }
 
 /* ─────────────────────────────────────────────────────
@@ -646,8 +690,9 @@ function renderPreVendas() {
   el.innerHTML = items.map(item => {
     const nomeLabel = item.nomeCliente || item.cpfCliente || '(sem identificação)';
     const subLabel  = [item.cpfCliente, item.plano ? '📶 ' + item.plano : ''].filter(Boolean).join('  ·  ');
+    const isNova = item.status === 'Pendente' && item.id === STATE.preVendaNovaId;
     return `
-    <div class="item-card ${item.status.toLowerCase()}" id="card-${item.id}"
+    <div class="item-card ${item.status.toLowerCase()} ${isNova ? 'nova-chegada' : ''}" id="card-${item.id}"
          onclick="toggleCard('${_esc(item.id)}', event)">
 
       <!-- Resumo (sempre visível) -->
@@ -657,6 +702,7 @@ function renderPreVendas() {
           <div class="summary-sub">${_esc(subLabel)}</div>
         </div>
         <div class="summary-right">
+          ${isNova ? '<span class="status-chip status-nova">NOVA</span>' : ''}
           <span class="status-chip status-${item.status.toLowerCase()}">${item.status}</span>
           <span class="expand-icon">▾</span>
         </div>
@@ -934,6 +980,7 @@ function carregarPreVendas(filtro) {
       if (res?.ok) {
         STATE.preVendas = res.items || [];
         renderPreVendas();
+        if (STATE.tabAtual === 'prevendas') _marcarUltimaPreVendaComoVista();
       } else {
         document.getElementById('lista-prevendas').innerHTML =
           '<p style="color:var(--muted);padding:20px;font-size:12px;">Nenhum item encontrado.</p>';
