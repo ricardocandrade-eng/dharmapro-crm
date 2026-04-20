@@ -297,8 +297,8 @@
       background: var(--bg);
     }
     .lista-head h2 { font-size: 18px; font-weight: 800; margin-bottom: 12px; }
-    .list-controls { display: flex; align-items: center; gap: 8px; }
-    .search-wrap { flex: 1 1 260px; min-width: 220px; position: relative; }
+    .list-controls { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+    .search-wrap { flex: 1 1 320px; min-width: 260px; position: relative; }
     .search-wrap input { width: 100%; padding: 9px 12px 9px 34px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--text); font-family: 'Sora', sans-serif; transition: border-color 0.2s; }
     .search-wrap input:focus { outline: none; border-color: var(--accent); }
     .search-wrap input::placeholder { color: var(--muted); }
@@ -1625,7 +1625,7 @@
     .lista-col.painel-aberto { opacity: .45; filter: brightness(.7); pointer-events: none; }
 
     /* ── Filtros da Lista ───────────────────────────────────────────────── */
-    .list-filtros { display: flex; gap: 4px; flex: 1; min-width: 0; flex-wrap: nowrap; margin-top: 0; align-items: center; }
+    .list-filtros { display: flex; gap: 4px; flex: 0 0 auto; flex-wrap: nowrap; margin-top: 0; align-items: center; }
     .filtro-multi { position: relative; flex: 0 0 auto; }
     .filtro-btn {
       display: flex; align-items: center; justify-content: center; gap: 6px;
@@ -1639,8 +1639,7 @@
     .filtro-btn-text { text-align: center; white-space: nowrap; line-height: 1.2; }
     .filtro-btn-count { font-family: 'DM Mono', monospace; font-size: 9px; opacity: .8; display: none; }
     .filtro-btn-caret { font-size: 8px; color: var(--muted); display: none; }
-    .list-filtros > .btn.btn-ghost:not(.btn-refresh-lista) { display: none; }
-    .btn-refresh-lista { flex: 0 0 auto; height: 40px; padding: 9px 12px; }
+    .btn-refresh-lista { flex: 0 0 auto; width: 40px; height: 40px; padding: 0; font-size: 18px; line-height: 1; }
     .filtro-menu {
       position: absolute; top: calc(100% + 6px); left: 0; min-width: 240px; max-width: 300px;
       background: var(--surface); border: 1px solid var(--border2); border-radius: 12px;
@@ -2115,13 +2114,11 @@
           <div class="lista-head">
             <h2>Lista de Vendas</h2>
             <div class="list-controls">
-              <div class="list-filtros" id="listFiltros">
               <div class="search-wrap">
                 <span class="search-icon">🔍</span>
                 <input type="text" id="campoBusca" placeholder="Nome, CPF ou contrato..." oninput="buscaListaInstantanea(this.value)" onkeydown="if(event.key==='Escape') limparBusca()">
               </div>
-              <button class="btn btn-ghost" onclick="recarregarLista()" style="padding:9px 12px;" title="Buscar novos registros da planilha">🔄</button>
-              <button class="btn btn-ghost btn-refresh-lista" onclick="recarregarLista()" title="Buscar novos registros da planilha">Refresh</button>
+              <div class="list-filtros" id="listFiltros">
               <div class="filtro-multi" data-filtro="status">
                 <button type="button" class="filtro-btn" id="filtroBtnStatus" onclick="_toggleFiltroMenu('status', event)">
                   <span class="filtro-btn-text">Status</span>
@@ -2162,8 +2159,10 @@
                 </button>
                 <div class="filtro-menu" id="filtroMenuResp"></div>
               </div>
-              <div class="filtro-chips" id="filtroChipsAtivos"></div>
+              </div>
+              <button class="btn btn-ghost btn-refresh-lista" onclick="recarregarLista()" title="Buscar novos registros da planilha">↻</button>
             </div>
+            <div class="filtro-chips" id="filtroChipsAtivos"></div>
           </div>
           <div class="list-meta"><span id="totalRegistros">—</span></div>
           <div class="lista-scroll" id="listaVendas">
