@@ -3783,13 +3783,18 @@ function mostrarPainel(v) {
       '<div class="painel-secao-titulo">👤 Cliente</div>' +
       '<div class="painel-campos">' +
         _c('Nome',           v.cliente, true) +
+        '<div class="painel-campo full painel-campo-contrato"><span class="painel-lbl">ID Contrato</span><span class="painel-val">' + esc(v.contrato || '—') + '</span></div>' +
         _c('CPF / CNPJ',     v.cpf) +
         _c('WhatsApp',       v.whats) +
-        _c('Telefone',       v.tel) +
-        _c('ID Contrato',    v.contrato) +
-        _c('RG',             v.rg) +
-        _c('Nome da Mãe',    v.nomeMae, true) +
-        _c('Dt. Nascimento', v.dtNasc) +
+        (function() {
+          var extras = '';
+          if (v.tel) extras += _c('Telefone', v.tel);
+          if (v.rg) extras += _c('RG', v.rg);
+          if (v.nomeMae) extras += _c('Nome da Mãe', v.nomeMae, true);
+          if (v.dtNasc) extras += _c('Dt. Nascimento', v.dtNasc);
+          if (!extras) return '';
+          return '<details class="painel-mais"><summary class="painel-mais-toggle">Mostrar mais</summary><div class="painel-mais-conteudo">' + extras + '</div></details>';
+        })() +
       '</div>' +
     '</div>' +
 
@@ -8231,13 +8236,18 @@ function mostrarPainel(v) {
       '<div class="painel-secao-titulo">👤 Cliente</div>' +
       '<div class="painel-campos">' +
         _c2('Nome',           v.cliente, true) +
+        '<div class="painel-campo full painel-campo-contrato"><span class="painel-lbl">ID Contrato</span><span class="painel-val">' + esc(v.contrato || '—') + '</span></div>' +
         _c2('CPF / CNPJ',     v.cpf) +
         _c2('WhatsApp',       v.whats) +
-        _c2('Telefone',       v.tel) +
-        _c2('ID Contrato',    v.contrato) +
-        _c2('RG',             v.rg) +
-        _c2('Nome da Mãe',    v.nomeMae, true) +
-        _c2('Dt. Nascimento', v.dtNasc) +
+        (function() {
+          var extras = '';
+          if (v.tel) extras += _c2('Telefone', v.tel);
+          if (v.rg) extras += _c2('RG', v.rg);
+          if (v.nomeMae) extras += _c2('Nome da Mãe', v.nomeMae, true);
+          if (v.dtNasc) extras += _c2('Dt. Nascimento', v.dtNasc);
+          if (!extras) return '';
+          return '<details class="painel-mais"><summary class="painel-mais-toggle">Mostrar mais</summary><div class="painel-mais-conteudo">' + extras + '</div></details>';
+        })() +
       '</div>' +
     '</div>' +
 

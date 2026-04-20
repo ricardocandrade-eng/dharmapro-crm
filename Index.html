@@ -544,6 +544,58 @@
     .painel-campos { display: grid; grid-template-columns: 1fr 1fr; padding: 6px 10px 10px; }
     .painel-campo { padding: 5px 4px; }
     .painel-campo.full { grid-column: 1 / -1; }
+    .painel-campo-contrato {
+      grid-column: 1 / -1;
+      background: rgba(79,158,255,0.1);
+      border: 1px solid rgba(79,158,255,0.28);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin: 2px 4px 4px;
+    }
+    .painel-campo-contrato .painel-lbl {
+      color: var(--blue);
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    .painel-campo-contrato .painel-val {
+      font-size: 16px;
+      font-weight: 800;
+      font-family: 'DM Mono', monospace;
+      color: #fff;
+    }
+    .painel-mais {
+      grid-column: 1 / -1;
+      margin: 2px 4px 0;
+      border: 1px dashed rgba(255,255,255,.1);
+      border-radius: 10px;
+      background: rgba(255,255,255,.02);
+    }
+    .painel-mais-toggle {
+      list-style: none;
+      cursor: pointer;
+      padding: 9px 12px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1.1px;
+      font-family: 'DM Mono', monospace;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .painel-mais-toggle::-webkit-details-marker { display: none; }
+    .painel-mais-toggle::after {
+      content: '+';
+      font-size: 14px;
+      color: var(--accent);
+    }
+    .painel-mais[open] .painel-mais-toggle::after { content: '-'; }
+    .painel-mais-conteudo {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 0 10px 10px;
+    }
     .painel-lbl { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; font-family: 'DM Mono', monospace; display: block; margin-bottom: 2px; }
     .painel-val { font-size: 12px; color: var(--text); font-weight: 600; word-break: break-word; display: block; }
     /* Linha interativa (agenda, turno, PAP) — full width inline, sem borda */
