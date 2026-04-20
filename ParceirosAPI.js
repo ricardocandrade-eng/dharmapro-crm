@@ -326,16 +326,11 @@ function aprovarPreVenda(id, emailAprovador) {
     const pv = data[rowIdx];
     if (pv[2] !== 'Pendente') return { ok: false, error: 'Pré-venda já processada: ' + pv[2] };
 
-    // 1. Atualizar status em Pré-Vendas
     const sheetRowPV = rowIdx + 1;
-    sheetPV.getRange(sheetRowPV, 3).setValue('Aprovado');
-    sheetPV.getRange(sheetRowPV, 17).setValue(_papNow());
-    sheetPV.getRange(sheetRowPV, 18).setValue(emailAprovador || 'backoffice');
-
-    // 2. Buscar endereço completo nas Consultas pelo CPF do cliente
+    // 1. Buscar endereço completo nas Consultas pelo CPF do cliente
     const end = _buscarEnderecoConsultas(pv[5]);
 
-    // 3. Montar e inserir linha em "1 - Vendas" usando o layout oficial do CRM
+    // 2. Montar e inserir linha em "1 - Vendas" usando o layout oficial do CRM
     const vendaPayload = {
       canal:         'PAP',
       produto:       _papInferirProduto(pv[12]),
@@ -361,8 +356,18 @@ function aprovarPreVenda(id, emailAprovador) {
       statusPAP:     'Em Aberto'
     };
 
-    const novaVenda = _papConstruirLinhaVenda(vendaPayload);
-    sheetV.getRange(sheetV.getLastRow() + 1, 1, 1, novaVenda.length).setValues([novaVenda]);
+    try {
+      const novaVenda = _papConstruirLinhaVenda(vendaPayload);
+      sheetV.getRange(sheetV.getLastRow() + 1, 1, 1, novaVenda.length).setValues([novaVenda]);
+    } catch (err) {
+      Logger.log('aprovarPreVenda ERRO ao inserir na Lista | id=' + id + ' | payload=' + JSON.stringify(vendaPayload) + ' | erro=' + err);
+      return { ok: false, error: 'Falha ao criar venda na Lista: ' + (err && err.message ? err.message : err) };
+    }
+
+    // 3. Só marca como aprovado depois da venda entrar na Lista
+    sheetPV.getRange(sheetRowPV, 3).setValue('Aprovado');
+    sheetPV.getRange(sheetRowPV, 17).setValue(_papNow());
+    sheetPV.getRange(sheetRowPV, 18).setValue(emailAprovador || 'backoffice');
     SpreadsheetApp.flush();
     return { ok: true };
   } finally {
