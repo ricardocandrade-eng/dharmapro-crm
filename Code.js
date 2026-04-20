@@ -1613,9 +1613,8 @@ function sincronizarTagsBotConversa(forcar) {
 }
 
 // ─── PAGAMENTOS PAP ────────────────────────────────────────────────────────
-// Coluna AQ (índice 42) = Status Pagamento PAP ("Em aberto" / "Pago")
-// Filtros: Produto=FIBRA ALONE/COMBO, Canal=PAP, Status=3 - Finalizada/Instalada, PAP=Em aberto
-
+// Coluna AM (CONFIG.COLUNAS.STATUS_PAP, 1-based = 39) = Status Pagamento PAP ("Em Aberto" / "Pago")
+// Filtros: Produto=FIBRA ALONE/COMBO, Canal=PAP, Status=3 - Finalizada/Instalada, PAP=Em Aberto
 function getPagamentosPAP() {
   try {
     var ss      = SpreadsheetApp.getActiveSpreadsheet();
@@ -1758,7 +1757,7 @@ function marcarPagoENotificarPAP(payload) {
   try {
     // 1) Marca como Pago na planilha
     var sheet = _getSheet();
-    sheet.getRange(payload.linha, 43).setValue('Pago'); // col AQ
+    sheet.getRange(payload.linha, CONFIG.COLUNAS.STATUS_PAP + 1).setValue('Pago');
     _limparCacheListaCompleta();
     resultado.pagamento = true;
     Logger.log('marcarPagoENotificarPAP: linha ' + payload.linha + ' marcada como Pago.');
