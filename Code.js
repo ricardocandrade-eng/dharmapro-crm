@@ -52,9 +52,9 @@ var CONFIG = {
     CPF:               20,  // U  - CPF ou CNPJ
     WHATS:             21,  // V  - WhatsApp
     TEL:               22,  // W  - Telefone ligação
-    NOME_MAE:          23,  // X  - Nome da mãe
-    DT_NASC:           24,  // Y  - Data de nascimento
-    RG:                25,  // Z  - RG
+    RG:                23,  // X  - RG
+    NOME_MAE:          24,  // Y  - Nome da mãe
+    DT_NASC:           25,  // Z  - Data de nascimento
     // ── Bloco 5: Endereço (AA–AI) ───────────────────────────────────
     CEP:               26,  // AA - CEP
     RUA:               27,  // AB - Logradouro
@@ -3277,7 +3277,7 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     bcTags:           String(row[c.BC_TAGS]            || '').trim(),
     bcStatus:         String(row[c.BC_STATUS]          || '').trim(),
     nomeMae:          String(row[c.NOME_MAE]           || '').trim(),
-    dtNasc:           String(row[c.DT_NASC]            || '').trim(),
+    dtNasc:           _formatarDataNascimento(row[c.DT_NASC], 'yyyy-MM-dd'),
     rg:               String(row[c.RG]                 || '').trim(),
     mapsLink:         '',
     reagendamentos:   parseInt(row[c.REAGENDAMENTOS]) || 0,
@@ -3341,7 +3341,7 @@ function _mapearLinha(row, numeroLinha) {
     bcTags:           String(row[c.BC_TAGS]            || '').trim(),
     bcStatus:         String(row[c.BC_STATUS]          || '').trim(),
     nomeMae:          String(row[c.NOME_MAE]           || '').trim(),
-    dtNasc:           String(row[c.DT_NASC]            || '').trim(),
+    dtNasc:           _formatarDataNascimento(row[c.DT_NASC], 'yyyy-MM-dd'),
     rg:               String(row[c.RG]                 || '').trim(),
     mapsLink:         '',
     reagendamentos:   parseInt(row[c.REAGENDAMENTOS]) || 0,
@@ -3382,9 +3382,9 @@ function _construirLinhaDados(d) {
   linha[c.LINHA_MOVEL]   = d.linhaMovel    || '';
   linha[c.PORTABILIDADE] = d.portabilidade || '';
   linha[c.PRE_STATUS]        = d.preStatus        || '';
-  linha[c.NOME_MAE]          = d.nomeMae           || '';
-  linha[c.DT_NASC]           = d.dtNasc            || '';
   linha[c.RG]                = d.rg                || '';
+  linha[c.NOME_MAE]          = d.nomeMae           || '';
+  linha[c.DT_NASC]           = _formatarDataNascimento(d.dtNasc, 'dd/MM/yyyy');
   linha[c.SEGMENTACAO]       = d.segmentacao       || '';
   linha[c.REAGENDAMENTOS]    = d.reagendamentos    || '';
   linha[c.STATUS_PAP]        = d.statusPAP         || 'Em Aberto';
@@ -3399,6 +3399,39 @@ function _formatarData(valor) {
     return Utilities.formatDate(valor, Session.getScriptTimeZone(), 'yyyy-MM-dd');
   }
   return valor.toString();
+}
+
+function _formatarDataNascimento(valor, formato) {
+  if (!valor) return '';
+
+  var tz = Session.getScriptTimeZone();
+  var out = formato || 'yyyy-MM-dd';
+
+  if (valor instanceof Date && !isNaN(valor)) {
+    return Utilities.formatDate(valor, tz, out);
+  }
+
+  var txt = String(valor).trim();
+  if (!txt) return '';
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(txt)) {
+    if (out === 'yyyy-MM-dd') return txt;
+    var pIso = txt.split('-');
+    return pIso[2] + '/' + pIso[1] + '/' + pIso[0];
+  }
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(txt)) {
+    if (out === 'dd/MM/yyyy') return txt;
+    var pBr = txt.split('/');
+    return pBr[2] + '-' + pBr[1] + '-' + pBr[0];
+  }
+
+  var dt = new Date(txt);
+  if (!isNaN(dt)) {
+    return Utilities.formatDate(dt, tz, out);
+  }
+
+  return txt;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
