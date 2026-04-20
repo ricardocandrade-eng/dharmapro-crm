@@ -812,7 +812,7 @@ function aprovarPreVenda(id) {
       toast('Erro ao aprovar: ' + (err?.message || err), 'err');
       recarregar();
     })
-    .aprovarPreVenda(id, Session?.getActiveUser?.()?.getEmail?.() || '');
+    .aprovarPreVenda(id, '');
 }
 
 function rejeitarPreVenda(id) {
