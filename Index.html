@@ -361,7 +361,8 @@
     }
 
     /* Esquerda: produto + plano/valor */
-    .vi-bot-left { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+    .vi-bot-left { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; order: 1; }
+    .vi-bot-left .vi-row-vhub { order: 10; margin-left: auto; flex-shrink: 0; }
     .vi-produto {
       display: inline-flex; align-items: center; justify-content: center;
       width: 108px; flex-shrink: 0;
@@ -386,7 +387,7 @@
     .vi-bc-status--ok     { background: rgba(34,217,138,.10); color: var(--green); border: 1px solid rgba(34,217,138,.2); }
 
     /* Separador vertical */
-    .vi-vsep { width: 1px; height: 32px; background: var(--border); flex-shrink: 0; }
+    .vi-vsep { width: 1px; height: 32px; background: var(--border); flex-shrink: 0; display: none; }
 
     /* Direita: 3 linhas empilhadas */
     .vi-bot-right { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; width: 200px; align-items: flex-start; justify-content: center; }
