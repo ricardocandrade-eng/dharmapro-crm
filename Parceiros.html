@@ -784,6 +784,11 @@
              inputmode="numeric" oninput="maskCPF(this)">
     </div>
 
+    <div class="f-group">
+      <label>Nome do Cliente <span class="req">*</span></label>
+      <input type="text" id="pv-nome" placeholder="Nome completo do cliente">
+    </div>
+
     <div class="f-section">📱 Contato</div>
 
     <div class="f-row">
@@ -811,6 +816,11 @@
       <div class="f-group" style="display:flex;align-items:flex-end">
         <button class="btn-cpf" style="margin:0" onclick="recarregarPlanos()">↺ Carregar</button>
       </div>
+    </div>
+
+    <div class="f-group" style="margin-top:10px">
+      <label>Endereço de Referência <span class="req">*</span></label>
+      <textarea id="pv-endereco" placeholder="Rua, número, complemento, bairro, cidade/UF"></textarea>
     </div>
 
     <div class="f-group" style="margin-top:10px">
@@ -1335,6 +1345,8 @@ function abrirPreVendaDireta() {
 
 function _abrirPreVendaComDados() {
   const d = _consultaData;
+  const nomeEl = document.getElementById('pv-nome');
+  const enderecoEl = document.getElementById('pv-endereco');
 
   // Info box
   const infoBox = document.getElementById('pv-info-box');
@@ -1346,6 +1358,11 @@ function _abrirPreVendaComDados() {
   } else {
     infoBox.classList.remove('show');
   }
+
+  nomeEl.value = d?.nome || '';
+  enderecoEl.value = d
+    ? [d.rua, d.numero, d.comp, d.bairro, d.cidade + (d.uf ? '/' + d.uf : '')].filter(Boolean).join(', ')
+    : '';
 
   // CPF
   const cpfEl = document.getElementById('pv-cpf');
@@ -1380,7 +1397,9 @@ function _abrirPreVendaComDados() {
 ──────────────────────────────────────────────────────── */
 async function submitPreVenda() {
   if (!required('pv-cpf'))  { toast('Informe o CPF do cliente', 'err'); return; }
+  if (!required('pv-nome')) { toast('Informe o nome do cliente', 'err'); return; }
   if (!required('pv-wpp'))  { toast('Informe o WhatsApp do cliente', 'err'); return; }
+  if (!required('pv-endereco')) { toast('Informe o endereço de referência', 'err'); return; }
   if (!required('pv-plano')) { toast('Selecione um plano', 'err'); return; }
 
   if (!_movel) { toast('Informe se tem plano móvel', 'warn'); return; }
@@ -1400,18 +1419,14 @@ async function submitPreVenda() {
     ? planoFull.split(' | ')
     : [planoFull, ''];
 
-  // Monta endereço de referência
   const d = _consultaData;
-  const endRef = d
-    ? [d.rua, d.numero, d.comp, d.bairro, d.cidade + (d.uf ? '/' + d.uf : '')].filter(Boolean).join(', ')
-    : '';
 
   const data = {
     parceiro:    SELLER_NAME,
     parceiroCpf: SELLER_CPF,
     cpfCliente:  getVal('pv-cpf'),   // backend espera cpfCliente (salvarPreVenda)
-    nomeCliente: d?.nome || '',
-    enderecoRef: endRef,
+    nomeCliente: getVal('pv-nome'),
+    enderecoRef: getVal('pv-endereco'),
     protocoloRef: d?.protocolo || '',
     whatsapp:    getVal('pv-wpp'),
     email:       getVal('pv-email'),
@@ -1473,6 +1488,9 @@ function resetPreVenda() {
 
   // Limpa inputs
   document.querySelectorAll('#sheet-prevenda input:not([readonly])').forEach(el => {
+    el.value = ''; el.classList.remove('err');
+  });
+  document.querySelectorAll('#sheet-prevenda textarea').forEach(el => {
     el.value = ''; el.classList.remove('err');
   });
   document.querySelectorAll('#sheet-prevenda .f-hint').forEach(el => el.textContent = '');
