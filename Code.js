@@ -3212,6 +3212,16 @@ function _registrarChaveCache(key) {
 }
 
 // Versão otimizada para listagens — recebe timezone explícito (evita Session.getScriptTimeZone() repetido)
+function _valorListaSemDuplicar(plano, valor) {
+  var planoTxt = String(plano || '').trim();
+  var valorTxt = String(valor || '').trim();
+  if (!planoTxt || !valorTxt) return valorTxt;
+
+  var planoNorm = planoTxt.replace(/\s+/g, ' ').replace(/R\$\s*/gi, '').trim();
+  var valorNorm = valorTxt.replace(/\s+/g, ' ').replace(/R\$\s*/gi, '').trim();
+  return planoNorm.indexOf(valorNorm) !== -1 ? '' : valorTxt;
+}
+
 function _mapearLinhaLista(row, numeroLinha, tz) {
   var c = CONFIG.COLUNAS;
   return {
@@ -3250,7 +3260,7 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     venc:        row[c.VENC]         || '',
     fat:         row[c.FAT]          || '',
     plano:       row[c.PLANO]        || '',
-    valor:       row[c.VALOR]        || '',
+    valor:       _valorListaSemDuplicar(row[c.PLANO], row[c.VALOR]),
     linhaMovel:    row[c.LINHA_MOVEL]    || '',
     portabilidade: row[c.PORTABILIDADE] || '',
     observacao:  row[c.OBSERVACAO]   || '',
@@ -3314,7 +3324,7 @@ function _mapearLinha(row, numeroLinha) {
     venc:        row[c.VENC]         || '',
     fat:         row[c.FAT]          || '',
     plano:       row[c.PLANO]        || '',
-    valor:       row[c.VALOR]        || '',
+    valor:       _valorListaSemDuplicar(row[c.PLANO], row[c.VALOR]),
     linhaMovel:    row[c.LINHA_MOVEL]    || '',
     portabilidade: row[c.PORTABILIDADE] || '',
     observacao:  row[c.OBSERVACAO]   || '',  // L  - Motivo Cancelamento / Observação
