@@ -301,8 +301,8 @@
       z-index: 20;
     }
     .lista-head h2 { font-size: 18px; font-weight: 800; margin-bottom: 12px; }
-    .list-controls { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
-    .search-wrap { flex: 1 1 320px; min-width: 260px; position: relative; }
+    .list-controls { display: grid; grid-template-columns: minmax(0, 2.2fr) repeat(5, minmax(0, 1fr)) 40px; align-items: center; gap: 8px; width: 100%; }
+    .search-wrap { min-width: 0; position: relative; }
     .search-wrap input { width: 100%; padding: 9px 12px 9px 34px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--text); font-family: 'Sora', sans-serif; transition: border-color 0.2s; }
     .search-wrap input:focus { outline: none; border-color: var(--accent); }
     .search-wrap input::placeholder { color: var(--muted); }
@@ -1631,21 +1631,21 @@
     .lista-col.painel-aberto { opacity: .45; filter: brightness(.7); pointer-events: none; }
 
     /* ── Filtros da Lista ───────────────────────────────────────────────── */
-    .list-filtros { display: flex; gap: 4px; flex: 0 0 auto; flex-wrap: nowrap; margin-top: 0; align-items: center; }
-    .filtro-multi { position: relative; flex: 0 0 auto; }
+    .list-filtros { display: contents; }
+    .filtro-multi { position: relative; min-width: 0; }
     .filtro-btn {
       display: flex; align-items: center; justify-content: center; gap: 6px;
       padding: 0 16px; background: var(--surface2); border: 1.5px solid var(--border);
       border-radius: 8px; color: var(--text); font-size: 12px; font-family: 'Sora', sans-serif;
       cursor: pointer; transition: border-color .2s, background .2s, color .2s;
-      flex: 0 1 auto; height: 40px;
+      width: 100%; min-width: 0; height: 40px;
     }
     .filtro-btn:hover, .filtro-btn.aberto { border-color: var(--accent); }
     .filtro-btn.ativo { border-color: var(--accent); background: rgba(230,62,109,.07); color: var(--accent); }
-    .filtro-btn-text { text-align: center; white-space: nowrap; line-height: 1.2; }
+    .filtro-btn-text { display: block; overflow: hidden; text-overflow: ellipsis; text-align: center; white-space: nowrap; line-height: 1.2; }
     .filtro-btn-count { font-family: 'DM Mono', monospace; font-size: 9px; opacity: .8; display: none; }
     .filtro-btn-caret { font-size: 8px; color: var(--muted); display: none; }
-    .btn-refresh-lista { flex: 0 0 auto; width: 40px; height: 40px; padding: 0; font-size: 0; line-height: 1; }
+    .btn-refresh-lista { width: 40px; height: 40px; padding: 0; font-size: 0; line-height: 1; justify-self: end; }
     .btn-refresh-lista::before { content: '\21BB'; font-size: 18px; }
     .filtro-menu {
       position: absolute; top: calc(100% + 6px); left: 0; min-width: 240px; max-width: 300px;
