@@ -287,14 +287,18 @@
       flex: 1;
       display: flex; flex-direction: column;
       border-right: 1px solid var(--border);
-      overflow: hidden;
+      overflow: visible;
       min-width: 0;
+      position: relative;
+      z-index: 2;
     }
     .lista-head {
       padding: 18px 20px 14px;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
       background: var(--bg);
+      position: relative;
+      z-index: 20;
     }
     .lista-head h2 { font-size: 18px; font-weight: 800; margin-bottom: 12px; }
     .list-controls { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
@@ -495,6 +499,8 @@
       display: flex; flex-direction: column;
       overflow: hidden;
       height: 100%;
+      position: relative;
+      z-index: 1;
     }
     .painel-vazio {
       flex: 1; display: flex; flex-direction: column;
@@ -1639,11 +1645,12 @@
     .filtro-btn-text { text-align: center; white-space: nowrap; line-height: 1.2; }
     .filtro-btn-count { font-family: 'DM Mono', monospace; font-size: 9px; opacity: .8; display: none; }
     .filtro-btn-caret { font-size: 8px; color: var(--muted); display: none; }
-    .btn-refresh-lista { flex: 0 0 auto; width: 40px; height: 40px; padding: 0; font-size: 18px; line-height: 1; }
+    .btn-refresh-lista { flex: 0 0 auto; width: 40px; height: 40px; padding: 0; font-size: 0; line-height: 1; }
+    .btn-refresh-lista::before { content: '\21BB'; font-size: 18px; }
     .filtro-menu {
       position: absolute; top: calc(100% + 6px); left: 0; min-width: 240px; max-width: 300px;
       background: var(--surface); border: 1px solid var(--border2); border-radius: 12px;
-      box-shadow: 0 20px 40px rgba(0,0,0,.35); padding: 10px; z-index: 120; display: none;
+      box-shadow: 0 20px 40px rgba(0,0,0,.35); padding: 10px; z-index: 250; display: none;
     }
     .filtro-menu.aberto { display: block; }
     .filtro-menu-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
