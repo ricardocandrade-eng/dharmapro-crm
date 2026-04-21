@@ -267,12 +267,13 @@ function buscarClienteConsultas(cpf) {
 function salvarPreVenda(data) {
   const sheet = _papGetOrCreateSheet(PAP_SHEET_PRE_VENDAS, HEADERS_PRE_VENDAS);
   const lock  = LockService.getScriptLock();
+  let   pvId  = null;
 
   try {
     lock.waitLock(10000);
-    const id = _papGerarId('PV');
+    pvId = _papGerarId('PV');
     sheet.appendRow([
-      id,
+      pvId,
       _papNow(),
       'Pendente',
       data.parceiro     || '',
@@ -292,10 +293,26 @@ function salvarPreVenda(data) {
       '',  // Decidido Por
     ]);
     SpreadsheetApp.flush();
-    return { ok: true, id };
   } finally {
     lock.releaseLock();
   }
+
+  // Notificação fora do lock para não segurar a escrita durante chamada HTTP
+  if (pvId) {
+    try {
+      const v = _papBuscarSubscriberVendedor(data.parceiroCpf, data.parceiro);
+      if (v && v.subscriberId) {
+        _papNotificarVendedorPAP('pv_recebida', v.subscriberId, {
+          pap_pv_id:        pvId,
+          pap_nome_cliente: data.nomeCliente || '',
+          pap_plano:        data.plano       || '',
+          pap_status:       'Recebida - em análise'
+        });
+      }
+    } catch(ne) { Logger.log('salvarPreVenda notif: ' + ne.message); }
+  }
+
+  return { ok: true, id: pvId };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -313,6 +330,9 @@ function aprovarPreVenda(id, emailAprovador) {
   if (!sheetV)  return { ok: false, error: 'Aba "1 - Vendas" não encontrada' };
 
   const lock = LockService.getScriptLock();
+  let resultado = { ok: false, error: 'Não executado' };
+  let pvCopia   = null;
+
   try {
     lock.waitLock(12000);
 
@@ -321,10 +341,10 @@ function aprovarPreVenda(id, emailAprovador) {
     // 5=CPFCliente 6=Nome 7=EndRef 8=ProtRef 9=Whats 10=Email
     // 11=Plano 12=Movel 13=TipoMovel 14=Venc 15=Pag 16=DataDecisão 17=DecididoPor
     const rowIdx = data.findIndex((r, i) => i > 0 && r[0] === id);
-    if (rowIdx < 0) return { ok: false, error: 'Pré-venda não encontrada: ' + id };
+    if (rowIdx < 0) { resultado = { ok: false, error: 'Pré-venda não encontrada: ' + id }; return resultado; }
 
     const pv = data[rowIdx];
-    if (pv[2] !== 'Pendente') return { ok: false, error: 'Pré-venda já processada: ' + pv[2] };
+    if (pv[2] !== 'Pendente') { resultado = { ok: false, error: 'Pré-venda já processada: ' + pv[2] }; return resultado; }
 
     const sheetRowPV = rowIdx + 1;
     // 1. Buscar endereço completo nas Consultas pelo CPF do cliente
@@ -361,7 +381,8 @@ function aprovarPreVenda(id, emailAprovador) {
       sheetV.getRange(sheetV.getLastRow() + 1, 1, 1, novaVenda.length).setValues([novaVenda]);
     } catch (err) {
       Logger.log('aprovarPreVenda ERRO ao inserir na Lista | id=' + id + ' | payload=' + JSON.stringify(vendaPayload) + ' | erro=' + err);
-      return { ok: false, error: 'Falha ao criar venda na Lista: ' + (err && err.message ? err.message : err) };
+      resultado = { ok: false, error: 'Falha ao criar venda na Lista: ' + (err && err.message ? err.message : err) };
+      return resultado;
     }
 
     // 3. Só marca como aprovado depois da venda entrar na Lista
@@ -369,10 +390,28 @@ function aprovarPreVenda(id, emailAprovador) {
     sheetPV.getRange(sheetRowPV, 17).setValue(_papNow());
     sheetPV.getRange(sheetRowPV, 18).setValue(emailAprovador || 'backoffice');
     SpreadsheetApp.flush();
-    return { ok: true };
+    pvCopia   = [...pv];
+    resultado = { ok: true };
   } finally {
     lock.releaseLock();
   }
+
+  // Notificação fora do lock para não segurar a escrita durante chamada HTTP
+  if (resultado.ok && pvCopia) {
+    try {
+      const v = _papBuscarSubscriberVendedor(pvCopia[4], pvCopia[3]);
+      if (v && v.subscriberId) {
+        _papNotificarVendedorPAP('pv_aprovada', v.subscriberId, {
+          pap_pv_id:        pvCopia[0],
+          pap_nome_cliente: pvCopia[6] || '',
+          pap_plano:        pvCopia[11] || '',
+          pap_status:       'Aprovada - ativação em andamento pelo backoffice'
+        });
+      }
+    } catch(ne) { Logger.log('aprovarPreVenda notif: ' + ne.message); }
+  }
+
+  return resultado;
 }
 
 // Helper: busca endereço na aba Consultas pelo CPF do cliente
@@ -465,23 +504,44 @@ function rejeitarPreVenda(id, emailRejeitor) {
   if (!sheet) return { ok: false, error: 'Aba "Pré-Vendas" não encontrada' };
 
   const lock = LockService.getScriptLock();
+  let resultado = { ok: false, error: 'Não executado' };
+  let pvCopia   = null;
+
   try {
     lock.waitLock(10000);
 
     const data   = sheet.getDataRange().getValues();
     const rowIdx = data.findIndex((r, i) => i > 0 && r[0] === id);
-    if (rowIdx < 0)              return { ok: false, error: 'Pré-venda não encontrada: ' + id };
-    if (data[rowIdx][2] !== 'Pendente') return { ok: false, error: 'Pré-venda já processada: ' + data[rowIdx][2] };
+    if (rowIdx < 0)                      { resultado = { ok: false, error: 'Pré-venda não encontrada: ' + id }; return resultado; }
+    if (data[rowIdx][2] !== 'Pendente')  { resultado = { ok: false, error: 'Pré-venda já processada: ' + data[rowIdx][2] }; return resultado; }
 
     const sheetRow = rowIdx + 1;
     sheet.getRange(sheetRow, 3).setValue('Rejeitado');
     sheet.getRange(sheetRow, 17).setValue(_papNow());
     sheet.getRange(sheetRow, 18).setValue(emailRejeitor || 'backoffice');
     SpreadsheetApp.flush();
-    return { ok: true };
+    pvCopia   = [...data[rowIdx]];
+    resultado = { ok: true };
   } finally {
     lock.releaseLock();
   }
+
+  // Notificação fora do lock para não segurar a escrita durante chamada HTTP
+  if (resultado.ok && pvCopia) {
+    try {
+      const v = _papBuscarSubscriberVendedor(pvCopia[4], pvCopia[3]);
+      if (v && v.subscriberId) {
+        _papNotificarVendedorPAP('pv_rejeitada', v.subscriberId, {
+          pap_pv_id:        pvCopia[0],
+          pap_nome_cliente: pvCopia[6] || '',
+          pap_plano:        pvCopia[11] || '',
+          pap_status:       'Rejeitada'
+        });
+      }
+    } catch(ne) { Logger.log('rejeitarPreVenda notif: ' + ne.message); }
+  }
+
+  return resultado;
 }
 
 function apagarConsulta(id) {
@@ -674,4 +734,129 @@ function _papGetOrCreateSheet(name, headers) {
     sheet.autoResizeColumns(1, headers.length);
   }
   return sheet;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 11. NOTIFICAÇÕES PAP — BotConversa
+//     Dispara fluxos para vendedores PAP nos 5 eventos do ciclo da pré-venda.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Busca subscriber BotConversa do vendedor na aba "3 - PAP" por CPF (prioridade)
+// ou por nome. Retorna { subscriberId, whatsapp, nome } ou null.
+// Cols lidas a partir de S (col 19, 1-based): S=nome T=bcId U=whats V=dataCad W=cpf
+function _papBuscarSubscriberVendedor(cpf, nome) {
+  try {
+    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('3 - PAP');
+    if (!sh || sh.getLastRow() < 5) return null;
+    const raw      = sh.getRange(5, 19, sh.getLastRow() - 4, 5).getValues();
+    const cpfLimpo = cpf  ? String(cpf).replace(/\D/g, '')           : '';
+    const nomeBusc = nome ? String(nome).trim().toLowerCase()         : '';
+    for (let i = 0; i < raw.length; i++) {
+      const rowNome  = String(raw[i][0] || '').trim();
+      const rowBcId  = String(raw[i][1] || '').trim();
+      const rowWhats = String(raw[i][2] || '').trim();
+      const rowCpf   = String(raw[i][4] || '').replace(/\D/g, '');
+      const match    = (cpfLimpo && rowCpf   && rowCpf === cpfLimpo) ||
+                       (nomeBusc && rowNome  && rowNome.toLowerCase() === nomeBusc);
+      if (!match) continue;
+      // Busca pelo telefone primeiro (col T pode conter ID de outro sistema)
+      const subscriberId = String(_bcGetSubscriberPorTelefone(rowWhats) || rowBcId || '');
+      if (!subscriberId) return null;
+      return { subscriberId, whatsapp: rowWhats, nome: rowNome };
+    }
+    return null;
+  } catch(e) {
+    Logger.log('_papBuscarSubscriberVendedor erro: ' + e.message);
+    return null;
+  }
+}
+
+// Envia mensagem de texto direta ao vendedor PAP via BotConversa.
+// Substitui a abordagem de fluxos + variáveis (API não suporta definir campos via PATCH/PUT).
+function _papEnviarMensagemDireta(subscriberId, mensagem) {
+  try {
+    const apiKey = PropertiesService.getScriptProperties().getProperty('botconversa_api_key') || '';
+    if (!apiKey) return { sucesso: false, mensagem: 'Chave BotConversa não configurada.' };
+    const resp = UrlFetchApp.fetch(
+      'https://backend.botconversa.com.br/api/v1/webhook/subscriber/' + subscriberId + '/send_message/',
+      {
+        method             : 'post',
+        contentType        : 'application/json',
+        headers            : { 'api-key': apiKey },
+        payload            : JSON.stringify({ type: 'text', value: mensagem }),
+        muteHttpExceptions : true
+      }
+    );
+    const code = resp.getResponseCode();
+    if (code >= 200 && code < 300) return { sucesso: true };
+    Logger.log('_papEnviarMensagemDireta HTTP ' + code + ': ' + resp.getContentText().slice(0, 200));
+    return { sucesso: false, mensagem: 'HTTP ' + code };
+  } catch(e) {
+    Logger.log('_papEnviarMensagemDireta erro: ' + e.message);
+    return { sucesso: false, mensagem: e.message };
+  }
+}
+
+// Monta o texto da notificação PAP conforme o evento.
+function _papMontarMensagemNotificacao(evento, dados) {
+  const cliente   = dados.pap_nome_cliente || '';
+  const plano     = dados.pap_plano        || '';
+  const protocolo = dados.pap_pv_id        || '';
+
+  const rodape = '\n👤 Cliente: ' + cliente +
+                 '\n📦 Plano: '   + plano;
+
+  switch (evento) {
+    case 'pv_recebida':
+      return '✅ *Pré-venda recebida!*\n\n' +
+             'Recebemos sua pré-venda e ela está sendo analisada pelo nosso backoffice.' +
+             rodape +
+             '\n🔖 Protocolo: ' + protocolo +
+             '\n\nVocê será notificado assim que houver uma decisão.';
+
+    case 'pv_aprovada':
+      return '🎉 *Pré-venda aprovada!*\n\n' +
+             'Sua pré-venda foi aprovada. A ativação está sendo realizada pelo nosso backoffice.' +
+             rodape +
+             '\n🔖 Protocolo: ' + protocolo +
+             '\n\nEm breve você receberá a confirmação do agendamento da instalação.';
+
+    case 'pv_rejeitada':
+      return '❌ *Pré-venda não aprovada*\n\n' +
+             'Infelizmente sua pré-venda não pôde ser aprovada.' +
+             rodape +
+             '\n🔖 Protocolo: ' + protocolo +
+             '\n\nEntre em contato com o backoffice para mais informações.';
+
+    case 'aguardando_instalacao':
+      return '📅 *Instalação agendada!*\n\n' +
+             'A venda foi ativada e está com instalação agendada pela Vero.' +
+             rodape +
+             '\n\nAcompanhe o andamento pelo CRM.';
+
+    case 'instalada':
+      return '🏠 *Instalação concluída!*\n\n' +
+             'A instalação do seu cliente foi realizada com sucesso.' +
+             rodape +
+             '\n\nComissão registrada. Obrigado pela venda! 💪';
+
+    default:
+      return 'Notificação PAP: ' + evento + rodape;
+  }
+}
+
+// Orquestra notificação PAP: monta mensagem formatada → envia direto ao vendedor.
+// evento: 'pv_recebida' | 'pv_aprovada' | 'pv_rejeitada' |
+//         'aguardando_instalacao' | 'instalada'
+// dados: { pap_pv_id?, pap_nome_cliente, pap_plano }
+// Nunca lança exceção — todos os erros são apenas logados.
+function _papNotificarVendedorPAP(evento, subscriberId, dados) {
+  try {
+    const mensagem = _papMontarMensagemNotificacao(evento, dados);
+    const res      = _papEnviarMensagemDireta(subscriberId, mensagem);
+    Logger.log('_papNotificarVendedorPAP [' + evento + '] sub=' + subscriberId +
+               ' → ' + JSON.stringify(res));
+  } catch(e) {
+    Logger.log('_papNotificarVendedorPAP erro [' + evento + ']: ' + e.message);
+  }
 }

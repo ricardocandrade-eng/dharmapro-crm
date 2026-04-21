@@ -601,6 +601,25 @@ function atualizarVendaComAdapter(dados) {
     }
 
     _limparCacheListaCompleta();
+
+    // Notificação PAP quando instalação confirmada
+    if (dados.instalada) {
+      try {
+        var c      = CONFIG.COLUNAS;
+        var rowPAP = sheet.getRange(linha, 1, 1, c.RESP + 1).getValues()[0];
+        if (rowPAP[c.CANAL] === 'PAP') {
+          var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
+          if (vPAP && vPAP.subscriberId) {
+            _papNotificarVendedorPAP('instalada', vPAP.subscriberId, {
+              pap_nome_cliente: rowPAP[c.CLIENTE] || '',
+              pap_plano:        rowPAP[c.PLANO]   || '',
+              pap_status:       '3 - Finalizada/Instalada'
+            });
+          }
+        }
+      } catch(ne) { Logger.log('atualizarVendaComAdapter notif: ' + ne.message); }
+    }
+
     return { sucesso: true };
   } catch(e) {
     Logger.log('Erro atualizarVendaComAdapter: ' + e.message);
@@ -646,6 +665,25 @@ function atualizarVendaComNG(dados) {
     }
 
     _limparCacheListaCompleta();
+
+    // Notificação PAP quando instalação confirmada
+    if (dados.instalada) {
+      try {
+        var c      = CONFIG.COLUNAS;
+        var rowPAP = sheet.getRange(linha, 1, 1, c.RESP + 1).getValues()[0];
+        if (rowPAP[c.CANAL] === 'PAP') {
+          var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
+          if (vPAP && vPAP.subscriberId) {
+            _papNotificarVendedorPAP('instalada', vPAP.subscriberId, {
+              pap_nome_cliente: rowPAP[c.CLIENTE] || '',
+              pap_plano:        rowPAP[c.PLANO]   || '',
+              pap_status:       '3 - Finalizada/Instalada'
+            });
+          }
+        }
+      } catch(ne) { Logger.log('atualizarVendaComNG notif: ' + ne.message); }
+    }
+
     return { sucesso: true };
   } catch(e) {
     Logger.log('Erro atualizarVendaComNG: ' + e.message);
@@ -1346,6 +1384,25 @@ function configurarBotConversa() {
   Logger.log('Chave BotConversa configurada.');
 }
 
+// Configura os IDs dos fluxos BotConversa para notificações PAP.
+// Executar UMA VEZ no editor Apps Script após criar os 5 fluxos no BotConversa.
+// pvRecebida  : ID do fluxo "PAP - Pré-Venda Recebida"
+// pvAprovada  : ID do fluxo "PAP - Pré-Venda Aprovada"
+// pvRejeitada : ID do fluxo "PAP - Pré-Venda Rejeitada"
+// aguardando  : ID do fluxo "PAP - Aguardando Instalação"
+// instalada   : ID do fluxo "PAP - Instalada"
+function configurarFluxosPAP(pvRecebida, pvAprovada, pvRejeitada, aguardando, instalada) {
+  PropertiesService.getScriptProperties().setProperties({
+    'bc_flow_pap_pv_recebida'          : String(pvRecebida  || ''),
+    'bc_flow_pap_pv_aprovada'          : String(pvAprovada  || ''),
+    'bc_flow_pap_pv_rejeitada'         : String(pvRejeitada || ''),
+    'bc_flow_pap_aguardando_instalacao': String(aguardando  || ''),
+    'bc_flow_pap_instalada'            : String(instalada   || '')
+  });
+  Logger.log('Fluxos PAP configurados: recebida=' + pvRecebida + ' aprovada=' + pvAprovada +
+             ' rejeitada=' + pvRejeitada + ' aguardando=' + aguardando + ' instalada=' + instalada);
+}
+
 // Lista os fluxos disponíveis na conta (cache 5 min)
 function getBotConversaFlows() {
   try {
@@ -1401,17 +1458,22 @@ function _bcGetSubscriberPorTelefone(telefone) {
 }
 
 // Envia um fluxo para um subscriber já identificado (helper privado)
-function _bcEnviarFluxo(subscriberId, flowId) {
+// extraCampos: objeto opcional com campos adicionais mesclados no payload (ex: variáveis PAP)
+function _bcEnviarFluxo(subscriberId, flowId, extraCampos) {
   try {
     var apiKey = PropertiesService.getScriptProperties().getProperty('botconversa_api_key') || '';
     if (!apiKey) return { sucesso: false, mensagem: 'Chave BotConversa não configurada.' };
+    var body = { flow: parseInt(flowId) };
+    if (extraCampos) {
+      Object.keys(extraCampos).forEach(function(k) { body[k] = extraCampos[k]; });
+    }
     var resp = UrlFetchApp.fetch(
       'https://backend.botconversa.com.br/api/v1/webhook/subscriber/' + subscriberId + '/send_flow/',
       {
         method         : 'post',
         contentType    : 'application/json',
         headers        : { 'api-key': apiKey },
-        payload        : JSON.stringify({ flow: parseInt(flowId) }),
+        payload        : JSON.stringify(body),
         muteHttpExceptions: true
       }
     );
@@ -1985,11 +2047,14 @@ function moverLeadAguardando(payload) {
   try { lock.waitLock(10000); } catch(le) {
     return { sucesso: false, mensagem: '⚠️ Sistema ocupado. Tente novamente.' };
   }
+  var sheet     = null;
+  var linha     = null;
+  var resultado = { sucesso: false };
   try {
-    var sheet = _getSheet();
+    sheet = _getSheet();
     if (!sheet) return { sucesso: false, mensagem: 'Planilha não encontrada.' };
 
-    var linha = parseInt(payload.linha);
+    linha = parseInt(payload.linha);
     var c = CONFIG.COLUNAS;
 
     sheet.getRange(linha, c.STATUS    + 1).setValue('2- Aguardando Instalação');
@@ -2001,13 +2066,33 @@ function moverLeadAguardando(payload) {
     _limparCache();
 
     Logger.log('moverLeadAguardando: linha ' + linha + ' movida.');
-    return { sucesso: true };
+    resultado = { sucesso: true };
   } catch(e) {
     Logger.log('Erro em moverLeadAguardando: ' + e);
-    return { sucesso: false, mensagem: e.message };
+    resultado = { sucesso: false, mensagem: e.message };
   } finally {
     lock.releaseLock();
   }
+
+  // Notificação PAP fora do lock
+  if (resultado.sucesso && sheet && linha) {
+    try {
+      var c = CONFIG.COLUNAS;
+      var rowPAP = sheet.getRange(linha, 1, 1, c.RESP + 1).getValues()[0];
+      if (rowPAP[c.CANAL] === 'PAP') {
+        var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
+        if (vPAP && vPAP.subscriberId) {
+          _papNotificarVendedorPAP('aguardando_instalacao', vPAP.subscriberId, {
+            pap_nome_cliente: rowPAP[c.CLIENTE] || '',
+            pap_plano:        rowPAP[c.PLANO]   || '',
+            pap_status:       '2- Aguardando Instalação'
+          });
+        }
+      }
+    } catch(ne) { Logger.log('moverLeadAguardando notif: ' + ne.message); }
+  }
+
+  return resultado;
 }
 
 // Limpa cache do kanban de leads
@@ -2824,12 +2909,15 @@ function moverVendaFunil(payload) {
   try { lock.waitLock(10000); } catch(le) {
     return { sucesso: false, mensagem: '⚠️ Sistema ocupado. Tente novamente.' };
   }
+  var sheet      = null;
+  var linha      = null;
+  var novoStatus = payload.novoStatus;
+  var resultado  = { sucesso: false };
   try {
-    var sheet = _getSheet();
+    sheet = _getSheet();
     if (!sheet) return { sucesso: false, mensagem: 'Planilha não encontrada.' };
 
-    var linha      = parseInt(payload.linha);
-    var novoStatus = payload.novoStatus;
+    linha          = parseInt(payload.linha);
     var campoExtra = payload.campoExtra;  // 'instal' ou 'observacao'
     var valorExtra = payload.valorExtra;
 
@@ -2862,14 +2950,36 @@ function moverVendaFunil(payload) {
     Logger.log('Funil: linha ' + linha + ' movida para "' + novoStatus + '"' +
                (campoExtra ? ' | ' + campoExtra + ': ' + valorExtra : ''));
 
-    return { sucesso: true };
+    resultado = { sucesso: true };
 
   } catch (e) {
     Logger.log('Erro em moverVendaFunil: ' + e);
-    return { sucesso: false, mensagem: e.message };
+    resultado = { sucesso: false, mensagem: e.message };
   } finally {
     lock.releaseLock();
   }
+
+  // Notificação PAP fora do lock (apenas status 2 e 3)
+  if (resultado.sucesso && sheet && linha &&
+      (novoStatus === '2- Aguardando Instalação' || novoStatus === '3 - Finalizada/Instalada')) {
+    try {
+      var c      = CONFIG.COLUNAS;
+      var rowPAP = sheet.getRange(linha, 1, 1, c.RESP + 1).getValues()[0];
+      if (rowPAP[c.CANAL] === 'PAP') {
+        var vPAP  = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
+        if (vPAP && vPAP.subscriberId) {
+          var evPAP = (novoStatus === '3 - Finalizada/Instalada') ? 'instalada' : 'aguardando_instalacao';
+          _papNotificarVendedorPAP(evPAP, vPAP.subscriberId, {
+            pap_nome_cliente: rowPAP[c.CLIENTE] || '',
+            pap_plano:        rowPAP[c.PLANO]   || '',
+            pap_status:       novoStatus
+          });
+        }
+      }
+    } catch(ne) { Logger.log('moverVendaFunil notif: ' + ne.message); }
+  }
+
+  return resultado;
 }
 
 // ─── FUNÇÕES PRIVADAS ──────────────────────────────────────────────────────
