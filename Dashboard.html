@@ -1,5 +1,7 @@
-<!-- ════════════════════════════════════���═════════════════════════════════════
-     Versão mais recente: 14/03/2026, 21:00:50
+<!-- ════════════════════════════════════════════════════════════════════════════
+     Dashboard.html — DharmaPro CRM
+     Atualizado em: 24/04/2026
+     Alterações: Adicionada aba "Agente IA" com dados do Supabase (Renata IA)
      ══════════════════════════════════════════════════════════════════════════ -->
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,300&family=Martian+Mono:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
@@ -21,8 +23,13 @@
 #dashContainer .sync-tag{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.15em}
 #dashContainer .refresh{padding:7px 18px;border-radius:8px;background:rgba(200,255,94,.07);border:1px solid rgba(200,255,94,.18);color:var(--g1);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--sans);letter-spacing:.05em;transition:all .15s}
 #dashContainer .refresh:hover{background:rgba(200,255,94,.14);border-color:rgba(200,255,94,.35)}
+/* ── TABS ── */
+#dashContainer .rn-tab-bar{position:sticky;top:52px;z-index:99;background:rgba(8,9,14,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--rim);padding:0 32px;display:flex;gap:0}
+#dashContainer .rn-tab{background:none;border:none;border-bottom:2px solid transparent;padding:12px 20px;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);cursor:pointer;transition:all .15s}
+#dashContainer .rn-tab:hover{color:var(--dim2)}
+#dashContainer .rn-tab.active{color:var(--g2);border-bottom-color:var(--g2)}
 /* ── BARRA DIAS ÚTEIS ── */
-#dashContainer .du-bar-wrap{position:sticky;top:52px;z-index:99;background:rgba(8,9,14,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--rim);padding:7px 32px;display:flex;align-items:center;gap:14px}
+#dashContainer .du-bar-wrap{position:sticky;top:94px;z-index:98;background:rgba(8,9,14,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--rim);padding:7px 32px;display:flex;align-items:center;gap:14px}
 #dashContainer .du-label{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);white-space:nowrap;flex-shrink:0}
 #dashContainer .du-track{flex:1;height:6px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden;position:relative}
 #dashContainer .du-fill{height:100%;border-radius:3px;transition:width 1.2s cubic-bezier(.34,1.56,.64,1)}
@@ -129,9 +136,11 @@
 #dashContainer .rfi-qtd{font-family:var(--mono);font-size:15px;font-weight:700;text-align:right;white-space:nowrap}
 #dashContainer .rfi-delta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-family:var(--mono);font-size:12px;font-weight:600}
 #dashContainer .rfi-delta-lbl{font-size:9px;color:var(--dim);letter-spacing:.1em;font-weight:400}
+/* ── AGENTE IA KPI GRID ── */
+#dashContainer .rn-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px}
 /* ── MEDIA ── */
-@media(max-width:1100px){#dashContainer .grid-hoje{grid-template-columns:1fr 1fr}#dashContainer .grid-mes{grid-template-columns:1fr 1fr}#dashContainer .grid-canais{grid-template-columns:1fr 1fr}#dashContainer .grid-rank{grid-template-columns:1fr}}
-@media(max-width:640px){#dashContainer .grid-hoje,#dashContainer .grid-mes,#dashContainer .grid-canais,#dashContainer .grid-rank{grid-template-columns:1fr}#dashContainer .canvas{padding:14px 12px 32px}#dashContainer .du-bar-wrap{padding:6px 14px;gap:8px}}
+@media(max-width:1100px){#dashContainer .grid-hoje{grid-template-columns:1fr 1fr}#dashContainer .grid-mes{grid-template-columns:1fr 1fr}#dashContainer .grid-canais{grid-template-columns:1fr 1fr}#dashContainer .grid-rank{grid-template-columns:1fr}#dashContainer .rn-kpi-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){#dashContainer .grid-hoje,#dashContainer .grid-mes,#dashContainer .grid-canais,#dashContainer .grid-rank,#dashContainer .rn-kpi-grid{grid-template-columns:1fr}#dashContainer .canvas{padding:14px 12px 32px}#dashContainer .du-bar-wrap{padding:6px 14px;gap:8px}}
 </style>
 
 <div class="glow-tl"></div>
@@ -141,7 +150,7 @@
     <div class="top-pulse"></div>
     <span class="top-name">Mobile Digital &nbsp;/&nbsp; Dashboard</span>
   </div>
-  <div class="top-right">
+  <div class="top-right" id="d_mobileTopRight">
     <div class="nav-month">
       <button class="nav-btn" onclick="d_navMes(-1)">◀</button>
       <div class="month-label" id="d_mesLbl">—</div>
@@ -150,7 +159,19 @@
     <span class="sync-tag" id="d_syncLbl" style="display:none">⟳ SYNC</span>
     <button class="refresh" onclick="d_load()">↺ Atualizar</button>
   </div>
+  <div class="top-right" id="d_renataTopRight" style="display:none">
+    <button class="refresh" onclick="rnLoad()">↺ Atualizar</button>
+  </div>
 </div>
+
+<!-- ── TABS ── -->
+<div class="rn-tab-bar">
+  <button class="rn-tab active" id="rntab-mobile" onclick="rnSwitch('mobile')">Mobile Digital</button>
+  <button class="rn-tab" id="rntab-renata" onclick="rnSwitch('renata')">Agente IA ✦</button>
+</div>
+
+<!-- ── PAINEL MOBILE DIGITAL ── -->
+<div id="tab-mobile">
 <div class="du-bar-wrap" id="d_duBar" style="display:none">
   <span class="du-label">Dias Úteis</span>
   <div class="du-track">
@@ -167,6 +188,16 @@
 <div class="canvas" id="d_root">
   <div style="display:flex;align-items:center;justify-content:center;height:55vh">
     <span style="font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase">carregando...</span>
+  </div>
+</div>
+</div><!-- /tab-mobile -->
+
+<!-- ── PAINEL AGENTE IA ── -->
+<div id="tab-renata" style="display:none">
+  <div class="canvas" id="rn-root">
+    <div style="display:flex;align-items:center;justify-content:center;height:55vh">
+      <span style="font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase">carregando...</span>
+    </div>
   </div>
 </div>
 
@@ -449,6 +480,214 @@ function _render(d){
   donut('d_veroDonut',[vB,vN,(!vB&&!vN)?1:0],['#c8ff5e','#ff4570','rgba(255,255,255,.04)']);
   [{id:'dcu0',v:d.fibraHoje},{id:'dcu1',v:d.instalacoesMes},{id:'dcu3',v:d.vendaBrutaMes}].forEach(function(x){var el=document.getElementById(x.id);if(el&&x.v>0)cu(el,x.v);});
 }
+
+// ══════════════════════════════════════════════════════════════
+// AGENTE IA — tab switch + dados Supabase
+// ══════════════════════════════════════════════════════════════
+var _rnLoaded=false;
+var RN_URL='https://zfunugupwvktcggvicuk.supabase.co/rest/v1';
+var RN_KEY='sb_publishable_vygMQ5j_dTi4W1HWGkDI5g_TgpqKY4R';
+
+function rnSwitch(tab){
+  document.getElementById('tab-mobile').style.display=tab==='mobile'?'':'none';
+  document.getElementById('tab-renata').style.display=tab==='renata'?'':'none';
+  document.getElementById('d_mobileTopRight').style.display=tab==='mobile'?'flex':'none';
+  document.getElementById('d_renataTopRight').style.display=tab==='renata'?'flex':'none';
+  document.getElementById('rntab-mobile').className='rn-tab'+(tab==='mobile'?' active':'');
+  document.getElementById('rntab-renata').className='rn-tab'+(tab==='renata'?' active':'');
+  if(tab==='renata'&&!_rnLoaded){_rnLoaded=true;rnLoad();}
+}
+window.rnSwitch=rnSwitch;
+
+async function rnFetch(view){
+  var r=await fetch(RN_URL+'/'+view+'?select=*&limit=30',{headers:{'apikey':RN_KEY,'Authorization':'Bearer '+RN_KEY}});
+  if(!r.ok)throw new Error(view+': HTTP '+r.status);
+  return r.json();
+}
+
+async function rnLoad(){
+  var root=document.getElementById('rn-root');
+  if(root)root.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:40vh"><span style="font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase">carregando...</span></div>';
+  try{
+    var results=await Promise.allSettled([
+      rnFetch('v_metricas_gerais'),
+      rnFetch('v_conversas_por_dia'),
+      rnFetch('v_leads_por_nivel'),
+      rnFetch('v_top_cidades'),
+      rnFetch('v_leads_por_motivo'),
+      rnFetch('v_followup_resumo'),
+    ]);
+    var metricas=(results[0].status==='fulfilled'&&results[0].value.length?results[0].value[0]:{});
+    var convDia=results[1].status==='fulfilled'?results[1].value:[];
+    var leadNivel=results[2].status==='fulfilled'?results[2].value:[];
+    var cidades=results[3].status==='fulfilled'?results[3].value:[];
+    var motivos=results[4].status==='fulfilled'?results[4].value:[];
+    var followup=(results[5].status==='fulfilled'&&results[5].value.length?results[5].value[0]:{});
+    rnRender(metricas,convDia,leadNivel,cidades,motivos,followup);
+  }catch(err){
+    var r2=document.getElementById('rn-root');
+    if(r2)r2.innerHTML='<div style="padding:80px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--g3);letter-spacing:.1em;">⚠ '+e(err.message)+'</div>';
+  }
+}
+window.rnLoad=rnLoad;
+
+function rnRender(m,convDia,leadNivel,cidades,motivos,followup){
+  var COLORS=['#c8ff5e','#00d4ff','#ff4570','#ffaa00','#a78bfa','#ff8c42'];
+  var NIVEL_COLORS={'Qualificado':'#c8ff5e','Interessado':'#00d4ff','Potencial':'#ffaa00','Inicial':'#8490b8'};
+  var MOTIVO_LABELS={'dados_completos':'Dados completos','pedido_humano':'Pediu atendente','urgencia_alta':'Urgência alta','objecao':'Objeção','sem_cobertura':'Sem cobertura','followup_frio':'Follow-up frio','followup_morno':'Follow-up morno'};
+  var h='';
+
+  // ─ Visão Geral ─
+  h+='<div class="section-row"><span>Visão Geral</span></div>';
+  h+='<div class="rn-kpi-grid">';
+  var taxa=parseFloat(m.taxa_conversao||0);
+  var erros24=parseInt(m.erros_24h||0);
+  var kpis=[
+    {lbl:'Conversas Totais',val:m.total_conversas||0,c:'var(--g2)',big:true},
+    {lbl:'Ativas agora',val:m.conversas_ativas||0,c:'var(--g1)'},
+    {lbl:'Handoffs',val:m.conversas_handoff||0,c:'var(--g4)'},
+    {lbl:'Taxa Conversão',val:taxa.toFixed(1)+'%',c:taxa>=20?'var(--g1)':taxa>=10?'var(--g4)':'var(--g3)'},
+    {lbl:'Leads Gerados',val:m.total_leads||0,c:'var(--g5)'},
+    {lbl:'Score Médio',val:parseFloat(m.score_medio||0).toFixed(1),c:'var(--g2)'},
+    {lbl:'Erros (24h)',val:erros24,c:erros24>0?'var(--g3)':'var(--dim2)'},
+  ];
+  kpis.forEach(function(k,i){
+    h+='<div class="card" style="animation-delay:'+(i*0.05)+'s">';
+    h+='<div class="card-title" style="font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);margin-bottom:12px">'+k.lbl+'</div>';
+    h+='<div style="font-family:var(--serif);font-size:'+(k.big?'48px':'36px')+';line-height:1;font-style:italic;color:'+k.c+'">'+k.val+'</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+
+  // ─ Atividade ─
+  h+='<div class="section-row" style="margin-top:8px"><span>Atividade</span></div>';
+  h+='<div class="grid-rank">';
+
+  // Conversas por dia (barras CSS)
+  h+='<div class="card">';
+  h+='<div class="card-head"><span class="card-title">Conversas por Dia</span><span class="card-badge badge-cyan">30 dias</span></div>';
+  if(!convDia.length){
+    h+='<div style="color:var(--dim);font-family:var(--mono);font-size:10px;padding:20px 0">— sem dados —</div>';
+  } else {
+    var dias=convDia.slice(-20);
+    var maxConv=Math.max(1,Math.max.apply(null,dias.map(function(d){return parseInt(d.total||0);})));
+    h+='<div style="display:flex;align-items:flex-end;gap:2px;height:90px;padding-top:4px">';
+    dias.forEach(function(d){
+      var tot=parseInt(d.total||0),hof=parseInt(d.handoffs||0);
+      var pct=Math.round((tot/maxConv)*80);
+      var hPct=tot>0?Math.round((hof/tot)*100):0;
+      var dt=new Date(d.dia+'T12:00:00');
+      var lbl=('0'+(dt.getMonth()+1)).slice(-2)+'/'+('0'+dt.getDate()).slice(-2);
+      h+='<div title="'+tot+' conv, '+hof+' handoffs" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0">';
+      h+='<div style="width:100%;height:'+pct+'px;min-height:2px;border-radius:2px 2px 0 0;background:linear-gradient(0deg,var(--g1) 0%,var(--g1) '+hPct+'%,var(--g2) '+hPct+'%,var(--g2) 100%)"></div>';
+      h+='<span style="font-family:var(--mono);font-size:7px;color:var(--dim);white-space:nowrap;overflow:hidden;max-width:100%">'+lbl+'</span>';
+      h+='</div>';
+    });
+    h+='</div>';
+    h+='<div style="display:flex;gap:12px;margin-top:10px">';
+    h+='<div style="display:flex;align-items:center;gap:5px"><div style="width:8px;height:8px;background:var(--g2);border-radius:2px"></div><span style="font-family:var(--mono);font-size:9px;color:var(--dim2)">Total</span></div>';
+    h+='<div style="display:flex;align-items:center;gap:5px"><div style="width:8px;height:8px;background:var(--g1);border-radius:2px"></div><span style="font-family:var(--mono);font-size:9px;color:var(--dim2)">Handoffs</span></div>';
+    h+='</div>';
+  }
+  h+='</div>';
+
+  // Leads por nível (donut)
+  h+='<div class="card">';
+  h+='<div class="card-head"><span class="card-title">Leads por Nível</span></div>';
+  if(!leadNivel.length){
+    h+='<div style="color:var(--dim);font-family:var(--mono);font-size:10px;padding:20px 0">— sem dados —</div>';
+  } else {
+    h+='<div class="donut-wrap"><canvas id="rn-donut-leads" width="90" height="90"></canvas><div class="donut-legend">';
+    leadNivel.forEach(function(d){
+      var cor=NIVEL_COLORS[d.nivel_lead]||'#a78bfa';
+      h+='<div class="dl-row"><div class="dl-swatch" style="background:'+cor+'"></div><span class="dl-lbl">'+e(d.nivel_lead||'—')+'</span><span class="dl-val" style="color:'+cor+'">'+d.total+'</span></div>';
+    });
+    h+='</div></div>';
+  }
+  h+='</div>';
+  h+='</div>'; // /grid-rank
+
+  // ─ Top Cidades ─
+  h+='<div class="section-row" style="margin-top:8px"><span>Top Cidades</span></div>';
+  h+='<div class="card">';
+  h+='<div class="card-head"><span class="card-title">Conversas por Cidade</span></div>';
+  if(!cidades.length){
+    h+='<div style="color:var(--dim);font-family:var(--mono);font-size:10px;padding:12px 0">— sem dados —</div>';
+  } else {
+    var maxCid=Math.max(1,parseInt(cidades[0].total||1));
+    h+='<div class="funil-visual">';
+    cidades.slice(0,8).forEach(function(c){
+      var pct=Math.round((parseInt(c.total||0)/maxCid)*100);
+      var hPct=parseInt(c.total||0)>0?Math.round(((parseInt(c.handoffs||0))/parseInt(c.total||1))*100):0;
+      h+='<div class="fv-row">';
+      h+='<div class="fv-name">'+e(c.cidade||'—')+'</div>';
+      h+='<div class="fv-bar-track"><div class="fv-bar-fill fv-heat-2" style="width:'+pct+'%"></div></div>';
+      h+='<div class="fv-val" style="color:var(--g2)">'+c.total+'</div>';
+      h+='<div style="font-family:var(--mono);font-size:9px;color:var(--g1);width:32px;text-align:right">'+hPct+'%</div>';
+      h+='</div>';
+    });
+    h+='</div>';
+    h+='<div style="margin-top:8px;font-family:var(--mono);font-size:9px;color:var(--dim)">total · % handoffs</div>';
+  }
+  h+='</div>';
+
+  // ─ Funil & Follow-up ─
+  h+='<div class="section-row" style="margin-top:8px"><span>Funil & Follow-up</span></div>';
+  h+='<div class="grid-rank">';
+
+  // Motivos de handoff
+  h+='<div class="card">';
+  h+='<div class="card-head"><span class="card-title">Motivos de Handoff</span></div>';
+  if(!motivos.length){
+    h+='<div style="color:var(--dim);font-family:var(--mono);font-size:10px;padding:12px 0">— sem dados —</div>';
+  } else {
+    var mMax=Math.max(1,parseInt(motivos[0].total||1));
+    h+='<div style="display:flex;flex-direction:column;gap:8px">';
+    motivos.forEach(function(mv,i){
+      var pct=Math.round((parseInt(mv.total||0)/mMax)*100);
+      h+='<div>';
+      h+='<div style="display:flex;justify-content:space-between;margin-bottom:4px">';
+      h+='<span style="font-size:10px;color:var(--dim2);font-family:var(--mono)">'+e(MOTIVO_LABELS[mv.motivo_handoff]||mv.motivo_handoff||'—')+'</span>';
+      h+='<span style="font-family:var(--mono);font-size:11px;font-weight:700;color:'+COLORS[i%COLORS.length]+'">'+mv.total+'</span>';
+      h+='</div>';
+      h+='<div class="prog-track"><div class="prog-fill" style="width:'+pct+'%;background:'+COLORS[i%COLORS.length]+'"></div></div>';
+      h+='</div>';
+    });
+    h+='</div>';
+  }
+  h+='</div>';
+
+  // Follow-up resumo
+  h+='<div class="card">';
+  h+='<div class="card-head"><span class="card-title">Follow-up</span></div>';
+  var fuRows=[
+    ['Com follow-up',followup.conversas_com_followup||0,'var(--g2)'],
+    ['Enviados',followup.total_followups_enviados||0,'var(--g4)'],
+    ['Convertidos',followup.convertidos_pos_followup||0,'var(--g1)'],
+    ['Frios / Mornos',followup.leads_frios_mornos||0,'var(--dim2)'],
+  ];
+  h+='<div style="display:flex;flex-direction:column;gap:8px">';
+  fuRows.forEach(function(r){
+    h+='<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--s2);border-radius:8px">';
+    h+='<span style="font-size:11px;color:var(--dim2)">'+r[0]+'</span>';
+    h+='<span style="font-family:var(--mono);font-size:15px;font-weight:700;color:'+r[2]+'">'+r[1]+'</span>';
+    h+='</div>';
+  });
+  h+='</div></div>';
+  h+='</div>'; // /grid-rank
+
+  var root=document.getElementById('rn-root');
+  if(root){
+    root.innerHTML=h;
+    if(leadNivel.length){
+      donut('rn-donut-leads',
+        leadNivel.map(function(d){return parseInt(d.total||0);}),
+        ['#c8ff5e','#00d4ff','#ffaa00','#8490b8','#a78bfa']
+      );
+    }
+  }
+}
+
 setInterval(function(){ _force=true; d_load(); }, 5 * 60 * 1000);
 d_load();
 })();
