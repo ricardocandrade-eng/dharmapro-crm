@@ -9,7 +9,7 @@
 
 // â”€â”€ VERSÃƒO / DEPLOY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 //  Atualizado automaticamente pelo salvar_010426_1930.bat a cada deploy
-var DEPLOY_DATE = '20/04/2026 19:07';
+var DEPLOY_DATE = '24/04/2026 9:52:';
 
 // â”€â”€ USUÃRIOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // SENHAS: use o campo senhaHash (SHA-256 em hex). Nunca armazene senha em texto puro.
@@ -52,9 +52,9 @@ var USUARIOS = [
 //                     indicacao, docs, cruzamento, tickets, novaVenda, extrato, config
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 var PERFIS_MENUS = {
-  'admin':      ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads'],
-  'supervisor': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads'],
-  'backoffice': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','config','filaPAP','metaads']
+  'admin':      ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','painelads','disparos'],
+  'supervisor': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','painelads','disparos'],
+  'backoffice': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','config','filaPAP','metaads','painelads','disparos']
 };
 
 var DASHBOARD_CONFIG = {

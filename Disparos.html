@@ -1,0 +1,705 @@
+<!-- dharmapro-crm | Disparos.html | 24/04/2026 16:30
+     View Disparos em Massa — Monitor de Campanhas + Nova Campanha
+     Requer: DisparosAPI.js (listarCampanhasDisparo, listarTemplatesDisparo,
+             criarCampanhaDisparo, atualizarStatusCampanhaDisparo, contarLeadsParaDisparo) -->
+
+<style>
+/* ─── DISPAROS PAGE — CSS escopado em #disparosPage ──────────────────────── */
+#disparosPage {
+  width: 100%; height: 100%; overflow-y: auto;
+  padding: 28px 32px 56px;
+  background: var(--bg, #0d0f14);
+  font-family: 'Sora', sans-serif;
+  color: var(--text, #e4e8f5);
+  box-sizing: border-box;
+}
+#disparosPage * { box-sizing: border-box; }
+
+/* ── Header ── */
+.dp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 24px; gap: 16px; flex-wrap: wrap;
+}
+.dp-title-group .dp-tag {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  color: var(--accent, #e63e6d); letter-spacing: 3px;
+  text-transform: uppercase; display: block; margin-bottom: 4px;
+}
+.dp-title-group h2 { font-size: 22px; font-weight: 800; margin: 0; }
+.dp-header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ── Tabs ── */
+.dp-tabs {
+  display: flex; gap: 0; border-bottom: 1px solid var(--border, #252a3a);
+  margin-bottom: 24px;
+}
+.dp-tab {
+  padding: 10px 20px; font-size: 12px; font-weight: 700;
+  color: var(--muted, #7a82a0); cursor: pointer;
+  border-bottom: 2px solid transparent; transition: all .15s;
+  display: flex; align-items: center; gap: 7px; white-space: nowrap;
+}
+.dp-tab:hover { color: var(--text, #e4e8f5); }
+.dp-tab.ativo { color: var(--accent, #e63e6d); border-bottom-color: var(--accent, #e63e6d); }
+.dp-tab-panel { display: none; }
+.dp-tab-panel.ativo { display: block; }
+
+/* ── Buttons ── */
+.dp-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 700;
+  font-family: 'Sora', sans-serif; cursor: pointer; border: none;
+  transition: all .2s; white-space: nowrap;
+}
+.dp-btn-primary {
+  background: var(--accent, #e63e6d); color: #fff;
+}
+.dp-btn-primary:hover { background: #c9335b; }
+.dp-btn-secondary {
+  background: rgba(230,62,109,.08); border: 1.5px solid rgba(230,62,109,.3);
+  color: var(--accent, #e63e6d);
+}
+.dp-btn-secondary:hover { background: rgba(230,62,109,.16); }
+.dp-btn-ghost {
+  background: var(--surface2, #1c2030); border: 1.5px solid var(--border2, #353d58);
+  color: var(--muted, #7a82a0);
+}
+.dp-btn-ghost:hover { color: var(--text, #e4e8f5); border-color: var(--text, #e4e8f5); }
+.dp-btn:disabled { opacity: .4; cursor: not-allowed; }
+.dp-btn-sm { padding: 5px 10px; font-size: 11px; }
+.dp-btn-green {
+  background: rgba(39,195,119,.1); border: 1.5px solid rgba(39,195,119,.35);
+  color: #27c377;
+}
+.dp-btn-green:hover { background: rgba(39,195,119,.2); }
+.dp-btn-yellow {
+  background: rgba(247,162,59,.1); border: 1.5px solid rgba(247,162,59,.35);
+  color: #f7a23b;
+}
+.dp-btn-yellow:hover { background: rgba(247,162,59,.2); }
+
+/* ── Status badges ── */
+.dp-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 20px;
+  font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 700;
+  letter-spacing: .5px; text-transform: uppercase; white-space: nowrap;
+}
+.dp-badge-draft    { background: rgba(122,130,160,.12); color: var(--muted, #7a82a0); border: 1px solid rgba(122,130,160,.2); }
+.dp-badge-running  { background: rgba(39,195,119,.12); color: #27c377; border: 1px solid rgba(39,195,119,.25); }
+.dp-badge-paused   { background: rgba(247,162,59,.12); color: #f7a23b; border: 1px solid rgba(247,162,59,.25); }
+.dp-badge-completed{ background: rgba(99,120,230,.12); color: #6378e6; border: 1px solid rgba(99,120,230,.25); }
+.dp-badge-cancelled{ background: rgba(230,62,109,.12); color: var(--accent,#e63e6d); border: 1px solid rgba(230,62,109,.2); }
+.dp-badge-green    { background: rgba(39,195,119,.12); color: #27c377; border: 1px solid rgba(39,195,119,.25); }
+.dp-badge-yellow   { background: rgba(247,162,59,.12); color: #f7a23b; border: 1px solid rgba(247,162,59,.25); }
+.dp-badge-red      { background: rgba(230,62,109,.12); color: var(--accent,#e63e6d); border: 1px solid rgba(230,62,109,.2); }
+
+/* ── Cards de resumo ── */
+.dp-stats-row {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  margin-bottom: 24px;
+}
+.dp-stat-card {
+  background: var(--surface, #141720); border: 1px solid var(--border, #252a3a);
+  border-radius: 12px; padding: 16px 20px;
+}
+.dp-stat-label {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--muted, #7a82a0); margin-bottom: 6px;
+}
+.dp-stat-value { font-size: 26px; font-weight: 800; }
+.dp-stat-value.green { color: #27c377; }
+.dp-stat-value.yellow { color: #f7a23b; }
+.dp-stat-value.accent { color: var(--accent, #e63e6d); }
+.dp-stat-sub { font-size: 11px; color: var(--muted, #7a82a0); margin-top: 3px; }
+
+/* ── Table ── */
+.dp-table-wrap {
+  background: var(--surface, #141720); border: 1px solid var(--border, #252a3a);
+  border-radius: 12px; overflow: hidden;
+}
+.dp-table-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid var(--border, #252a3a);
+  gap: 12px; flex-wrap: wrap;
+}
+.dp-table-toolbar-title {
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--muted, #7a82a0);
+}
+.dp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.dp-table th {
+  padding: 10px 14px; text-align: left; font-size: 9px; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--muted, #7a82a0); font-weight: 700;
+  font-family: 'DM Mono', monospace; border-bottom: 1px solid var(--border, #252a3a);
+  white-space: nowrap;
+}
+.dp-table td {
+  padding: 12px 14px; border-bottom: 1px solid rgba(37,42,58,.5);
+  vertical-align: middle;
+}
+.dp-table tr:last-child td { border-bottom: none; }
+.dp-table tr:hover td { background: rgba(255,255,255,.015); }
+.dp-table td.dp-name-cell { font-weight: 700; max-width: 200px; }
+.dp-table td.dp-name-cell .dp-camp-name {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 190px; display: block;
+}
+.dp-table td.dp-name-cell .dp-camp-tmpl {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  color: var(--muted, #7a82a0); margin-top: 2px;
+}
+.dp-metric { text-align: right; font-family: 'DM Mono', monospace; }
+.dp-metric .dp-m-val { font-weight: 700; font-size: 13px; }
+.dp-metric .dp-m-pct { font-size: 10px; color: var(--muted, #7a82a0); }
+.dp-actions-cell { white-space: nowrap; }
+
+/* ── Progress bar inline ── */
+.dp-prog-wrap {
+  display: flex; flex-direction: column; gap: 2px; min-width: 90px;
+}
+.dp-prog-bar {
+  height: 4px; background: var(--surface2, #1c2030);
+  border-radius: 2px; overflow: hidden;
+}
+.dp-prog-fill { height: 100%; border-radius: 2px; transition: width .3s; }
+.dp-prog-fill.running { background: #27c377; }
+.dp-prog-fill.paused  { background: #f7a23b; }
+.dp-prog-fill.completed { background: #6378e6; }
+.dp-prog-fill.draft   { background: var(--muted, #7a82a0); }
+.dp-prog-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted, #7a82a0); }
+
+/* ── Empty/loading states ── */
+.dp-empty, .dp-loading {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 300px; gap: 14px; text-align: center;
+}
+.dp-empty-icon { font-size: 48px; opacity: .5; }
+.dp-empty h3 { font-size: 16px; font-weight: 700; margin: 0; }
+.dp-empty p { color: var(--muted, #7a82a0); font-size: 13px; margin: 0; }
+.dp-spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border2, #353d58);
+  border-top-color: var(--accent, #e63e6d);
+  border-radius: 50%; animation: dpSpin .8s linear infinite;
+}
+@keyframes dpSpin { to { transform: rotate(360deg); } }
+.dp-loading p { color: var(--muted, #7a82a0); font-family: 'DM Mono', monospace; font-size: 13px; }
+
+/* ── Notificação inline ── */
+.dp-toast {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: 10px; font-size: 13px;
+  margin-bottom: 16px; animation: dpToastIn .2s ease;
+}
+@keyframes dpToastIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.dp-toast-ok   { background: rgba(39,195,119,.1); border: 1px solid rgba(39,195,119,.25); color: #27c377; }
+.dp-toast-err  { background: rgba(230,62,109,.1); border: 1px solid rgba(230,62,109,.25); color: var(--accent,#e63e6d); }
+.dp-toast-info { background: rgba(99,120,230,.1); border: 1px solid rgba(99,120,230,.25); color: #6378e6; }
+
+/* ── NOVA CAMPANHA — Formulário ── */
+.dp-form-wrap {
+  max-width: 580px;
+}
+.dp-form-section {
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .25em;
+  text-transform: uppercase; color: var(--muted, #7a82a0);
+  margin: 28px 0 14px; display: flex; align-items: center; gap: 10px;
+}
+.dp-form-section::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--border, #252a3a) 0%, transparent 100%);
+}
+.dp-field { margin-bottom: 16px; }
+.dp-label {
+  display: block; font-size: 11px; font-weight: 700;
+  color: var(--muted, #7a82a0); margin-bottom: 7px; letter-spacing: .03em;
+}
+.dp-input, .dp-select {
+  width: 100%; padding: 10px 14px;
+  background: var(--surface2, #1c2030); border: 1.5px solid var(--border2, #353d58);
+  color: var(--text, #e4e8f5); border-radius: 9px;
+  font-family: 'Sora', sans-serif; font-size: 13px; outline: none;
+  transition: border-color .15s;
+}
+.dp-input:focus, .dp-select:focus { border-color: var(--accent, #e63e6d); }
+.dp-input::placeholder { color: var(--muted, #7a82a0); }
+.dp-select option { background: #1c2030; }
+
+/* ── Preview de leads ── */
+.dp-leads-preview {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-radius: 9px; margin-top: 8px;
+  background: var(--surface, #141720); border: 1px solid var(--border, #252a3a);
+}
+.dp-leads-preview .dp-leads-count {
+  font-family: 'DM Mono', monospace; font-size: 18px; font-weight: 800;
+  color: var(--accent, #e63e6d);
+}
+.dp-leads-preview .dp-leads-label { font-size: 12px; color: var(--muted, #7a82a0); }
+.dp-leads-preview .dp-leads-spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--border2, #353d58);
+  border-top-color: var(--accent, #e63e6d);
+  border-radius: 50%; animation: dpSpin .8s linear infinite;
+}
+
+/* ── Template card preview ── */
+.dp-tmpl-preview {
+  margin-top: 8px; padding: 12px 16px;
+  background: var(--surface, #141720); border: 1px solid var(--border, #252a3a);
+  border-radius: 9px; display: none;
+}
+.dp-tmpl-preview.visivel { display: block; }
+.dp-tmpl-preview-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.dp-tmpl-preview-name { font-size: 12px; font-weight: 700; }
+.dp-tmpl-preview-cat  { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted,#7a82a0); }
+</style>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- ESTRUTURA HTML                                                     -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="disparosPage">
+
+  <!-- Header -->
+  <div class="dp-header">
+    <div class="dp-title-group">
+      <span class="dp-tag">WhatsApp · Disparo em Massa</span>
+      <h2>Campanhas de Disparo</h2>
+    </div>
+    <div class="dp-header-actions">
+      <button class="dp-btn dp-btn-ghost" onclick="dpAtualizarMonitor()">↺ Atualizar</button>
+      <button class="dp-btn dp-btn-primary" onclick="dpIrParaNovaCampanha()">＋ Nova Campanha</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="dp-tabs">
+    <div class="dp-tab ativo" id="dpTabMonitor" onclick="dpMudarTab('monitor')">📋 Monitor</div>
+    <div class="dp-tab" id="dpTabNova"    onclick="dpMudarTab('nova')">🚀 Nova Campanha</div>
+  </div>
+
+  <!-- ── ABA: MONITOR ─────────────────────────────────────────── -->
+  <div id="dpPanelMonitor" class="dp-tab-panel ativo">
+
+    <!-- Notificação -->
+    <div id="dpToastMonitor" style="display:none"></div>
+
+    <!-- Stats row -->
+    <div class="dp-stats-row" id="dpStatsRow">
+      <div class="dp-stat-card">
+        <div class="dp-stat-label">Total de Campanhas</div>
+        <div class="dp-stat-value" id="dpStatTotal">—</div>
+      </div>
+      <div class="dp-stat-card">
+        <div class="dp-stat-label">Em Execução</div>
+        <div class="dp-stat-value green" id="dpStatRunning">—</div>
+      </div>
+      <div class="dp-stat-card">
+        <div class="dp-stat-label">Pausadas</div>
+        <div class="dp-stat-value yellow" id="dpStatPaused">—</div>
+      </div>
+      <div class="dp-stat-card">
+        <div class="dp-stat-label">Concluídas</div>
+        <div class="dp-stat-value" style="color:#6378e6" id="dpStatCompleted">—</div>
+      </div>
+    </div>
+
+    <!-- Tabela de campanhas -->
+    <div class="dp-table-wrap">
+      <div class="dp-table-toolbar">
+        <span class="dp-table-toolbar-title">Campanhas (últimas 50)</span>
+        <span id="dpLastUpdate" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)"></span>
+      </div>
+      <div id="dpTabelaCampanhasWrap">
+        <div class="dp-loading">
+          <div class="dp-spinner"></div>
+          <p>Carregando campanhas…</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ABA: NOVA CAMPANHA ──────────────────────────────────── -->
+  <div id="dpPanelNova" class="dp-tab-panel">
+
+    <!-- Notificação -->
+    <div id="dpToastNova" style="display:none"></div>
+
+    <div class="dp-form-wrap">
+      <div class="dp-form-section">Configurar Campanha</div>
+
+      <!-- Nome -->
+      <div class="dp-field">
+        <label class="dp-label" for="dpNomeCampanha">Nome da campanha</label>
+        <input id="dpNomeCampanha" class="dp-input" type="text"
+               placeholder="Ex.: Leads inativos — Abril 2026" maxlength="100"
+               oninput="dpValidarFormCampanha()">
+      </div>
+
+      <!-- Template -->
+      <div class="dp-field">
+        <label class="dp-label" for="dpSelectTemplate">Template WhatsApp</label>
+        <select id="dpSelectTemplate" class="dp-select"
+                onchange="dpAoMudarTemplate()">
+          <option value="">— Selecione um template —</option>
+        </select>
+        <div class="dp-tmpl-preview" id="dpTmplPreview">
+          <div class="dp-tmpl-preview-row">
+            <span class="dp-tmpl-preview-name" id="dpTmplNome"></span>
+            <span id="dpTmplQuality"></span>
+            <span class="dp-tmpl-preview-cat" id="dpTmplCat"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Público -->
+      <div class="dp-form-section">Segmentação do Público</div>
+
+      <div class="dp-field">
+        <label class="dp-label" for="dpSelectFiltro">Público-alvo</label>
+        <select id="dpSelectFiltro" class="dp-select"
+                onchange="dpContarLeads()">
+          <option value="todos">Todos os leads com WhatsApp</option>
+          <option value="sem_resposta_7d">Sem resposta há mais de 7 dias</option>
+          <option value="sem_resposta_30d">Sem resposta há mais de 30 dias</option>
+          <option value="sem_venda">Sem venda concluída</option>
+        </select>
+
+        <div class="dp-leads-preview" id="dpLeadsPreview">
+          <div class="dp-leads-spinner" id="dpLeadsSpinner" style="display:none"></div>
+          <span class="dp-leads-count" id="dpLeadsCount">—</span>
+          <span class="dp-leads-label">leads serão incluídos</span>
+        </div>
+      </div>
+
+      <!-- Resumo antes de criar -->
+      <div class="dp-form-section">Criar Campanha</div>
+      <p style="font-size:12px;color:var(--muted,#7a82a0);line-height:1.6;margin-bottom:16px;">
+        A campanha será criada com status <strong style="color:var(--text)">rascunho (draft)</strong>.
+        Para iniciar o disparo, volte ao <strong style="color:var(--text)">Monitor</strong> e clique em <strong style="color:#27c377">▶ Iniciar</strong>.
+      </p>
+
+      <button id="dpBtnCriar" class="dp-btn dp-btn-primary" onclick="dpCriarCampanha()" disabled>
+        ＋ Criar Campanha
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- JAVASCRIPT                                                         -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<script>
+// ── Estado ──────────────────────────────────────────────────────────
+var _dp = {
+  campanhas:  [],
+  templates:  [],
+  tabAtual:   'monitor',
+  criando:    false,
+  contando:   false,
+};
+
+// ── Inicialização (chamada pelo JS.html após injetar o HTML) ─────────
+function disparosInit() {
+  dpCarregarTemplates();
+  dpCarregarCampanhas();
+  dpContarLeads();
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────────
+function dpMudarTab(tab) {
+  _dp.tabAtual = tab;
+  ['monitor','nova'].forEach(function(t) {
+    var btn = document.getElementById('dpTab' + (t === 'monitor' ? 'Monitor' : 'Nova'));
+    var pnl = document.getElementById('dpPanel' + (t === 'monitor' ? 'Monitor' : 'Nova'));
+    if (!btn || !pnl) return;
+    if (t === tab) { btn.classList.add('ativo'); pnl.classList.add('ativo'); }
+    else           { btn.classList.remove('ativo'); pnl.classList.remove('ativo'); }
+  });
+}
+
+function dpIrParaNovaCampanha() { dpMudarTab('nova'); }
+
+// ── Carregar campanhas ────────────────────────────────────────────────
+function dpCarregarCampanhas() {
+  var wrap = document.getElementById('dpTabelaCampanhasWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="dp-loading"><div class="dp-spinner"></div><p>Carregando campanhas…</p></div>';
+
+  google.script.run
+    .withSuccessHandler(function(lista) {
+      _dp.campanhas = lista || [];
+      dpRenderCampanhas();
+    })
+    .withFailureHandler(function(e) {
+      wrap.innerHTML = '<div class="dp-empty"><div class="dp-empty-icon">⚠</div>' +
+        '<h3>Erro ao carregar</h3><p>' + (e.message || String(e)) + '</p></div>';
+    })
+    .listarCampanhasDisparo();
+}
+
+function dpAtualizarMonitor() {
+  dpCarregarCampanhas();
+}
+
+function dpRenderCampanhas() {
+  var lista = _dp.campanhas;
+  var wrap  = document.getElementById('dpTabelaCampanhasWrap');
+  if (!wrap) return;
+
+  // Atualizar stats
+  var stats = { total: lista.length, running: 0, paused: 0, completed: 0 };
+  lista.forEach(function(c) {
+    if (c.status === 'running')   stats.running++;
+    if (c.status === 'paused')    stats.paused++;
+    if (c.status === 'completed') stats.completed++;
+  });
+  var el = function(id, v) { var e = document.getElementById(id); if (e) e.textContent = v; };
+  el('dpStatTotal',     stats.total);
+  el('dpStatRunning',   stats.running);
+  el('dpStatPaused',    stats.paused);
+  el('dpStatCompleted', stats.completed);
+  var upd = document.getElementById('dpLastUpdate');
+  if (upd) upd.textContent = 'Atualizado ' + dpHora();
+
+  if (lista.length === 0) {
+    wrap.innerHTML = '<div class="dp-empty">' +
+      '<div class="dp-empty-icon">📭</div>' +
+      '<h3>Nenhuma campanha ainda</h3>' +
+      '<p>Clique em <strong>Nova Campanha</strong> para começar.</p></div>';
+    return;
+  }
+
+  var rows = lista.map(function(c) {
+    var pct  = c.total_recipients > 0 ? Math.round((c.sent_count / c.total_recipients) * 100) : 0;
+    var badge = dpStatusBadge(c.status);
+    var tmplBadge = c.template_quality ? dpQualityBadge(c.template_quality) : '';
+    var acoes = dpAcoes(c);
+    return '<tr>' +
+      '<td class="dp-name-cell">' +
+        '<span class="dp-camp-name" title="' + dpEsc(c.name) + '">' + dpEsc(c.name) + '</span>' +
+        '<span class="dp-camp-tmpl">' + dpEsc(c.template_name || '—') + ' ' + tmplBadge + '</span>' +
+      '</td>' +
+      '<td>' + badge + '</td>' +
+      '<td>' +
+        '<div class="dp-prog-wrap">' +
+          '<div class="dp-prog-bar"><div class="dp-prog-fill ' + c.status + '" style="width:' + pct + '%"></div></div>' +
+          '<span class="dp-prog-label">' + dpNum(c.sent_count) + ' / ' + dpNum(c.total_recipients) + '</span>' +
+        '</div>' +
+      '</td>' +
+      '<td class="dp-metric"><div class="dp-m-val">' + dpNum(c.delivered_count) + '</div><div class="dp-m-pct">' + (c.delivery_rate_pct || 0) + '%</div></td>' +
+      '<td class="dp-metric"><div class="dp-m-val">' + dpNum(c.read_count) + '</div><div class="dp-m-pct">' + (c.read_rate_pct || 0) + '%</div></td>' +
+      '<td class="dp-metric"><div class="dp-m-val" style="color:var(--accent)">' + dpNum(c.failed_count) + '</div><div class="dp-m-pct">' + (c.fail_rate_pct || 0) + '%</div></td>' +
+      '<td style="font-family:\'DM Mono\',monospace;font-size:10px;color:var(--muted)">' + dpDataCurta(c.updated_at) + '</td>' +
+      '<td class="dp-actions-cell">' + acoes + '</td>' +
+    '</tr>';
+  }).join('');
+
+  wrap.innerHTML =
+    '<table class="dp-table">' +
+    '<thead><tr>' +
+      '<th>Campanha / Template</th>' +
+      '<th>Status</th>' +
+      '<th>Progresso</th>' +
+      '<th style="text-align:right">Entregues</th>' +
+      '<th style="text-align:right">Lidas</th>' +
+      '<th style="text-align:right">Falhas</th>' +
+      '<th>Atualizado</th>' +
+      '<th>Ações</th>' +
+    '</tr></thead>' +
+    '<tbody>' + rows + '</tbody>' +
+    '</table>';
+}
+
+// ── Ações de campanha ─────────────────────────────────────────────────
+function dpAcoes(c) {
+  var btns = '';
+  if (c.status === 'draft' || c.status === 'paused') {
+    btns += '<button class="dp-btn dp-btn-sm dp-btn-green" onclick="dpMudarStatus(\'' + c.id + '\',\'running\')" title="Iniciar campanha">▶ Iniciar</button> ';
+  }
+  if (c.status === 'running') {
+    btns += '<button class="dp-btn dp-btn-sm dp-btn-yellow" onclick="dpMudarStatus(\'' + c.id + '\',\'paused\')" title="Pausar campanha">⏸ Pausar</button> ';
+  }
+  return btns || '<span style="color:var(--muted);font-size:11px">—</span>';
+}
+
+function dpMudarStatus(id, novoStatus) {
+  var label = novoStatus === 'running' ? 'iniciando' : 'pausando';
+  dpShowToast('monitor', 'info', '⏳ ' + label.charAt(0).toUpperCase() + label.slice(1) + ' campanha…');
+
+  google.script.run
+    .withSuccessHandler(function() {
+      dpShowToast('monitor', 'ok', '✓ Campanha ' + (novoStatus === 'running' ? 'iniciada' : 'pausada') + ' com sucesso.');
+      dpCarregarCampanhas();
+    })
+    .withFailureHandler(function(e) {
+      dpShowToast('monitor', 'err', '✗ Erro: ' + (e.message || String(e)));
+    })
+    .atualizarStatusCampanhaDisparo(id, novoStatus);
+}
+
+// ── Carregar templates (para o formulário) ───────────────────────────
+function dpCarregarTemplates() {
+  var sel = document.getElementById('dpSelectTemplate');
+  if (!sel) return;
+
+  google.script.run
+    .withSuccessHandler(function(lista) {
+      _dp.templates = lista || [];
+      sel.innerHTML = '<option value="">— Selecione um template —</option>';
+      lista.forEach(function(t) {
+        var paused = t.is_paused ? ' ⚠ pausado' : '';
+        sel.innerHTML += '<option value="' + t.id + '" data-name="' + dpEsc(t.meta_template_name) +
+          '" data-quality="' + (t.quality||'') + '" data-cat="' + (t.category||'') + '">' +
+          t.meta_template_name + paused + '</option>';
+      });
+    })
+    .withFailureHandler(function() { /* silencioso */ })
+    .listarTemplatesDisparo();
+}
+
+function dpAoMudarTemplate() {
+  var sel  = document.getElementById('dpSelectTemplate');
+  var prev = document.getElementById('dpTmplPreview');
+  if (!sel || !prev) return;
+  var opt  = sel.options[sel.selectedIndex];
+  if (!opt || !opt.value) { prev.classList.remove('visivel'); dpValidarFormCampanha(); return; }
+
+  var nome    = opt.getAttribute('data-name') || opt.text;
+  var quality = opt.getAttribute('data-quality') || '';
+  var cat     = opt.getAttribute('data-cat') || '';
+
+  var nomeEl = document.getElementById('dpTmplNome');
+  var qualEl = document.getElementById('dpTmplQuality');
+  var catEl  = document.getElementById('dpTmplCat');
+  if (nomeEl) nomeEl.textContent = nome;
+  if (qualEl) qualEl.innerHTML   = quality ? dpQualityBadge(quality) : '';
+  if (catEl)  catEl.textContent  = cat;
+  prev.classList.add('visivel');
+  dpValidarFormCampanha();
+}
+
+// ── Contar leads ──────────────────────────────────────────────────────
+function dpContarLeads() {
+  if (_dp.contando) return;
+  _dp.contando = true;
+  var filtro   = (document.getElementById('dpSelectFiltro') || {}).value || 'todos';
+  var countEl  = document.getElementById('dpLeadsCount');
+  var spinEl   = document.getElementById('dpLeadsSpinner');
+  if (countEl) countEl.textContent = '…';
+  if (spinEl)  spinEl.style.display = 'block';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _dp.contando = false;
+      if (countEl) countEl.textContent = dpNum(res.total);
+      if (spinEl)  spinEl.style.display = 'none';
+      dpValidarFormCampanha();
+    })
+    .withFailureHandler(function() {
+      _dp.contando = false;
+      if (countEl) countEl.textContent = '?';
+      if (spinEl)  spinEl.style.display = 'none';
+    })
+    .contarLeadsParaDisparo(filtro);
+}
+
+// ── Validar e criar campanha ─────────────────────────────────────────
+function dpValidarFormCampanha() {
+  var nome  = (document.getElementById('dpNomeCampanha') || {}).value || '';
+  var tmpl  = (document.getElementById('dpSelectTemplate') || {}).value || '';
+  var btn   = document.getElementById('dpBtnCriar');
+  if (btn) btn.disabled = !(nome.trim().length > 2 && tmpl);
+}
+
+function dpCriarCampanha() {
+  if (_dp.criando) return;
+  var nome   = (document.getElementById('dpNomeCampanha')   || {}).value || '';
+  var tmplId = (document.getElementById('dpSelectTemplate') || {}).value || '';
+  var filtro = (document.getElementById('dpSelectFiltro')   || {}).value || 'todos';
+
+  if (!nome.trim() || !tmplId) {
+    dpShowToast('nova', 'err', '✗ Preencha o nome e selecione um template.');
+    return;
+  }
+
+  _dp.criando = true;
+  var btn = document.getElementById('dpBtnCriar');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Criando…'; }
+  dpShowToast('nova', 'info', '⏳ Criando campanha e populando destinatários…');
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _dp.criando = false;
+      if (btn) { btn.disabled = false; btn.textContent = '＋ Criar Campanha'; }
+      if (!res.sucesso) {
+        dpShowToast('nova', 'err', '✗ ' + (res.erro || 'Erro desconhecido.'));
+        return;
+      }
+      dpShowToast('nova', 'ok',
+        '✓ Campanha criada com ' + dpNum(res.total) + ' destinatários. Vá ao Monitor para iniciá-la.');
+      // Limpar formulário
+      var ni = document.getElementById('dpNomeCampanha');
+      var si = document.getElementById('dpSelectTemplate');
+      var sf = document.getElementById('dpSelectFiltro');
+      if (ni) ni.value = '';
+      if (si) { si.value = ''; dpAoMudarTemplate(); }
+      if (sf) sf.value = 'todos';
+      dpValidarFormCampanha();
+      dpContarLeads();
+      // Ir pro monitor e recarregar
+      setTimeout(function() {
+        dpMudarTab('monitor');
+        dpCarregarCampanhas();
+      }, 1500);
+    })
+    .withFailureHandler(function(e) {
+      _dp.criando = false;
+      if (btn) { btn.disabled = false; btn.textContent = '＋ Criar Campanha'; }
+      dpShowToast('nova', 'err', '✗ ' + (e.message || String(e)));
+    })
+    .criarCampanhaDisparo({ nome: nome.trim(), templateId: tmplId, filtro: filtro });
+}
+
+// ── Helpers de UI ─────────────────────────────────────────────────────
+function dpShowToast(area, tipo, msg) {
+  var id = 'dpToast' + (area === 'monitor' ? 'Monitor' : 'Nova');
+  var el = document.getElementById(id);
+  if (!el) return;
+  var cls = tipo === 'ok' ? 'dp-toast-ok' : tipo === 'err' ? 'dp-toast-err' : 'dp-toast-info';
+  el.className = 'dp-toast ' + cls;
+  el.textContent = msg;
+  el.style.display = 'flex';
+  if (tipo !== 'info') {
+    clearTimeout(el._timer);
+    el._timer = setTimeout(function() { el.style.display = 'none'; }, 5000);
+  }
+}
+
+function dpStatusBadge(status) {
+  var labels = { draft: 'Rascunho', running: 'Executando', paused: 'Pausada', completed: 'Concluída', cancelled: 'Cancelada' };
+  var dots   = { running: '● ', paused: '● ', draft: '', completed: '', cancelled: '' };
+  return '<span class="dp-badge dp-badge-' + status + '">' + (dots[status]||'') + (labels[status]||status) + '</span>';
+}
+
+function dpQualityBadge(q) {
+  var cls = q === 'GREEN' ? 'green' : q === 'YELLOW' ? 'yellow' : q === 'RED' ? 'red' : 'draft';
+  return '<span class="dp-badge dp-badge-' + cls + '">' + q + '</span>';
+}
+
+function dpNum(v) { return v == null ? '0' : Number(v).toLocaleString('pt-BR'); }
+function dpEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+function dpHora() {
+  var d = new Date();
+  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+function dpDataCurta(iso) {
+  if (!iso) return '—';
+  try {
+    var d = new Date(iso);
+    return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) + ' ' +
+           d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+  } catch(e) { return '—'; }
+}
+</script>

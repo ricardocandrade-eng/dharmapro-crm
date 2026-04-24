@@ -1005,6 +1005,17 @@ function _papTemPreVendaNova(res) {
   return String(pv.id) !== String(seenId || '');
 }
 
+function _lmaAtualizarBadge(n) {
+  var badge = document.getElementById('badgeLeadsMetaAds');
+  if (!badge) return;
+  if (n > 0) {
+    badge.textContent = n;
+    badge.classList.add('visivel', 'pulsar');
+  } else {
+    badge.classList.remove('visivel', 'pulsar');
+  }
+}
+
 function _papAtualizarMenuFila(res) {
   var total = (res && res.total) ? res.total : 0;
   var badge = document.getElementById('badgeFilaPAP');
@@ -1158,8 +1169,18 @@ function fazerLogin() {
         }
 
         AppState.set('perfil', res.perfil || 'backoffice');
+        var roleEl = document.getElementById('userRole');
+        if (roleEl) {
+          var _rl = { admin: 'Admin', supervisor: 'Supervisor', backoffice: 'Backoffice' };
+          roleEl.textContent = _rl[res.perfil] || (res.perfil || 'Operador');
+        }
         _aplicarMenus(res.menus || []);
         _carregarResponsaveis();
+        // Badge pendentes Leads Meta Ads
+        google.script.run
+          .withSuccessHandler(function(n) { _lmaAtualizarBadge(n); })
+          .withFailureHandler(function() {})
+          .contarLeadsMetaAdsPendentes();
 
         // ─── Salva sessão para auto-login no F5 (nunca armazena a senha) ──
         try {
@@ -1285,7 +1306,7 @@ function confirmarAlteracaoSenha() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -1301,7 +1322,8 @@ var _menuMap = {
   'cruzamento':  'menuCruzamento',
   'tickets':     'menuTickets',
   'extrato':     'menuExtrato',
-  'config':      'menuConfig'
+  'config':      'menuConfig',
+  'disparos':    'menuDisparos'
 };
 
 function _aplicarMenus(menus) {
@@ -1410,6 +1432,29 @@ function navegar(pagina) {
     document.getElementById('pageLeadsMetaAds').classList.add('ativa');
     document.getElementById('breadcrumbTexto').textContent = 'Leads Meta Ads';
     carregarLeadsMetaAds();
+
+  } else if (pagina === 'painelads') {
+    document.getElementById('menuPainelAds').classList.add('ativo');
+    document.getElementById('pagePainelAds').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Painel Ads';
+    var pac = document.getElementById('painelAdsContainer');
+    if (!pac.getAttribute('data-loaded')) {
+      pac.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          pac.innerHTML = html;
+          pac.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+          if (typeof paInit === 'function') paInit();
+        })
+        .withFailureHandler(function(e) {
+          pac.innerHTML = '<div style="padding:40px;text-align:center;color:#ff4570;font-family:monospace">Erro ao carregar Painel Ads: ' + e.message + '</div>';
+        })
+        .getPainelAdsHtml();
+    }
 
   } else if (pagina === 'indicacao') {
     document.getElementById('menuIndicacoes').classList.add('ativo');
@@ -1535,6 +1580,29 @@ function navegar(pagina) {
     } else {
       // Já carregado — recarrega a lista ao voltar para a página
       if (typeof fpRecarregar === 'function') fpRecarregar();
+    }
+
+  } else if (pagina === 'disparos') {
+    document.getElementById('menuDisparos').classList.add('ativo');
+    document.getElementById('pageDisparos').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Disparos em Massa';
+    var dpc = document.getElementById('disparosContainer');
+    if (!dpc.getAttribute('data-loaded')) {
+      dpc.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          dpc.innerHTML = html;
+          dpc.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+          if (typeof disparosInit === 'function') disparosInit();
+        })
+        .withFailureHandler(function(e) {
+          dpc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Disparos: ' + e.message + '</div>';
+        })
+        .getDisparosHtml();
     }
   }
 }
@@ -6245,8 +6313,18 @@ function fazerLogin() {
         }
 
         AppState.set('perfil', res.perfil || 'backoffice');
+        var roleEl = document.getElementById('userRole');
+        if (roleEl) {
+          var _rl = { admin: 'Admin', supervisor: 'Supervisor', backoffice: 'Backoffice' };
+          roleEl.textContent = _rl[res.perfil] || (res.perfil || 'Operador');
+        }
         _aplicarMenus(res.menus || []);
         _carregarResponsaveis();
+        // Badge pendentes Leads Meta Ads
+        google.script.run
+          .withSuccessHandler(function(n) { _lmaAtualizarBadge(n); })
+          .withFailureHandler(function() {})
+          .contarLeadsMetaAdsPendentes();
 
         // ─── Salva sessão para auto-login no F5 (nunca armazena a senha) ──
         try {
@@ -6327,7 +6405,7 @@ function _resetarTimerInatividade() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -6343,7 +6421,8 @@ var _menuMap = {
   'cruzamento':  'menuCruzamento',
   'tickets':     'menuTickets',
   'extrato':     'menuExtrato',
-  'config':      'menuConfig'
+  'config':      'menuConfig',
+  'disparos':    'menuDisparos'
 };
 
 function _aplicarMenus(menus) {
@@ -6452,6 +6531,29 @@ function navegar(pagina) {
     document.getElementById('pageLeadsMetaAds').classList.add('ativa');
     document.getElementById('breadcrumbTexto').textContent = 'Leads Meta Ads';
     carregarLeadsMetaAds();
+
+  } else if (pagina === 'painelads') {
+    document.getElementById('menuPainelAds').classList.add('ativo');
+    document.getElementById('pagePainelAds').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Painel Ads';
+    var pac = document.getElementById('painelAdsContainer');
+    if (!pac.getAttribute('data-loaded')) {
+      pac.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          pac.innerHTML = html;
+          pac.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+          if (typeof paInit === 'function') paInit();
+        })
+        .withFailureHandler(function(e) {
+          pac.innerHTML = '<div style="padding:40px;text-align:center;color:#ff4570;font-family:monospace">Erro ao carregar Painel Ads: ' + e.message + '</div>';
+        })
+        .getPainelAdsHtml();
+    }
 
   } else if (pagina === 'indicacao') {
     document.getElementById('menuIndicacoes').classList.add('ativo');
@@ -6577,6 +6679,29 @@ function navegar(pagina) {
     } else {
       // Já carregado — recarrega a lista ao voltar para a página
       if (typeof fpRecarregar === 'function') fpRecarregar();
+    }
+
+  } else if (pagina === 'disparos') {
+    document.getElementById('menuDisparos').classList.add('ativo');
+    document.getElementById('pageDisparos').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Disparos em Massa';
+    var dpc = document.getElementById('disparosContainer');
+    if (!dpc.getAttribute('data-loaded')) {
+      dpc.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          dpc.innerHTML = html;
+          dpc.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+          if (typeof disparosInit === 'function') disparosInit();
+        })
+        .withFailureHandler(function(e) {
+          dpc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Disparos: ' + e.message + '</div>';
+        })
+        .getDisparosHtml();
     }
   }
 }
