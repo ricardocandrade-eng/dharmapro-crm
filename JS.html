@@ -4792,6 +4792,7 @@ function _atualizarSinoPorFunil() {
             sub:        dias + ' dia' + (dias !== 1 ? 's' : '') + ' em atraso' +
                         (v.resp ? ' · ' + v.resp : ''),
             severidade: dias >= 7 ? 'critico' : 'atencao',
+            destino:    'funil',
             lido:       false
           });
         }
@@ -4811,6 +4812,7 @@ function _atualizarSinoPorFunil() {
             titulo:     (v.cliente || 'Cliente') + ' — Pendência Vero',
             sub:        dias2 + ' dia' + (dias2 !== 1 ? 's' : '') + ' aguardando Vero',
             severidade: dias2 >= 7 ? 'critico' : 'atencao',
+            destino:    'funil',
             lido:       false
           });
         }
@@ -10449,27 +10451,11 @@ function _renderizarAlertas(naoLidos) {
   }).join('');
 }
 
-/** Abre/fecha o dropdown do sino. Marca alertas como lidos ao abrir. */
+/** Abre/fecha o dropdown do sino. Não marca como lido — badge permanece até Limpar. */
 function tktToggleNotifDropdown() {
   var drop = document.getElementById('notifDropdown');
   if (!drop) return;
-
-  var abrindo = !drop.classList.contains('aberto');
   drop.classList.toggle('aberto');
-
-  if (abrindo) {
-    var naoLidos = _sinoAlertas.filter(function(a) { return !a.lido; });
-    if (naoLidos.length > 0) {
-      var ids = naoLidos.map(function(a) { return a.id; });
-      google.script.run
-        .withSuccessHandler(function() {
-          _sinoAlertas.forEach(function(a) { a.lido = true; });
-          _renderizarAlertas(0);
-        })
-        .withFailureHandler(function() {})
-        .marcarAlertasLidos(_sinoGetUsuario(), ids);
-    }
-  }
 }
 
 /** Marca todos os alertas como lidos e fecha o dropdown. */
@@ -10487,19 +10473,30 @@ function tktLimparNotifs() {
     .marcarAlertasLidos(_sinoGetUsuario(), ids);
 }
 
-/** Marca um alerta específico como lido pelo ID. */
+/** Marca um alerta como lido, navega para a tela correspondente e fecha o dropdown. */
 function tktMarcarAlertaLido(id) {
   var alerta = null;
   for (var i = 0; i < _sinoAlertas.length; i++) {
     if (_sinoAlertas[i].id === id) { alerta = _sinoAlertas[i]; break; }
   }
-  if (!alerta || alerta.lido) return;
-  alerta.lido = true;
-  var naoLidos = _sinoAlertas.filter(function(a) { return !a.lido; }).length;
-  _renderizarAlertas(naoLidos);
-  google.script.run
-    .withFailureHandler(function() {})
-    .marcarAlertasLidos(_sinoGetUsuario(), [id]);
+  if (!alerta) return;
+
+  // Fecha o dropdown
+  var drop = document.getElementById('notifDropdown');
+  if (drop) drop.classList.remove('aberto');
+
+  // Navega para a tela do alerta
+  if (alerta.destino) navegar(alerta.destino);
+
+  // Marca como lido (mesmo que já estivesse, para atualizar a lista)
+  if (!alerta.lido) {
+    alerta.lido = true;
+    var naoLidos = _sinoAlertas.filter(function(a) { return !a.lido; }).length;
+    _renderizarAlertas(naoLidos);
+    google.script.run
+      .withFailureHandler(function() {})
+      .marcarAlertasLidos(_sinoGetUsuario(), [id]);
+  }
 }
 
 </script>

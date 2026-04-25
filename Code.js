@@ -5410,7 +5410,8 @@ function detectarAlertasAtivos(usuario) {
                 titulo:     (v.cliente || 'Cliente') + ' — instalação atrasada',
                 sub:        diasAtrasado + ' dia' + (diasAtrasado !== 1 ? 's' : '') +
                             ' em atraso' + (v.resp ? ' · ' + v.resp : ''),
-                severidade: diasAtrasado >= 10 ? 'critico' : 'atencao'
+                severidade: diasAtrasado >= 10 ? 'critico' : 'atencao',
+                destino:    'funil'
               });
             }
           }
@@ -5429,7 +5430,8 @@ function detectarAlertasAtivos(usuario) {
                 titulo:     (v.cliente || 'Cliente') + ' — Pendência Vero',
                 sub:        diasPendente + ' dia' + (diasPendente !== 1 ? 's' : '') +
                             ' aguardando Vero',
-                severidade: diasPendente >= 7 ? 'critico' : 'atencao'
+                severidade: diasPendente >= 7 ? 'critico' : 'atencao',
+                destino:    'funil'
               });
             }
           }
@@ -5450,7 +5452,8 @@ function detectarAlertasAtivos(usuario) {
         icone:      '📋',
         titulo:     '+ ' + excedente + ' instalação' + (excedente !== 1 ? 'ões' : '') + ' atrasada' + (excedente !== 1 ? 's' : ''),
         sub:        'Acesse o Funil de Instalações para ver todas',
-        severidade: 'atencao'
+        severidade: 'atencao',
+        destino:    'funil'
       });
     }
 
@@ -5468,7 +5471,8 @@ function detectarAlertasAtivos(usuario) {
             sub:        score === 'RED'
                           ? 'Risco de suspensão — revise templates imediatamente'
                           : 'Qualidade baixa — monitore aprovações de template',
-            severidade: score === 'RED' ? 'critico' : 'atencao'
+            severidade: score === 'RED' ? 'critico' : 'atencao',
+            destino:    'dash'
           });
         }
       }
@@ -5490,7 +5494,8 @@ function detectarAlertasAtivos(usuario) {
             icone:      '📊',
             titulo:     'CPL alto: ' + (c.campaign_name || 'Campanha'),
             sub:        'R$ ' + cpl.toFixed(2) + ' por lead · limite: R$ ' + cplMax,
-            severidade: 'atencao'
+            severidade: 'atencao',
+            destino:    'metaads'
           });
         }
       });

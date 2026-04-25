@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 07:50 -->
+<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 08:02 -->
 
 # dharmapro-crm
 
