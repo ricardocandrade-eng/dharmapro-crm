@@ -9,7 +9,7 @@
 
 // ── VERSÃO / DEPLOY ────────────────────────────────────────────────────────
 //  Atualizado automaticamente pelo salvar_010426_1930.bat a cada deploy
-var DEPLOY_DATE = '25/04/2026 00:59';
+var DEPLOY_DATE = '25/04/2026 01:09';
 
 // ── USUÁRIOS ───────────────────────────────────────────────────────────────
 // SENHAS: use o campo senhaHash (SHA-256 em hex). Nunca armazene senha em texto puro.
@@ -114,7 +114,7 @@ var SLA_FUNIL = {
  */
 var ALERTAS_CONFIG = {
   LEAD_PARADO_DIAS: {
-    '2- Aguardando Instalação': 5,   // 5+ dias sem ser instalado
+    '2- Aguardando Instalação': 1,   // 1+ dia após data de agenda = alerta no sino
     'Pendencia Vero':           3    // 3+ dias em pendência Vero
   },
   CAMPANHA_CPL_MAX:   80,           // R$ 80 de CPL já aciona alerta

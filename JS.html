@@ -4572,29 +4572,15 @@ var _finalizadaPageSize = 10;
 var FUNIL_COLUNAS = [
   {
     status:  '2- Aguardando Instalação',
-    cor:     '#f7a23b',
+    cor:     '#4f9eff',
     id:      'funilCards0',
     countId: 'funilCount0'
   },
   {
-    status:  '3 - Finalizada/Instalada',
-    cor:     '#22d98a',
-    id:      'funilCards1',
-    countId: 'funilCount1',
-    campo: {
-      tipo:        'date',
-      label:       'Data de Instalação *',
-      placeholder: '',
-      hint:        'Informe a data em que a instalação foi concluída.',
-      obrigatorio: true,
-      chave:       'instal'   // campo do objeto venda
-    }
-  },
-  {
     status:  'Pendencia Vero',
     cor:     '#f7e23b',
-    id:      'funilCards2',
-    countId: 'funilCount2',
+    id:      'funilCards1',
+    countId: 'funilCount1',
     campo: {
       tipo:        'textarea',
       label:       'Motivo da Pendência *',
@@ -4602,6 +4588,20 @@ var FUNIL_COLUNAS = [
       hint:        'Será salvo como observação da venda.',
       obrigatorio: true,
       chave:       'observacao'
+    }
+  },
+  {
+    status:  '3 - Finalizada/Instalada',
+    cor:     '#22d98a',
+    id:      'funilCards2',
+    countId: 'funilCount2',
+    campo: {
+      tipo:        'date',
+      label:       'Data de Instalação *',
+      placeholder: '',
+      hint:        'Informe a data em que a instalação foi concluída.',
+      obrigatorio: true,
+      chave:       'instal'
     }
   }
 ];
@@ -4725,8 +4725,12 @@ function _renderizarFunil() {
     }
   });
 
+  // Conta apenas pipeline ativo (exclui Finalizada/Instalada)
+  var totalAtivo = _funilDados.filter(function(v) {
+    return v.status === '2- Aguardando Instalação' || v.status === 'Pendencia Vero';
+  }).length;
   document.getElementById('funilCount').textContent =
-    totalFunil + ' venda' + (totalFunil !== 1 ? 's' : '') + ' no funil';
+    totalAtivo + ' venda' + (totalAtivo !== 1 ? 's' : '') + ' no funil';
 
   // ── Banner SLA: conta instalações com agenda vencida ─────────
   var hoje = new Date(); hoje.setHours(0,0,0,0);
@@ -5127,9 +5131,11 @@ function _atualizarContadoresFunil() {
       cnt.textContent = container.querySelectorAll('.funil-card').length;
     }
   });
-  var total = document.querySelectorAll('.funil-card').length;
+  var totalAtivoDrag = _funilDados.filter(function(v) {
+    return v.status === '2- Aguardando Instalação' || v.status === 'Pendencia Vero';
+  }).length;
   document.getElementById('funilCount').textContent =
-    total + ' venda' + (total !== 1 ? 's' : '') + ' no funil';
+    totalAtivoDrag + ' venda' + (totalAtivoDrag !== 1 ? 's' : '') + ' no funil';
 }
 
 

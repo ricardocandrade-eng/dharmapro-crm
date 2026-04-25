@@ -846,6 +846,12 @@
       user-select: none;
       transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
       position: relative;
+      /* Altura uniforme: todos os cards têm o mesmo tamanho mínimo
+         e o conteúdo fica distribuído verticalmente */
+      min-height: 160px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
     .funil-card:hover {
       border-color: var(--border2);
@@ -2668,9 +2674,9 @@
           <!-- Coluna 1: Aguardando Instalação -->
           <div class="funil-col" data-status="2- Aguardando Instalação" id="funilCol0">
             <div class="funil-col-head">
-              <div class="funil-col-stripe" style="background:#f7a23b;"></div>
+              <div class="funil-col-stripe" style="background:#4f9eff;"></div>
               <div class="funil-col-info">
-                <div class="funil-col-title">Aguardando Instalação</div>
+                <div class="funil-col-title" style="color:#4f9eff;">Aguardando Instalação</div>
                 <div class="funil-col-sub">Arraste → Finalizada ou Pendência</div>
               </div>
               <label class="funil-hoje-toggle" title="Mostrar apenas agendados para hoje" id="funilHojeLabel">
@@ -2682,31 +2688,31 @@
             <div class="funil-col-cards" id="funilCards0"></div>
           </div>
 
-          <!-- Coluna 2: Finalizada/Instalada -->
-          <div class="funil-col" data-status="3 - Finalizada/Instalada" id="funilCol1">
-            <div class="funil-col-head">
-              <div class="funil-col-stripe" style="background:#22d98a;"></div>
-              <div class="funil-col-info">
-                <div class="funil-col-title">Finalizada / Instalada</div>
-                <div class="funil-col-sub">Pede: Data de Instalação</div>
-              </div>
-              <div class="funil-col-count" id="funilCount1">0</div>
-            </div>
-            <div class="funil-col-cards" id="funilCards1"></div>
-            <div style="padding:8px 12px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.5px;text-align:center;border-top:1px solid var(--border);opacity:.6;">Exibindo últimas 10 instaladas</div>
-          </div>
-
-          <!-- Coluna 3: Pendencia Vero -->
-          <div class="funil-col" data-status="Pendencia Vero" id="funilCol2">
+          <!-- Coluna 2: Pendência Vero -->
+          <div class="funil-col" data-status="Pendencia Vero" id="funilCol1">
             <div class="funil-col-head">
               <div class="funil-col-stripe" style="background:#f7e23b;"></div>
               <div class="funil-col-info">
                 <div class="funil-col-title">Pendência Vero</div>
                 <div class="funil-col-sub">Pede: Motivo da pendência</div>
               </div>
+              <div class="funil-col-count" id="funilCount1">0</div>
+            </div>
+            <div class="funil-col-cards" id="funilCards1"></div>
+          </div>
+
+          <!-- Coluna 3: Finalizada/Instalada -->
+          <div class="funil-col" data-status="3 - Finalizada/Instalada" id="funilCol2">
+            <div class="funil-col-head">
+              <div class="funil-col-stripe" style="background:#22d98a;"></div>
+              <div class="funil-col-info">
+                <div class="funil-col-title">Finalizada / Instalada</div>
+                <div class="funil-col-sub">Pede: Data de Instalação</div>
+              </div>
               <div class="funil-col-count" id="funilCount2">0</div>
             </div>
             <div class="funil-col-cards" id="funilCards2"></div>
+            <div style="padding:8px 12px;font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.5px;text-align:center;border-top:1px solid var(--border);opacity:.6;">Exibindo últimas 10 instaladas</div>
           </div>
 
         </div>
