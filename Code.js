@@ -3929,10 +3929,7 @@ function _resumirVendaVinculada_(venda) {
 function _mesclarVinculosLegadosInferidos_(mapa) {
   var cacheKey = CONFIG.CACHE_PREFIX + 'vinculos_legados_v1';
   var inferidos = _cacheGetChunked(cacheKey);
-  if (!Array.isArray(inferidos)) {
-    inferidos = _inferirVinculosLegados_(mapa);
-    _cachePutChunked(cacheKey, inferidos, 300);
-  }
+  if (!Array.isArray(inferidos) || !inferidos.length) return;
 
   for (var i = 0; i < inferidos.length; i++) {
     var vinculo = inferidos[i];
@@ -3944,6 +3941,45 @@ function _mesclarVinculosLegadosInferidos_(mapa) {
     mapa.filhasPorMae[maeLinha].push(vinculo);
     mapa.maePorFilha[filhaLinha] = vinculo;
   }
+}
+
+function reconstruirCacheVinculosLegados() {
+  var inferidos = _inferirVinculosLegados_(_getVinculosVendasMapSemLegado_());
+  _cachePutChunked(CONFIG.CACHE_PREFIX + 'vinculos_legados_v1', inferidos, 21600);
+  return {
+    sucesso: true,
+    total: inferidos.length,
+    mensagem: inferidos.length + ' vínculo(s) legado(s) preparados em cache.'
+  };
+}
+
+function _getVinculosVendasMapSemLegado_() {
+  var sh = _getSheetVinculosVendas_(false);
+  var mapa = { filhasPorMae: {}, maePorFilha: {} };
+  if (!sh || sh.getLastRow() < 2) return mapa;
+
+  var raw = sh.getRange(2, 1, sh.getLastRow() - 1, 8).getValues();
+  for (var i = 0; i < raw.length; i++) {
+    var row = raw[i];
+    var status = _normalizarTexto(row[6] || 'ATIVO');
+    if (status && status !== 'ATIVO') continue;
+
+    var maeLinha = parseInt(row[2], 10);
+    var filhaLinha = parseInt(row[3], 10);
+    if (isNaN(maeLinha) || isNaN(filhaLinha)) continue;
+
+    var vinculo = {
+      tipo: String(row[1] || '').trim(),
+      vendaMaeLinha: maeLinha,
+      vendaFilhaLinha: filhaLinha,
+      vendaMaeContrato: String(row[4] || '').trim(),
+      vendaFilhaContrato: String(row[5] || '').trim()
+    };
+    if (!mapa.filhasPorMae[maeLinha]) mapa.filhasPorMae[maeLinha] = [];
+    mapa.filhasPorMae[maeLinha].push(vinculo);
+    mapa.maePorFilha[filhaLinha] = vinculo;
+  }
+  return mapa;
 }
 
 function _inferirVinculosLegados_(mapaAtual) {

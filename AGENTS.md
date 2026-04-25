@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | AGENTS.md | 25/04/2026 19:21 -->
+<!-- dharmapro-crm | AGENTS.md | 25/04/2026 19:30 -->
 
 # DharmaPro CRM
 
@@ -19,9 +19,9 @@ Se essa camada cliente usar normalizacao de texto para agrupar ou comparar
 produtos/status, o helper precisa existir no frontend e nao pode depender apenas
 da implementacao backend em `Code.js`.
 Para combos antigos sem registro na aba `Vinculos Vendas`, o backend pode inferir
-agrupamento retroativo apenas em casos inequivocos. A regra segura atual e:
-um unico `Fibra Combo` e um unico movel compativel para a mesma chave de cliente,
-sem aproveitar apenas nome puro para evitar falso positivo.
+agrupamento retroativo apenas em casos inequivocos, mas essa inferencia nao deve
+rodar dentro da abertura da `Lista de Vendas`. O caminho seguro atual e preparar
+esse cache legado por rotina separada e depois reutilizar o resultado na listagem.
 
 Papel no ecossistema:
 - receber e organizar leads vindos de WhatsApp, indicacoes, PAP e Meta Ads;

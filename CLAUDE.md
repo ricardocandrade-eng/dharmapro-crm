@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 19:21 -->
+<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 19:30 -->
 
 # dharmapro-crm
 
@@ -35,10 +35,10 @@ agora esconde a linha movel duplicada quando a fibra correspondente esta na mesm
 pagina e mostra o alerta `Combo sem movel` ao lado do nome do cliente.
 O hotfix mais recente restaurou o carregamento da lista adicionando no frontend
 o helper local de normalizacao de texto usado por esse agrupamento.
-Depois disso, o backend tambem passou a inferir vinculos legados de combo
-de forma conservadora para permitir que vendas antigas sejam agrupadas na lista
-quando existir um unico `Fibra Combo` e um unico movel compativel para o mesmo
-CPF, ou para o mesmo WhatsApp + cliente, sem vinculo explicito anterior.
+Depois disso, o backend passou a suportar inferencia conservadora de vinculos
+legados de combo, mas essa retroacao saiu do caminho critico da `Lista de Vendas`
+para nao travar o carregamento. A preparacao desses vinculos antigos agora pode
+ser feita por rotina separada de cache.
 
 ---
 
