@@ -9,7 +9,7 @@
 
 // ── VERSÃO / DEPLOY ────────────────────────────────────────────────────────
 //  Atualizado automaticamente pelo salvar_010426_1930.bat a cada deploy
-var DEPLOY_DATE = '25/04/2026 00:23';
+var DEPLOY_DATE = '25/04/2026 00:59';
 
 // ── USUÁRIOS ───────────────────────────────────────────────────────────────
 // SENHAS: use o campo senhaHash (SHA-256 em hex). Nunca armazene senha em texto puro.
@@ -89,6 +89,36 @@ var DASHBOARD_CONFIG = {
     '2026-12-25', // Natal
     '2026-12-31', // Véspera de Ano Novo (meio dia)
   ]
+};
+
+// ── ALERTAS E SLA ─────────────────────────────────────────────────────────
+//  Thresholds para o sistema de alertas internos (sino 🔔) e SLA do Funil.
+//  Ajuste os valores conforme a operação sem alterar o código.
+// ──────────────────────────────────────────────────────────────────────────
+
+/** SLA do Funil de Instalações (em dias).
+ *  atencao  = dias que acionam badge amarelo
+ *  critico  = dias que acionam badge vermelho
+ *  Para '2- Aguardando Instalação' a contagem começa na data de agenda.
+ *  Para 'Pendencia Vero' a contagem começa na data de ativação (dataAtiv).
+ */
+var SLA_FUNIL = {
+  '2- Aguardando Instalação': { atencao: 3, critico: 7  },
+  'Pendencia Vero':           { atencao: 2, critico: 5  }
+};
+
+/** Configuração dos alertas automáticos.
+ *  LEAD_PARADO_DIAS   — dias de atraso para gerar alerta por status
+ *  CAMPANHA_CPL_MAX   — CPL (R$) máximo antes de gerar alerta de campanha
+ *  WABA_SCORES_ALERTA — quality scores que disparam alerta de WABA
+ */
+var ALERTAS_CONFIG = {
+  LEAD_PARADO_DIAS: {
+    '2- Aguardando Instalação': 5,   // 5+ dias sem ser instalado
+    'Pendencia Vero':           3    // 3+ dias em pendência Vero
+  },
+  CAMPANHA_CPL_MAX:   80,           // R$ 80 de CPL já aciona alerta
+  WABA_SCORES_ALERTA: ['YELLOW', 'RED']
 };
 
 // ── MENSAGEM DO SISTEMA ────────────────────────────────────────────────────

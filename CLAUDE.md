@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 -->
+<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 00:59 -->
 
 # dharmapro-crm
 
@@ -37,6 +37,7 @@ Estao funcionando:
 - `Disparos em Massa`
 - `WABA Monitor` dentro do dashboard
 - `Gerenciar Usuarios` (admin only)
+- `Sistema de Alertas` — sino 🔔 com SLA do funil e alertas de leads/campanha/WABA
 
 ### Dashboard
 

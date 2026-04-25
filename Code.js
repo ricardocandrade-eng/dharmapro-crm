@@ -5338,3 +5338,216 @@ function excluirUsuario(adminUsuario, usuarioAlvo) {
 function getUsuariosHtml() {
   return HtmlService.createHtmlOutputFromFile('Usuarios').getContent();
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  MÓDULO ALERTAS — Sino de Notificações Internas
+//  Implementado em 25/04/2026
+//  Detecta: leads parados no funil, WABA quality score, campanhas com CPL alto.
+//  Visível apenas para perfis admin e supervisor.
+// ══════════════════════════════════════════════════════════════════════════════
+
+/** Retorna o perfil de um usuário (admin/supervisor/backoffice).
+ *  Consulta a aba Usuarios; fallback para USUARIOS do Config.js. */
+function _getPerfilUsuario_(usuario) {
+  try {
+    var rows = _getUsuariosSheet_();
+    if (rows && rows.length > 0) {
+      for (var i = 0; i < rows.length; i++) {
+        if (String(rows[i][0] || '').trim().toLowerCase() === String(usuario).trim().toLowerCase()) {
+          return String(rows[i][3] || '').trim();
+        }
+      }
+    }
+  } catch(e) { /* fallback abaixo */ }
+  // Fallback: USUARIOS do Config.js
+  for (var j = 0; j < USUARIOS.length; j++) {
+    if (USUARIOS[j].usuario === usuario) return USUARIOS[j].perfil;
+  }
+  return '';
+}
+
+/** Converte string de data 'dd/MM/yyyy' para objeto Date (meia-noite).
+ *  Retorna null se inválida. */
+function _parseDDMMYYYY_(str) {
+  if (!str) return null;
+  var p = String(str).trim().split('/');
+  if (p.length !== 3) return null;
+  var d = new Date(parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0]));
+  d.setHours(0, 0, 0, 0);
+  return isNaN(d) ? null : d;
+}
+
+/**
+ * Detecta alertas ativos e retorna lista para exibição no sino do CRM.
+ * Chamada via google.script.run pelo frontend (apenas admin e supervisor).
+ *
+ * @param {string} usuario — login do usuário logado
+ * @returns {{ alertas: Array, total: number, naoLidos: number }}
+ */
+function detectarAlertasAtivos(usuario) {
+  try {
+    var alertas = [];
+    var agora   = new Date();
+    agora.setHours(0, 0, 0, 0);
+
+    // ── 1. Leads parados no Funil ──────────────────────────────────────────
+    try {
+      var funilRes = getVendasFunil();
+      var dados    = (funilRes && funilRes.dados) ? funilRes.dados : [];
+      var slaConf  = ALERTAS_CONFIG.LEAD_PARADO_DIAS;
+
+      dados.forEach(function(v) {
+        // Aguardando Instalação: contagem desde a data de agenda
+        if (v.status === '2- Aguardando Instalação' && v.agenda) {
+          var dAgenda = _parseDDMMYYYY_(v.agenda);
+          if (dAgenda) {
+            var diasAtrasado = Math.floor((agora - dAgenda) / 86400000);
+            if (diasAtrasado >= (slaConf['2- Aguardando Instalação'] || 5)) {
+              alertas.push({
+                id:         'funil_ag_' + v.linha,
+                tipo:       'lead_parado',
+                icone:      diasAtrasado >= 10 ? '🔴' : '🟡',
+                titulo:     (v.cliente || 'Cliente') + ' — instalação atrasada',
+                sub:        diasAtrasado + ' dia' + (diasAtrasado !== 1 ? 's' : '') +
+                            ' em atraso' + (v.resp ? ' · ' + v.resp : ''),
+                severidade: diasAtrasado >= 10 ? 'critico' : 'atencao'
+              });
+            }
+          }
+        }
+
+        // Pendência Vero: contagem desde dataAtiv (proxy de entrada no status)
+        if (v.status === 'Pendencia Vero' && v.dataAtiv) {
+          var dAtiv = _parseDDMMYYYY_(v.dataAtiv);
+          if (dAtiv) {
+            var diasPendente = Math.floor((agora - dAtiv) / 86400000);
+            if (diasPendente >= (slaConf['Pendencia Vero'] || 3)) {
+              alertas.push({
+                id:         'funil_pv_' + v.linha,
+                tipo:       'pendencia_vero',
+                icone:      diasPendente >= 7 ? '🔴' : '🟡',
+                titulo:     (v.cliente || 'Cliente') + ' — Pendência Vero',
+                sub:        diasPendente + ' dia' + (diasPendente !== 1 ? 's' : '') +
+                            ' aguardando Vero',
+                severidade: diasPendente >= 7 ? 'critico' : 'atencao'
+              });
+            }
+          }
+        }
+      });
+    } catch(eFunil) {
+      Logger.log('detectarAlertasAtivos — funil: ' + eFunil.toString());
+    }
+
+    // Limita alertas de leads a 10 para não afogar o sino
+    var maxLeads = 10;
+    if (alertas.length > maxLeads) {
+      var excedente = alertas.length - maxLeads;
+      alertas = alertas.slice(0, maxLeads);
+      alertas.push({
+        id:         'funil_outros_' + excedente,
+        tipo:       'lead_parado',
+        icone:      '📋',
+        titulo:     '+ ' + excedente + ' instalação' + (excedente !== 1 ? 'ões' : '') + ' atrasada' + (excedente !== 1 ? 's' : ''),
+        sub:        'Acesse o Funil de Instalações para ver todas',
+        severidade: 'atencao'
+      });
+    }
+
+    // ── 2. WABA Quality Score ─────────────────────────────────────────────
+    try {
+      var wabaData = _sbFetch_('GET', '/v_waba_health_current?select=quality_rating&limit=1');
+      if (wabaData && wabaData.length > 0) {
+        var score = String(wabaData[0].quality_rating || '').toUpperCase();
+        if (ALERTAS_CONFIG.WABA_SCORES_ALERTA.indexOf(score) >= 0) {
+          alertas.push({
+            id:         'waba_score_' + score,
+            tipo:       'waba_score',
+            icone:      score === 'RED' ? '🔴' : '🟡',
+            titulo:     'WABA Quality Score: ' + score,
+            sub:        score === 'RED'
+                          ? 'Risco de suspensão — revise templates imediatamente'
+                          : 'Qualidade baixa — monitore aprovações de template',
+            severidade: score === 'RED' ? 'critico' : 'atencao'
+          });
+        }
+      }
+    } catch(eWaba) {
+      Logger.log('detectarAlertasAtivos — WABA: ' + eWaba.toString());
+    }
+
+    // ── 3. Campanhas com CPL alto ─────────────────────────────────────────
+    try {
+      var campanhas = _sbFetch_('GET',
+        '/v_campaign_stats?select=campaign_name,cpl,status&order=updated_at.desc&limit=20');
+      var cplMax = ALERTAS_CONFIG.CAMPANHA_CPL_MAX || 80;
+      campanhas.forEach(function(c) {
+        var cpl = parseFloat(c.cpl);
+        if (c.status === 'running' && !isNaN(cpl) && cpl > cplMax) {
+          alertas.push({
+            id:         'camp_cpl_' + String(c.campaign_name || '').replace(/\W/g, '_'),
+            tipo:       'campanha_cpl',
+            icone:      '📊',
+            titulo:     'CPL alto: ' + (c.campaign_name || 'Campanha'),
+            sub:        'R$ ' + cpl.toFixed(2) + ' por lead · limite: R$ ' + cplMax,
+            severidade: 'atencao'
+          });
+        }
+      });
+    } catch(eCamp) {
+      Logger.log('detectarAlertasAtivos — campanhas: ' + eCamp.toString());
+    }
+
+    // ── Filtrar já lidos via UserProperties ──────────────────────────────
+    var lidos = [];
+    try {
+      var lStr = PropertiesService.getUserProperties()
+        .getProperty('ALERTAS_LIDOS_' + usuario);
+      lidos = lStr ? JSON.parse(lStr) : [];
+    } catch(e) { lidos = []; }
+
+    alertas.forEach(function(a) { a.lido = lidos.indexOf(a.id) >= 0; });
+
+    // Critérios primeiro, não-lidos antes dos lidos
+    alertas.sort(function(a, b) {
+      if (a.lido !== b.lido) return a.lido ? 1 : -1;
+      return (a.severidade === 'critico' ? 0 : 1) - (b.severidade === 'critico' ? 0 : 1);
+    });
+
+    var naoLidos = alertas.filter(function(a) { return !a.lido; }).length;
+    return { alertas: alertas, total: alertas.length, naoLidos: naoLidos };
+
+  } catch(e) {
+    Logger.log('detectarAlertasAtivos erro geral: ' + e.toString());
+    return { alertas: [], total: 0, naoLidos: 0, erro: e.message };
+  }
+}
+
+/**
+ * Marca alertas como lidos gravando seus IDs no UserProperties.
+ * @param {string} usuario — login do usuário
+ * @param {string[]} ids   — array de alert IDs a marcar como lidos
+ */
+function marcarAlertasLidos(usuario, ids) {
+  try {
+    var props = PropertiesService.getUserProperties();
+    var key   = 'ALERTAS_LIDOS_' + usuario;
+    var existentes = [];
+    try {
+      var lStr = props.getProperty(key);
+      existentes = lStr ? JSON.parse(lStr) : [];
+    } catch(e) { existentes = []; }
+
+    ids.forEach(function(id) {
+      if (existentes.indexOf(id) < 0) existentes.push(id);
+    });
+
+    // Mantém só os últimos 300 IDs para não inflar a propriedade
+    if (existentes.length > 300) existentes = existentes.slice(-300);
+    props.setProperty(key, JSON.stringify(existentes));
+    return { ok: true };
+  } catch(e) {
+    Logger.log('marcarAlertasLidos erro: ' + e.toString());
+    return { ok: false, erro: e.message };
+  }
+}

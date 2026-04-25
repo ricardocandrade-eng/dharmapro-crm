@@ -979,6 +979,9 @@ function _sincronizarAoLogar(nomeUsuario) {
   // Polling de alertas PAP — atualiza badge do menu a cada 60s
   _pollPendentes();
   setInterval(_pollPendentes, 60000);
+
+  // Sino de alertas internos — inicializa para todos os usuários
+  inicializarSino();
 }
 
 var PAP_ALERT_KEYS = {
@@ -4725,10 +4728,122 @@ function _renderizarFunil() {
   document.getElementById('funilCount').textContent =
     totalFunil + ' venda' + (totalFunil !== 1 ? 's' : '') + ' no funil';
 
+  // ── Banner SLA: conta instalações com agenda vencida ─────────
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var atrasados = _funilDados.filter(function(v) {
+    if (v.status !== '2- Aguardando Instalação' || !v.agenda) return false;
+    var p = String(v.agenda).split('/');
+    if (p.length !== 3) return false;
+    var d = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+    d.setHours(0,0,0,0);
+    return !isNaN(d) && d < hoje;
+  });
+  var criticos = atrasados.filter(function(v) {
+    var p = String(v.agenda).split('/');
+    var d = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+    d.setHours(0,0,0,0);
+    return Math.floor((hoje - d) / 86400000) >= 7;
+  });
+
+  var banner = document.getElementById('funilSLABanner');
+  var bannerTxt = document.getElementById('funilSLABannerTexto');
+  if (banner && bannerTxt) {
+    if (atrasados.length > 0) {
+      var msg = atrasados.length + ' instalação' + (atrasados.length !== 1 ? 'ões' : '') +
+                ' atrasada' + (atrasados.length !== 1 ? 's' : '');
+      if (criticos.length > 0) {
+        msg += ' · ' + criticos.length + ' crítica' + (criticos.length !== 1 ? 's' : '') + ' (7+ dias)';
+      }
+      bannerTxt.textContent = msg;
+      banner.classList.add('visivel');
+    } else {
+      banner.classList.remove('visivel');
+    }
+  }
+
+  _iniciarDragFunil();
+}
+
+/** Filtra a coluna Aguardando Instalação para mostrar só atrasados. */
+var _funilSLAFiltroAtivo = false;
+function _funilSLAFiltrarAtrasados() {
+  _funilSLAFiltroAtivo = !_funilSLAFiltroAtivo;
+  var banner = document.getElementById('funilSLABanner');
+  if (banner) {
+    banner.style.fontWeight = _funilSLAFiltroAtivo ? '700' : '';
+    var link = banner.querySelector('.funil-sla-banner-link');
+    if (link) link.textContent = _funilSLAFiltroAtivo ? '← Mostrar todos' : 'Clique para filtrar atrasados →';
+  }
+
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var col0 = document.getElementById('funilCards0');
+  if (!col0) return;
+
+  var dados = _funilSLAFiltroAtivo
+    ? _funilDados.filter(function(v) {
+        if (v.status !== '2- Aguardando Instalação' || !v.agenda) return false;
+        var p = String(v.agenda).split('/');
+        if (p.length !== 3) return false;
+        var d = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+        d.setHours(0,0,0,0);
+        return !isNaN(d) && d < hoje;
+      })
+    : _funilDados.filter(function(v) { return v.status === '2- Aguardando Instalação'; });
+
+  var colObj = FUNIL_COLUNAS.filter(function(c) { return c.status === '2- Aguardando Instalação'; })[0];
+  col0.innerHTML = dados.length > 0
+    ? dados.map(function(v) { return _criarFunilCard(v, colObj); }).join('')
+    : '<div class="funil-empty">Nenhuma instalação atrasada ✅</div>';
+  document.getElementById('funilCount0').textContent = dados.length;
   _iniciarDragFunil();
 }
 
 // ── CRIAR CARD DO FUNIL ───────────────────────────────────────
+
+/** Calcula badge SLA de um card.
+ *  Para Aguardando Instalação: dias desde agenda.
+ *  Para Pendência Vero: dias desde dataAtiv.
+ *  Retorna HTML do badge ou '' se não aplicável. */
+function _funilSLABadge(v) {
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var dias = null;
+  var label = '';
+
+  if (v.status === '2- Aguardando Instalação' && v.agenda) {
+    var p = String(v.agenda).split('/');
+    if (p.length === 3) {
+      var ref = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+      ref.setHours(0,0,0,0);
+      dias = Math.floor((hoje - ref) / 86400000);
+      label = dias > 0
+        ? dias + ' dia' + (dias !== 1 ? 's' : '') + ' atrasado'
+        : (dias === 0 ? 'Hoje' : Math.abs(dias) + 'd para agenda');
+    }
+  } else if (v.status === 'Pendencia Vero' && v.dataAtiv) {
+    var p2 = String(v.dataAtiv).split('/');
+    if (p2.length === 3) {
+      var ref2 = new Date(parseInt(p2[2]), parseInt(p2[1])-1, parseInt(p2[0]));
+      ref2.setHours(0,0,0,0);
+      dias = Math.floor((hoje - ref2) / 86400000);
+      if (dias >= 0) label = dias + ' dia' + (dias !== 1 ? 's' : '') + ' em pendência';
+    }
+  }
+
+  if (dias === null || label === '') return '';
+
+  // Thresholds SLA (espelham SLA_FUNIL do Config.js — ajuste nos dois se mudar)
+  var slaConf = v.status === 'Pendencia Vero'
+    ? { atencao: 2, critico: 5 }
+    : { atencao: 3, critico: 7 };
+  var cls = 'sla-ok';
+  if (dias >= slaConf.critico) cls = 'sla-critico';
+  else if (dias >= slaConf.atencao) cls = 'sla-atencao';
+  else if (dias < 0) cls = 'sla-ok';   // ainda dentro do prazo
+
+  var icone = cls === 'sla-critico' ? '🔴' : (cls === 'sla-atencao' ? '🟡' : '🟢');
+  return '<div class="funil-sla-badge ' + cls + '">' + icone + ' ' + esc(label) + '</div>';
+}
+
 function _criarFunilCard(v, col) {
   var hoje       = new Date(); hoje.setHours(0,0,0,0);
   var agendaStr  = _fmtData(v.agenda) || '';
@@ -4746,6 +4861,8 @@ function _criarFunilCard(v, col) {
         (v.turno ? ' · ' + esc(v.turno.split(' ')[0]) : '') +
       '</div>';
   }
+
+  var slaBadge = _funilSLABadge(v);
 
   return (
     '<div class="funil-card" draggable="true"' +
@@ -4768,6 +4885,7 @@ function _criarFunilCard(v, col) {
         ? '<div class="funil-card-row">📱 ' + esc(v.whats) + '</div>'
         : '') +
       agendaBadge +
+      slaBadge +
       '<div style="text-align:right;margin-top:6px"><button onclick="event.stopPropagation();event.preventDefault();_abrirVendaNoLista(' + v.linha + ')" title="Ver na Lista de Vendas" style="background:rgba(230,62,109,.12);border:1px solid rgba(230,62,109,.3);color:var(--accent);border-radius:6px;padding:3px 8px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;letter-spacing:.5px;">↗ Lista</button></div>' +
     '</div>'
   );
@@ -10132,6 +10250,142 @@ function _bgAbrirVenda(linha) {
   if (drop)  { drop.classList.remove('aberto'); drop.innerHTML = ''; }
   if (input) input.value = '';
   _abrirVendaNoLista(linha);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  SINO DE ALERTAS INTERNOS — Frontend
+//  Implementado em 25/04/2026
+//  Funções: inicializarSino, carregarAlertas, _renderizarAlertas,
+//           tktToggleNotifDropdown, tktLimparNotifs, tktMarcarAlertaLido
+// ══════════════════════════════════════════════════════════════════════════
+
+var _sinoAlertas     = [];    // cache local dos alertas
+var _sinoInterval    = null;  // referência do setInterval de polling
+var SINO_POLL_MS     = 5 * 60 * 1000; // 5 minutos
+
+/** Retorna o login do usuário atual (via sessionStorage). */
+function _sinoGetUsuario() {
+  try { return sessionStorage.getItem('crm_usuario') || ''; } catch(e) { return ''; }
+}
+
+/** Inicializa o sino: carrega imediatamente e agenda polling a cada 5 min.
+ *  Também registra listener global para fechar dropdown ao clicar fora. */
+function inicializarSino() {
+  carregarAlertas();
+  if (_sinoInterval) clearInterval(_sinoInterval);
+  _sinoInterval = setInterval(carregarAlertas, SINO_POLL_MS);
+
+  document.addEventListener('click', function(e) {
+    var wrap = document.getElementById('notifBellWrap');
+    if (wrap && !wrap.contains(e.target)) {
+      var drop = document.getElementById('notifDropdown');
+      if (drop) drop.classList.remove('aberto');
+    }
+  });
+}
+
+/** Chama o backend para buscar alertas ativos do usuário. */
+function carregarAlertas() {
+  var usuario = _sinoGetUsuario();
+  if (!usuario) return;
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res) return;
+      _sinoAlertas = res.alertas || [];
+      _renderizarAlertas(res.naoLidos || 0);
+    })
+    .withFailureHandler(function() { /* silencioso */ })
+    .detectarAlertasAtivos(usuario);
+}
+
+/** Atualiza badge do botão e conteúdo da lista de alertas. */
+function _renderizarAlertas(naoLidos) {
+  var badge = document.getElementById('notifBadge');
+  var btn   = document.getElementById('notifBellBtn');
+  var list  = document.getElementById('notifList');
+  if (!badge || !btn || !list) return;
+
+  // Badge
+  if (naoLidos > 0) {
+    badge.textContent = naoLidos > 99 ? '99+' : String(naoLidos);
+    badge.style.display = 'flex';
+    btn.classList.add('tem-alerta');
+  } else {
+    badge.style.display = 'none';
+    btn.classList.remove('tem-alerta');
+  }
+
+  // Lista
+  if (!_sinoAlertas || _sinoAlertas.length === 0) {
+    list.innerHTML = '<div class="notif-empty">Sem alertas no momento ✅</div>';
+    return;
+  }
+
+  list.innerHTML = _sinoAlertas.map(function(a) {
+    var cls   = 'notif-item' + (a.lido ? '' : ' nova');
+    var corSev = a.severidade === 'critico' ? 'var(--accent)' : 'var(--yellow)';
+    return '<div class="' + cls + '" onclick="tktMarcarAlertaLido(\'' + a.id + '\')">' +
+      '<div class="notif-item-icon" style="font-size:15px;flex-shrink:0;margin-top:1px;color:' + corSev + '">' + a.icone + '</div>' +
+      '<div class="notif-item-body">' +
+        '<div class="notif-item-title">' + esc(a.titulo) + '</div>' +
+        '<div class="notif-item-sub">' + esc(a.sub) + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+/** Abre/fecha o dropdown do sino. Marca alertas como lidos ao abrir. */
+function tktToggleNotifDropdown() {
+  var drop = document.getElementById('notifDropdown');
+  if (!drop) return;
+
+  var abrindo = !drop.classList.contains('aberto');
+  drop.classList.toggle('aberto');
+
+  if (abrindo) {
+    var naoLidos = _sinoAlertas.filter(function(a) { return !a.lido; });
+    if (naoLidos.length > 0) {
+      var ids = naoLidos.map(function(a) { return a.id; });
+      google.script.run
+        .withSuccessHandler(function() {
+          _sinoAlertas.forEach(function(a) { a.lido = true; });
+          _renderizarAlertas(0);
+        })
+        .withFailureHandler(function() {})
+        .marcarAlertasLidos(_sinoGetUsuario(), ids);
+    }
+  }
+}
+
+/** Marca todos os alertas como lidos e fecha o dropdown. */
+function tktLimparNotifs() {
+  if (!_sinoAlertas || _sinoAlertas.length === 0) return;
+  var ids = _sinoAlertas.map(function(a) { return a.id; });
+  google.script.run
+    .withSuccessHandler(function() {
+      _sinoAlertas.forEach(function(a) { a.lido = true; });
+      _renderizarAlertas(0);
+      var drop = document.getElementById('notifDropdown');
+      if (drop) drop.classList.remove('aberto');
+    })
+    .withFailureHandler(function() {})
+    .marcarAlertasLidos(_sinoGetUsuario(), ids);
+}
+
+/** Marca um alerta específico como lido pelo ID. */
+function tktMarcarAlertaLido(id) {
+  var alerta = null;
+  for (var i = 0; i < _sinoAlertas.length; i++) {
+    if (_sinoAlertas[i].id === id) { alerta = _sinoAlertas[i]; break; }
+  }
+  if (!alerta || alerta.lido) return;
+  alerta.lido = true;
+  var naoLidos = _sinoAlertas.filter(function(a) { return !a.lido; }).length;
+  _renderizarAlertas(naoLidos);
+  google.script.run
+    .withFailureHandler(function() {})
+    .marcarAlertasLidos(_sinoGetUsuario(), [id]);
 }
 
 </script>

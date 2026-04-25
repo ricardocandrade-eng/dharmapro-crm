@@ -883,6 +883,49 @@
       color: var(--accent);
     }
 
+    /* ── SLA badges e banner ── */
+    .funil-sla-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 700;
+      padding: 2px 8px; border-radius: 20px;
+      font-family: 'DM Mono', monospace;
+      margin-top: 4px;
+    }
+    .funil-sla-badge.sla-ok {
+      background: rgba(34,217,138,0.1);
+      border: 1px solid rgba(34,217,138,0.25);
+      color: var(--green);
+    }
+    .funil-sla-badge.sla-atencao {
+      background: rgba(247,162,59,0.12);
+      border: 1px solid rgba(247,162,59,0.3);
+      color: var(--yellow);
+    }
+    .funil-sla-badge.sla-critico {
+      background: rgba(230,62,109,0.12);
+      border: 1px solid rgba(230,62,109,0.3);
+      color: var(--accent);
+      animation: sla-pulse 2s ease-in-out infinite;
+    }
+    @keyframes sla-pulse { 0%,100%{ opacity:1; } 50%{ opacity:0.6; } }
+
+    /* Banner de atrasados no topo do funil */
+    .funil-sla-banner {
+      display: none;
+      align-items: center; gap: 10px;
+      padding: 8px 20px;
+      background: rgba(230,62,109,0.07);
+      border-bottom: 1px solid rgba(230,62,109,0.2);
+      font-size: 12px; font-family: 'DM Mono', monospace;
+      color: var(--accent);
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .funil-sla-banner.visivel { display: flex; }
+    .funil-sla-banner:hover { background: rgba(230,62,109,0.12); }
+    .funil-sla-banner strong { font-weight: 700; }
+    .funil-sla-banner-link { margin-left: auto; font-size: 10px; color: var(--muted); }
+
     /* Placeholder de drop */
     .funil-placeholder {
       height: 74px;
@@ -2611,6 +2654,13 @@
           <span style="color:var(--border2);">·</span>
           <span class="funil-count" id="funilCount">—</span>
           <button class="btn btn-ghost btn-sm" onclick="carregarFunil()" style="margin-left:auto;font-size:11px;">↺ Atualizar</button>
+        </div>
+
+        <!-- Banner SLA: aparece quando há instalações atrasadas -->
+        <div class="funil-sla-banner" id="funilSLABanner" onclick="_funilSLAFiltrarAtrasados()">
+          <span>⚠️</span>
+          <span id="funilSLABannerTexto"></span>
+          <span class="funil-sla-banner-link">Clique para filtrar atrasados →</span>
         </div>
 
         <div class="funil-cols" id="funilCols">
