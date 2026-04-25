@@ -10298,10 +10298,13 @@ function carregarAlertas() {
   google.script.run
     .withSuccessHandler(function(res) {
       if (!res) return;
+      console.log('[Sino] retorno:', res.naoLidos, 'não lidos,', res.total, 'total', res.erro ? '| erro: ' + res.erro : '');
       _sinoAlertas = res.alertas || [];
       _renderizarAlertas(res.naoLidos || 0);
     })
-    .withFailureHandler(function() { /* silencioso */ })
+    .withFailureHandler(function(err) {
+      console.error('[Sino] detectarAlertasAtivos falhou:', err && err.message ? err.message : err);
+    })
     .detectarAlertasAtivos(usuario);
 }
 
