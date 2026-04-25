@@ -846,12 +846,8 @@
       user-select: none;
       transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
       position: relative;
-      /* Altura uniforme: todos os cards têm o mesmo tamanho mínimo
-         e o conteúdo fica distribuído verticalmente */
       min-height: 160px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
+      overflow: hidden;
     }
     .funil-card:hover {
       border-color: var(--border2);
