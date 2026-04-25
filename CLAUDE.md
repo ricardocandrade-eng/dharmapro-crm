@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 16:10 -->
+<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 17:16 -->
 
 # dharmapro-crm
 
@@ -13,6 +13,11 @@ de modulos operacionais e implementacao do modulo de Gerenciar Usuarios.
 Em 25/04/2026 o modulo `Cruzamento Vero` foi revisado para tratar IDs de contrato
 com prefixo `NG`, consolidar `CANCELAMENTO` + `CHURN`, incluir uma aba propria
 de `Movel` e limpar a interface.
+
+Em 25/04/2026 o fluxo de vendas tambem passou por uma sincronizacao estrutural:
+edicoes parciais agora preservam campos ja gravados na linha, o painel lateral
+passou a editar `Data Ativacao` e `Data Instalacao`, e a persistencia passou
+a manter tambem `VEROHUB`, `BC_TAGS`, `BC_STATUS` e `VIABILIDADE` durante updates.
 
 ---
 

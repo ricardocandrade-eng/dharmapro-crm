@@ -12,6 +12,13 @@ function pifOnStatusChange(novoStatus) {
   var v = AppState.get('vendaSelecionada');
   if (!v) return;
   var statusAtual = v.status || '';
+  var secaoDatas = document.getElementById('pif-secao-datas');
+  var deveMostrarDatas = (
+    novoStatus === '2- Aguardando Instalação' ||
+    novoStatus === '3 - Finalizada/Instalada' ||
+    !!(v.agenda || v.dataAtiv || v.instal)
+  );
+  if (secaoDatas) secaoDatas.style.display = deveMostrarDatas ? '' : 'none';
 
   // Status 2 — Aguardando Instalação
   if (novoStatus === '2- Aguardando Instalação' && statusAtual !== '2- Aguardando Instalação') {
@@ -49,6 +56,13 @@ function pifValidarContrato(valor) {
   var err = _validarContratoFormato(valor, sistema);
   hint.textContent = err || '';
   hint.style.display = err ? '' : 'none';
+}
+
+function _inputDateToDisplay(value) {
+  if (!value) return '';
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return value;
+  var p = String(value).split('-');
+  return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : String(value);
 }
 
 function ms2ValidarContrato(valor) {
@@ -391,9 +405,16 @@ function painelToggleEdicao() {
 
     // Seção Datas (agendamento + turno)
     var _secaoDatas = document.getElementById('pif-secao-datas');
-    if (_secaoDatas) _secaoDatas.style.display = v.agenda ? '' : 'none';
+    var _mostrarDatas = (
+      (v.status || '') === '2- Aguardando Instalação' ||
+      (v.status || '') === '3 - Finalizada/Instalada' ||
+      !!(v.agenda || v.dataAtiv || v.instal)
+    );
+    if (_secaoDatas) _secaoDatas.style.display = _mostrarDatas ? '' : 'none';
+    _pifSet('pif-dataAtiv', _agendaToInputDate(v.dataAtiv || ''));
     _pifSet('pif-agenda', _agendaToInputDate(v.agenda || ''));
     _pifSetSelect('pif-turno', v.turno || '');
+    _pifSet('pif-instal', _agendaToInputDate(v.instal || ''));
 
     // Seção Móvel
     var _ehMovel = (v.produto || '').toUpperCase().indexOf('MÓVEL') > -1 || (v.produto || '').toUpperCase().indexOf('MOVEL') > -1;
@@ -459,9 +480,14 @@ function pifSalvar() {
     fat:           document.getElementById('pif-fat').value.trim(),
     linhaMovel:    document.getElementById('pif-linhaMovel').value.trim(),
     portabilidade: document.getElementById('pif-portabilidade').value,
-    // Campos não editados no inline — preserva os originais
-    dataAtiv:      v.dataAtiv   || '',
-    instal:        v.instal     || '',
+    dataAtiv: (function() {
+      var raw = document.getElementById('pif-dataAtiv') ? document.getElementById('pif-dataAtiv').value : '';
+      return raw ? _inputDateToDisplay(raw) : '';
+    })(),
+    instal: (function() {
+      var raw = document.getElementById('pif-instal') ? document.getElementById('pif-instal').value : '';
+      return raw ? _inputDateToDisplay(raw) : '';
+    })(),
     // Agenda: converte YYYY-MM-DD → DD/MM/YYYY para o backend
     agenda: (function() {
       var raw = document.getElementById('pif-agenda') ? document.getElementById('pif-agenda').value : '';

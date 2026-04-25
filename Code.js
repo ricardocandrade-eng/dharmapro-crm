@@ -2816,8 +2816,7 @@ function salvarVenda(dados) {
       }
     }
 
-    var sheet      = _getSheet();
-    var linhaDados = _construirLinhaDados(dados);
+    var sheet = _getSheet();
 
     // ── ARQUIVAR VENDA: se pré-status = "ARQUIVAR VENDA", arquiva e limpa ──
     if (dados.preStatus === 'ARQUIVAR VENDA' && dados.linhaReferencia && dados.linhaReferencia !== '') {
@@ -2831,6 +2830,9 @@ function salvarVenda(dados) {
     if (dados.linhaReferencia && dados.linhaReferencia !== '') {
       var linhaNum = parseInt(dados.linhaReferencia);
       if (isNaN(linhaNum) || linhaNum < 3) throw new Error('Linha de referência inválida!');
+      var linhaAtual = sheet.getRange(linhaNum, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+      dados = _mesclarDadosVendaComLinhaAtual_(dados, linhaAtual, linhaNum);
+      var linhaDados = _construirLinhaDados(dados);
       sheet.getRange(linhaNum, 1, 1, linhaDados.length).setValues([linhaDados]);
       _limparCache();
       // Capturar linha para notificação PAP fora do lock
@@ -2839,6 +2841,7 @@ function salvarVenda(dados) {
       }
       resultado = { sucesso: true, linha: linhaNum, mensagem: '✅ ' + dados.cliente.trim() + ' atualizado com sucesso!' };
     } else {
+      var linhaDados = _construirLinhaDados(dados);
       var ultimaSheet = sheet.getLastRow();
       var novaLinha;
       if (ultimaSheet < 3) {
@@ -3645,10 +3648,28 @@ function _construirLinhaDados(d) {
   linha[c.DT_NASC]           = _formatarDataNascimento(d.dtNasc, 'dd/MM/yyyy');
   linha[c.SEGMENTACAO]       = d.segmentacao       || '';
   linha[c.REAGENDAMENTOS]    = d.reagendamentos    || '';
+  linha[c.VEROHUB]           = d.verohub           || '';
   linha[c.STATUS_PAP]        = d.statusPAP         || 'Em Aberto';
   linha[c.VEROHUB_PEDIDO]    = d.verohubPedido     || '';
   linha[c.VEROHUB_PEDIDO_DT] = d.verohubPedidoDt   || '';
+  linha[c.BC_TAGS]           = d.bcTags            || '';
+  linha[c.BC_STATUS]         = d.bcStatus          || '';
+  linha[c.VIABILIDADE]       = d.viabilidade       || '';
   return linha;
+}
+
+function _mesclarDadosVendaComLinhaAtual_(dados, linhaAtual, numeroLinha) {
+  var atual = _mapearLinha(linhaAtual, numeroLinha);
+  var mesclado = {};
+  Object.keys(atual).forEach(function(chave) {
+    mesclado[chave] = atual[chave];
+  });
+  Object.keys(dados || {}).forEach(function(chave) {
+    var valor = dados[chave];
+    if (valor !== undefined) mesclado[chave] = valor;
+  });
+  mesclado.linhaReferencia = String(dados.linhaReferencia || numeroLinha || '');
+  return mesclado;
 }
 
 function _formatarData(valor) {

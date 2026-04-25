@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | AGENTS.md | 25/04/2026 16:10 -->
+<!-- dharmapro-crm | AGENTS.md | 25/04/2026 17:16 -->
 
 # DharmaPro CRM
 
@@ -71,6 +71,16 @@ Papel no ecossistema:
   - define `_menuMap` e `_menusPermitidos` — base do sistema de permissoes por perfil;
   - contem duas definicoes de `navegar()` (desktop e mobile) — qualquer novo modulo
     deve adicionar a branch `else if` nas duas ocorrencias.
+
+### Fluxo de vendas
+
+Estado atualizado em 25/04/2026:
+- `salvarVenda()` nao deve mais assumir que todo frontend envia payload completo;
+- em edicoes, o backend agora mescla os dados recebidos com a linha atual antes de regravar;
+- isso evita perda silenciosa de campos em fluxos parciais como painel lateral e modais;
+- o painel lateral de `Lista de Vendas` agora expoe `Data Ativacao` e `Data Instalacao`;
+- a persistencia passou a manter tambem `VEROHUB`, `BC_TAGS`, `BC_STATUS` e `VIABILIDADE`
+  quando a venda e atualizada por qualquer fluxo.
 
 ### Views HTML do sistema
 
