@@ -132,6 +132,24 @@
 .lma-badge.negociacao   { background: rgba(62,130,230,.12); color: #3070c0; }
 .lma-badge.sem-contato  { background: rgba(200,170,62,.12); color: #997a20; }
 .lma-badge.pendente     { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+
+/* Ações inline */
+.lma-acao-wrap { display: flex; align-items: center; gap: 5px; }
+.lma-acao-sel {
+  padding: 4px 7px; font-size: 11px; font-family: 'DM Mono', monospace;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text); cursor: pointer; max-width: 140px;
+}
+.lma-acao-sel:focus { outline: none; border-color: var(--accent); }
+.lma-acao-btn {
+  padding: 4px 9px; font-size: 11px; font-weight: 700;
+  border-radius: 6px; border: none; cursor: pointer;
+  background: var(--accent); color: #fff; font-family: 'Sora', sans-serif;
+  transition: opacity .15s; white-space: nowrap;
+}
+.lma-acao-btn:hover { opacity: .8; }
+.lma-acao-btn:disabled { opacity: .4; cursor: default; }
+.lma-acao-btn.salvando { opacity: .5; }
 </style>
 
 <!-- ══ PÁGINA ══ -->
@@ -200,10 +218,11 @@
             <th>Status</th>
             <th>Motivo desq.</th>
             <th>Atualizado em</th>
+            <th>Ação</th>
           </tr>
         </thead>
         <tbody id="lmaTbody">
-          <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">Clique em Atualizar para carregar os leads.</td></tr>
+          <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">Clique em Atualizar para carregar os leads.</td></tr>
         </tbody>
       </table>
     </div>
@@ -215,13 +234,13 @@ var _lmaDados = [];
 
 function carregarLeadsMetaAds() {
   document.getElementById('lmaTbody').innerHTML =
-    '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">⏳ Carregando…</td></tr>';
+    '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">⏳ Carregando…</td></tr>';
 
   google.script.run
     .withSuccessHandler(function(res) {
       if (!res || res.erro) {
         document.getElementById('lmaTbody').innerHTML =
-          '<tr><td colspan="8" style="text-align:center;padding:40px;color:#c04040">Erro: ' + (res && res.erro ? res.erro : 'resposta inválida') + '</td></tr>';
+          '<tr><td colspan="9" style="text-align:center;padding:40px;color:#c04040">Erro: ' + (res && res.erro ? res.erro : 'resposta inválida') + '</td></tr>';
         return;
       }
       _lmaDados = res.leads || [];
@@ -231,7 +250,7 @@ function carregarLeadsMetaAds() {
     })
     .withFailureHandler(function(err) {
       document.getElementById('lmaTbody').innerHTML =
-        '<tr><td colspan="8" style="text-align:center;padding:40px;color:#c04040">Erro ao carregar: ' + err.message + '</td></tr>';
+        '<tr><td colspan="9" style="text-align:center;padding:40px;color:#c04040">Erro ao carregar: ' + err.message + '</td></tr>';
     })
     .getLeadsMetaAds();
 }
@@ -277,7 +296,7 @@ function _lmaFiltrar() {
 function _lmaRenderizarTabela(lista) {
   if (!lista.length) {
     document.getElementById('lmaTbody').innerHTML =
-      '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--muted)">Nenhum lead encontrado.</td></tr>';
+      '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">Nenhum lead encontrado.</td></tr>';
     return;
   }
 
@@ -285,12 +304,21 @@ function _lmaRenderizarTabela(lista) {
     var badge = _lmaBadge(l.status_final);
     var dataEntrada = l.data_entrada ? _lmaFmtData(l.data_entrada) : '—';
     var dataStatus  = l.data_status  ? _lmaFmtData(l.data_status)  : '—';
+    var acaoHtml = '<div class="lma-acao-wrap">' +
+      '<select class="lma-acao-sel" id="lmaAcaoSel_' + l.linha + '">' +
+        '<option value="">— status —</option>' +
+        '<option value="Converteu"' +      (l.status_final === 'Converteu'      ? ' selected' : '') + '>✅ Converteu</option>' +
+        '<option value="Em negociação"' +  (l.status_final === 'Em negociação'  ? ' selected' : '') + '>🔄 Em negociação</option>' +
+        '<option value="Sem contato"' +    (l.status_final === 'Sem contato'    ? ' selected' : '') + '>📵 Sem contato</option>' +
+        '<option value="Desqualificado"' + (l.status_final === 'Desqualificado' ? ' selected' : '') + '>❌ Desqualificado</option>' +
+      '</select>' +
+      '<button class="lma-acao-btn" id="lmaAcaoBtn_' + l.linha + '" onclick="_lmaSalvarAcao(' + l.linha + ')">✓</button>' +
+    '</div>';
     return '<tr>' +
       '<td><span class="lma-mono">' + _esc(dataEntrada) + '</span></td>' +
       '<td>' +
         '<div class="lma-nome">' + _esc(l.nome || '—') + '</div>' +
         '<div class="lma-sub">' + _esc(l.telefone || '') + '</div>' +
-        '<div class="lma-sub">' + _esc(l.cidade || '') + '</div>' +
       '</td>' +
       '<td class="lma-mono">' + _esc(l.cidade || '—') + '</td>' +
       '<td class="lma-utmcell" title="' + _esc(l.utm_campaign || '') + '">' + _esc(l.utm_campaign || '—') + '</td>' +
@@ -298,6 +326,7 @@ function _lmaRenderizarTabela(lista) {
       '<td>' + badge + '</td>' +
       '<td class="lma-mono">' + _esc(l.motivo_desq || '—') + '</td>' +
       '<td><span class="lma-mono">' + _esc(dataStatus) + '</span></td>' +
+      '<td>' + acaoHtml + '</td>' +
     '</tr>';
   }).join('');
 
@@ -326,6 +355,46 @@ function _lmaFmtData(val) {
     var mi = String(d.getMinutes()).padStart(2,'0');
     return dd + '/' + mm + '/' + d.getFullYear() + ' ' + hh + ':' + mi;
   } catch(e) { return String(val); }
+}
+
+function _lmaSalvarAcao(linha) {
+  var sel = document.getElementById('lmaAcaoSel_' + linha);
+  var btn = document.getElementById('lmaAcaoBtn_' + linha);
+  if (!sel) return;
+  var novoStatus = sel.value;
+  if (!novoStatus) { mostrarToast('Selecione um status antes de salvar.', 'warning'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '⏳';
+
+  var motivo = novoStatus === 'Desqualificado'
+    ? (prompt('Motivo da desqualificação (opcional):') || '')
+    : '';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      btn.disabled = false;
+      btn.textContent = '✓';
+      mostrarToast('Status atualizado: ' + novoStatus, 'success');
+      // Atualiza badge na linha sem recarregar tudo
+      var row = btn.closest('tr');
+      if (row) {
+        var badgeCell = row.cells[5];
+        if (badgeCell) badgeCell.innerHTML = _lmaBadge(novoStatus);
+      }
+      // Atualiza dados locais
+      var lead = _lmaDados.find(function(l) { return l.linha === linha; });
+      if (lead) { lead.status_final = novoStatus; lead.motivo_desq = motivo; }
+      // Reconta pendentes e atualiza badge do menu
+      var pendentes = _lmaDados.filter(function(l) { return !l.status_final; }).length;
+      if (typeof _lmaAtualizarBadge === 'function') _lmaAtualizarBadge(pendentes);
+    })
+    .withFailureHandler(function(e) {
+      btn.disabled = false;
+      btn.textContent = '✓';
+      mostrarToast('Erro ao salvar: ' + e.message, 'error');
+    })
+    .atualizarStatusLeadMetaAds(linha, novoStatus, motivo);
 }
 
 function _esc(s) {

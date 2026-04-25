@@ -49,12 +49,17 @@ const HEADERS_PRE_VENDAS = [
   'ID', 'Timestamp', 'Status',
   'Parceiro', 'Parceiro CPF',
   'CPF Cliente', 'Nome Cliente',
-  'Endereço Ref', 'Protocolo Ref',
+  'CEP', 'Protocolo Ref',
   'WhatsApp', 'Email',
   'Plano', 'Móvel', 'Tipo Móvel',
   'Vencimento', 'Pagamento',
-  'Data Decisão', 'Decidido Por'
+  'Data Decisão', 'Decidido Por',
+  'Rua', 'Número', 'Complemento', 'Bairro', 'Cidade', 'UF', 'Valor Plano'
 ];
+// Índices PV (0-based): 0=ID 1=TS 2=Status 3=Parceiro 4=ParceiroCPF
+// 5=CPFCliente 6=Nome 7=CEP 8=ProtRef 9=Whats 10=Email
+// 11=Plano 12=Movel 13=TipoMovel 14=Venc 15=Pag 16=DataDecisão 17=DecididoPor
+// 18=Rua 19=Num 20=Complemento 21=Bairro 22=Cidade 23=UF 24=ValorPlano
 
 // ── Roteador principal ─────────────────────────────────────────────────────────
 // Chamado pelo doPost do Code.js quando payload.action está presente.
@@ -122,7 +127,7 @@ function _routePAP(payload) {
 //    Retorna: { found: bool, nome: string }
 // ══════════════════════════════════════════════════════════════════════════════
 function autenticarParceiro(cpf) {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const ss    = _getSpreadsheet_();
   const sheet = ss.getSheetByName(PAP_SHEET_PAP);
   if (!sheet) return { found: false, error: 'Aba "3 - PAP" não encontrada' };
 
@@ -216,7 +221,7 @@ function consultarAssertivaGAS(cpf) {
 //    Retorna: { found: bool, nome, protocolo, endereco }
 // ══════════════════════════════════════════════════════════════════════════════
 function buscarClienteConsultas(cpf) {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const ss    = _getSpreadsheet_();
   const sheet = ss.getSheetByName(PAP_SHEET_CONSULTAS);
   if (!sheet || sheet.getLastRow() < 2) return { found: false };
 
@@ -280,7 +285,7 @@ function salvarPreVenda(data) {
       data.parceiroCpf  || '',
       data.cpfCliente   || '',
       data.nomeCliente  || '',
-      data.enderecoRef  || '',
+      data.cep          || '',
       data.protocoloRef || '',
       data.whatsapp     || '',
       data.email        || '',
@@ -291,6 +296,13 @@ function salvarPreVenda(data) {
       data.pagamento    || '',
       '',  // Data Decisão (preenchida ao aprovar/rejeitar)
       '',  // Decidido Por
+      data.rua          || '',
+      data.num          || '',
+      data.complemento  || '',
+      data.bairro       || '',
+      data.cidade       || '',
+      data.uf           || '',
+      data.valor        || '',
     ]);
     SpreadsheetApp.flush();
   } finally {
@@ -323,7 +335,7 @@ function salvarPreVenda(data) {
 //    LockService: protege escrita dupla em ambas as abas
 // ══════════════════════════════════════════════════════════════════════════════
 function aprovarPreVenda(id, emailAprovador) {
-  const ss      = SpreadsheetApp.getActiveSpreadsheet();
+  const ss      = _getSpreadsheet_();
   const sheetPV = ss.getSheetByName(PAP_SHEET_PRE_VENDAS);
   const sheetV  = ss.getSheetByName(PAP_SHEET_VENDAS);
   if (!sheetPV) return { ok: false, error: 'Aba "Pré-Vendas" não encontrada' };
@@ -337,9 +349,6 @@ function aprovarPreVenda(id, emailAprovador) {
     lock.waitLock(12000);
 
     const data   = sheetPV.getDataRange().getValues();
-    // Colunas PV (0-based): 0=ID 1=TS 2=Status 3=Parceiro 4=ParceiroCPF
-    // 5=CPFCliente 6=Nome 7=EndRef 8=ProtRef 9=Whats 10=Email
-    // 11=Plano 12=Movel 13=TipoMovel 14=Venc 15=Pag 16=DataDecisão 17=DecididoPor
     const rowIdx = data.findIndex((r, i) => i > 0 && r[0] === id);
     if (rowIdx < 0) { resultado = { ok: false, error: 'Pré-venda não encontrada: ' + id }; return resultado; }
 
@@ -347,10 +356,10 @@ function aprovarPreVenda(id, emailAprovador) {
     if (pv[2] !== 'Pendente') { resultado = { ok: false, error: 'Pré-venda já processada: ' + pv[2] }; return resultado; }
 
     const sheetRowPV = rowIdx + 1;
-    // 1. Buscar endereço completo nas Consultas pelo CPF do cliente
+    // Endereço: usa campos do form (pv[7,18-23]) como primário; Consultas como fallback
     const end = _buscarEnderecoConsultas(pv[5]);
 
-    // 2. Montar e inserir linha em "1 - Vendas" usando o layout oficial do CRM
+    const _pvCidade = String(pv[22] || end?.cidade || '').toUpperCase();
     const vendaPayload = {
       canal:         'PAP',
       produto:       _papInferirProduto(pv[12]),
@@ -360,16 +369,19 @@ function aprovarPreVenda(id, emailAprovador) {
       cpf:           pv[5]  || '',
       cliente:       pv[6]  || '',
       whats:         pv[9]  || '',
-      cep:           end?.cep    || '',
-      rua:           end?.rua    || '',
-      num:           end?.numero || '',
-      complemento:   end?.comp   || '',
-      bairro:        end?.bairro || '',
-      cidade:        end?.cidade || '',
-      uf:            end?.uf     || '',
+      cep:           String(pv[7]  || end?.cep    || '').replace(/\D/g,'').replace(/(\d{5})(\d{3})/,'$1-$2'),
+      rua:           String(pv[18] || end?.rua    || '').toUpperCase(),
+      num:           String(pv[19] || end?.numero || ''),
+      complemento:   String(pv[20] || end?.comp   || '').toUpperCase(),
+      bairro:        String(pv[21] || end?.bairro || '').toUpperCase(),
+      cidade:        _pvCidade,
+      uf:            String(pv[23] || end?.uf     || '').toUpperCase(),
+      sistema:       (typeof getSistemaPorCidade      === 'function') ? (getSistemaPorCidade(_pvCidade)      || '') : '',
+      segmentacao:   (typeof getSegmentacaoPorCidade  === 'function') ? (getSegmentacaoPorCidade(_pvCidade)  || '') : '',
       venc:          pv[14] || '',
       fat:           pv[15] || '',
       plano:         pv[11] || '',
+      valor:         pv[24] || '',
       linhaMovel:    pv[12] || '',
       portabilidade: pv[13] || '',
       observacao:    _papMontarObservacaoPreVenda(pv),
@@ -378,9 +390,22 @@ function aprovarPreVenda(id, emailAprovador) {
 
     try {
       const novaVenda = _papConstruirLinhaVenda(vendaPayload);
-      sheetV.getRange(sheetV.getLastRow() + 1, 1, 1, novaVenda.length).setValues([novaVenda]);
+      // Mesma lógica de salvarVenda: encontrar última linha com STATUS preenchido
+      const ultimaSheet = sheetV.getLastRow();
+      let novaLinha = 3;
+      if (ultimaSheet >= 3) {
+        const colStatus = sheetV.getRange(3, CONFIG.COLUNAS.STATUS + 1, ultimaSheet - 2, 1).getValues();
+        for (let r = colStatus.length - 1; r >= 0; r--) {
+          if (colStatus[r][0] !== '' && colStatus[r][0] !== null && colStatus[r][0] !== undefined) {
+            novaLinha = r + 4; // r é 0-based iniciando em row 3, então row = r+3, próxima = r+4
+            break;
+          }
+        }
+      }
+      sheetV.getRange(novaLinha, 1, 1, novaVenda.length).setValues([novaVenda]);
+      _limparCache();
     } catch (err) {
-      Logger.log('aprovarPreVenda ERRO ao inserir na Lista | id=' + id + ' | payload=' + JSON.stringify(vendaPayload) + ' | erro=' + err);
+      Logger.log('aprovarPreVenda ERRO ao inserir na Lista | id=' + id + ' | erro=' + err);
       resultado = { ok: false, error: 'Falha ao criar venda na Lista: ' + (err && err.message ? err.message : err) };
       return resultado;
     }
@@ -416,7 +441,7 @@ function aprovarPreVenda(id, emailAprovador) {
 
 // Helper: busca endereço na aba Consultas pelo CPF do cliente
 function _buscarEnderecoConsultas(cpf) {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const ss    = _getSpreadsheet_();
   const sheet = ss.getSheetByName(PAP_SHEET_CONSULTAS);
   if (!sheet || sheet.getLastRow() < 2) return null;
 
@@ -479,7 +504,7 @@ function _papConstruirLinhaVenda(payload) {
 
 function _papInferirProduto(movel) {
   const movelNorm = String(movel || '').trim().toUpperCase();
-  return movelNorm === 'SIM' ? 'FIBRA COMBO' : 'FIBRA ALONE';
+  return movelNorm === 'SIM' ? 'Fibra Combo' : 'Fibra Alone';
 }
 
 function _papMontarObservacaoPreVenda(pv) {
@@ -487,7 +512,7 @@ function _papMontarObservacaoPreVenda(pv) {
     'Pré-venda PAP aprovada pelo backoffice',
     pv[8]  ? 'Consulta: ' + pv[8] : '',
     pv[10] ? 'Email: ' + pv[10] : '',
-    pv[7]  ? 'Endereço ref: ' + pv[7] : ''
+    pv[7]  ? 'CEP: ' + pv[7] : ''
   ].filter(Boolean);
 
   return detalhes.join(' | ');
@@ -499,7 +524,7 @@ function _papMontarObservacaoPreVenda(pv) {
 //    Retorna: { ok: bool }
 // ══════════════════════════════════════════════════════════════════════════════
 function rejeitarPreVenda(id, emailRejeitor) {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const ss    = _getSpreadsheet_();
   const sheet = ss.getSheetByName(PAP_SHEET_PRE_VENDAS);
   if (!sheet) return { ok: false, error: 'Aba "Pré-Vendas" não encontrada' };
 
@@ -553,7 +578,7 @@ function apagarPreVenda(id) {
 }
 
 function _papApagarRegistroPorId(nomeAba, id, rotulo) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = _getSpreadsheet_();
   const sheet = ss.getSheetByName(nomeAba);
   if (!sheet) return { ok: false, error: `Aba "${nomeAba}" não encontrada` };
 
@@ -582,7 +607,7 @@ function _papApagarRegistroPorId(nomeAba, id, rotulo) {
 //    Retorna: { ok: bool, consultas: N, preVendas: N, total: N }
 // ══════════════════════════════════════════════════════════════════════════════
 function listarPendentes() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = _getSpreadsheet_();
 
   const contar = (nomeAba, colStatus) => {
     const sheet = ss.getSheetByName(nomeAba);
@@ -640,7 +665,7 @@ function listarPendentes() {
 //    Retorna os 50 mais recentes que batem no filtro.
 // ══════════════════════════════════════════════════════════════════════════════
 function listarConsultas(filtro) {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const ss    = _getSpreadsheet_();
   const sheet = ss.getSheetByName(PAP_SHEET_CONSULTAS);
   if (!sheet || sheet.getLastRow() < 2) return { ok: true, items: [] };
 
@@ -671,7 +696,7 @@ function listarConsultas(filtro) {
 //     filtro: 'Pendente' | 'Aprovado' | 'Rejeitado' | 'Todos'
 // ══════════════════════════════════════════════════════════════════════════════
 function listarPreVendas(filtro) {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const ss    = _getSpreadsheet_();
   const sheet = ss.getSheetByName(PAP_SHEET_PRE_VENDAS);
   if (!sheet || sheet.getLastRow() < 2) return { ok: true, items: [] };
 
@@ -721,7 +746,7 @@ function _papNormCpf(cpf) {
 
 // Cria a aba com cabeçalho se ela não existir
 function _papGetOrCreateSheet(name, headers) {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const ss    = _getSpreadsheet_();
   let   sheet = ss.getSheetByName(name);
   if (!sheet) {
     sheet = ss.insertSheet(name);
@@ -746,7 +771,7 @@ function _papGetOrCreateSheet(name, headers) {
 // Cols lidas a partir de S (col 19, 1-based): S=nome T=bcId U=whats V=dataCad W=cpf
 function _papBuscarSubscriberVendedor(cpf, nome) {
   try {
-    const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('3 - PAP');
+    const sh = _getSpreadsheet_().getSheetByName('3 - PAP');
     if (!sh || sh.getLastRow() < 5) return null;
     const raw      = sh.getRange(5, 19, sh.getLastRow() - 4, 5).getValues();
     const cpfLimpo = cpf  ? String(cpf).replace(/\D/g, '')           : '';
@@ -803,8 +828,8 @@ function _papMontarMensagemNotificacao(evento, dados) {
   const plano     = dados.pap_plano        || '';
   const protocolo = dados.pap_pv_id        || '';
 
-  const rodape = '\n👤 Cliente: ' + cliente +
-                 '\n📦 Plano: '   + plano;
+  const rodape = '\n\n👤 Cliente: ' + cliente +
+                 '\n📦 Plano: '    + plano;
 
   switch (evento) {
     case 'pv_recebida':
@@ -828,17 +853,25 @@ function _papMontarMensagemNotificacao(evento, dados) {
              '\n🔖 Protocolo: ' + protocolo +
              '\n\nEntre em contato com o backoffice para mais informações.';
 
-    case 'aguardando_instalacao':
+    case 'aguardando_instalacao': {
+      const agenda = dados.pap_agenda || '';
+      const turno  = dados.pap_turno  || '';
+      const agendaStr = agenda ? '\n📅 Agendamento: ' + agenda + (turno ? ' — ' + turno : '') : '';
       return '📅 *Instalação agendada!*\n\n' +
              'A venda foi ativada e está com instalação agendada pela Vero.' +
-             rodape +
-             '\n\nAcompanhe o andamento pelo CRM.';
+             rodape + agendaStr +
+             '\n\nAssim que for instalada, você será notificado.';
+    }
 
-    case 'instalada':
+    case 'instalada': {
+      const agenda2    = dados.pap_agenda || '';
+      const turno2     = dados.pap_turno  || '';
+      const agendaStr2 = agenda2 ? '\n📅 Agendamento: ' + agenda2 + (turno2 ? ' — ' + turno2 : '') : '';
       return '🏠 *Instalação concluída!*\n\n' +
-             'A instalação do seu cliente foi realizada com sucesso.' +
-             rodape +
-             '\n\nComissão registrada. Obrigado pela venda! 💪';
+             'Parabéns! A instalação do seu cliente foi realizada com sucesso.' +
+             rodape + agendaStr2 +
+             '\n\nComissão registrada. Vamos pra próxima! 💪';
+    }
 
     default:
       return 'Notificação PAP: ' + evento + rodape;

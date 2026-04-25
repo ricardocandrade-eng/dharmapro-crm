@@ -373,7 +373,7 @@
     <div class="header-badge">📋</div>
     <div>
       <div class="header-title">Fila PAP</div>
-      <div class="header-sub">Consultas · Pré-Vendas</div>
+      <div class="header-sub">Pré-Vendas</div>
     </div>
   </div>
   <div class="header-right">
@@ -386,11 +386,12 @@
      TAB BAR
 ══════════════════════════════════════════════════════ -->
 <div class="tab-bar">
-  <div class="tab-btn active" id="tab-btn-consultas" onclick="mudarTab('consultas')">
+  <!-- TEMPORARIAMENTE OCULTO: tab Consultas -->
+  <div class="tab-btn" id="tab-btn-consultas" onclick="mudarTab('consultas')" style="display:none">
     🔍 Consultas
     <span class="tab-count" id="tab-count-consultas"></span>
   </div>
-  <div class="tab-btn" id="tab-btn-prevendas" onclick="mudarTab('prevendas')">
+  <div class="tab-btn active" id="tab-btn-prevendas" onclick="mudarTab('prevendas')">
     📦 Pré-Vendas
     <span class="tab-count" id="tab-count-prevendas"></span>
   </div>
@@ -399,7 +400,7 @@
 <!-- ══════════════════════════════════════════════════════
      ABA: CONSULTAS
 ══════════════════════════════════════════════════════ -->
-<div class="tab-pane active" id="pane-consultas">
+<div class="tab-pane" id="pane-consultas" style="display:none">
   <div class="filter-bar">
     <div class="f-chip active" onclick="setFiltro('consultas','Pendente',this)">Pendentes</div>
     <div class="f-chip"       onclick="setFiltro('consultas','Todos',this)">Todos</div>
@@ -415,7 +416,7 @@
 <!-- ══════════════════════════════════════════════════════
      ABA: PRÉ-VENDAS
 ══════════════════════════════════════════════════════ -->
-<div class="tab-pane" id="pane-prevendas">
+<div class="tab-pane active" id="pane-prevendas">
   <div class="filter-bar">
     <div class="f-chip active" onclick="setFiltro('prevendas','Pendente',this)">Pendentes</div>
     <div class="f-chip"       onclick="setFiltro('prevendas','Aprovado',this)">Aprovadas</div>
@@ -457,7 +458,7 @@
    ESTADO
 ───────────────────────────────────────────────────── */
 const STATE = {
-  tabAtual:        'consultas',
+  tabAtual:        'prevendas',
   filtroConsultas: 'Pendente',
   filtroPreVendas: 'Pendente',
   consultas:       [],

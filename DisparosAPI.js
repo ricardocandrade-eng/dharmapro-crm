@@ -1,7 +1,9 @@
 // dharmapro-crm | DisparosAPI.js | 24/04/2026 16:30
 // Backend GAS — Módulo Disparos em Massa (integração Supabase disparo-massa)
 // Configurar em Extensões → Apps Script → Propriedades do script:
-//   SUPABASE_SERVICE_ROLE = <service_role key do projeto zfunugupwvktcggvicuk>
+//   Opcao 1 (legado): SUPABASE_SERVICE_ROLE = <service_role JWT>
+//   Opcao 2 (recomendada): SUPABASE_SECRET_KEY = <sb_secret_...>
+//   Opcional com chave nova: SUPABASE_PUBLISHABLE_KEY = <sb_publishable_...>
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
 var CFG_DISPAROS = {
@@ -114,7 +116,7 @@ function criarCampanhaDisparo(params) {
 
 // ── HELPER: busca leads da planilha ───────────────────────────────────────────
 function _buscarLeadsDisparo_(filtro) {
-  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var ss   = _getSpreadsheet_();
   var aba  = ss.getSheetByName(CFG_DISPAROS.ABA_VENDAS);
   if (!aba) return [];
 

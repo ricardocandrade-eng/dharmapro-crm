@@ -1,0 +1,635 @@
+<!-- ══════════════════════════════════════════════════════════════════════════
+     PainelAds.html — Claude Ads Dashboard | DharmaPro v2.0 | 20/04/2026
+     Painel unificado de tráfego pago: Meta Ads (ativo) + Google Ads (futuro)
+     ══════════════════════════════════════════════════════════════════════════ -->
+
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700&family=Martian+Mono:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+/* ── BASE ──────────────────────────────────────────────────────────────────── */
+#painelAdsContainer { all:initial; display:block; width:100%; height:100%; overflow-y:auto; background:#08090e; color:#dde2f0; font-family:'DM Sans',sans-serif; position:relative; }
+#painelAdsContainer *, #painelAdsContainer *::before, #painelAdsContainer *::after { box-sizing:border-box; margin:0; padding:0; }
+#painelAdsContainer {
+  --bg:#08090e; --s1:#0e1018; --s2:#131620; --s3:#191d2c;
+  --rim:rgba(255,255,255,.06); --rim2:rgba(255,255,255,.12);
+  --txt:#dde2f0; --dim:#5a6080; --dim2:#8490b8; --em:#f0f4ff;
+  --g1:#c8ff5e; --g2:#00d4ff; --g3:#ff4570; --g4:#ffaa00; --g5:#a78bfa;
+  --serif:'Instrument Serif',Georgia,serif;
+  --sans:'DM Sans',sans-serif;
+  --mono:'Martian Mono',monospace;
+  --r:14px;
+}
+
+/* ── GLOW DE FUNDO ─────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-glow-tl { position:fixed; top:-200px; left:-200px; width:600px; height:600px; border-radius:50%; background:radial-gradient(circle,rgba(200,255,94,.04) 0%,transparent 65%); pointer-events:none; z-index:0; }
+#painelAdsContainer .pa-glow-br { position:fixed; bottom:-300px; right:-200px; width:700px; height:700px; border-radius:50%; background:radial-gradient(circle,rgba(0,212,255,.03) 0%,transparent 65%); pointer-events:none; z-index:0; }
+
+/* ── TOOLBAR ────────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-toolbar {
+  position:sticky; top:0; z-index:100;
+  height:52px; padding:0 28px;
+  display:flex; align-items:center; gap:16px;
+  background:rgba(8,9,14,.92); backdrop-filter:blur(24px);
+  border-bottom:1px solid var(--rim);
+  flex-shrink:0;
+}
+#painelAdsContainer .pa-brand { display:flex; align-items:center; gap:9px; }
+#painelAdsContainer .pa-pulse { width:7px; height:7px; border-radius:50%; background:var(--g1); box-shadow:0 0 12px var(--g1); animation:pa-pulse 2.4s ease-in-out infinite; flex-shrink:0; }
+@keyframes pa-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.85)} }
+#painelAdsContainer .pa-brand-name { font-family:var(--mono); font-size:11px; font-weight:400; letter-spacing:.22em; color:var(--dim2); text-transform:uppercase; }
+
+/* channel tabs */
+#painelAdsContainer .pa-tabs { display:flex; align-items:center; gap:4px; margin-left:16px; }
+#painelAdsContainer .pa-tab {
+  padding:5px 14px; border-radius:7px; font-family:var(--mono);
+  font-size:10px; font-weight:600; letter-spacing:.08em;
+  cursor:pointer; border:1px solid transparent; transition:all .15s;
+  color:var(--dim2);
+}
+#painelAdsContainer .pa-tab:hover { background:var(--s2); color:var(--txt); }
+#painelAdsContainer .pa-tab.ativo { background:rgba(200,255,94,.1); border-color:rgba(200,255,94,.25); color:var(--g1); }
+#painelAdsContainer .pa-tab.inativo { opacity:.45; cursor:default; }
+#painelAdsContainer .pa-tab .soon-badge { font-size:8px; background:rgba(255,170,0,.12); color:var(--g4); border:1px solid rgba(255,170,0,.2); padding:1px 5px; border-radius:4px; margin-left:5px; vertical-align:middle; }
+
+/* period buttons */
+#painelAdsContainer .pa-periodo { display:flex; align-items:center; gap:4px; margin-left:auto; }
+#painelAdsContainer .pa-per-btn {
+  padding:5px 12px; border-radius:7px; font-family:var(--mono);
+  font-size:10px; font-weight:600; letter-spacing:.06em;
+  cursor:pointer; border:1px solid var(--rim);
+  background:var(--s2); color:var(--dim2); transition:all .15s;
+}
+#painelAdsContainer .pa-per-btn:hover { background:var(--s3); color:var(--em); border-color:var(--rim2); }
+#painelAdsContainer .pa-per-btn.ativo { background:rgba(0,212,255,.1); border-color:rgba(0,212,255,.3); color:var(--g2); }
+
+/* refresh */
+#painelAdsContainer .pa-refresh { padding:6px 16px; border-radius:8px; background:rgba(200,255,94,.07); border:1px solid rgba(200,255,94,.18); color:var(--g1); font-size:11px; font-weight:600; cursor:pointer; font-family:var(--sans); letter-spacing:.04em; transition:all .15s; flex-shrink:0; }
+#painelAdsContainer .pa-refresh:hover { background:rgba(200,255,94,.14); border-color:rgba(200,255,94,.35); }
+#painelAdsContainer .pa-refresh:disabled { opacity:.4; cursor:default; }
+#painelAdsContainer .pa-sync { font-family:var(--mono); font-size:10px; color:var(--dim); letter-spacing:.12em; white-space:nowrap; }
+
+/* ── CANVAS ─────────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-canvas { position:relative; z-index:1; padding:22px 26px 48px; }
+
+/* section row */
+#painelAdsContainer .pa-section { display:flex; align-items:center; gap:12px; margin:0 0 12px; }
+#painelAdsContainer .pa-section span { font-family:var(--mono); font-size:9px; letter-spacing:.25em; text-transform:uppercase; color:var(--dim); white-space:nowrap; }
+#painelAdsContainer .pa-section::after { content:''; flex:1; height:1px; background:linear-gradient(90deg,var(--rim) 0%,transparent 100%); }
+
+/* ── KPI GRID ───────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:12px; }
+@media(max-width:1100px) { #painelAdsContainer .pa-kpi-grid { grid-template-columns:repeat(4,1fr); } }
+
+/* ── CAMPAIGN GRID ──────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-camp-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:12px; }
+
+/* ── BOTTOM GRID ────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-bottom-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+/* ── CARDS ──────────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-card {
+  background:var(--s1); border:1px solid var(--rim); border-radius:var(--r);
+  padding:18px 20px; position:relative; overflow:hidden;
+  animation:pa-fadeUp .4s ease both;
+}
+#painelAdsContainer .pa-card:hover { border-color:var(--rim2); transition:border-color .2s; }
+@keyframes pa-fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:none} }
+#painelAdsContainer .pa-card.c-lime  { border-color:rgba(200,255,94,.18);  background:linear-gradient(135deg,var(--s1) 0%,rgba(200,255,94,.025) 100%); }
+#painelAdsContainer .pa-card.c-cyan  { border-color:rgba(0,212,255,.18);   background:linear-gradient(135deg,var(--s1) 0%,rgba(0,212,255,.03) 100%); }
+#painelAdsContainer .pa-card.c-amber { border-color:rgba(255,170,0,.18);   background:linear-gradient(135deg,var(--s1) 0%,rgba(255,170,0,.025) 100%); }
+#painelAdsContainer .pa-card.c-red   { border-color:rgba(255,69,112,.18);  background:linear-gradient(135deg,var(--s1) 0%,rgba(255,69,112,.025) 100%); }
+#painelAdsContainer .pa-card.c-purple{ border-color:rgba(167,139,250,.18); background:linear-gradient(135deg,var(--s1) 0%,rgba(167,139,250,.025) 100%); }
+
+/* card head */
+#painelAdsContainer .pa-card-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px; }
+#painelAdsContainer .pa-card-title { font-family:var(--mono); font-size:9px; font-weight:400; letter-spacing:.22em; text-transform:uppercase; color:var(--dim); }
+
+/* badge */
+#painelAdsContainer .pa-badge { font-family:var(--mono); font-size:9px; font-weight:600; padding:3px 8px; border-radius:4px; }
+#painelAdsContainer .pa-badge.lime   { background:rgba(200,255,94,.1);  color:var(--g1); border:1px solid rgba(200,255,94,.2); }
+#painelAdsContainer .pa-badge.cyan   { background:rgba(0,212,255,.1);   color:var(--g2); border:1px solid rgba(0,212,255,.2); }
+#painelAdsContainer .pa-badge.amber  { background:rgba(255,170,0,.1);   color:var(--g4); border:1px solid rgba(255,170,0,.2); }
+#painelAdsContainer .pa-badge.red    { background:rgba(255,69,112,.1);  color:var(--g3); border:1px solid rgba(255,69,112,.2); }
+#painelAdsContainer .pa-badge.purple { background:rgba(167,139,250,.1); color:var(--g5); border:1px solid rgba(167,139,250,.2); }
+#painelAdsContainer .pa-badge.dim    { background:rgba(255,255,255,.05);color:var(--dim2);border:1px solid var(--rim); }
+
+/* ── KPI NUMEROS ────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-kpi      { font-family:var(--serif); font-size:48px; line-height:1; font-style:italic; letter-spacing:-.02em; }
+#painelAdsContainer .pa-kpi.md   { font-size:34px; }
+#painelAdsContainer .pa-kpi.sm   { font-size:26px; }
+#painelAdsContainer .pa-kpi-sub  { font-size:11px; color:var(--dim2); margin-top:5px; }
+#painelAdsContainer .pa-kpi-sub b{ color:var(--txt); font-size:12px; }
+#painelAdsContainer .pa-kpi-benchmark { font-size:10px; color:var(--dim); margin-top:6px; padding-top:6px; border-top:1px solid var(--rim); font-family:var(--mono); letter-spacing:.04em; }
+#painelAdsContainer .pa-kpi-benchmark b { font-weight:600; }
+
+/* ── CAMP CARD CONTENT ──────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-camp-name { font-size:13px; font-weight:700; color:var(--em); margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#painelAdsContainer .pa-camp-budget { font-size:11px; color:var(--dim2); margin-bottom:14px; font-family:var(--mono); }
+
+#painelAdsContainer .pa-mini-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+#painelAdsContainer .pa-mini-stat { background:var(--s2); border-radius:9px; padding:8px 10px; }
+#painelAdsContainer .pa-mini-lbl  { font-family:var(--mono); font-size:8px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); margin-bottom:4px; }
+#painelAdsContainer .pa-mini-val  { font-family:var(--serif); font-size:22px; font-style:italic; line-height:1; }
+#painelAdsContainer .pa-mini-val.ok    { color:var(--g1); }
+#painelAdsContainer .pa-mini-val.aviso { color:var(--g4); }
+#painelAdsContainer .pa-mini-val.erro  { color:var(--g3); }
+#painelAdsContainer .pa-mini-val.dim   { color:var(--dim2); }
+
+/* camp bar */
+#painelAdsContainer .pa-camp-bar-row { display:flex; align-items:center; gap:8px; }
+#painelAdsContainer .pa-camp-bar-track { flex:1; height:4px; background:rgba(255,255,255,.05); border-radius:2px; overflow:hidden; }
+#painelAdsContainer .pa-camp-bar-fill  { height:100%; border-radius:2px; transition:width 1.1s cubic-bezier(.34,1.56,.64,1); }
+#painelAdsContainer .pa-camp-bar-pct   { font-family:var(--mono); font-size:10px; font-weight:600; white-space:nowrap; color:var(--dim2); }
+
+/* ── FUNIL ──────────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-funil-rows { display:flex; flex-direction:column; gap:10px; }
+#painelAdsContainer .pa-fv-row     { display:flex; align-items:center; gap:10px; }
+#painelAdsContainer .pa-fv-name    { width:110px; flex-shrink:0; font-size:10px; color:var(--dim2); font-family:var(--mono); letter-spacing:.04em; }
+#painelAdsContainer .pa-fv-track   { flex:1; height:8px; background:rgba(255,255,255,.04); border-radius:4px; overflow:hidden; }
+#painelAdsContainer .pa-fv-fill    { height:100%; border-radius:4px; transition:width 1.2s cubic-bezier(.34,1.56,.64,1); }
+#painelAdsContainer .pa-fv-val     { width:54px; text-align:right; font-family:var(--mono); font-size:12px; font-weight:600; }
+#painelAdsContainer .pa-fv-rate    { width:36px; text-align:right; font-family:var(--mono); font-size:9px; color:var(--dim); }
+#painelAdsContainer .pa-fv-impr  { background:linear-gradient(90deg,#c8ff5e,#a0d400); }
+#painelAdsContainer .pa-fv-click { background:linear-gradient(90deg,#ffaa00,#e08800); }
+#painelAdsContainer .pa-fv-lead  { background:linear-gradient(90deg,#00d4ff,#0099bb); }
+#painelAdsContainer .pa-fv-venda { background:linear-gradient(90deg,#a78bfa,#7c5ce8); }
+
+/* ── ALERTAS ────────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-alert-list { display:flex; flex-direction:column; gap:7px; }
+#painelAdsContainer .pa-alert-item {
+  display:flex; align-items:flex-start; gap:10px;
+  padding:10px 14px; border-radius:10px;
+  font-size:12px; font-family:var(--mono); letter-spacing:.03em; line-height:1.4;
+}
+#painelAdsContainer .pa-alert-item.erro  { background:rgba(255,69,112,.07);  border:1px solid rgba(255,69,112,.18);  color:#f08090; }
+#painelAdsContainer .pa-alert-item.aviso { background:rgba(255,170,0,.07);   border:1px solid rgba(255,170,0,.18);   color:#e0a040; }
+#painelAdsContainer .pa-alert-item.ok    { background:rgba(200,255,94,.06);  border:1px solid rgba(200,255,94,.15);  color:#a0c840; }
+#painelAdsContainer .pa-alert-icon { font-size:14px; flex-shrink:0; margin-top:1px; }
+
+/* ── GOOGLE ADS PLACEHOLDER ──────────────────────────────────────────────────── */
+#painelAdsContainer .pa-gads-placeholder {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:12px; padding:40px 20px; text-align:center; min-height:160px;
+  border:1px dashed rgba(255,255,255,.1); border-radius:var(--r);
+  background:rgba(255,255,255,.015);
+}
+#painelAdsContainer .pa-gads-icon  { font-size:32px; opacity:.3; }
+#painelAdsContainer .pa-gads-title { font-family:var(--mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--dim2); }
+#painelAdsContainer .pa-gads-sub   { font-size:12px; color:var(--dim); line-height:1.5; max-width:220px; }
+
+/* ── LOADING SKELETON ────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-skel {
+  border-radius:8px;
+  background:linear-gradient(90deg,var(--s2) 25%,var(--s3) 50%,var(--s2) 75%);
+  background-size:200% 100%;
+  animation:pa-shimmer 1.6s infinite;
+}
+@keyframes pa-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+#painelAdsContainer .pa-loading-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:12px; }
+#painelAdsContainer .pa-loading-grid .pa-skel { height:116px; border-radius:var(--r); }
+#painelAdsContainer .pa-loading-camps { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:12px; }
+#painelAdsContainer .pa-loading-camps .pa-skel { height:180px; border-radius:var(--r); }
+#painelAdsContainer .pa-loading-bottom { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+#painelAdsContainer .pa-loading-bottom .pa-skel { height:200px; border-radius:var(--r); }
+
+/* ── ZERO STATE ──────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-empty {
+  text-align:center; padding:60px 20px; color:var(--dim2);
+  font-family:var(--mono); font-size:12px; letter-spacing:.1em;
+}
+#painelAdsContainer .pa-empty-ico { font-size:36px; margin-bottom:12px; opacity:.4; }
+
+/* ── ERRO ────────────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-erro { padding:40px 28px; }
+#painelAdsContainer .pa-erro-box { background:rgba(255,69,112,.06); border:1px solid rgba(255,69,112,.2); border-radius:var(--r); padding:20px 24px; color:var(--g3); font-family:var(--mono); font-size:12px; line-height:1.7; }
+#painelAdsContainer .pa-erro-box strong { display:block; font-size:13px; margin-bottom:6px; }
+
+/* ── DIVIDER NUM ─────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-divider-num { display:flex; align-items:center; gap:10px; margin:16px 0 10px; }
+#painelAdsContainer .pa-divider-num span { font-family:var(--mono); font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:var(--dim); }
+#painelAdsContainer .pa-divider-num::after { content:''; flex:1; height:1px; background:var(--rim); }
+</style>
+
+<!-- ── MARKUP ─────────────────────────────────────────────────────────────────── -->
+<div class="pa-glow-tl"></div>
+<div class="pa-glow-br"></div>
+
+<!-- TOOLBAR -->
+<div class="pa-toolbar">
+  <div class="pa-brand">
+    <div class="pa-pulse" id="paPulse"></div>
+    <span class="pa-brand-name">Claude Ads</span>
+  </div>
+
+  <div class="pa-tabs">
+    <div class="pa-tab ativo" id="paTabMeta" onclick="paMudarCanal('meta')">◈ Meta Ads</div>
+    <div class="pa-tab inativo" id="paTabGoogle" title="Em breve — Google Ads">▲ Google Ads <span class="soon-badge">em breve</span></div>
+  </div>
+
+  <div class="pa-periodo">
+    <button class="pa-per-btn" id="paPerHoje"  onclick="paCarregar('hoje')">Hoje</button>
+    <button class="pa-per-btn ativo" id="paPer7d" onclick="paCarregar('7d')">7 dias</button>
+    <button class="pa-per-btn" id="paPer30d" onclick="paCarregar('30d')">30 dias</button>
+  </div>
+
+  <span class="pa-sync" id="paSyncLabel"></span>
+  <button class="pa-refresh" id="paBtnRefresh" onclick="paCarregar(paAtualPeriodo, true)">↻ Atualizar</button>
+</div>
+
+<!-- CANVAS -->
+<div class="pa-canvas" id="paCanvas">
+  <!-- Loading skeleton inicial -->
+  <div id="paLoading">
+    <div class="pa-section"><span>Visão Geral</span></div>
+    <div class="pa-loading-grid">
+      <div class="pa-skel"></div><div class="pa-skel"></div>
+      <div class="pa-skel"></div><div class="pa-skel"></div>
+    </div>
+    <div class="pa-section"><span>Campanhas</span></div>
+    <div class="pa-loading-camps">
+      <div class="pa-skel"></div><div class="pa-skel"></div><div class="pa-skel"></div>
+    </div>
+    <div class="pa-section"><span>Análise</span></div>
+    <div class="pa-loading-bottom">
+      <div class="pa-skel"></div><div class="pa-skel"></div>
+    </div>
+  </div>
+
+  <!-- Conteúdo (renderizado via JS) -->
+  <div id="paConteudo" style="display:none;"></div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  var paAtualPeriodo = '7d';
+  var paCache = {};
+  var paCarregando = false;
+
+  // ── INICIALIZAÇÃO ───────────────────────────────────────────────────────────
+  window.paInit = function() {
+    paCarregar('7d');
+  };
+
+  // ── MUDAR CANAL ────────────────────────────────────────────────────────────
+  window.paMudarCanal = function(canal) {
+    if (canal !== 'meta') return; // Google Ads not yet implemented
+  };
+
+  // ── CARREGAR DADOS ─────────────────────────────────────────────────────────
+  window.paCarregar = function(periodo, forcar) {
+    if (paCarregando) return;
+    periodo = periodo || '7d';
+    paAtualPeriodo = periodo;
+    _paAtivarPeriodo(periodo);
+
+    if (!forcar && paCache[periodo]) {
+      _paRenderizar(paCache[periodo]);
+      return;
+    }
+
+    paCarregando = true;
+    var btn = document.getElementById('paBtnRefresh');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Carregando...'; }
+    document.getElementById('paLoading').style.display = 'block';
+    document.getElementById('paConteudo').style.display = 'none';
+
+    google.script.run
+      .withSuccessHandler(function(dados) {
+        paCarregando = false;
+        if (btn) { btn.disabled = false; btn.textContent = '↻ Atualizar'; }
+        if (dados && dados.erro) {
+          _paRenderizarErro(dados.erro);
+          return;
+        }
+        paCache[periodo] = dados;
+        _paRenderizar(dados);
+      })
+      .withFailureHandler(function(e) {
+        paCarregando = false;
+        if (btn) { btn.disabled = false; btn.textContent = '↻ Atualizar'; }
+        _paRenderizarErro('Falha de comunicação com o servidor: ' + (e.message || e));
+      })
+      .getPainelAdsData(periodo);
+  };
+
+  function _paAtivarPeriodo(p) {
+    ['Hoje','7d','30d'].forEach(function(id) {
+      var el = document.getElementById('paPer' + id);
+      if (el) el.classList.remove('ativo');
+    });
+    var mapa = { hoje: 'Hoje', '7d': '7d', '30d': '30d' };
+    var el = document.getElementById('paPer' + mapa[p]);
+    if (el) el.classList.add('ativo');
+  }
+
+  // ── RENDERIZAR ERRO ─────────────────────────────────────────────────────────
+  function _paRenderizarErro(msg) {
+    document.getElementById('paLoading').style.display = 'none';
+    var c = document.getElementById('paConteudo');
+    c.style.display = 'block';
+    c.innerHTML = '<div class="pa-erro"><div class="pa-erro-box"><strong>⚠ Erro ao carregar dados</strong>' + _paEsc(msg) + '<br><br>Verifique se o token META_ACCESS_TOKEN está configurado em <code>Extensões → Apps Script → Propriedades do projeto</code>.</div></div>';
+  }
+
+  // ── RENDERIZAR DASHBOARD ───────────────────────────────────────────────────
+  function _paRenderizar(d) {
+    document.getElementById('paLoading').style.display = 'none';
+    var c = document.getElementById('paConteudo');
+    c.style.display = 'block';
+
+    // Atualiza sync label
+    var syncEl = document.getElementById('paSyncLabel');
+    if (syncEl && d.periodo) syncEl.textContent = d.periodo.since + ' → ' + d.periodo.until;
+
+    var r = d.resumo || {};
+    var camps = d.campanhas || [];
+    var alertas = d.alertas || [];
+
+    var maxGasto = 0;
+    for (var ci = 0; ci < camps.length; ci++) {
+      if (camps[ci].gasto > maxGasto) maxGasto = camps[ci].gasto;
+    }
+    var maxImpr = (r.impressoes || 0);
+
+    // ── STATUS DA PULSE ICON ──
+    var pulse = document.getElementById('paPulse');
+    if (pulse) {
+      if (alertas.length === 0) {
+        pulse.style.background = 'var(--g1)';
+        pulse.style.boxShadow = '0 0 12px var(--g1)';
+      } else {
+        var hasErro = alertas.some(function(a) { return a.tipo === 'erro'; });
+        pulse.style.background = hasErro ? 'var(--g3)' : 'var(--g4)';
+        pulse.style.boxShadow = hasErro ? '0 0 12px var(--g3)' : '0 0 12px var(--g4)';
+      }
+    }
+
+    // ── AVALIAR STATUS DAS MÉTRICAS ──
+    var cplNum  = r.cpl ? parseFloat(r.cpl) : null;
+    var ctrNum  = r.ctr ? parseFloat(r.ctr) : null;
+    var cpaNum  = r.cpaReal ? parseFloat(r.cpaReal) : null;
+    var taxaNum = r.taxaConv ? parseFloat(r.taxaConv) : null;
+
+    var cplClasse  = !cplNum ? 'dim' : (cplNum <= 15 ? 'ok' : cplNum <= 30 ? 'aviso' : 'erro');
+    var ctrClasse  = !ctrNum ? 'dim' : (ctrNum >= 1.5 ? 'ok' : ctrNum >= 0.5 ? 'aviso' : 'erro');
+    var cpaClasse  = !cpaNum ? 'dim' : (cpaNum <= 60 ? 'ok' : cpaNum <= 120 ? 'aviso' : 'erro');
+    var taxaClasse = !taxaNum ? 'dim' : (taxaNum >= 25 ? 'ok' : taxaNum >= 10 ? 'aviso' : 'erro');
+
+    var classeMap = { ok: 'lime', aviso: 'amber', erro: 'red', dim: 'dim' };
+
+    // ── HTML ──
+    var html = '';
+
+    // SEÇÃO: VISÃO GERAL
+    html += '<div class="pa-section"><span>Visão Geral</span></div>';
+    html += '<div class="pa-kpi-grid">';
+
+    // Gasto
+    html += _paKpiCard('GASTO TOTAL', 'c-cyan',
+      _paMoeda(r.gasto, true),
+      'Meta diária: R$50,00',
+      classeMap['dim'],
+      'Budget: R$1.500/mês');
+
+    // Leads
+    html += _paKpiCard('LEADS', 'c-lime',
+      r.leads || '0',
+      null,
+      'lime',
+      'Via WhatsApp — Meta Ads');
+
+    // CPL
+    html += _paKpiCard('CPL MÉDIO', 'c-amber',
+      r.cpl ? 'R$' + parseFloat(r.cpl).toFixed(2) : '—',
+      null,
+      classeMap[cplClasse],
+      'Meta: <b>< R$15</b> &nbsp;|&nbsp; Limite: R$30');
+
+    // CTR
+    html += _paKpiCard('CTR MÉDIO', 'c-lime',
+      r.ctr ? parseFloat(r.ctr).toFixed(2) + '%' : '—',
+      null,
+      classeMap[ctrClasse],
+      'Meta: <b>> 1,5%</b> &nbsp;|&nbsp; Mínimo: 0,5%');
+
+    html += '</div>';
+    html += '<div class="pa-kpi-grid">';
+
+    // CPM
+    html += _paKpiCard('CPM', 'c-purple',
+      r.cpm ? 'R$' + parseFloat(r.cpm).toFixed(2) : '—',
+      null,
+      classeMap['dim'],
+      'Meta: <b>< R$10</b> &nbsp;|&nbsp; Ref: R$10–14');
+
+    // Conversões
+    html += _paKpiCard('CONVERSÕES', 'c-lime',
+      r.conversoes || '0',
+      null,
+      'lime',
+      'Vendas instaladas — DharmaPro');
+
+    // Taxa
+    html += _paKpiCard('TAXA LEAD→VENDA', 'c-cyan',
+      r.taxaConv ? parseFloat(r.taxaConv).toFixed(1) + '%' : '—',
+      null,
+      classeMap[taxaClasse],
+      'Meta: <b>> 25%</b> &nbsp;|&nbsp; Mínimo: 10%');
+
+    // CPA
+    html += _paKpiCard('CPA REAL', 'c-amber',
+      r.cpaReal ? 'R$' + parseFloat(r.cpaReal).toFixed(2) : '—',
+      null,
+      classeMap[cpaClasse],
+      'Máximo: <b>R$120</b> &nbsp;|&nbsp; Meta: < R$60');
+
+    html += '</div>';
+
+    // SEÇÃO: CAMPANHAS
+    html += '<div class="pa-section"><span>Campanhas</span></div>';
+
+    if (camps.length === 0) {
+      html += '<div class="pa-empty"><div class="pa-empty-ico">◈</div>Nenhuma campanha com dados no período.<br><span style="font-size:10px;color:var(--dim)">As campanhas podem estar pausadas ou sem veiculação.</span></div>';
+    } else {
+      html += '<div class="pa-camp-grid">';
+      for (var i = 0; i < camps.length; i++) {
+        html += _paCampCard(camps[i], maxGasto);
+      }
+      // Placeholders se menos de 3
+      for (var j = camps.length; j < 3; j++) {
+        html += '<div class="pa-card" style="display:flex;align-items:center;justify-content:center;border-style:dashed;opacity:.35;"><span style="font-family:var(--mono);font-size:10px;letter-spacing:.15em;color:var(--dim)">SEM DADOS</span></div>';
+      }
+      html += '</div>';
+    }
+
+    // SEÇÃO: ANÁLISE
+    html += '<div class="pa-section"><span>Análise</span></div>';
+    html += '<div class="pa-bottom-grid">';
+
+    // Funil de conversão
+    html += '<div class="pa-card">';
+    html += '<div class="pa-card-head"><span class="pa-card-title">Funil de Conversão</span><span class="pa-badge cyan">Meta Ads</span></div>';
+    html += '<div class="pa-funil-rows">';
+    var impr   = parseInt(r.impressoes  || 0);
+    var cliques= parseInt(r.cliques || 0);
+    var leads  = parseInt(r.leads || 0);
+    var vendas = parseInt(r.conversoes || 0);
+    var fMax = Math.max(impr, 1);
+    html += _paFunilRow('Impressões', impr, fMax, 'pa-fv-impr', _paFormatNum(impr), impr > 0 ? '100%' : '—');
+    html += _paFunilRow('Cliques', cliques, fMax, 'pa-fv-click', _paFormatNum(cliques), impr > 0 ? ((cliques/impr)*100).toFixed(1)+'%' : '—');
+    html += _paFunilRow('Leads', leads, fMax, 'pa-fv-lead', _paFormatNum(leads), cliques > 0 ? ((leads/cliques)*100).toFixed(1)+'%' : '—');
+    html += _paFunilRow('Vendas', vendas, fMax, 'pa-fv-venda', _paFormatNum(vendas), leads > 0 ? ((vendas/leads)*100).toFixed(1)+'%' : '—');
+    html += '</div>';
+    html += '<div class="pa-kpi-benchmark" style="margin-top:14px">DharmaPro: <b>' + (r.conversoes||0) + '</b> conversões ✕ TM franquia <b>R$313</b> = Receita <b>' + _paMoeda(((r.conversoes||0) * 313).toFixed(0)) + '</b></div>';
+    html += '</div>';
+
+    // Alertas + Google Ads
+    html += '<div style="display:flex;flex-direction:column;gap:12px;">';
+
+    // Alertas
+    html += '<div class="pa-card">';
+    html += '<div class="pa-card-head"><span class="pa-card-title">Alertas e Thresholds</span>';
+    if (alertas.length === 0) {
+      html += '<span class="pa-badge lime">Tudo OK</span>';
+    } else {
+      var numErros = alertas.filter(function(a) { return a.tipo === 'erro'; }).length;
+      html += '<span class="pa-badge ' + (numErros > 0 ? 'red' : 'amber') + '">' + alertas.length + ' alerta' + (alertas.length > 1 ? 's' : '') + '</span>';
+    }
+    html += '</div>';
+
+    if (alertas.length === 0) {
+      html += '<div style="text-align:center;padding:16px 0;color:var(--dim2);font-family:var(--mono);font-size:11px;letter-spacing:.1em;">✅ Métricas dentro dos limites</div>';
+    } else {
+      html += '<div class="pa-alert-list">';
+      for (var ai = 0; ai < alertas.length; ai++) {
+        var al = alertas[ai];
+        var aIco = al.tipo === 'erro' ? '🔴' : '🟡';
+        html += '<div class="pa-alert-item ' + al.tipo + '"><span class="pa-alert-icon">' + aIco + '</span><span>' + _paEsc(al.texto) + '</span></div>';
+      }
+      html += '</div>';
+    }
+
+    // Thresholds de referência
+    html += '<div class="pa-divider-num"><span>Thresholds automáticos</span></div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
+    html += _paThreshRow('CPL max', 'R$30', 'Pausa automática');
+    html += _paThreshRow('CTR min', '0,5%', 'Pausa automática');
+    html += _paThreshRow('Freq max', '4,0×', 'Alerta amarelo');
+    html += _paThreshRow('Escala', 'CPL < R$80', '+20%/semana');
+    html += '</div>';
+    html += '</div>'; // end alertas card
+
+    // Google Ads placeholder
+    html += '<div class="pa-card" style="border-style:dashed;border-color:rgba(255,255,255,.08);">';
+    html += '<div class="pa-card-head"><span class="pa-card-title">Google Ads</span><span class="pa-badge dim">em breve</span></div>';
+    html += '<div class="pa-gads-placeholder">';
+    html += '<div class="pa-gads-icon">▲</div>';
+    html += '<div class="pa-gads-title">Google Ads Analytics</div>';
+    html += '<div class="pa-gads-sub">Integração com Google Ads API em desenvolvimento. O layout já está preparado — basta conectar os dados.</div>';
+    html += '</div>';
+    html += '</div>'; // end google ads card
+
+    html += '</div>'; // end right column
+    html += '</div>'; // end bottom grid
+
+    c.innerHTML = html;
+
+    // Anima barras após render
+    requestAnimationFrame(function() {
+      c.querySelectorAll('[data-fill]').forEach(function(el) {
+        el.style.width = el.getAttribute('data-fill') + '%';
+      });
+    });
+  }
+
+  // ── HELPERS DE RENDER ─────────────────────────────────────────────────────
+
+  function _paKpiCard(titulo, cor, valor, sub, badgeClasse, benchmark) {
+    var html = '<div class="pa-card ' + cor + '">';
+    html += '<div class="pa-card-head"><span class="pa-card-title">' + titulo + '</span>';
+    if (badgeClasse) html += '<span class="pa-badge ' + badgeClasse + '">' + _paStatusLabel(badgeClasse) + '</span>';
+    html += '</div>';
+    html += '<div class="pa-kpi md">' + valor + '</div>';
+    if (sub) html += '<div class="pa-kpi-sub">' + sub + '</div>';
+    if (benchmark) html += '<div class="pa-kpi-benchmark">' + benchmark + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function _paStatusLabel(c) {
+    var mapa = { ok:'OK', aviso:'ATENÇÃO', erro:'ALERTA', lime:'OK', amber:'ATENÇÃO', red:'ALERTA', cyan:'—', purple:'—', dim:'—' };
+    return mapa[c] || c;
+  }
+
+  function _paCampCard(camp, maxGasto) {
+    var pct = maxGasto > 0 ? Math.round((camp.gasto / maxGasto) * 100) : 0;
+    var cplStr = camp.cpl ? 'R$' + parseFloat(camp.cpl).toFixed(2) : '—';
+    var ctrStr = camp.ctr ? parseFloat(camp.ctr).toFixed(2) + '%' : '—';
+    var freqStr = camp.frequencia ? parseFloat(camp.frequencia).toFixed(1) + 'x' : '—';
+    var statusClasse = camp.status === 'erro' ? 'red' : camp.status === 'aviso' ? 'amber' : 'lime';
+    var statusLabel  = camp.status === 'erro' ? 'Alerta' : camp.status === 'aviso' ? 'Atenção' : 'Normal';
+    var cplClasse = !camp.cpl ? 'dim' : (camp.cpl <= 15 ? 'ok' : camp.cpl <= 30 ? 'aviso' : 'erro');
+    var ctrClasse = !camp.ctr ? 'dim' : (camp.ctr >= 1.5 ? 'ok' : camp.ctr >= 0.5 ? 'aviso' : 'erro');
+
+    var html = '<div class="pa-card">';
+    html += '<div class="pa-card-head"><span class="pa-badge ' + statusClasse + '">' + statusLabel + '</span><span class="pa-badge dim">◈ Meta</span></div>';
+    html += '<div class="pa-camp-name">' + _paEsc(camp.nome) + '</div>';
+    html += '<div class="pa-camp-budget">' + _paMoeda(camp.gasto) + ' gasto</div>';
+
+    html += '<div class="pa-mini-grid">';
+    html += '<div class="pa-mini-stat"><div class="pa-mini-lbl">Leads</div><div class="pa-mini-val lime">' + (camp.leads || 0) + '</div></div>';
+    html += '<div class="pa-mini-stat"><div class="pa-mini-lbl">CPL</div><div class="pa-mini-val ' + cplClasse + '">' + cplStr + '</div></div>';
+    html += '<div class="pa-mini-stat"><div class="pa-mini-lbl">CTR</div><div class="pa-mini-val ' + ctrClasse + '">' + ctrStr + '</div></div>';
+    html += '<div class="pa-mini-stat"><div class="pa-mini-lbl">Frequência</div><div class="pa-mini-val ' + (parseFloat(camp.frequencia)>4?'erro':parseFloat(camp.frequencia)>3?'aviso':'dim') + '">' + freqStr + '</div></div>';
+    html += '</div>';
+
+    html += '<div class="pa-camp-bar-row">';
+    html += '<div class="pa-camp-bar-track"><div class="pa-camp-bar-fill" data-fill="' + pct + '" style="background:var(--g2);width:0%"></div></div>';
+    html += '<span class="pa-camp-bar-pct">' + pct + '%</span>';
+    html += '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function _paFunilRow(nome, val, max, cls, valStr, taxa) {
+    var pct = max > 0 ? Math.round((val / max) * 100) : 0;
+    return '<div class="pa-fv-row">' +
+      '<span class="pa-fv-name">' + nome + '</span>' +
+      '<div class="pa-fv-track"><div class="pa-fv-fill ' + cls + '" data-fill="' + pct + '" style="width:0%"></div></div>' +
+      '<span class="pa-fv-val">' + valStr + '</span>' +
+      '<span class="pa-fv-rate">' + taxa + '</span>' +
+    '</div>';
+  }
+
+  function _paThreshRow(label, valor, acao) {
+    return '<div style="background:var(--s2);border-radius:8px;padding:7px 10px;">' +
+      '<div style="font-family:var(--mono);font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-bottom:3px;">' + label + '</div>' +
+      '<div style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--dim2);">' + valor + '</div>' +
+      '<div style="font-size:10px;color:var(--dim);margin-top:2px;">' + acao + '</div>' +
+    '</div>';
+  }
+
+  function _paMoeda(val, semPrefix) {
+    var n = parseFloat(val) || 0;
+    if (semPrefix) return 'R$' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return 'R$' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function _paFormatNum(n) {
+    n = parseInt(n) || 0;
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+    return String(n);
+  }
+
+  function _paEsc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── AUTO-INIT ──────────────────────────────────────────────────────────────
+  if (typeof google !== 'undefined' && google.script && google.script.run) {
+    paInit();
+  }
+})();
+</script>

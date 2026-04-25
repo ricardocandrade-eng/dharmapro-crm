@@ -1,7 +1,7 @@
 <!-- ════════════════════════════════════════════════════════════════════════════
      Dashboard.html — DharmaPro CRM
      Atualizado em: 24/04/2026
-     Alterações: Adicionada aba "Agente IA" com dados do Supabase (Renata IA)
+     Alterações: Adicionadas abas "Agente IA" e "WABA Monitor" com dados do Supabase
      ══════════════════════════════════════════════════════════════════════════ -->
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,300&family=Martian+Mono:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
@@ -138,9 +138,32 @@
 #dashContainer .rfi-delta-lbl{font-size:9px;color:var(--dim);letter-spacing:.1em;font-weight:400}
 /* ── AGENTE IA KPI GRID ── */
 #dashContainer .rn-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px}
+/* ── WABA MONITOR ── */
+#dashContainer .wb-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px}
+#dashContainer .wb-card{background:var(--s1);border:1px solid var(--rim);border-radius:var(--r);padding:20px 22px;position:relative;overflow:hidden;animation:d-fadeUp .5s ease both}
+#dashContainer .wb-card.green{border-color:rgba(200,255,94,.22);background:linear-gradient(135deg,var(--s1) 0%,rgba(200,255,94,.03) 100%)}
+#dashContainer .wb-card.yellow{border-color:rgba(255,170,0,.22);background:linear-gradient(135deg,var(--s1) 0%,rgba(255,170,0,.03) 100%)}
+#dashContainer .wb-card.red{border-color:rgba(255,69,112,.22);background:linear-gradient(135deg,var(--s1) 0%,rgba(255,69,112,.03) 100%)}
+#dashContainer .wb-card.gray{border-color:var(--rim)}
+#dashContainer .wb-value{font-family:var(--serif);font-size:34px;line-height:1;font-style:italic;color:var(--em)}
+#dashContainer .wb-sub{font-size:12px;color:var(--dim2);margin-top:8px;line-height:1.45}
+#dashContainer .wb-badge{display:inline-block;padding:4px 10px;border-radius:999px;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+#dashContainer .wb-badge.green{background:rgba(200,255,94,.1);color:var(--g1);border:1px solid rgba(200,255,94,.22)}
+#dashContainer .wb-badge.yellow{background:rgba(255,170,0,.1);color:var(--g4);border:1px solid rgba(255,170,0,.22)}
+#dashContainer .wb-badge.red{background:rgba(255,69,112,.1);color:var(--g3);border:1px solid rgba(255,69,112,.22)}
+#dashContainer .wb-badge.gray{background:rgba(255,255,255,.05);color:var(--dim2);border:1px solid var(--rim)}
+#dashContainer .wb-table{width:100%;border-collapse:collapse}
+#dashContainer .wb-table th{padding:10px 12px;border-bottom:1px solid var(--rim);text-align:left;font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+#dashContainer .wb-table td{padding:12px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;color:var(--txt);vertical-align:middle}
+#dashContainer .wb-table tr:last-child td{border-bottom:none}
+#dashContainer .wb-table small{color:var(--dim);font-family:var(--mono);font-size:10px}
+#dashContainer .wb-chart-wrap{position:relative;height:220px}
+#dashContainer .wb-chart{width:100%;height:100%;display:block}
+#dashContainer .wb-chart-legend{display:flex;justify-content:space-between;gap:10px;margin-top:10px;font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--dim)}
+#dashContainer .wb-empty{color:var(--dim);font-family:var(--mono);font-size:10px;padding:18px 0;text-transform:uppercase;letter-spacing:.12em}
 /* ── MEDIA ── */
-@media(max-width:1100px){#dashContainer .grid-hoje{grid-template-columns:1fr 1fr}#dashContainer .grid-mes{grid-template-columns:1fr 1fr}#dashContainer .grid-canais{grid-template-columns:1fr 1fr}#dashContainer .grid-rank{grid-template-columns:1fr}#dashContainer .rn-kpi-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:640px){#dashContainer .grid-hoje,#dashContainer .grid-mes,#dashContainer .grid-canais,#dashContainer .grid-rank,#dashContainer .rn-kpi-grid{grid-template-columns:1fr}#dashContainer .canvas{padding:14px 12px 32px}#dashContainer .du-bar-wrap{padding:6px 14px;gap:8px}}
+@media(max-width:1100px){#dashContainer .grid-hoje{grid-template-columns:1fr 1fr}#dashContainer .grid-mes{grid-template-columns:1fr 1fr}#dashContainer .grid-canais{grid-template-columns:1fr 1fr}#dashContainer .grid-rank{grid-template-columns:1fr}#dashContainer .rn-kpi-grid,#dashContainer .wb-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){#dashContainer .grid-hoje,#dashContainer .grid-mes,#dashContainer .grid-canais,#dashContainer .grid-rank,#dashContainer .rn-kpi-grid,#dashContainer .wb-grid{grid-template-columns:1fr}#dashContainer .canvas{padding:14px 12px 32px}#dashContainer .du-bar-wrap{padding:6px 14px;gap:8px}}
 </style>
 
 <div class="glow-tl"></div>
@@ -162,12 +185,16 @@
   <div class="top-right" id="d_renataTopRight" style="display:none">
     <button class="refresh" onclick="rnLoad()">↺ Atualizar</button>
   </div>
+  <div class="top-right" id="d_wabaTopRight" style="display:none">
+    <button class="refresh" onclick="wbLoad()">↺ Atualizar</button>
+  </div>
 </div>
 
 <!-- ── TABS ── -->
 <div class="rn-tab-bar">
   <button class="rn-tab active" id="rntab-mobile" onclick="rnSwitch('mobile')">Mobile Digital</button>
   <button class="rn-tab" id="rntab-renata" onclick="rnSwitch('renata')">Agente IA ✦</button>
+  <button class="rn-tab" id="rntab-waba" onclick="rnSwitch('waba')">WABA Monitor</button>
 </div>
 
 <!-- ── PAINEL MOBILE DIGITAL ── -->
@@ -201,12 +228,22 @@
   </div>
 </div>
 
+<!-- ── PAINEL WABA MONITOR ── -->
+<div id="tab-waba" style="display:none">
+  <div class="canvas" id="wb-root">
+    <div style="display:flex;align-items:center;justify-content:center;height:55vh">
+      <span style="font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase">carregando...</span>
+    </div>
+  </div>
+</div>
+
 <script>
 (function(){
 'use strict';
 var _m=new Date().getMonth()+1, _y=new Date().getFullYear();
 var MO=['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
 var _force=false;
+var _currentDashTab='mobile';
 
 function d_navMes(d){_m+=d;if(_m>12){_m=1;_y++;}if(_m<1){_m=12;_y--;}_force=true;d_load();}
 window.d_navMes=d_navMes;
@@ -485,24 +522,36 @@ function _render(d){
 // AGENTE IA — tab switch + dados Supabase
 // ══════════════════════════════════════════════════════════════
 var _rnLoaded=false;
-var RN_URL='https://zfunugupwvktcggvicuk.supabase.co/rest/v1';
-var RN_KEY='sb_publishable_vygMQ5j_dTi4W1HWGkDI5g_TgpqKY4R';
+var _wbLoaded=false;
+var SB_URL='https://zfunugupwvktcggvicuk.supabase.co';
+var SB_REST=SB_URL+'/rest/v1';
+var SB_KEY='sb_publishable_vygMQ5j_dTi4W1HWGkDI5g_TgpqKY4R';
 
 function rnSwitch(tab){
   document.getElementById('tab-mobile').style.display=tab==='mobile'?'':'none';
   document.getElementById('tab-renata').style.display=tab==='renata'?'':'none';
+  document.getElementById('tab-waba').style.display=tab==='waba'?'':'none';
   document.getElementById('d_mobileTopRight').style.display=tab==='mobile'?'flex':'none';
   document.getElementById('d_renataTopRight').style.display=tab==='renata'?'flex':'none';
+  document.getElementById('d_wabaTopRight').style.display=tab==='waba'?'flex':'none';
   document.getElementById('rntab-mobile').className='rn-tab'+(tab==='mobile'?' active':'');
   document.getElementById('rntab-renata').className='rn-tab'+(tab==='renata'?' active':'');
+  document.getElementById('rntab-waba').className='rn-tab'+(tab==='waba'?' active':'');
+  _currentDashTab=tab;
   if(tab==='renata'&&!_rnLoaded){_rnLoaded=true;rnLoad();}
+  if(tab==='waba'&&!_wbLoaded){_wbLoaded=true;wbLoad();}
 }
 window.rnSwitch=rnSwitch;
 
-async function rnFetch(view){
-  var r=await fetch(RN_URL+'/'+view+'?select=*&limit=30',{headers:{'apikey':RN_KEY,'Authorization':'Bearer '+RN_KEY}});
-  if(!r.ok)throw new Error(view+': HTTP '+r.status);
+async function sbFetch(resource,params){
+  var qs=Object.keys(params||{}).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
+  var r=await fetch(SB_REST+'/'+resource+(qs?'?'+qs:''),{headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY}});
+  if(!r.ok)throw new Error(resource+': HTTP '+r.status);
   return r.json();
+}
+
+async function rnFetch(view){
+  return sbFetch(view,{select:'*',limit:30});
 }
 
 async function rnLoad(){
@@ -688,7 +737,199 @@ function rnRender(m,convDia,leadNivel,cidades,motivos,followup){
   }
 }
 
-setInterval(function(){ _force=true; d_load(); }, 5 * 60 * 1000);
+function wbClassQuality(val){
+  if(val==='GREEN')return 'green';
+  if(val==='YELLOW')return 'yellow';
+  if(val==='RED')return 'red';
+  return 'gray';
+}
+
+function wbClassStatus(val){
+  if(val==='CONNECTED')return 'green';
+  if(val==='FLAGGED'||val==='RESTRICTED')return 'red';
+  return 'gray';
+}
+
+function wbClassRisk(val){
+  var n=parseFloat(val);
+  if(isNaN(n))return 'gray';
+  if(n<0.40)return 'green';
+  if(n<0.70)return 'yellow';
+  return 'red';
+}
+
+function wbFmtDate(iso){
+  if(!iso)return '—';
+  try{
+    return new Date(iso).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',dateStyle:'short',timeStyle:'short'});
+  }catch(err){
+    return String(iso||'—');
+  }
+}
+
+function wbStatusEmoji(status){
+  var map={running:'>',paused:'||',draft:'[]',completed:'OK',blocked:'X'};
+  return map[status]||'';
+}
+
+function wbResolveTier(health){
+  var raw=health.current_tier||health.messaging_limit_tier||health.current_messaging_tier||health.messaging_tier||'';
+  raw=String(raw||'').trim();
+  if(!raw)return 'UNKNOWN';
+  return raw
+    .replace(/^TIER_/i,'TIER ')
+    .replace(/_/g,' ')
+    .toUpperCase();
+}
+
+async function wbLoad(){
+  var root=document.getElementById('wb-root');
+  if(root)root.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:40vh"><span style="font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase">carregando...</span></div>';
+  try{
+    var since=new Date(Date.now()-7*24*60*60*1000).toISOString();
+    var results=await Promise.allSettled([
+      sbFetch('v_waba_health_current',{select:'*',limit:1}),
+      sbFetch('v_suppression_summary',{select:'*',limit:1}),
+      sbFetch('v_template_health',{select:'*',order:'meta_template_name.asc',limit:20}),
+      sbFetch('v_campaign_stats',{select:'*',order:'updated_at.desc',limit:20}),
+      sbFetch('waba_health_snapshots',{select:'quality_score,messaging_limit_tier,created_at',phone_number_id:'eq.1153523827840676',created_at:'gte.'+since,order:'created_at.asc',limit:100})
+    ]);
+    wbRender(
+      results[0].status==='fulfilled'&&results[0].value.length?results[0].value[0]:{},
+      results[1].status==='fulfilled'&&results[1].value.length?results[1].value[0]:{},
+      results[2].status==='fulfilled'?results[2].value:[],
+      results[3].status==='fulfilled'?results[3].value:[],
+      results[4].status==='fulfilled'?results[4].value:[]
+    );
+  }catch(err){
+    if(root)root.innerHTML='<div style="padding:80px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--g3);letter-spacing:.1em;">⚠ '+e(err.message)+'</div>';
+  }
+}
+window.wbLoad=wbLoad;
+
+function wbRender(health,suppression,templates,campaigns,history){
+  var root=document.getElementById('wb-root');
+  if(!root)return;
+
+  var quality=String(health.current_quality||'UNKNOWN').toUpperCase();
+  var status=String(health.current_status||'UNKNOWN').toUpperCase();
+  var latestSnapshot=(history&&history.length)?history[history.length-1]:{};
+  var tier=wbResolveTier({
+    current_tier: health.current_tier,
+    messaging_limit_tier: health.messaging_limit_tier || latestSnapshot.messaging_limit_tier,
+    current_messaging_tier: health.current_messaging_tier,
+    messaging_tier: health.messaging_tier
+  });
+  var qualityClass=wbClassQuality(quality);
+  var statusClass=wbClassStatus(status);
+
+  var h='';
+  h+='<div class="section-row"><span>Saúde da Conta</span></div>';
+  h+='<div class="wb-grid">';
+  h+='<div class="wb-card '+qualityClass+'"><div class="card-title">Quality Score</div><div class="wb-value"><span class="wb-badge '+qualityClass+'">'+e(quality)+'</span></div><div class="wb-sub">'+(health.quality_changed?'Anterior: '+e(health.previous_quality||'—'):'Sem mudança recente')+'</div></div>';
+  h+='<div class="wb-card gray"><div class="card-title">Messaging Tier</div><div class="wb-value">'+e(tier)+'</div><div class="wb-sub">'+(health.tier_changed?'Anterior: '+e(health.previous_tier||'—'):'Sem mudança recente')+'</div></div>';
+  h+='<div class="wb-card '+statusClass+'"><div class="card-title">Status da Conta</div><div class="wb-value"><span class="wb-badge '+statusClass+'">'+e(status)+'</span></div><div class="wb-sub">Atualizado: '+e(wbFmtDate(health.last_updated_at))+'</div></div>';
+  h+='<div class="wb-card gray"><div class="card-title">Supressões Ativas</div><div class="wb-value">'+parseInt(suppression.total_active||0,10)+'</div><div class="wb-sub">'+parseInt(suppression.added_last_24h||0,10)+' opt-outs nas últimas 24h</div></div>';
+  h+='</div>';
+
+  h+='<div class="card" style="margin-bottom:14px">';
+  h+='<div class="card-head"><span class="card-title">Histórico de Qualidade · 7 dias</span><span class="card-badge badge-cyan">WABA</span></div>';
+  h+='<div class="wb-chart-wrap"><canvas id="wb-quality-chart" class="wb-chart" width="1200" height="220"></canvas></div>';
+  h+='<div class="wb-chart-legend"><span>RED</span><span>YELLOW</span><span>GREEN</span></div>';
+  h+='</div>';
+
+  h+='<div class="section-row"><span>Templates</span></div>';
+  h+='<div class="card" style="margin-bottom:14px">';
+  h+='<table class="wb-table"><thead><tr><th>Nome</th><th>Categoria</th><th>Qualidade</th><th>Status</th><th>Campanhas</th></tr></thead><tbody>';
+  if(!templates.length){
+    h+='<tr><td colspan="5" class="wb-empty">Nenhum template cadastrado</td></tr>';
+  }else{
+    templates.forEach(function(t){
+      var q=String(t.quality||'UNKNOWN').toUpperCase();
+      var cls=wbClassQuality(q);
+      var statusTpl=t.is_paused?'<span class="wb-badge red">Pausado</span>':(t.is_paced?'<span class="wb-badge yellow">Cadenciado</span>':'<span class="wb-badge green">Ativo</span>');
+      h+='<tr><td>'+e(t.meta_template_name||'—')+'</td><td>'+e(t.category||'—')+'</td><td><span class="wb-badge '+cls+'">'+e(q)+'</span></td><td>'+statusTpl+'</td><td>'+parseInt(t.active_campaigns||0,10)+'</td></tr>';
+    });
+  }
+  h+='</tbody></table></div>';
+
+  h+='<div class="section-row"><span>Campanhas</span></div>';
+  h+='<div class="card">';
+  h+='<table class="wb-table"><thead><tr><th>Nome</th><th>Status</th><th>Enviados</th><th>Entregues</th><th>Lidos</th><th>Falhas</th><th>Opt-outs</th><th>Risk</th></tr></thead><tbody>';
+  if(!campaigns.length){
+    h+='<tr><td colspan="8" class="wb-empty">Nenhuma campanha encontrada</td></tr>';
+  }else{
+    campaigns.forEach(function(c){
+      var riskClass=wbClassRisk(c.risk_score);
+      var riskText=(c.risk_score==null||c.risk_score==='')?'—':parseFloat(c.risk_score).toFixed(2);
+      h+='<tr>';
+      h+='<td>'+e(c.name||'—')+'</td>';
+      h+='<td>'+e(wbStatusEmoji(c.status))+' '+e(String(c.status||'—').toUpperCase())+'</td>';
+      h+='<td>'+parseInt(c.sent_count||0,10)+'</td>';
+      h+='<td>'+parseInt(c.delivered_count||0,10)+' <small>('+(c.delivery_rate_pct!=null?e(c.delivery_rate_pct):0)+'%)</small></td>';
+      h+='<td>'+parseInt(c.read_count||0,10)+' <small>('+(c.read_rate_pct!=null?e(c.read_rate_pct):0)+'%)</small></td>';
+      h+='<td>'+parseInt(c.failed_count||0,10)+' <small>('+(c.fail_rate_pct!=null?e(c.fail_rate_pct):0)+'%)</small></td>';
+      h+='<td>'+parseInt(c.optout_count||0,10)+' <small>('+(c.optout_rate_pct!=null?e(c.optout_rate_pct):0)+'%)</small></td>';
+      h+='<td><span class="wb-badge '+riskClass+'">'+e(riskText)+'</span></td>';
+      h+='</tr>';
+    });
+  }
+  h+='</tbody></table></div>';
+
+  root.innerHTML=h;
+  wbDrawQualityChart(history||[]);
+}
+
+function wbDrawQualityChart(rows){
+  var canvas=document.getElementById('wb-quality-chart');
+  if(!canvas)return;
+  var ctx=canvas.getContext('2d');
+  var W=canvas.width,H=canvas.height,pad={l:64,r:18,t:18,b:36};
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='rgba(255,255,255,.08)';
+  ctx.lineWidth=1;
+  var levels=[{y:3,label:'GREEN'},{y:2,label:'YELLOW'},{y:1,label:'RED'},{y:0,label:'—'}];
+  function yPos(v){return pad.t+((3-v)/3)*(H-pad.t-pad.b);}
+  levels.forEach(function(level){
+    var y=yPos(level.y);
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+    ctx.fillStyle='#8490b8';
+    ctx.font='11px Martian Mono, monospace';
+    ctx.fillText(level.label,8,y+4);
+  });
+  if(!rows.length){
+    ctx.fillStyle='#5a6080';
+    ctx.font='12px Martian Mono, monospace';
+    ctx.fillText('Sem histórico recente',pad.l,Math.round(H/2));
+    return;
+  }
+  var points=rows.map(function(r,idx){
+    var score=String(r.quality_score||'UNKNOWN').toUpperCase();
+    var value=score==='GREEN'?3:score==='YELLOW'?2:score==='RED'?1:0;
+    var x=pad.l+(idx/Math.max(rows.length-1,1))*(W-pad.l-pad.r);
+    return {x:x,y:yPos(value),label:wbFmtDate(r.created_at),score:score};
+  });
+  ctx.strokeStyle='#00d4ff';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  points.forEach(function(p,i){ if(i===0)ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+  ctx.stroke();
+  points.forEach(function(p,i){
+    ctx.fillStyle=p.score==='GREEN'?'#c8ff5e':p.score==='YELLOW'?'#ffaa00':p.score==='RED'?'#ff4570':'#8490b8';
+    ctx.beginPath();ctx.arc(p.x,p.y,4,0,Math.PI*2);ctx.fill();
+    if(i===0||i===points.length-1||i===Math.floor(points.length/2)){
+      ctx.fillStyle='#8490b8';
+      ctx.font='10px Martian Mono, monospace';
+      ctx.fillText(p.label,p.x-26,H-12);
+    }
+  });
+}
+
+setInterval(function(){
+  if(_currentDashTab==='mobile'){ _force=true; d_load(); }
+  else if(_currentDashTab==='renata'&&_rnLoaded){ rnLoad(); }
+  else if(_currentDashTab==='waba'&&_wbLoaded){ wbLoad(); }
+}, 5 * 60 * 1000);
 d_load();
 })();
 </script>

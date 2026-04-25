@@ -1,11 +1,27 @@
 // ============================================================
-// DHARMA PRO — MÓDULO META ADS TRACKING v2.0
+// DHARMA PRO — MÓDULO META ADS TRACKING v2.1
 // Aba dedicada: "Leads Meta Ads"
-// Abril/2026
+// Atualizado em: 20/04/2026 | Adicionado: getPainelAdsData()
 // ============================================================
 
 var CFG_META = {
-  ABA_LEADS_META: 'Leads Meta Ads',
+  ABA_LEADS_META:  'Leads Meta Ads',
+  API_VERSION:     'v20.0',
+  AD_ACCOUNT_ID:   'act_971543562231015',
+  // Armazene o token em: Extensões → Apps Script → Propriedades do projeto
+  // Chave: META_ACCESS_TOKEN  Valor: <token do sistema Admin_API_Renata>
+  CAMPANHAS: {
+    'A — JF Principal': '120242673369540207',
+    'B — Órbita JF':    '120242644568320207',
+    'C — BH Metro':     '120242644568620207',
+  },
+  LIMITES: {
+    CPL_MAX:         30,
+    CTR_MIN:         0.5,
+    FREQUENCIA_MAX:  4.0,
+    CPA_META:        60,
+    CPA_MAX:         120,
+  }
 };
 
 
@@ -25,7 +41,7 @@ var CFG_META = {
  * }
  */
 function registrarLeadMetaAds(payload) {
-  var ss  = SpreadsheetApp.getActiveSpreadsheet();
+  var ss  = _getSpreadsheet_();
   var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
 
   if (!aba) {
@@ -83,7 +99,7 @@ function onEditMetaAds(e) {
  * Pode ser chamado via trigger diário ou manualmente.
  */
 function exportarLeadsMetaAds() {
-  var ss   = SpreadsheetApp.getActiveSpreadsheet();
+  var ss   = _getSpreadsheet_();
   var aba  = ss.getSheetByName(CFG_META.ABA_LEADS_META);
   var rows = aba.getDataRange().getValues();
 
@@ -124,7 +140,7 @@ function exportarLeadsMetaAds() {
  */
 function getLeadsMetaAds() {
   try {
-    var ss  = SpreadsheetApp.getActiveSpreadsheet();
+    var ss  = _getSpreadsheet_();
     var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
     if (!aba) return { leads: [], resumo: {}, erro: 'Aba "Leads Meta Ads" não encontrada.' };
 
@@ -192,4 +208,251 @@ function testeRegistrarLead() {
   var linha = registrarLeadMetaAds(leadTeste);
   Logger.log('Teste OK — linha criada: ' + linha);
   Logger.log('Verifique a aba "Leads Meta Ads" na planilha.');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONVERSÃO — vínculo automático venda instalada ↔ Lead Meta Ads
+// Atualizado em: 20/04/2026
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Chamado por salvarVenda() quando Canal=META ADS e Status=Finalizada/Instalada.
+ * Busca o lead pelo telefone e marca como "Converteu" se ainda estiver pendente.
+ * Não lança erro — falha silenciosa para não bloquear o save da venda.
+ *
+ * @param {string} telefone  Telefone da venda (qualquer formato)
+ * @returns {number|null}    Número da linha atualizada, ou null se não encontrado
+ */
+function vincularVendaLeadMetaAds(telefone) {
+  var tel = String(telefone || '').replace(/\D/g, '');
+  if (tel.length > 11) tel = tel.slice(-11); // remove DDI 55
+  if (!tel || tel.length < 8) return null;
+
+  var ss  = _getSpreadsheet_();
+  var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+  if (!aba) return null;
+
+  var lastRow = aba.getLastRow();
+  if (lastRow < 2) return null;
+
+  var dados = aba.getRange(2, 1, lastRow - 1, 12).getValues();
+  for (var i = 0; i < dados.length; i++) {
+    var leadTel = String(dados[i][2] || '').replace(/\D/g, '');
+    if (leadTel.length > 11) leadTel = leadTel.slice(-11);
+    // Só atualiza se o telefone bate E ainda não tem status_final
+    if (leadTel === tel && !dados[i][8]) {
+      var linha = i + 2;
+      aba.getRange(linha, 9).setValue('Converteu');  // col I: status_final
+      aba.getRange(linha, 11).setValue(new Date());  // col K: data_status
+      Logger.log('vincularVendaLeadMetaAds: tel ' + tel + ' → linha ' + linha + ' = Converteu (auto)');
+      return linha;
+    }
+  }
+  return null;
+}
+
+
+/**
+ * Atualiza status de um lead Meta Ads manualmente via UI.
+ * Chamado pelo botão de ação na tela Leads Meta Ads.
+ *
+ * @param {number} linha    Linha na planilha (começa em 2)
+ * @param {string} status   'Converteu' | 'Desqualificado' | 'Em negociação' | 'Sem contato' | ''
+ * @param {string} motivo   Motivo de desqualificação (opcional)
+ */
+/**
+ * Retorna apenas a contagem de leads pendentes (sem status_final).
+ * Chamado no login para atualizar o badge do menu lateral.
+ */
+function contarLeadsMetaAdsPendentes() {
+  try {
+    var ss  = _getSpreadsheet_();
+    var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+    if (!aba || aba.getLastRow() < 2) return 0;
+    var col = aba.getRange(2, 9, aba.getLastRow() - 1, 1).getValues(); // col I: status_final
+    var count = 0;
+    for (var i = 0; i < col.length; i++) {
+      if (!col[i][0]) count++;
+    }
+    return count;
+  } catch(e) { return 0; }
+}
+
+
+function atualizarStatusLeadMetaAds(linha, status, motivo) {
+  var ss  = _getSpreadsheet_();
+  var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+  if (!aba) throw new Error('Aba "' + CFG_META.ABA_LEADS_META + '" não encontrada.');
+  if (!linha || linha < 2) throw new Error('Linha inválida: ' + linha);
+
+  aba.getRange(linha, 9).setValue(status  || ''); // col I: status_final
+  aba.getRange(linha, 10).setValue(motivo || ''); // col J: motivo_desq
+  aba.getRange(linha, 11).setValue(new Date());   // col K: data_status
+
+  Logger.log('atualizarStatusLeadMetaAds: linha ' + linha + ' → ' + (status || 'limpo'));
+  return { ok: true, linha: linha, status: status };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAINEL ADS — dados para o dashboard unificado de tráfego pago
+// Atualizado em: 20/04/2026
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Busca dados consolidados de Meta Ads + DharmaPro para o Painel Ads.
+ *
+ * @param {string} periodo  'hoje' | '7d' | '30d'  (default: '7d')
+ * @returns {Object}  { periodo, resumo, campanhas, alertas, dharma }
+ *
+ * Pré-requisito: META_ACCESS_TOKEN configurado em
+ *   Extensões → Apps Script → Propriedades do projeto
+ */
+function getPainelAdsData(periodo) {
+  var token = PropertiesService.getScriptProperties().getProperty('META_ACCESS_TOKEN')
+              || 'EAAR9E1kNxBUBRKtt3asEeG1HLKh6vAEZBWn3etKiKEBjeQW6hH21o3KiAR1lhthKijyAenDvEzewfh6Jt57pfTyky0aU5n3AZBi0wGpJC7COdoOBn0U9TZBRF0F4hu24yG2D2V9IcPix6xc7ZB4beZAwmGeACKTrlYBhEzFMX9VW5XkKQEL8qNmfWhKZBFlN1A6wZDZD';
+  if (!token) {
+    return { erro: 'Token Meta Ads não configurado.' };
+  }
+
+  periodo = periodo || '7d';
+  var tz    = Session.getScriptTimeZone();
+  var hoje  = new Date();
+  var until = Utilities.formatDate(hoje, tz, 'yyyy-MM-dd');
+  var since;
+
+  if (periodo === 'hoje') {
+    since = until;
+  } else if (periodo === '7d') {
+    var d7 = new Date(hoje); d7.setDate(d7.getDate() - 6);
+    since = Utilities.formatDate(d7, tz, 'yyyy-MM-dd');
+  } else {
+    var d30 = new Date(hoje); d30.setDate(d30.getDate() - 29);
+    since = Utilities.formatDate(d30, tz, 'yyyy-MM-dd');
+  }
+
+  // ── CHAMAR META ADS API ──────────────────────────────────────────────────
+  var base = 'https://graph.facebook.com/' + CFG_META.API_VERSION + '/' + CFG_META.AD_ACCOUNT_ID + '/insights';
+  var params = {
+    access_token: token,
+    fields: 'campaign_id,campaign_name,impressions,clicks,ctr,cpm,cpc,spend,actions,frequency',
+    time_range: JSON.stringify({ since: since, until: until }),
+    level: 'campaign',
+    limit: '50'
+  };
+
+  var qs = Object.keys(params).map(function(k) {
+    return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+  }).join('&');
+
+  try {
+    var resp = UrlFetchApp.fetch(base + '?' + qs, { muteHttpExceptions: true });
+    var json = JSON.parse(resp.getContentText());
+
+    if (json.error) {
+      return { erro: 'Meta Ads API: ' + json.error.message + ' (code ' + json.error.code + ')' };
+    }
+
+    var data = json.data || [];
+
+    // ── PROCESSAR CAMPANHAS ──────────────────────────────────────────────
+    var totalGasto = 0, totalLeads = 0, totalImpr = 0, totalCliques = 0;
+    var campanhasData = [];
+    var alertas = [];
+    var L = CFG_META.LIMITES;
+
+    for (var i = 0; i < data.length; i++) {
+      var row    = data[i];
+      var gasto  = parseFloat(row.spend       || 0);
+      var impr   = parseInt(row.impressions   || 0);
+      var cliques= parseInt(row.clicks        || 0);
+      var ctr    = parseFloat(row.ctr         || 0);
+      var cpm    = parseFloat(row.cpm         || 0);
+      var cpc    = parseFloat(row.cpc         || 0);
+      var freq   = parseFloat(row.frequency   || 0);
+
+      var leadsAct = (row.actions || []).filter(function(a) {
+        return a.action_type === 'lead' ||
+               a.action_type === 'onsite_conversion.messaging_conversation_started_7d';
+      });
+      var leads = leadsAct.length > 0 ? parseFloat(leadsAct[0].value || 0) : 0;
+
+      totalGasto   += gasto;
+      totalLeads   += leads;
+      totalImpr    += impr;
+      totalCliques += cliques;
+
+      var cpl    = leads > 0 ? gasto / leads : null;
+      var status = 'ok';
+
+      if (cpl && cpl > L.CPL_MAX && gasto > 100) {
+        alertas.push({ tipo: 'erro',  texto: 'PAUSAR: ' + row.campaign_name + ' — CPL R$' + cpl.toFixed(2) + ' > R$' + L.CPL_MAX });
+        status = 'erro';
+      } else if (ctr < L.CTR_MIN && gasto > 20) {
+        alertas.push({ tipo: 'erro',  texto: 'PAUSAR: ' + row.campaign_name + ' — CTR ' + ctr.toFixed(2) + '% < ' + L.CTR_MIN + '%' });
+        status = 'erro';
+      } else if (freq > L.FREQUENCIA_MAX) {
+        alertas.push({ tipo: 'aviso', texto: 'ATENÇÃO: ' + row.campaign_name + ' — Frequência ' + freq.toFixed(1) + 'x (limite: ' + L.FREQUENCIA_MAX + 'x)' });
+        status = 'aviso';
+      }
+
+      campanhasData.push({
+        id:         row.campaign_id,
+        nome:       row.campaign_name,
+        gasto:      gasto,
+        leads:      leads,
+        impressoes: impr,
+        cliques:    cliques,
+        ctr:        ctr,
+        cpm:        cpm,
+        cpc:        cpc,
+        frequencia: freq,
+        cpl:        cpl,
+        status:     status
+      });
+    }
+
+    // ── BUSCAR CONVERSÕES NO DHARMAPRO ───────────────────────────────────
+    var dharmaResult = exportarLeadsMetaAds();
+    var dharma       = dharmaResult.resumo || {};
+    var vendas       = dharma.convertidos  || 0;
+    var totalLeadsDharma = dharma.total    || 0;
+
+    // ── CALCULAR RESUMO ──────────────────────────────────────────────────
+    var cplMedio  = totalLeads   > 0 ? (totalGasto / totalLeads).toFixed(2)        : null;
+    var ctrMedio  = totalImpr    > 0 ? ((totalCliques / totalImpr) * 100).toFixed(2) : null;
+    var cpmMedio  = totalImpr    > 0 ? ((totalGasto / totalImpr) * 1000).toFixed(2)  : null;
+    var taxaConv  = totalLeadsDharma > 0 ? ((vendas / totalLeadsDharma) * 100).toFixed(1) : '0';
+    var cpaReal   = vendas > 0 ? (totalGasto / vendas).toFixed(2) : null;
+
+    // Alerta CPA
+    if (cpaReal && parseFloat(cpaReal) > L.CPA_MAX) {
+      alertas.push({ tipo: 'erro',  texto: 'CPA real R$' + cpaReal + ' acima do máximo R$' + L.CPA_MAX });
+    } else if (cpaReal && parseFloat(cpaReal) > L.CPA_META) {
+      alertas.push({ tipo: 'aviso', texto: 'CPA real R$' + cpaReal + ' acima da meta R$' + L.CPA_META });
+    }
+
+    return {
+      periodo: { since: since, until: until, label: periodo },
+      resumo: {
+        gasto:       totalGasto.toFixed(2),
+        leads:       totalLeads,
+        impressoes:  totalImpr,
+        cliques:     totalCliques,
+        cpl:         cplMedio,
+        ctr:         ctrMedio,
+        cpm:         cpmMedio,
+        conversoes:  vendas,
+        taxaConv:    taxaConv,
+        cpaReal:     cpaReal
+      },
+      campanhas: campanhasData,
+      alertas:   alertas,
+      dharma:    dharma
+    };
+
+  } catch(e) {
+    return { erro: 'Erro inesperado: ' + e.message };
+  }
 }

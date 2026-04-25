@@ -4,3 +4,4 @@
 *.bat
 .clasp.json
 .claspignore
+extensao-dharmapro/**

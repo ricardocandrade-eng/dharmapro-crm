@@ -261,6 +261,7 @@
     .f-group input.err,
     .f-group select.err { border-color: var(--accent) !important; }
     .f-group input[readonly] { opacity: .55; }
+    #pv-rua[readonly], #pv-bairro[readonly] { opacity: 1; }
     .f-group textarea { resize: none; min-height: 70px; }
 
     /* Select arrow */
@@ -591,6 +592,7 @@
     <!-- Cards -->
     <div class="actions">
 
+      <!-- TEMPORARIAMENTE OCULTO: Análise / Consulta
       <button class="action-card card-c1" onclick="openSheet('sheet-consulta')">
         <div class="card-icon">📋</div>
         <div class="card-text">
@@ -599,6 +601,7 @@
         </div>
         <div class="card-arrow">›</div>
       </button>
+      -->
 
       <button class="action-card card-c3" onclick="abrirPreVendaDireta()">
         <div class="card-icon">📦</div>
@@ -806,93 +809,112 @@
     <div class="f-section">🌐 Plano</div>
 
     <!-- CEP para carregar planos (pré-preenchido ou manual) -->
-    <div class="f-row" style="margin-bottom:0">
+    <div class="f-group">
+      <label>CEP do cliente <span class="req">*</span></label>
+      <input type="text" id="pv-cep" placeholder="00000-000" maxlength="9"
+             inputmode="numeric" oninput="onCepPreVenda(this)">
+      <div class="f-hint" id="pv-cep-hint"></div>
+      <button class="btn-cpf" style="margin-top:8px" onclick="recarregarPlanos()">↺ Carregar endereço</button>
+    </div>
+
+    <!-- Todos os campos abaixo — exibidos apenas após carregar o CEP -->
+    <div id="pv-endereco-fields" style="display:none">
+
+      <div class="f-row" style="margin-top:10px">
+        <div class="f-group" style="flex:2">
+          <label>Logradouro</label>
+          <input type="text" id="pv-rua" placeholder="Preenchido pelo CEP" readonly>
+        </div>
+        <div class="f-group" style="flex:1">
+          <label>Número <span class="req">*</span></label>
+          <input type="text" id="pv-num" placeholder="Ex: 123" inputmode="text">
+        </div>
+      </div>
+      <div class="f-row">
+        <div class="f-group" style="flex:1">
+          <label>Complemento</label>
+          <input type="text" id="pv-complemento" placeholder="Apto, bloco...">
+        </div>
+        <div class="f-group" style="flex:1">
+          <label>Bairro</label>
+          <input type="text" id="pv-bairro" placeholder="Preenchido pelo CEP" readonly>
+        </div>
+      </div>
+
+      <div class="f-group" style="margin-top:10px">
+        <label>Plano Contratado <span class="req">*</span></label>
+        <select id="pv-plano">
+          <option value="">Informe o CEP para carregar planos...</option>
+        </select>
+      </div>
+
       <div class="f-group">
-        <label>CEP do cliente</label>
-        <input type="text" id="pv-cep" placeholder="00000-000" maxlength="9"
-               inputmode="numeric" oninput="onCepPreVenda(this)">
-        <div class="f-hint" id="pv-cep-hint"></div>
-      </div>
-      <div class="f-group" style="display:flex;align-items:flex-end">
-        <button class="btn-cpf" style="margin:0" onclick="recarregarPlanos()">↺ Carregar</button>
-      </div>
-    </div>
-
-    <div class="f-group" style="margin-top:10px">
-      <label>Endereço de Referência <span class="req">*</span></label>
-      <textarea id="pv-endereco" placeholder="Rua, número, complemento, bairro, cidade/UF"></textarea>
-    </div>
-
-    <div class="f-group" style="margin-top:10px">
-      <label>Plano Contratado <span class="req">*</span></label>
-      <select id="pv-plano">
-        <option value="">Informe o CEP para carregar planos...</option>
-      </select>
-    </div>
-
-    <div class="f-group">
-      <label>Plano Móvel <span class="req">*</span></label>
-      <div class="toggle-wrap">
-        <div class="toggle-btn" id="movel-sim" onclick="setMovel('SIM')">📲 SIM</div>
-        <div class="toggle-btn" id="movel-nao" onclick="setMovel('NÃO')">✕ NÃO</div>
-      </div>
-    </div>
-
-    <!-- Portabilidade — aparece só se móvel = SIM -->
-    <div id="port-wrap">
-      <span class="f-sub-label">Tipo de linha móvel <span class="req">*</span></span>
-      <div class="pill-group" id="port-pills">
-        <div class="pill pill-blue" onclick="setPill('port-pills', this)">Número Novo</div>
-        <div class="pill pill-blue" onclick="setPill('port-pills', this)">Portabilidade</div>
-      </div>
-    </div>
-
-    <div class="f-section">🗓️ Vencimento</div>
-
-    <div class="f-group">
-      <label>Data de Vencimento <span class="req">*</span></label>
-      <div class="pill-group" id="venc-pills">
-        <div class="pill" onclick="setPill('venc-pills', this)">01</div>
-        <div class="pill" onclick="setPill('venc-pills', this)">03</div>
-        <div class="pill" onclick="setPill('venc-pills', this)">05</div>
-        <div class="pill" onclick="setPill('venc-pills', this)">09</div>
-        <div class="pill" onclick="setPill('venc-pills', this)">13</div>
-      </div>
-    </div>
-
-    <div class="f-section">💳 Forma de Pagamento</div>
-
-    <div class="pay-cards" id="pay-cards">
-
-      <div class="pay-card" onclick="selectPay(this)">
-        <div class="pay-radio"><div class="pay-radio-inner"></div></div>
-        <div>
-          <div class="pay-label">Cartão de Crédito</div>
-          <div class="pay-desc">Débito automático na fatura</div>
+        <label>Plano Móvel <span class="req">*</span></label>
+        <div class="toggle-wrap">
+          <div class="toggle-btn" id="movel-sim" onclick="setMovel('SIM')">📲 SIM</div>
+          <div class="toggle-btn" id="movel-nao" onclick="setMovel('NÃO')">✕ NÃO</div>
         </div>
       </div>
 
-      <div class="pay-card" onclick="selectPay(this)">
-        <div class="pay-radio"><div class="pay-radio-inner"></div></div>
-        <div>
-          <div class="pay-label">Débito Automático</div>
-          <div class="pay-desc">Debitado direto na conta</div>
+      <!-- Portabilidade — aparece só se móvel = SIM -->
+      <div id="port-wrap">
+        <span class="f-sub-label">Tipo de linha móvel <span class="req">*</span></span>
+        <div class="pill-group" id="port-pills">
+          <div class="pill pill-blue" onclick="setPill('port-pills', this)">Número Novo</div>
+          <div class="pill pill-blue" onclick="setPill('port-pills', this)">Portabilidade</div>
         </div>
       </div>
 
-      <div class="pay-card" onclick="selectPay(this)">
-        <div class="pay-radio"><div class="pay-radio-inner"></div></div>
-        <div style="flex:1">
-          <div class="pay-label">Boleto ou Pix</div>
-          <div class="pay-desc">Pagamento mensal manual</div>
+      <div class="f-section">🗓️ Vencimento</div>
+
+      <div class="f-group">
+        <label>Data de Vencimento <span class="req">*</span></label>
+        <div class="pill-group" id="venc-pills">
+          <div class="pill" onclick="setPill('venc-pills', this)">01</div>
+          <div class="pill" onclick="setPill('venc-pills', this)">03</div>
+          <div class="pill" onclick="setPill('venc-pills', this)">05</div>
+          <div class="pill" onclick="setPill('venc-pills', this)">09</div>
+          <div class="pill" onclick="setPill('venc-pills', this)">13</div>
         </div>
-        <div class="pay-tag">+ R$10/mês</div>
       </div>
 
-    </div>
+      <div class="f-section">💳 Forma de Pagamento</div>
 
-    <button class="btn-submit" onclick="submitPreVenda()">✅ Finalizar Pré-Venda</button>
-    <div style="height:16px"></div>
+      <div class="pay-cards" id="pay-cards">
+
+        <div class="pay-card" onclick="selectPay(this)">
+          <div class="pay-radio"><div class="pay-radio-inner"></div></div>
+          <div>
+            <div class="pay-label">Cartão de Crédito</div>
+            <div class="pay-desc">Débito automático na fatura</div>
+          </div>
+        </div>
+
+        <div class="pay-card" onclick="selectPay(this)">
+          <div class="pay-radio"><div class="pay-radio-inner"></div></div>
+          <div>
+            <div class="pay-label">Débito Automático</div>
+            <div class="pay-desc">Debitado direto na conta</div>
+          </div>
+        </div>
+
+        <div class="pay-card" onclick="selectPay(this)">
+          <div class="pay-radio"><div class="pay-radio-inner"></div></div>
+          <div style="flex:1">
+            <div class="pay-label">Boleto ou Pix</div>
+            <div class="pay-desc">Pagamento mensal manual</div>
+          </div>
+          <div class="pay-tag">+ R$10/mês</div>
+        </div>
+
+      </div>
+
+      <button class="btn-submit" onclick="submitPreVenda()">✅ Finalizar Pré-Venda</button>
+      <div style="height:16px"></div>
+
+    </div><!-- /pv-endereco-fields -->
+    <input type="hidden" id="pv-cidade">
+    <input type="hidden" id="pv-uf">
   </div>
 
   <!-- Sucesso -->
@@ -995,6 +1017,9 @@ function closeSheets() {
   document.getElementById('overlay').classList.remove('open');
   document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open'));
   document.body.style.overflow = '';
+  // Esconde campos de endereço para próxima abertura do form
+  const ef = document.getElementById('pv-endereco-fields');
+  if (ef) ef.style.display = 'none';
 }
 
 /* ────────────────────────────────────────────────────────
@@ -1121,10 +1146,15 @@ async function carregarPlanos(cep) {
       return;
     }
 
-    // Preenche hint com cidade/UF
+    // Preenche hint e campos de endereço
     if (res.cidade) {
       document.getElementById('pv-cep-hint').textContent = res.cidade + (res.uf ? '/' + res.uf : '');
     }
+    document.getElementById('pv-rua').value    = (res.logradouro || '').toUpperCase();
+    document.getElementById('pv-bairro').value = (res.bairro     || '').toUpperCase();
+    document.getElementById('pv-cidade').value = (res.cidade     || '').toUpperCase();
+    document.getElementById('pv-uf').value     = (res.uf         || '').toUpperCase();
+    document.getElementById('pv-endereco-fields').style.display = '';
 
     // Constrói select com cabeçalhos de categoria
     sel.innerHTML = '<option value="">Selecionar plano...</option>';
@@ -1346,7 +1376,6 @@ function abrirPreVendaDireta() {
 function _abrirPreVendaComDados() {
   const d = _consultaData;
   const nomeEl = document.getElementById('pv-nome');
-  const enderecoEl = document.getElementById('pv-endereco');
 
   // Info box
   const infoBox = document.getElementById('pv-info-box');
@@ -1360,9 +1389,15 @@ function _abrirPreVendaComDados() {
   }
 
   nomeEl.value = d?.nome || '';
-  enderecoEl.value = d
-    ? [d.rua, d.numero, d.comp, d.bairro, d.cidade + (d.uf ? '/' + d.uf : '')].filter(Boolean).join(', ')
-    : '';
+  // Pré-preenche campos de endereço separados
+  document.getElementById('pv-rua').value         = d ? (d.rua    || '').toUpperCase() : '';
+  document.getElementById('pv-bairro').value      = d ? (d.bairro || '').toUpperCase() : '';
+  document.getElementById('pv-cidade').value      = d ? (d.cidade || '').toUpperCase() : '';
+  document.getElementById('pv-uf').value          = d ? (d.uf     || '').toUpperCase() : '';
+  document.getElementById('pv-num').value         = d ? (d.numero || '') : '';
+  document.getElementById('pv-complemento').value = d ? (d.comp   || '') : '';
+  // Mostra campos de endereço só se vieram dados da consulta
+  document.getElementById('pv-endereco-fields').style.display = d ? '' : 'none';
 
   // CPF
   const cpfEl = document.getElementById('pv-cpf');
@@ -1399,7 +1434,8 @@ async function submitPreVenda() {
   if (!required('pv-cpf'))  { toast('Informe o CPF do cliente', 'err'); return; }
   if (!required('pv-nome')) { toast('Informe o nome do cliente', 'err'); return; }
   if (!required('pv-wpp'))  { toast('Informe o WhatsApp do cliente', 'err'); return; }
-  if (!required('pv-endereco')) { toast('Informe o endereço de referência', 'err'); return; }
+  if (!required('pv-cep'))  { toast('Informe o CEP do cliente', 'err'); return; }
+  if (!required('pv-num'))  { toast('Informe o número do endereço', 'err'); return; }
   if (!required('pv-plano')) { toast('Selecione um plano', 'err'); return; }
 
   if (!_movel) { toast('Informe se tem plano móvel', 'warn'); return; }
@@ -1424,9 +1460,15 @@ async function submitPreVenda() {
   const data = {
     parceiro:    SELLER_NAME,
     parceiroCpf: SELLER_CPF,
-    cpfCliente:  getVal('pv-cpf'),   // backend espera cpfCliente (salvarPreVenda)
+    cpfCliente:  getVal('pv-cpf'),
     nomeCliente: getVal('pv-nome'),
-    enderecoRef: getVal('pv-endereco'),
+    cep:         getVal('pv-cep').replace(/\D/g,''),
+    rua:         getVal('pv-rua'),
+    num:         getVal('pv-num'),
+    complemento: getVal('pv-complemento'),
+    bairro:      getVal('pv-bairro'),
+    cidade:      getVal('pv-cidade'),
+    uf:          getVal('pv-uf'),
     protocoloRef: d?.protocolo || '',
     whatsapp:    getVal('pv-wpp'),
     email:       getVal('pv-email'),
