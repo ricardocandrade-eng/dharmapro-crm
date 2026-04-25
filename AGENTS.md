@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | AGENTS.md | 25/04/2026 18:05 -->
+<!-- dharmapro-crm | AGENTS.md | 25/04/2026 18:16 -->
 
 # DharmaPro CRM
 
@@ -88,6 +88,8 @@ Estado atualizado em 25/04/2026:
 - a venda movel criada por duplicacao deve entrar em `2- Aguardando Entrega`;
 - o alerta `Combo sem movel` deve ocupar a area visual onde o `VeroHub` nao e exibido
   nesse fluxo, evitando ruído ao lado do produto.
+- o painel lateral deve permitir navegar entre `Fibra` e `Movel` vinculados
+  por links discretos na secao de vinculos.
 
 ### Views HTML do sistema
 

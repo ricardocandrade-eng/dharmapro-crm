@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 18:05 -->
+<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 18:16 -->
 
 # dharmapro-crm
 
@@ -25,6 +25,8 @@ de vinculos e alerta visual quando existir combo sem venda movel associada.
 O ajuste mais recente posiciona esse alerta na area do card onde o `VeroHub`
 nao aparece para o fluxo movel e faz a venda movel vinculada nascer em
 `2 - Aguardando Entrega`.
+Tambem adiciona navegacao cruzada no painel lateral entre venda fibra e venda
+movel vinculada.
 
 ---
 
