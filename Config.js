@@ -9,7 +9,7 @@
 
 // ── VERSÃO / DEPLOY ────────────────────────────────────────────────────────
 //  Atualizado automaticamente pelo salvar_010426_1930.bat a cada deploy
-var DEPLOY_DATE = '25/04/2026 15:05';
+var DEPLOY_DATE = '25/04/2026 15:30';
 
 // ── USUÁRIOS ───────────────────────────────────────────────────────────────
 // SENHAS: use o campo senhaHash (SHA-256 em hex). Nunca armazene senha em texto puro.
@@ -117,8 +117,11 @@ var ALERTAS_CONFIG = {
     '2- Aguardando Instalação': 1,   // 1+ dia após data de agenda = alerta no sino
     'Pendencia Vero':           3    // 3+ dias em pendência Vero
   },
-  CAMPANHA_CPL_MAX:   0,            // TESTE: 0 = qualquer campanha ativa dispara alerta
-  WABA_SCORES_ALERTA: ['GREEN', 'YELLOW', 'RED'] // TESTE: GREEN incluído para forçar alerta
+  // WABA: scores que disparam alerta (GREEN = ok, YELLOW = atenção, RED = crítico)
+  WABA_SCORES_ALERTA:      ['YELLOW', 'RED'],
+  // Disparo em massa: thresholds de qualidade
+  CAMPANHA_FAIL_RATE_MAX:  20,   // % de falha que dispara alerta (ex: 20 = acima de 20%)
+  CAMPANHA_OPTOUT_MAX:      5    // % de opt-out que dispara alerta
 };
 
 // ── MENSAGEM DO SISTEMA ────────────────────────────────────────────────────

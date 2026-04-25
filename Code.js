@@ -5459,12 +5459,10 @@ function detectarAlertasAtivos(usuario) {
 
     // ── 2. WABA Quality Score ─────────────────────────────────────────────
     try {
-      var wabaData = _sbFetch_('GET', '/v_waba_health_current?select=quality_rating&limit=1');
-      Logger.log('detectarAlertasAtivos — WABA data: ' + JSON.stringify(wabaData));
+      var wabaData = _sbFetch_('GET', '/v_waba_health_current?select=current_quality&limit=1');
       if (wabaData && wabaData.length > 0) {
-        var score = String(wabaData[0].quality_rating || '').toUpperCase();
-        Logger.log('detectarAlertasAtivos — WABA score: ' + score + ' | alertar: ' + JSON.stringify(ALERTAS_CONFIG.WABA_SCORES_ALERTA));
-        if (ALERTAS_CONFIG.WABA_SCORES_ALERTA.indexOf(score) >= 0) {
+        var score = String(wabaData[0].current_quality || '').toUpperCase();
+        if (score && ALERTAS_CONFIG.WABA_SCORES_ALERTA.indexOf(score) >= 0) {
           alertas.push({
             id:         'waba_score_' + score,
             tipo:       'waba_score',
@@ -5472,7 +5470,7 @@ function detectarAlertasAtivos(usuario) {
             titulo:     'WABA Quality Score: ' + score,
             sub:        score === 'RED'
                           ? 'Risco de suspensão — revise templates imediatamente'
-                          : 'Qualidade baixa — monitore aprovações de template',
+                          : 'Qualidade em atenção — monitore aprovações de template',
             severidade: score === 'RED' ? 'critico' : 'atencao',
             destino:    'dash'
           });
@@ -5482,25 +5480,57 @@ function detectarAlertasAtivos(usuario) {
       Logger.log('detectarAlertasAtivos — WABA erro: ' + eWaba.toString());
     }
 
-    // ── 3. Campanhas com CPL alto ─────────────────────────────────────────
+    // ── 3. Campanhas de disparo-massa com problema ────────────────────────
+    // v_campaign_stats é do disparo-massa (WhatsApp), não Meta Ads — sem CPL.
+    // Alertas: kill switch ativo ou taxa de falha alta.
     try {
       var campanhas = _sbFetch_('GET',
-        '/v_campaign_stats?select=campaign_name,cpl,status&order=updated_at.desc&limit=20');
-      Logger.log('detectarAlertasAtivos — campanhas: ' + JSON.stringify(campanhas));
-      // Usa null check correto: || só para undefined/null, não para 0
-      var cplMax = (ALERTAS_CONFIG.CAMPANHA_CPL_MAX != null) ? ALERTAS_CONFIG.CAMPANHA_CPL_MAX : 80;
+        '/v_campaign_stats?select=id,name,status,fail_rate_pct,optout_rate_pct,pause_reasons,sent_count&order=updated_at.desc&limit=20');
+      var failMax   = (ALERTAS_CONFIG.CAMPANHA_FAIL_RATE_MAX != null) ? ALERTAS_CONFIG.CAMPANHA_FAIL_RATE_MAX : 20;
+      var optoutMax = (ALERTAS_CONFIG.CAMPANHA_OPTOUT_MAX   != null) ? ALERTAS_CONFIG.CAMPANHA_OPTOUT_MAX   : 5;
       campanhas.forEach(function(c) {
-        var cpl = parseFloat(c.cpl);
-        Logger.log('detectarAlertasAtivos — campanha: ' + c.campaign_name + ' status=' + c.status + ' cpl=' + cpl + ' > ' + cplMax + '?');
-        if (c.status === 'running' && !isNaN(cpl) && cpl > cplMax) {
+        var nome      = c.name || c.id || 'Campanha';
+        var idSlug    = String(c.id || nome).replace(/\W/g, '_').slice(0, 40);
+        var failRate  = parseFloat(c.fail_rate_pct)  || 0;
+        var optRate   = parseFloat(c.optout_rate_pct) || 0;
+        var enviados  = parseInt(c.sent_count) || 0;
+        var pauseStr  = String(c.pause_reasons || '');
+        var killSwitch = pauseStr.indexOf('kill_switch') >= 0;
+
+        // Kill switch ativo
+        if (c.status === 'paused' && killSwitch) {
           alertas.push({
-            id:         'camp_cpl_' + String(c.campaign_name || '').replace(/\W/g, '_'),
-            tipo:       'campanha_cpl',
-            icone:      '📊',
-            titulo:     'CPL alto: ' + (c.campaign_name || 'Campanha'),
-            sub:        'R$ ' + cpl.toFixed(2) + ' por lead · limite: R$ ' + cplMax,
+            id:         'disp_kill_' + idSlug,
+            tipo:       'disparo_kill',
+            icone:      '🛑',
+            titulo:     'Kill switch: ' + nome,
+            sub:        'Disparo pausado automaticamente por limite crítico',
+            severidade: 'critico',
+            destino:    'disparos'
+          });
+        }
+        // Taxa de falha alta (só se já enviou ao menos 10)
+        else if (enviados >= 10 && failRate > failMax) {
+          alertas.push({
+            id:         'disp_fail_' + idSlug,
+            tipo:       'disparo_falha',
+            icone:      '📵',
+            titulo:     'Falhas altas: ' + nome,
+            sub:        failRate.toFixed(1) + '% de falha · limite: ' + failMax + '%',
             severidade: 'atencao',
-            destino:    'metaads'
+            destino:    'disparos'
+          });
+        }
+        // Opt-out alto
+        else if (enviados >= 10 && optRate > optoutMax) {
+          alertas.push({
+            id:         'disp_optout_' + idSlug,
+            tipo:       'disparo_optout',
+            icone:      '🚫',
+            titulo:     'Opt-out alto: ' + nome,
+            sub:        optRate.toFixed(1) + '% de opt-out · limite: ' + optoutMax + '%',
+            severidade: 'atencao',
+            destino:    'disparos'
           });
         }
       });
@@ -5548,33 +5578,20 @@ function diagnosticarAlertasWabaCpl() {
     Logger.log('Erro ao ler SUPABASE_SERVICE_ROLE: ' + e.toString());
   }
 
-  // 2. WABA
+  // 2. WABA — busca todas as colunas para descobrir o schema real
   try {
-    var wabaData = _sbFetch_('GET', '/v_waba_health_current?select=quality_rating&limit=1');
-    Logger.log('WABA retorno: ' + JSON.stringify(wabaData));
-    if (wabaData && wabaData.length > 0) {
-      Logger.log('WABA quality_rating: ' + wabaData[0].quality_rating);
-      Logger.log('ALERTAS_CONFIG.WABA_SCORES_ALERTA: ' + JSON.stringify(ALERTAS_CONFIG.WABA_SCORES_ALERTA));
-    } else {
-      Logger.log('WABA: view vazia ou sem dados');
-    }
+    var wabaData = _sbFetch_('GET', '/v_waba_health_current?limit=1');
+    Logger.log('WABA colunas: ' + (wabaData && wabaData.length > 0 ? JSON.stringify(Object.keys(wabaData[0])) : 'vazio'));
+    Logger.log('WABA linha completa: ' + JSON.stringify(wabaData));
   } catch(e) {
     Logger.log('WABA erro: ' + e.toString());
   }
 
-  // 3. Campanhas
+  // 3. Campanhas — busca todas as colunas para descobrir o schema real
   try {
-    var camps = _sbFetch_('GET', '/v_campaign_stats?select=campaign_name,cpl,status&order=updated_at.desc&limit=20');
-    Logger.log('Campanhas retorno (' + (camps ? camps.length : 0) + ' linhas): ' + JSON.stringify(camps));
-    var cplMax = (ALERTAS_CONFIG.CAMPANHA_CPL_MAX != null) ? ALERTAS_CONFIG.CAMPANHA_CPL_MAX : 80;
-    Logger.log('cplMax configurado: ' + cplMax);
-    if (camps && camps.length > 0) {
-      camps.forEach(function(c) {
-        Logger.log('  Campanha: ' + c.campaign_name + ' | status=' + c.status + ' | cpl=' + c.cpl);
-      });
-    } else {
-      Logger.log('Campanhas: view vazia ou sem dados');
-    }
+    var camps = _sbFetch_('GET', '/v_campaign_stats?limit=3');
+    Logger.log('Campanhas colunas: ' + (camps && camps.length > 0 ? JSON.stringify(Object.keys(camps[0])) : 'vazio'));
+    Logger.log('Campanhas amostra: ' + JSON.stringify(camps));
   } catch(e) {
     Logger.log('Campanhas erro: ' + e.toString());
   }
