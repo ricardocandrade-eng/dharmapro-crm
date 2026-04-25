@@ -10593,8 +10593,8 @@ var _dhpCriarItemVendaOriginal = _criarItemVenda;
 _criarItemVenda = function(v, index) {
   var html = _dhpCriarItemVendaOriginal(v, index);
   if (!v || !v.comboMovelPendente) return html;
-  var badge = '<span class="vi-prestatus-badge" style="background:rgba(247,162,59,.14);color:var(--yellow);border-color:rgba(247,162,59,.35);">⚠ Combo sem móvel</span>';
-  return html.replace(/(<span class="vi-produto[^>]*>.*?<\/span>)/, '$1' + badge);
+  var badge = '<div class="vi-viab-badge vi-viab-nok" style="border-color:rgba(247,162,59,.35);color:var(--yellow);">⚠ Combo sem móvel</div>';
+  return html.replace(/(<div class="vi-bot-right">)([\s\S]*?)(<\/div>\s*<div class="vi-actions">)/, '$1' + badge + '$2$3');
 };
 
 var _dhpMostrarPainelOriginal = mostrarPainel;
@@ -10602,12 +10602,6 @@ mostrarPainel = function(v) {
   _dhpMostrarPainelOriginal(v);
   var btnDuplicarMovel = document.getElementById('pBtnDuplicarMovel');
   if (btnDuplicarMovel) btnDuplicarMovel.style.display = v && v.comboMovelPendente ? 'flex' : 'none';
-  if (v && v.comboMovelPendente) {
-    var wrap = document.getElementById('pStatusWrap');
-    if (wrap && wrap.innerHTML.indexOf('Combo sem móvel') === -1) {
-      wrap.innerHTML += '<span class="badge badge-meta" style="margin-left:4px;color:var(--yellow);border-color:rgba(247,162,59,.35);background:rgba(247,162,59,.12);">Combo sem móvel</span>';
-    }
-  }
 };
 
 </script>

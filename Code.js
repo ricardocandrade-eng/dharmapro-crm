@@ -2833,7 +2833,7 @@ function criarVendaMovelVinculada(payload) {
     var dadosMovel = {
       canal:           vendaOrigem.canal || '',
       produto:         produtoMovel,
-      status:          '1- Conferencia/Ativação',
+      status:          '2- Aguardando Entrega',
       preStatus:       vendaOrigem.preStatus || '',
       dataAtiv:        '',
       contrato:        contrato,

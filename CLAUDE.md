@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 17:53 -->
+<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 18:05 -->
 
 # dharmapro-crm
 
@@ -22,6 +22,9 @@ a manter tambem `VEROHUB`, `BC_TAGS`, `BC_STATUS` e `VIABILIDADE` durante update
 Na mesma data, vendas `Fibra Combo` passaram a suportar criacao de `Móvel`
 vinculado via botao no painel lateral, com registro estrutural em aba propria
 de vinculos e alerta visual quando existir combo sem venda movel associada.
+O ajuste mais recente posiciona esse alerta na area do card onde o `VeroHub`
+nao aparece para o fluxo movel e faz a venda movel vinculada nascer em
+`2 - Aguardando Entrega`.
 
 ---
 

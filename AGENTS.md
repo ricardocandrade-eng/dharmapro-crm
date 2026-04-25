@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | AGENTS.md | 25/04/2026 17:53 -->
+<!-- dharmapro-crm | AGENTS.md | 25/04/2026 18:05 -->
 
 # DharmaPro CRM
 
@@ -85,6 +85,9 @@ Estado atualizado em 25/04/2026:
   de observacao solta na venda;
 - `Fibra Combo` sem venda movel vinculada deve exibir alerta visual e botao
   `Duplicar para Movel` no painel lateral.
+- a venda movel criada por duplicacao deve entrar em `2- Aguardando Entrega`;
+- o alerta `Combo sem movel` deve ocupar a area visual onde o `VeroHub` nao e exibido
+  nesse fluxo, evitando ruído ao lado do produto.
 
 ### Views HTML do sistema
 
