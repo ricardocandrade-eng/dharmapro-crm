@@ -10350,6 +10350,15 @@ function _sinoGetUsuario() {
 /** Inicializa o sino: carrega imediatamente e agenda polling a cada 5 min.
  *  Também registra listener global para fechar dropdown ao clicar fora. */
 function inicializarSino() {
+  // TESTE TEMPORÁRIO: alerta fixo para verificar mecanismo do sino
+  _sinoAlertas = [{
+    id: 'teste_sino_01', tipo: 'teste', icone: '🧪',
+    titulo: 'Sino funcionando!',
+    sub: 'Este é um alerta de teste — pode limpar.',
+    severidade: 'atencao', destino: 'dash', lido: false
+  }];
+  _renderizarAlertas(1);
+
   carregarAlertas();
   if (_sinoInterval) clearInterval(_sinoInterval);
   _sinoInterval = setInterval(carregarAlertas, SINO_POLL_MS);
