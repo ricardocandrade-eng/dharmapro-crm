@@ -5532,3 +5532,52 @@ function detectarAlertasAtivos(usuario) {
 function marcarAlertasLidos(usuario, ids) {
   return { ok: true };
 }
+
+/**
+ * DIAGNÓSTICO — rode manualmente no editor GAS (não exposta ao frontend).
+ * Verifica se _sbFetch_ consegue ler WABA e campanhas do Supabase.
+ */
+function diagnosticarAlertasWabaCpl() {
+  Logger.log('=== DIAGNÓSTICO WABA / CPL ===');
+
+  // 1. Credencial Supabase
+  try {
+    var key = PropertiesService.getScriptProperties().getProperty('SUPABASE_SERVICE_ROLE');
+    Logger.log('SUPABASE_SERVICE_ROLE presente: ' + (key ? 'SIM (' + key.length + ' chars)' : 'NÃO — FALTA A CHAVE'));
+  } catch(e) {
+    Logger.log('Erro ao ler SUPABASE_SERVICE_ROLE: ' + e.toString());
+  }
+
+  // 2. WABA
+  try {
+    var wabaData = _sbFetch_('GET', '/v_waba_health_current?select=quality_rating&limit=1');
+    Logger.log('WABA retorno: ' + JSON.stringify(wabaData));
+    if (wabaData && wabaData.length > 0) {
+      Logger.log('WABA quality_rating: ' + wabaData[0].quality_rating);
+      Logger.log('ALERTAS_CONFIG.WABA_SCORES_ALERTA: ' + JSON.stringify(ALERTAS_CONFIG.WABA_SCORES_ALERTA));
+    } else {
+      Logger.log('WABA: view vazia ou sem dados');
+    }
+  } catch(e) {
+    Logger.log('WABA erro: ' + e.toString());
+  }
+
+  // 3. Campanhas
+  try {
+    var camps = _sbFetch_('GET', '/v_campaign_stats?select=campaign_name,cpl,status&order=updated_at.desc&limit=20');
+    Logger.log('Campanhas retorno (' + (camps ? camps.length : 0) + ' linhas): ' + JSON.stringify(camps));
+    var cplMax = (ALERTAS_CONFIG.CAMPANHA_CPL_MAX != null) ? ALERTAS_CONFIG.CAMPANHA_CPL_MAX : 80;
+    Logger.log('cplMax configurado: ' + cplMax);
+    if (camps && camps.length > 0) {
+      camps.forEach(function(c) {
+        Logger.log('  Campanha: ' + c.campaign_name + ' | status=' + c.status + ' | cpl=' + c.cpl);
+      });
+    } else {
+      Logger.log('Campanhas: view vazia ou sem dados');
+    }
+  } catch(e) {
+    Logger.log('Campanhas erro: ' + e.toString());
+  }
+
+  Logger.log('=== FIM ===');
+}
