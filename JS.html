@@ -4766,6 +4766,69 @@ function _renderizarFunil() {
   }
 
   _iniciarDragFunil();
+
+  // Atualiza o sino com base nos dados do funil já carregados (sem chamar backend)
+  _atualizarSinoPorFunil();
+}
+
+/** Lê _funilDados e injeta alertas de instalação atrasada diretamente no sino. */
+function _atualizarSinoPorFunil() {
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  var novos = [];
+
+  _funilDados.forEach(function(v) {
+    if (v.status === '2- Aguardando Instalação' && v.agenda) {
+      var p = String(v.agenda).split('/');
+      if (p.length === 3) {
+        var d = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+        d.setHours(0,0,0,0);
+        var dias = Math.floor((hoje - d) / 86400000);
+        if (dias >= 1) {
+          novos.push({
+            id:         'funil_ag_' + v.linha,
+            tipo:       'lead_parado',
+            icone:      dias >= 7 ? '🔴' : '🟡',
+            titulo:     (v.cliente || 'Cliente') + ' — instalação atrasada',
+            sub:        dias + ' dia' + (dias !== 1 ? 's' : '') + ' em atraso' +
+                        (v.resp ? ' · ' + v.resp : ''),
+            severidade: dias >= 7 ? 'critico' : 'atencao',
+            lido:       false
+          });
+        }
+      }
+    }
+    if (v.status === 'Pendencia Vero' && v.dataAtiv) {
+      var p2 = String(v.dataAtiv).split('/');
+      if (p2.length === 3) {
+        var d2 = new Date(parseInt(p2[2]), parseInt(p2[1])-1, parseInt(p2[0]));
+        d2.setHours(0,0,0,0);
+        var dias2 = Math.floor((hoje - d2) / 86400000);
+        if (dias2 >= 3) {
+          novos.push({
+            id:         'funil_pv_' + v.linha,
+            tipo:       'pendencia_vero',
+            icone:      dias2 >= 7 ? '🔴' : '🟡',
+            titulo:     (v.cliente || 'Cliente') + ' — Pendência Vero',
+            sub:        dias2 + ' dia' + (dias2 !== 1 ? 's' : '') + ' aguardando Vero',
+            severidade: dias2 >= 7 ? 'critico' : 'atencao',
+            lido:       false
+          });
+        }
+      }
+    }
+  });
+
+  if (novos.length === 0) return;
+
+  // Mescla com alertas já existentes sem duplicar IDs
+  var idsExistentes = {};
+  _sinoAlertas.forEach(function(a) { idsExistentes[a.id] = true; });
+  novos.forEach(function(a) {
+    if (!idsExistentes[a.id]) _sinoAlertas.push(a);
+  });
+
+  var naoLidos = _sinoAlertas.filter(function(a) { return !a.lido; }).length;
+  _renderizarAlertas(naoLidos);
 }
 
 /** Filtra a coluna Aguardando Instalação para mostrar só atrasados. */
