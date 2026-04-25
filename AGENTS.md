@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | AGENTS.md | 25/04/2026 19:12 -->
+<!-- dharmapro-crm | AGENTS.md | 25/04/2026 18:59 -->
 
 # DharmaPro CRM
 

@@ -10941,13 +10941,13 @@ function _dhpCriarItemVendaAgrupadaV3(v, index) {
 }
 
 if (typeof _normalizarTexto !== 'function') {
-  function _normalizarTexto(valor) {
+  var _normalizarTexto = function(valor) {
     return String(valor || '')
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toUpperCase()
       .trim();
-  }
+  };
 }
 
 </script>
