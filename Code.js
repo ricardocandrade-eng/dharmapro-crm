@@ -5460,8 +5460,10 @@ function detectarAlertasAtivos(usuario) {
     // ── 2. WABA Quality Score ─────────────────────────────────────────────
     try {
       var wabaData = _sbFetch_('GET', '/v_waba_health_current?select=quality_rating&limit=1');
+      Logger.log('detectarAlertasAtivos — WABA data: ' + JSON.stringify(wabaData));
       if (wabaData && wabaData.length > 0) {
         var score = String(wabaData[0].quality_rating || '').toUpperCase();
+        Logger.log('detectarAlertasAtivos — WABA score: ' + score + ' | alertar: ' + JSON.stringify(ALERTAS_CONFIG.WABA_SCORES_ALERTA));
         if (ALERTAS_CONFIG.WABA_SCORES_ALERTA.indexOf(score) >= 0) {
           alertas.push({
             id:         'waba_score_' + score,
@@ -5477,16 +5479,19 @@ function detectarAlertasAtivos(usuario) {
         }
       }
     } catch(eWaba) {
-      Logger.log('detectarAlertasAtivos — WABA: ' + eWaba.toString());
+      Logger.log('detectarAlertasAtivos — WABA erro: ' + eWaba.toString());
     }
 
     // ── 3. Campanhas com CPL alto ─────────────────────────────────────────
     try {
       var campanhas = _sbFetch_('GET',
         '/v_campaign_stats?select=campaign_name,cpl,status&order=updated_at.desc&limit=20');
-      var cplMax = ALERTAS_CONFIG.CAMPANHA_CPL_MAX || 80;
+      Logger.log('detectarAlertasAtivos — campanhas: ' + JSON.stringify(campanhas));
+      // Usa null check correto: || só para undefined/null, não para 0
+      var cplMax = (ALERTAS_CONFIG.CAMPANHA_CPL_MAX != null) ? ALERTAS_CONFIG.CAMPANHA_CPL_MAX : 80;
       campanhas.forEach(function(c) {
         var cpl = parseFloat(c.cpl);
+        Logger.log('detectarAlertasAtivos — campanha: ' + c.campaign_name + ' status=' + c.status + ' cpl=' + cpl + ' > ' + cplMax + '?');
         if (c.status === 'running' && !isNaN(cpl) && cpl > cplMax) {
           alertas.push({
             id:         'camp_cpl_' + String(c.campaign_name || '').replace(/\W/g, '_'),
@@ -5500,7 +5505,7 @@ function detectarAlertasAtivos(usuario) {
         }
       });
     } catch(eCamp) {
-      Logger.log('detectarAlertasAtivos — campanhas: ' + eCamp.toString());
+      Logger.log('detectarAlertasAtivos — campanhas erro: ' + eCamp.toString());
     }
 
     // Estado "lido" é gerenciado pelo frontend (sessionStorage) — backend sempre retorna lido:false.
