@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | AGENTS.md | 25/04/2026 18:59 -->
+<!-- dharmapro-crm | AGENTS.md | 25/04/2026 19:21 -->
 
 # DharmaPro CRM
 
@@ -18,6 +18,10 @@ linhas, a `Lista de Vendas` pode consolidar a exibicao em um unico card visual.
 Se essa camada cliente usar normalizacao de texto para agrupar ou comparar
 produtos/status, o helper precisa existir no frontend e nao pode depender apenas
 da implementacao backend em `Code.js`.
+Para combos antigos sem registro na aba `Vinculos Vendas`, o backend pode inferir
+agrupamento retroativo apenas em casos inequivocos. A regra segura atual e:
+um unico `Fibra Combo` e um unico movel compativel para a mesma chave de cliente,
+sem aproveitar apenas nome puro para evitar falso positivo.
 
 Papel no ecossistema:
 - receber e organizar leads vindos de WhatsApp, indicacoes, PAP e Meta Ads;

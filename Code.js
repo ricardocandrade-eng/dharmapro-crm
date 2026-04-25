@@ -3849,29 +3849,31 @@ function _getSheetVinculosVendas_(createIfMissing) {
 function _getVinculosVendasMap_() {
   var sh = _getSheetVinculosVendas_(false);
   var mapa = { filhasPorMae: {}, maePorFilha: {} };
-  if (!sh || sh.getLastRow() < 2) return mapa;
+  if (sh && sh.getLastRow() >= 2) {
+    var raw = sh.getRange(2, 1, sh.getLastRow() - 1, 8).getValues();
+    for (var i = 0; i < raw.length; i++) {
+      var row = raw[i];
+      var status = _normalizarTexto(row[6] || 'ATIVO');
+      if (status && status !== 'ATIVO') continue;
 
-  var raw = sh.getRange(2, 1, sh.getLastRow() - 1, 8).getValues();
-  for (var i = 0; i < raw.length; i++) {
-    var row = raw[i];
-    var status = _normalizarTexto(row[6] || 'ATIVO');
-    if (status && status !== 'ATIVO') continue;
+      var maeLinha = parseInt(row[2], 10);
+      var filhaLinha = parseInt(row[3], 10);
+      if (isNaN(maeLinha) || isNaN(filhaLinha)) continue;
 
-    var maeLinha = parseInt(row[2], 10);
-    var filhaLinha = parseInt(row[3], 10);
-    if (isNaN(maeLinha) || isNaN(filhaLinha)) continue;
-
-    var vinculo = {
-      tipo: String(row[1] || '').trim(),
-      vendaMaeLinha: maeLinha,
-      vendaFilhaLinha: filhaLinha,
-      vendaMaeContrato: String(row[4] || '').trim(),
-      vendaFilhaContrato: String(row[5] || '').trim()
-    };
-    if (!mapa.filhasPorMae[maeLinha]) mapa.filhasPorMae[maeLinha] = [];
-    mapa.filhasPorMae[maeLinha].push(vinculo);
-    mapa.maePorFilha[filhaLinha] = vinculo;
+      var vinculo = {
+        tipo: String(row[1] || '').trim(),
+        vendaMaeLinha: maeLinha,
+        vendaFilhaLinha: filhaLinha,
+        vendaMaeContrato: String(row[4] || '').trim(),
+        vendaFilhaContrato: String(row[5] || '').trim()
+      };
+      if (!mapa.filhasPorMae[maeLinha]) mapa.filhasPorMae[maeLinha] = [];
+      mapa.filhasPorMae[maeLinha].push(vinculo);
+      mapa.maePorFilha[filhaLinha] = vinculo;
+    }
   }
+
+  _mesclarVinculosLegadosInferidos_(mapa);
   return mapa;
 }
 
@@ -3914,6 +3916,96 @@ function _resumirVendaVinculada_(venda) {
     turno: venda.turno || '',
     instal: venda.instal || ''
   };
+}
+
+function _mesclarVinculosLegadosInferidos_(mapa) {
+  var cacheKey = CONFIG.CACHE_PREFIX + 'vinculos_legados_v1';
+  var inferidos = _cacheGet(cacheKey);
+  if (!Array.isArray(inferidos)) {
+    inferidos = _inferirVinculosLegados_(mapa);
+    _cachePut(cacheKey, inferidos, 300);
+  }
+
+  for (var i = 0; i < inferidos.length; i++) {
+    var vinculo = inferidos[i];
+    var maeLinha = vinculo.vendaMaeLinha;
+    var filhaLinha = vinculo.vendaFilhaLinha;
+    if (!maeLinha || !filhaLinha) continue;
+    if (mapa.maePorFilha[filhaLinha]) continue;
+    if (!mapa.filhasPorMae[maeLinha]) mapa.filhasPorMae[maeLinha] = [];
+    mapa.filhasPorMae[maeLinha].push(vinculo);
+    mapa.maePorFilha[filhaLinha] = vinculo;
+  }
+}
+
+function _inferirVinculosLegados_(mapaAtual) {
+  mapaAtual = mapaAtual || { filhasPorMae: {}, maePorFilha: {} };
+  var sheet = _getSheet();
+  var ultimaLinha = sheet.getLastRow();
+  if (ultimaLinha < 3) return [];
+
+  var totalLinhas = ultimaLinha - 2;
+  var c = CONFIG.COLUNAS;
+  var produtos = sheet.getRange(3, c.PRODUTO + 1, totalLinhas, 1).getValues();
+  var cpfs = sheet.getRange(3, c.CPF + 1, totalLinhas, 1).getValues();
+  var clientes = sheet.getRange(3, c.CLIENTE + 1, totalLinhas, 1).getValues();
+  var whatsApps = sheet.getRange(3, c.WHATS + 1, totalLinhas, 1).getValues();
+  var contratos = sheet.getRange(3, c.CONTRATO + 1, totalLinhas, 1).getValues();
+
+  var fibrasPorChave = {};
+  var moveisPorChave = {};
+
+  for (var i = 0; i < totalLinhas; i++) {
+    var linha = i + 3;
+    if (mapaAtual.filhasPorMae[linha] || mapaAtual.maePorFilha[linha]) continue;
+
+    var produtoNorm = _normalizarTexto(produtos[i][0]);
+    var chave = _criarChaveLegadoCombo_(cpfs[i][0], whatsApps[i][0], clientes[i][0]);
+    if (!chave) continue;
+
+    var item = {
+      linha: linha,
+      contrato: String(contratos[i][0] || '').trim().replace(/\.0$/, '')
+    };
+
+    if (produtoNorm === 'FIBRA COMBO') {
+      if (!fibrasPorChave[chave]) fibrasPorChave[chave] = [];
+      fibrasPorChave[chave].push(item);
+      continue;
+    }
+
+    if (produtoNorm.indexOf('MOVEL') !== -1) {
+      if (!moveisPorChave[chave]) moveisPorChave[chave] = [];
+      moveisPorChave[chave].push(item);
+    }
+  }
+
+  var vinculos = [];
+  Object.keys(fibrasPorChave).forEach(function(chave) {
+    var fibras = fibrasPorChave[chave] || [];
+    var moveis = moveisPorChave[chave] || [];
+    if (fibras.length !== 1 || moveis.length !== 1) return;
+
+    vinculos.push({
+      tipo: 'COMBO_MOVEL_LEGADO',
+      vendaMaeLinha: fibras[0].linha,
+      vendaFilhaLinha: moveis[0].linha,
+      vendaMaeContrato: fibras[0].contrato,
+      vendaFilhaContrato: moveis[0].contrato
+    });
+  });
+
+  return vinculos;
+}
+
+function _criarChaveLegadoCombo_(cpf, whats, cliente) {
+  var cpfNorm = String(cpf || '').replace(/\D/g, '');
+  var whatsNorm = String(whats || '').replace(/\D/g, '');
+  var clienteNorm = _normalizarTexto(cliente || '');
+
+  if (cpfNorm) return 'CPF:' + cpfNorm;
+  if (whatsNorm && clienteNorm) return 'WPP:' + whatsNorm + '|CLI:' + clienteNorm;
+  return '';
 }
 
 function _registrarVinculoVenda_(maeLinha, filhaLinha, tipo) {
