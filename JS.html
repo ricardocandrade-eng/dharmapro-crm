@@ -10623,4 +10623,321 @@ mostrarPainel = function(v) {
   scroll.appendChild(secao);
 };
 
+var _dhpCriarItemVendaOriginalV2 = _criarItemVenda;
+_criarItemVenda = function(v, index) {
+  if (v && v._dhpComboAgrupado) return _dhpCriarItemVendaAgrupada(v, index);
+  var html = _dhpCriarItemVendaOriginalV2(v, index);
+  if (!v || !v.comboMovelPendente) return html;
+  html = html.replace(/<div class="vi-viab-badge vi-viab-nok" style="grid-column:4;grid-row:1;justify-self:end;border-color:rgba\(247,162,59,.35\);color:var\(--yellow\);background:rgba\(247,162,59,.12\);">[^<]*Combo sem mÃ³vel<\/div>/, '');
+  html = html.replace(/<span class="vi-prestatus-badge" style="background:rgba\(247,162,59,.14\);color:var\(--yellow\);border-color:rgba\(247,162,59,.35\);">[^<]*Combo sem mÃ³vel<\/span>/g, '');
+  if (html.indexOf('dhp-combo-inline-badge') !== -1) return html;
+  var badge = '<span class="dhp-combo-inline-badge">âš  Combo sem mÃ³vel</span>';
+  return html.replace(/<span class="vi-nome"([^>]*)>([\s\S]*?)<\/span>/, '<div class="dhp-nome-wrap"><span class="vi-nome"$1>$2</span>' + badge + '</div>');
+};
+
+var _dhpRenderizarListaOriginalV2 = _renderizarLista;
+_renderizarLista = function(res) {
+  var proxRes = {};
+  Object.keys(res || {}).forEach(function(chave) { proxRes[chave] = res[chave]; });
+  proxRes.dados = _dhpAgruparPaginaVendas((res && res.dados) || []);
+  _dhpRenderizarListaOriginalV2(proxRes);
+};
+
+function _dhpAgruparPaginaVendas(dados) {
+  var linhasNaPagina = {};
+  (dados || []).forEach(function(venda) {
+    if (venda && venda.linha) linhasNaPagina[venda.linha] = true;
+  });
+
+  var visiveis = [];
+  (dados || []).forEach(function(venda) {
+    if (!venda) return;
+    if (venda.vendaMaeLinha && linhasNaPagina[venda.vendaMaeLinha]) return;
+
+    var item = {};
+    Object.keys(venda).forEach(function(chave) { item[chave] = venda[chave]; });
+    item._dhpComboAgrupado = !!(item.vendaMovelResumo && _normalizarTexto(item.produto) === 'FIBRA COMBO');
+    visiveis.push(item);
+  });
+  return visiveis;
+}
+
+function _dhpProdutoCls(produto) {
+  var prodMap = { 'Fibra Alone': 'vi-prod-fa', 'Fibra Combo': 'vi-prod-fc', 'MÃ³vel Combo': 'vi-prod-mc', 'MÃ³vel Alone': 'vi-prod-ma' };
+  return prodMap[produto] || 'vi-prod-xx';
+}
+
+function _dhpPlanoValor(venda) {
+  return [venda && venda.plano, venda && venda.valor].filter(Boolean).join(' Â· ');
+}
+
+function _dhpDatasHtmlVenda(v) {
+  var datasHtml = '';
+  var dataAtivFormatada = _fmtData(v.dataAtiv);
+  var ehDataReal = /^\d{2}\/\d{2}\/\d{4}$/.test(dataAtivFormatada);
+  if (ehDataReal) {
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ativ.</span><span class="vi-dval ok">' + esc(dataAtivFormatada.substring(0,5)) + '</span></span>';
+  }
+  if (v.agenda) {
+    var agCls = v.instal ? ' ok' : ' pend';
+    var turnoAbrev = v.turno ? (v.turno.toUpperCase().indexOf('TARDE') > -1 ? ' T' : ' M') : '';
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ag.</span><span class="vi-dval' + agCls + '">' + esc(_fmtData(v.agenda).substring(0,5)) + turnoAbrev + '</span></span>';
+  }
+  if (v.instal) {
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
+  }
+  return datasHtml;
+}
+
+function _dhpResponsavelHtml(v) {
+  var respHtml = '';
+  if (v.resp) {
+    var ini = _iniciais(v.resp);
+    var respColors = ['rgba(34,217,138,.15)/var(--green)', 'rgba(167,139,250,.15)/var(--purple)', 'rgba(79,158,255,.15)/var(--blue)', 'rgba(247,162,59,.15)/var(--yellow)'];
+    var rc = respColors[(ini.charCodeAt(0) || 0) % respColors.length].split('/');
+    respHtml = '<div class="vi-av" style="background:' + rc[0] + ';color:' + rc[1] + '">' + esc(ini) + '</div>' +
+      '<span class="vi-resp-nm">' + esc(v.resp) + '</span>';
+  }
+  if (v.canal) {
+    respHtml += '<span class="vi-canal-sm">' + esc(v.canal) + '</span>';
+  }
+  return respHtml;
+}
+
+function _dhpAcoesVenda(index, v) {
+  return '<div class="vi-actions">' +
+    (v.cpf ? '<button class="btn-popup" title="Consultar CPF Assertiva" onclick="event.stopPropagation();abrirModalAssertiva(\'' + esc(v.cpf.replace(/\D/g,'')) + '\')">ðŸ‘¤</button>' : '') +
+    '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">ðŸ“‹</button>' +
+    (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">ðŸ”</button>' : '') +
+    (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
+    (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
+    '<span class="venda-arrow">â€º</span>' +
+  '</div>';
+}
+
+function _dhpLinhaPlanoCombo(venda) {
+  if (!venda) return '';
+  var produto = venda.produto ? '<span class="vi-produto ' + _dhpProdutoCls(venda.produto) + '">' + esc(_produtoComEmoji(venda.produto)) + '</span>' : '';
+  var planoValor = _dhpPlanoValor(venda);
+  var meta = [];
+  if (venda.status) meta.push(venda.status);
+  if (venda.linhaMovel) meta.push('Linha ' + venda.linhaMovel);
+  else if (venda.contrato) meta.push('ID ' + venda.contrato);
+  return '<div class="dhp-combo-linha">' +
+    produto +
+    (planoValor ? '<span class="vi-plano-val">' + esc(planoValor) + '</span>' : '') +
+    (meta.length ? '<span class="dhp-combo-substatus">' + esc(meta.join(' Â· ')) + '</span>' : '') +
+  '</div>';
+}
+
+function _dhpCriarItemVendaAgrupada(v, index) {
+  var cores = STATUS_CORES[v.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
+  var topColor = cores.border || cores.text || '#555';
+  var badgeStyle = 'background:' + cores.bg + ';color:' + cores.text + ';border:1.5px solid ' + (cores.border || cores.text) + ';';
+  var respHtml = _dhpResponsavelHtml(v);
+  var datasHtml = _dhpDatasHtmlVenda(v);
+  var sideHtml = '';
+
+  if (v.status === '1- Conferencia/AtivaÃ§Ã£o') {
+    sideHtml += _veroHubPedidoHtml(v, index);
+  }
+  if (v.viabilidade) {
+    sideHtml += '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>';
+  }
+
+  return '<div class="venda-item dhp-combo-card" id="item_' + index + '" onclick="selecionarVenda(' + index + ',this)" style="border-top:2px solid ' + topColor + '">' +
+    '<div class="vi-body">' +
+      '<div class="vi-top">' +
+        '<div class="vi-nome-bloco">' +
+          '<div class="dhp-nome-wrap">' +
+            '<span class="vi-nome" style="color:' + cores.text + ' !important;">' + esc(v.cliente || 'Sem nome') + '</span>' +
+          '</div>' +
+          '<div class="vi-ids">' +
+            (v.cpf ? '<span class="vi-id">' + esc(v.cpf) + '</span>' : '') +
+            (v.contrato ? '<span class="vi-id-sep">Â·</span><span class="vi-id">ID Contrato ' + esc(v.contrato) + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">' +
+          '<div style="display:flex;align-items:center;gap:6px;">' +
+            (v.preStatus && v.status === '1- Conferencia/AtivaÃ§Ã£o' ? '<span class="vi-prestatus-badge">' + esc(v.preStatus) + '</span>' : '') +
+            '<span class="vi-status" style="' + badgeStyle + '">' + esc(v.status || 'â€”') + '</span>' +
+          '</div>' +
+          (respHtml ? '<div class="vi-row-resp" style="justify-content:flex-end">' + respHtml + '</div>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="vi-divider"></div>' +
+      '<div class="vi-bot">' +
+        '<div class="dhp-combo-planos">' +
+          _dhpLinhaPlanoCombo(v) +
+          _dhpLinhaPlanoCombo(v.vendaMovelResumo) +
+          (datasHtml ? '<div class="vi-row-dates">' + datasHtml + '</div>' : '') +
+        '</div>' +
+        '<div class="dhp-combo-side">' + sideHtml + '</div>' +
+        _dhpAcoesVenda(index, v) +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+var _dhpCriarItemVendaOriginalV3 = _criarItemVenda;
+_criarItemVenda = function(v, index) {
+  if (v && v._dhpComboAgrupadoV3) return _dhpCriarItemVendaAgrupadaV3(v, index);
+  var html = _dhpCriarItemVendaOriginalV3(v, index);
+  if (!v || !v.comboMovelPendente) return html;
+  html = html.replace(/<div class="vi-viab-badge vi-viab-nok"[^>]*>[^<]*Combo sem[^<]*<\/div>/g, '');
+  html = html.replace(/<span class="vi-prestatus-badge"[^>]*>[^<]*Combo sem[^<]*<\/span>/g, '');
+  html = html.replace(/<span class="dhp-combo-inline-badge">[^<]*<\/span>/g, '');
+  var badge = '<span class="dhp-combo-inline-badge">Combo sem movel</span>';
+  return html.replace(/<span class="vi-nome"([^>]*)>([\s\S]*?)<\/span>/, '<div class="dhp-nome-wrap"><span class="vi-nome"$1>$2</span>' + badge + '</div>');
+};
+
+var _dhpRenderizarListaOriginalV3 = _renderizarLista;
+_renderizarLista = function(res) {
+  var proxRes = {};
+  Object.keys(res || {}).forEach(function(chave) { proxRes[chave] = res[chave]; });
+  proxRes.dados = _dhpAgruparPaginaVendasV3((res && res.dados) || []);
+  _dhpRenderizarListaOriginalV3(proxRes);
+};
+
+function _dhpAgruparPaginaVendasV3(dados) {
+  var linhasNaPagina = {};
+  (dados || []).forEach(function(venda) {
+    if (venda && venda.linha) linhasNaPagina[venda.linha] = true;
+  });
+
+  var visiveis = [];
+  (dados || []).forEach(function(venda) {
+    if (!venda) return;
+    if (venda.vendaMaeLinha && linhasNaPagina[venda.vendaMaeLinha]) return;
+
+    var item = {};
+    Object.keys(venda).forEach(function(chave) { item[chave] = venda[chave]; });
+    item._dhpComboAgrupadoV3 = !!(item.vendaMovelResumo && _normalizarTexto(item.produto) === 'FIBRA COMBO');
+    visiveis.push(item);
+  });
+  return visiveis;
+}
+
+function _dhpProdutoClsV3(produto) {
+  var norm = _normalizarTexto(produto || '');
+  if (norm === 'FIBRA ALONE') return 'vi-prod-fa';
+  if (norm === 'FIBRA COMBO') return 'vi-prod-fc';
+  if (norm === 'MOVEL COMBO') return 'vi-prod-mc';
+  if (norm === 'MOVEL ALONE') return 'vi-prod-ma';
+  return 'vi-prod-xx';
+}
+
+function _dhpPlanoValorV3(venda) {
+  return [venda && venda.plano, venda && venda.valor].filter(Boolean).join(' | ');
+}
+
+function _dhpDatasHtmlVendaV3(v) {
+  var datasHtml = '';
+  var dataAtivFormatada = _fmtData(v.dataAtiv);
+  var ehDataReal = /^\d{2}\/\d{2}\/\d{4}$/.test(dataAtivFormatada);
+  if (ehDataReal) {
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ativ.</span><span class="vi-dval ok">' + esc(dataAtivFormatada.substring(0,5)) + '</span></span>';
+  }
+  if (v.agenda) {
+    var agCls = v.instal ? ' ok' : ' pend';
+    var turnoAbrev = v.turno ? (v.turno.toUpperCase().indexOf('TARDE') > -1 ? ' T' : ' M') : '';
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ag.</span><span class="vi-dval' + agCls + '">' + esc(_fmtData(v.agenda).substring(0,5)) + turnoAbrev + '</span></span>';
+  }
+  if (v.instal) {
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
+  }
+  return datasHtml;
+}
+
+function _dhpResponsavelHtmlV3(v) {
+  var respHtml = '';
+  if (v.resp) {
+    var ini = _iniciais(v.resp);
+    var respColors = ['rgba(34,217,138,.15)/var(--green)', 'rgba(167,139,250,.15)/var(--purple)', 'rgba(79,158,255,.15)/var(--blue)', 'rgba(247,162,59,.15)/var(--yellow)'];
+    var rc = respColors[(ini.charCodeAt(0) || 0) % respColors.length].split('/');
+    respHtml = '<div class="vi-av" style="background:' + rc[0] + ';color:' + rc[1] + '">' + esc(ini) + '</div>' +
+      '<span class="vi-resp-nm">' + esc(v.resp) + '</span>';
+  }
+  if (v.canal) {
+    respHtml += '<span class="vi-canal-sm">' + esc(v.canal) + '</span>';
+  }
+  return respHtml;
+}
+
+function _dhpAcoesVendaV3(index, v) {
+  return '<div class="vi-actions">' +
+    (v.cpf ? '<button class="btn-popup" title="Consultar CPF Assertiva" onclick="event.stopPropagation();abrirModalAssertiva(\'' + esc(v.cpf.replace(/\D/g,'')) + '\')">CPF</button>' : '') +
+    '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">COP</button>' +
+    (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">MAP</button>' : '') +
+    (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
+    (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
+    '<span class="venda-arrow">&gt;</span>' +
+  '</div>';
+}
+
+function _dhpLinhaPlanoComboV3(venda) {
+  if (!venda) return '';
+  var produto = venda.produto ? '<span class="vi-produto ' + _dhpProdutoClsV3(venda.produto) + '">' + esc(_produtoComEmoji(venda.produto)) + '</span>' : '';
+  var planoValor = _dhpPlanoValorV3(venda);
+  var meta = [];
+  if (venda.status) meta.push(venda.status);
+  if (venda.linhaMovel) meta.push('Linha ' + venda.linhaMovel);
+  else if (venda.contrato) meta.push('ID ' + venda.contrato);
+  return '<div class="dhp-combo-linha">' +
+    produto +
+    (planoValor ? '<span class="vi-plano-val">' + esc(planoValor) + '</span>' : '') +
+    (meta.length ? '<span class="dhp-combo-substatus">' + esc(meta.join(' | ')) + '</span>' : '') +
+  '</div>';
+}
+
+function _dhpCriarItemVendaAgrupadaV3(v, index) {
+  var cores = STATUS_CORES[v.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
+  var topColor = cores.border || cores.text || '#555';
+  var badgeStyle = 'background:' + cores.bg + ';color:' + cores.text + ';border:1.5px solid ' + (cores.border || cores.text) + ';';
+  var respHtml = _dhpResponsavelHtmlV3(v);
+  var datasHtml = _dhpDatasHtmlVendaV3(v);
+  var sideHtml = '';
+  var statusNorm = _normalizarTexto(v.status || '');
+
+  if (statusNorm === '1- CONFERENCIA/ATIVACAO') {
+    sideHtml += _veroHubPedidoHtml(v, index);
+  }
+  if (v.viabilidade) {
+    sideHtml += '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>';
+  }
+
+  return '<div class="venda-item dhp-combo-card" id="item_' + index + '" onclick="selecionarVenda(' + index + ',this)" style="border-top:2px solid ' + topColor + '">' +
+    '<div class="vi-body">' +
+      '<div class="vi-top">' +
+        '<div class="vi-nome-bloco">' +
+          '<div class="dhp-nome-wrap">' +
+            '<span class="vi-nome" style="color:' + cores.text + ' !important;">' + esc(v.cliente || 'Sem nome') + '</span>' +
+          '</div>' +
+          '<div class="vi-ids">' +
+            (v.cpf ? '<span class="vi-id">' + esc(v.cpf) + '</span>' : '') +
+            (v.contrato ? '<span class="vi-id-sep"> | </span><span class="vi-id">ID Contrato ' + esc(v.contrato) + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">' +
+          '<div style="display:flex;align-items:center;gap:6px;">' +
+            (v.preStatus && statusNorm === '1- CONFERENCIA/ATIVACAO' ? '<span class="vi-prestatus-badge">' + esc(v.preStatus) + '</span>' : '') +
+            '<span class="vi-status" style="' + badgeStyle + '">' + esc(v.status || '-') + '</span>' +
+          '</div>' +
+          (respHtml ? '<div class="vi-row-resp" style="justify-content:flex-end">' + respHtml + '</div>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="vi-divider"></div>' +
+      '<div class="vi-bot">' +
+        '<div class="dhp-combo-planos">' +
+          _dhpLinhaPlanoComboV3(v) +
+          _dhpLinhaPlanoComboV3(v.vendaMovelResumo) +
+          (datasHtml ? '<div class="vi-row-dates">' + datasHtml + '</div>' : '') +
+        '</div>' +
+        '<div class="dhp-combo-side">' + sideHtml + '</div>' +
+        _dhpAcoesVendaV3(index, v) +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
 </script>

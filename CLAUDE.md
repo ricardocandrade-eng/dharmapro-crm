@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 18:16 -->
+<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 19:03 -->
 
 # dharmapro-crm
 
@@ -27,6 +27,12 @@ nao aparece para o fluxo movel e faz a venda movel vinculada nascer em
 `2 - Aguardando Entrega`.
 Tambem adiciona navegacao cruzada no painel lateral entre venda fibra e venda
 movel vinculada.
+
+Na evolucao seguinte, a `Lista de Vendas` passou a agrupar visualmente combos
+fibra + movel em um unico card quando ha vinculo estrutural entre as duas linhas.
+O backend continua mantendo dois registros separados no Sheets, mas o frontend
+agora esconde a linha movel duplicada quando a fibra correspondente esta na mesma
+pagina e mostra o alerta `Combo sem movel` ao lado do nome do cliente.
 
 ---
 

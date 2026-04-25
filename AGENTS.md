@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | AGENTS.md | 25/04/2026 18:16 -->
+<!-- dharmapro-crm | AGENTS.md | 25/04/2026 19:03 -->
 
 # DharmaPro CRM
 
@@ -10,6 +10,11 @@ Mobile Digital / Mobile Fibra, revenda oficial da Vero Internet em Juiz de Fora,
 O sistema roda em **Google Apps Script + Google Sheets + HTML/JavaScript** e esta
 em **producao**. Ele centraliza operacao comercial, atendimento interno, parceiros PAP,
 controle financeiro auxiliar, tickets e rastreio de origem de leads.
+
+No fluxo comercial de combos, o backend deve continuar tratando fibra e movel
+como duas linhas independentes na aba principal, inclusive para status, relatorios
+e automacoes. No frontend, quando existir vinculo estrutural entre essas duas
+linhas, a `Lista de Vendas` pode consolidar a exibicao em um unico card visual.
 
 Papel no ecossistema:
 - receber e organizar leads vindos de WhatsApp, indicacoes, PAP e Meta Ads;

@@ -2697,7 +2697,7 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
     }
 
     // ── CACHE HIT (somente offset=0, sem filtro de texto) ────────────────────
-    var CACHE_KEY_LISTA = CONFIG.CACHE_PREFIX + 'lista_v3';
+    var CACHE_KEY_LISTA = CONFIG.CACHE_PREFIX + 'lista_v4';
     if (offset === 0 && !filtro) {
       var cachedLista = _cacheGetChunked(CACHE_KEY_LISTA);
       if (cachedLista && Array.isArray(cachedLista.dados) && cachedLista.dados.length > 0) {
@@ -2736,7 +2736,27 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
 
     // ── FASE 3: Lê somente os blocos necessários via _lerBlocos ─────────────
     // _agruparBlocos exige array crescente
-    var linhasAsc = linhasSlice.slice().sort(function(a, b) { return a - b; });
+    var vinculosMap = _getVinculosVendasMap_();
+    var linhasNecessarias = {};
+    for (var ln = 0; ln < linhasSlice.length; ln++) {
+      linhasNecessarias[linhasSlice[ln]] = true;
+    }
+    for (var vr = 0; vr < linhasSlice.length; vr++) {
+      var linhaBase = linhasSlice[vr];
+      var filhosVinculados = vinculosMap.filhasPorMae[linhaBase] || [];
+      for (var fv = 0; fv < filhosVinculados.length; fv++) {
+        linhasNecessarias[filhosVinculados[fv].vendaFilhaLinha] = true;
+      }
+      var paiVinculado = vinculosMap.maePorFilha[linhaBase];
+      if (paiVinculado && paiVinculado.vendaMaeLinha) {
+        linhasNecessarias[paiVinculado.vendaMaeLinha] = true;
+      }
+    }
+
+    var linhasAsc = Object.keys(linhasNecessarias)
+      .map(function(linha) { return parseInt(linha, 10); })
+      .filter(function(linha) { return !isNaN(linha) && linha >= 3; })
+      .sort(function(a, b) { return a - b; });
     var blocos    = _agruparBlocos(linhasAsc, 8);
     var lidos     = _lerBlocos(sheet, blocos, 47);
 
@@ -2747,13 +2767,19 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
     }
 
     // ── FASE 4: Mapeia na ordem desc (linhasSlice já está em ordem desc) ─────
-    var vinculosMap = _getVinculosVendasMap_();
+    var mapaResumoVinculos = {};
+    for (var r = 0; r < linhasAsc.length; r++) {
+      var linhaResumo = linhasAsc[r];
+      if (!mapaLinhas[linhaResumo]) continue;
+      mapaResumoVinculos[linhaResumo] = _resumirVendaVinculada_(_mapearLinhaLista(mapaLinhas[linhaResumo], linhaResumo, tz));
+    }
+
     var vendas = [];
     for (var k = 0; k < linhasSlice.length; k++) {
       var numLinha = linhasSlice[k];
       var row = mapaLinhas[numLinha];
       if (!row) continue;
-      vendas.push(_decorarVendaComVinculos_(_mapearLinhaLista(row, numLinha, tz), vinculosMap));
+      vendas.push(_decorarVendaComVinculos_(_mapearLinhaLista(row, numLinha, tz), vinculosMap, mapaResumoVinculos));
     }
 
     // ── Salva no cache (somente offset=0, sem filtro, TTL 90s) ───────────────
@@ -2782,7 +2808,25 @@ function getVendaPorLinha(numeroLinha) {
   try {
     var sheet = _getSheet();
     var dados = sheet.getRange(numeroLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
-    return _decorarVendaComVinculos_(_mapearLinha(dados, numeroLinha), _getVinculosVendasMap_());
+    var vinculosMap = _getVinculosVendasMap_();
+    var mapaResumoVinculos = {};
+    mapaResumoVinculos[numeroLinha] = _resumirVendaVinculada_(_mapearLinha(dados, numeroLinha));
+
+    var filhos = vinculosMap.filhasPorMae[numeroLinha] || [];
+    for (var f = 0; f < filhos.length; f++) {
+      var linhaFilha = filhos[f].vendaFilhaLinha;
+      if (!linhaFilha) continue;
+      var dadosFilha = sheet.getRange(linhaFilha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+      mapaResumoVinculos[linhaFilha] = _resumirVendaVinculada_(_mapearLinha(dadosFilha, linhaFilha));
+    }
+
+    var pai = vinculosMap.maePorFilha[numeroLinha];
+    if (pai && pai.vendaMaeLinha) {
+      var dadosMae = sheet.getRange(pai.vendaMaeLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+      mapaResumoVinculos[pai.vendaMaeLinha] = _resumirVendaVinculada_(_mapearLinha(dadosMae, pai.vendaMaeLinha));
+    }
+
+    return _decorarVendaComVinculos_(_mapearLinha(dados, numeroLinha), vinculosMap, mapaResumoVinculos);
   } catch (erro) {
     throw new Error('Erro ao buscar venda: ' + erro.message);
   }
@@ -3831,12 +3875,13 @@ function _getVinculosVendasMap_() {
   return mapa;
 }
 
-function _decorarVendaComVinculos_(venda, vinculosMap) {
+function _decorarVendaComVinculos_(venda, vinculosMap, mapaResumoVinculos) {
   var v = {};
   Object.keys(venda || {}).forEach(function(chave) {
     v[chave] = venda[chave];
   });
   vinculosMap = vinculosMap || { filhasPorMae: {}, maePorFilha: {} };
+  mapaResumoVinculos = mapaResumoVinculos || {};
 
   var filhos = vinculosMap.filhasPorMae[v.linha] || [];
   var pai = vinculosMap.maePorFilha[v.linha] || null;
@@ -3847,7 +3892,28 @@ function _decorarVendaComVinculos_(venda, vinculosMap) {
   v.comboMovelPendente = (produtoNorm === 'FIBRA COMBO') && !v.temVendaMovelVinculada;
   v.vendaMaeLinha = pai ? pai.vendaMaeLinha : '';
   v.tipoVinculo = pai ? pai.tipo : (filhos.length ? filhos[0].tipo : '');
+  v.vendaMovelResumo = v.vendaMovelLinha ? (mapaResumoVinculos[v.vendaMovelLinha] || null) : null;
+  v.vendaMaeResumo = v.vendaMaeLinha ? (mapaResumoVinculos[v.vendaMaeLinha] || null) : null;
   return v;
+}
+
+function _resumirVendaVinculada_(venda) {
+  if (!venda) return null;
+  return {
+    linha: venda.linha || '',
+    cliente: venda.cliente || '',
+    produto: venda.produto || '',
+    plano: venda.plano || '',
+    valor: venda.valor || '',
+    status: venda.status || '',
+    contrato: venda.contrato || '',
+    linhaMovel: venda.linhaMovel || '',
+    portabilidade: venda.portabilidade || '',
+    dataAtiv: venda.dataAtiv || '',
+    agenda: venda.agenda || '',
+    turno: venda.turno || '',
+    instal: venda.instal || ''
+  };
 }
 
 function _registrarVinculoVenda_(maeLinha, filhaLinha, tipo) {
