@@ -18,6 +18,7 @@
 
 var CONFIG = {
   SHEET_NAME:      '1 - Vendas',
+  SPREADSHEET_ID:  '1H1qNgyNjmIYiZWT0wHwzANLf7yLggzYzBNVgAWCJ9lE',
   SHEET_USUARIOS:  'Usuarios',   // aba: A=usuario | B=senha | C=nome exibição
   SHEET_HISTORICO: 'Histórico',  // aba de arquivo — criada por criarAbaHistorico()
   CACHE_TTL:       300, // 5 min — era 60s; invalidado corretamente por _limparCache() após escritas
@@ -98,6 +99,11 @@ var STATUS_LIST = [
 
 
 // ── MENSAGEM DO SISTEMA ───────────────────────────────────────────────────
+// ============================================================================
+// CONTEXTO 1 - CRM CENTRAL
+// Busca, listagens, CRUD, views e rotas principais.
+// ============================================================================
+// Suspeita: helper legado sem uso claro na UI atual. Mantido por seguranca.
 function getMensagemSistema() {
   try {
     return (typeof MENSAGEM_SISTEMA !== 'undefined') ? String(MENSAGEM_SISTEMA).trim() : '';
@@ -144,6 +150,9 @@ function buscarVendaGlobal(termo) {
 // ── DOCUMENTOS — Google Drive ─────────────────────────────────────────────
 var DOCS_FOLDER_ID = '1D3A5SbdXFjvzsTgp5Sthm_-zB531uGoR';
 
+// ============================================================================
+// CONTEXTO 1.1 - DOCUMENTOS E GOOGLE DRIVE
+// ============================================================================
 function getArquivosDrive() {
   try {
     var _forcarEscopo = DriveApp.getRootFolder(); // força escopo no token
@@ -186,6 +195,7 @@ function getArquivosDrive() {
 // ── FORÇAR AUTORIZAÇÃO DO DRIVE ───────────────────────────────────────────
 // Execute esta função UMA VEZ manualmente no editor do Apps Script
 // (menu Executar → autorizarDrive) para conceder permissão ao Drive
+// Suspeita: rotina manual de setup/suporte. Nao chamada pela UI principal.
 function autorizarDrive() {
   // Esta linha força o GAS a incluir o escopo do Drive no token OAuth
   var _forcarEscopo = DriveApp.getRootFolder();
@@ -231,7 +241,7 @@ function arquivarVenda(linha) {
     var dataExclusao = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm');
 
     // Grava na aba Arquivo
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = _getSpreadsheet_();
     var abaArquivo = ss.getSheetByName('Arquivo');
     if (!abaArquivo) {
       abaArquivo = ss.insertSheet('Arquivo');
@@ -263,6 +273,9 @@ function excluirVenda(linha) {
 
 
 // ── VEROHUB — salva data de blindagem na col VEROHUB ────────────────────
+// ============================================================================
+// CONTEXTO 1.2 - VEROHUB E INTEGRACOES OPERACIONAIS
+// ============================================================================
 function salvarVeroHub(linha, data) {
   try {
     linha = parseInt(linha);
@@ -606,13 +619,13 @@ function atualizarVendaComAdapter(dados) {
     if (dados.instalada) {
       try {
         var c      = CONFIG.COLUNAS;
-        var rowPAP = sheet.getRange(linha, 1, 1, c.RESP + 1).getValues()[0];
+        var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
         if (rowPAP[c.CANAL] === 'PAP') {
           var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
           if (vPAP && vPAP.subscriberId) {
             _papNotificarVendedorPAP('instalada', vPAP.subscriberId, {
-              pap_nome_cliente: rowPAP[c.CLIENTE] || '',
-              pap_plano:        rowPAP[c.PLANO]   || '',
+              pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
+              pap_plano:        String(rowPAP[c.PLANO]   || ''),
               pap_status:       '3 - Finalizada/Instalada'
             });
           }
@@ -670,13 +683,13 @@ function atualizarVendaComNG(dados) {
     if (dados.instalada) {
       try {
         var c      = CONFIG.COLUNAS;
-        var rowPAP = sheet.getRange(linha, 1, 1, c.RESP + 1).getValues()[0];
+        var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
         if (rowPAP[c.CANAL] === 'PAP') {
           var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
           if (vPAP && vPAP.subscriberId) {
             _papNotificarVendedorPAP('instalada', vPAP.subscriberId, {
-              pap_nome_cliente: rowPAP[c.CLIENTE] || '',
-              pap_plano:        rowPAP[c.PLANO]   || '',
+              pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
+              pap_plano:        String(rowPAP[c.PLANO]   || ''),
               pap_status:       '3 - Finalizada/Instalada'
             });
           }
@@ -845,6 +858,9 @@ function getContratosParaCruzamento() {
   }
 }
 
+// ============================================================================
+// CONTEXTO 1.3 - ROTAS WEB E ENTRADA DO APP
+// ============================================================================
 function doGet(e) {
   // Receber token via URL (?vhtoken=...) — salva e carrega o DharmaPro com flag
   var vhOk = 'false';
@@ -964,6 +980,7 @@ function doGet(e) {
 // Página HTML de captura do token VeroHub
 // Acessada via ?page=token — roda no browser do usuário,
 // faz fetch do VeroHub (tem o cookie!), exibe o token para copiar
+// Suspeita: legado sem rota ativa no doGet atual. Validar antes de remover.
 function _getTokenPageHtml() {
   return '<!DOCTYPE html><html><head>' +
   '<meta charset="UTF-8">' +
@@ -1213,6 +1230,9 @@ function gerarHashesSenhas() {
   Logger.log(resultado);
 }
 
+// ============================================================================
+// CONTEXTO 1.4 - AUTENTICACAO E ACESSO
+// ============================================================================
 function validarLogin(usuario, senha) {
   try {
     if (!usuario || !senha) {
@@ -1301,6 +1321,7 @@ function alterarSenha(usuario, senhaAtual, senhaNova) {
 // ─── DIAGNÓSTICO CEP (rode uma vez no editor Apps Script para testar) ────────
 // Vá em: Apps Script → selecione "diagnosticoCEP" → clique ▶ Executar
 // Veja o resultado em: Visualizar → Registros de execução
+// Suspeita: rotina manual de suporte/infra. Nao chamada pela UI atual.
 function diagnosticoCEP() {
   var CEP_TESTE = '01310100'; // Avenida Paulista — troque pelo seu CEP se quiser
 
@@ -1336,6 +1357,9 @@ function diagnosticoCEP() {
 
 
 // ─── LISTA DE RESPONSÁVEIS (aba "3 - PAP", coluna S) ──────────────────────
+// ============================================================================
+// CONTEXTO 1.5 - PAP E BOTCONVERSA
+// ============================================================================
 function getResponsaveis() {
   try {
     var cache    = CacheService.getScriptCache();
@@ -1345,7 +1369,7 @@ function getResponsaveis() {
       if (cached) return JSON.parse(cached);
     } catch(ce) {}
 
-    var ss   = SpreadsheetApp.getActiveSpreadsheet();
+    var ss   = _getSpreadsheet_();
     var sh   = ss.getSheetByName('3 - PAP');
     if (!sh) return { erro: true, mensagem: 'Aba "3 - PAP" não encontrada.' };
 
@@ -1391,6 +1415,7 @@ function configurarBotConversa() {
 // pvRejeitada : ID do fluxo "PAP - Pré-Venda Rejeitada"
 // aguardando  : ID do fluxo "PAP - Aguardando Instalação"
 // instalada   : ID do fluxo "PAP - Instalada"
+// Suspeita: configuracao manual. Nao ha chamada pela UI atual.
 function configurarFluxosPAP(pvRecebida, pvAprovada, pvRejeitada, aguardando, instalada) {
   PropertiesService.getScriptProperties().setProperties({
     'bc_flow_pap_pv_recebida'          : String(pvRecebida  || ''),
@@ -1510,7 +1535,7 @@ function dispararFluxoCliente(payload) {
 // Lookup do WhatsApp na aba '3 - PAP': col S = nome, col U = whatsapp
 function dispararFluxoResponsavel(payload) {
   try {
-    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('3 - PAP');
+    var sh = _getSpreadsheet_().getSheetByName('3 - PAP');
     if (!sh) return { sucesso: false, mensagem: 'Aba "3 - PAP" não encontrada.' };
     var ultimaLinha = sh.getLastRow();
     if (ultimaLinha < 5) return { sucesso: false, mensagem: 'Sem dados na aba PAP.' };
@@ -1679,7 +1704,7 @@ function sincronizarTagsBotConversa(forcar) {
 // Filtros: Produto=FIBRA ALONE/COMBO, Canal=PAP, Status=3 - Finalizada/Instalada, PAP=Em Aberto
 function getPagamentosPAP() {
   try {
-    var ss      = SpreadsheetApp.getActiveSpreadsheet();
+  var ss      = _getSpreadsheet_();
     var sheet   = _getSheet();
     var shPAP   = ss.getSheetByName('3 - PAP');
     var ultimaLinha = sheet.getLastRow();
@@ -2077,14 +2102,16 @@ function moverLeadAguardando(payload) {
   // Notificação PAP fora do lock
   if (resultado.sucesso && sheet && linha) {
     try {
-      var c = CONFIG.COLUNAS;
-      var rowPAP = sheet.getRange(linha, 1, 1, c.RESP + 1).getValues()[0];
+      var c      = CONFIG.COLUNAS;
+      var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
       if (rowPAP[c.CANAL] === 'PAP') {
         var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
         if (vPAP && vPAP.subscriberId) {
           _papNotificarVendedorPAP('aguardando_instalacao', vPAP.subscriberId, {
-            pap_nome_cliente: rowPAP[c.CLIENTE] || '',
-            pap_plano:        rowPAP[c.PLANO]   || '',
+            pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
+            pap_plano:        String(rowPAP[c.PLANO]   || ''),
+            pap_agenda:       (function(v){ if(!v) return ''; var d = new Date(v); return isNaN(d)?String(v):Utilities.formatDate(d,Session.getScriptTimeZone(),'dd/MM/yyyy'); })(rowPAP[c.AGENDA]),
+            pap_turno:        String(rowPAP[c.TURNO]   || ''),
             pap_status:       '2- Aguardando Instalação'
           });
         }
@@ -2188,6 +2215,7 @@ function getOfertasCidade(cidade) {
 }
 
 // ─── BUSCA SOMENTE ENDEREÇO (sem cruzar CIDADES/TABELA — resposta rápida) ──
+// Suspeita: legado de CEP simplificado. buscarCEPBackend cobre o fluxo atual.
 function buscarSomenteEndereco(cep) {
   try {
     var limpo = (cep || '').toString().replace(/\D/g, '');
@@ -2298,6 +2326,9 @@ function buscarSomenteEndereco(cep) {
 }
 
 // ─── LOOKUP DE SISTEMA POR CIDADE (sem UrlFetchApp — só lê a planilha) ──────
+// ============================================================================
+// CONTEXTO 1.6 - CEP, CIDADES, OFERTAS E NOVA VENDA
+// ============================================================================
 function getSistemaPorCidade(cidade) {
   try {
     var cidNorm = _normalizarTexto(cidade);
@@ -2541,10 +2572,6 @@ function buscarCEPBackend(cep, produto) {
 }
 
 // Normaliza texto para comparação (remove acentos, trim, maiúsculo)
-function _normalizarTexto(s) {
-  return s ? s.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase() : '';
-}
-
 // ── Cache de abas auxiliares ───────────────────────────────────────────────
 // Evita múltiplas leituras completas da aba CIDADES/TABELA por requisição.
 // TTL 10 min — invalidado automaticamente por _limparCache().
@@ -2555,7 +2582,7 @@ function _getCidades() {
     var hit = cache.get(key);
     if (hit) return JSON.parse(hit);
   } catch(e) {}
-  var rows = SpreadsheetApp.getActiveSpreadsheet()
+  var rows = _getSpreadsheet_()
                .getSheetByName('CIDADES').getDataRange().getValues();
   try {
     var json = JSON.stringify(rows);
@@ -2571,7 +2598,7 @@ function _getTabela() {
     var hit = cache.get(key);
     if (hit) return JSON.parse(hit);
   } catch(e) {}
-  var rows = SpreadsheetApp.getActiveSpreadsheet()
+  var rows = _getSpreadsheet_()
                .getSheetByName('TABELA').getDataRange().getValues();
   try {
     var json = JSON.stringify(rows);
@@ -2582,6 +2609,9 @@ function _getTabela() {
 
 // ─── LEITURA ───────────────────────────────────────────────────────────────
 
+// ============================================================================
+// CONTEXTO 1.7 - LEITURA, LISTAGENS E FUNIL DO CRM
+// ============================================================================
 function getVendasPaginadas(pagina, filtro, opcoes) {
   try {
     pagina = pagina || 1;
@@ -2698,9 +2728,12 @@ function salvarVenda(dados) {
   try { lock.waitLock(10000); } catch(le) {
     return { sucesso: false, mensagem: '⚠️ Sistema ocupado. Tente novamente em instantes.' };
   }
+  var resultado = { sucesso: false };
+  var _papLinha  = null; // linha da venda PAP para notificar após lock
   try {
     Logger.log('salvarVenda recebido: linhaReferencia=' + dados.linhaReferencia + ' | cliente=' + dados.cliente + ' | status=' + dados.status);
-    if (!dados.cliente || dados.cliente.trim() === '') {
+    dados.cliente = String(dados.cliente || '');
+    if (!dados.cliente.trim()) {
       throw new Error('Nome do cliente é obrigatório!');
     }
     if (!dados.status) {
@@ -2709,7 +2742,8 @@ function salvarVenda(dados) {
     if (STATUS_LIST.indexOf(dados.status) === -1) {
       throw new Error('Status inválido recebido: "' + dados.status + '"');
     }
-    if (dados.cpf && dados.cpf.trim() !== '') {
+    dados.cpf = String(dados.cpf || '');
+    if (dados.cpf.trim() !== '') {
       var cpfLimpo = dados.cpf.replace(/\D/g, '');
       if (cpfLimpo.length !== 11 && cpfLimpo.length !== 14) {
         throw new Error('CPF deve ter 11 dígitos ou CNPJ 14 dígitos.');
@@ -2723,7 +2757,7 @@ function salvarVenda(dados) {
     if (dados.preStatus === 'ARQUIVAR VENDA' && dados.linhaReferencia && dados.linhaReferencia !== '') {
       var linhaArq = parseInt(dados.linhaReferencia);
       if (isNaN(linhaArq) || linhaArq < 3) throw new Error('Linha de referência inválida!');
-      lock.releaseLock(); // libera o lock antes de chamar arquivarVenda (que usa seu próprio lock)
+      lock.releaseLock();
       var resArq = arquivarVenda(linhaArq);
       return resArq;
     }
@@ -2733,7 +2767,11 @@ function salvarVenda(dados) {
       if (isNaN(linhaNum) || linhaNum < 3) throw new Error('Linha de referência inválida!');
       sheet.getRange(linhaNum, 1, 1, linhaDados.length).setValues([linhaDados]);
       _limparCache();
-      return { sucesso: true, linha: linhaNum, mensagem: '✅ ' + dados.cliente.trim() + ' atualizado com sucesso!' };
+      // Capturar linha para notificação PAP fora do lock
+      if (dados.status === '2- Aguardando Instalação' || dados.status === '3 - Finalizada/Instalada') {
+        _papLinha = linhaNum;
+      }
+      resultado = { sucesso: true, linha: linhaNum, mensagem: '✅ ' + dados.cliente.trim() + ' atualizado com sucesso!' };
     } else {
       var ultimaSheet = sheet.getLastRow();
       var novaLinha;
@@ -2753,14 +2791,38 @@ function salvarVenda(dados) {
       Logger.log('salvarVenda: nova linha = ' + novaLinha + ' (lastRow=' + ultimaSheet + ')');
       sheet.getRange(novaLinha, 1, 1, linhaDados.length).setValues([linhaDados]);
       _limparCache();
-      return { sucesso: true, linha: novaLinha, mensagem: '✅ ' + dados.cliente.trim() + ' cadastrado com sucesso!' };
+      resultado = { sucesso: true, linha: novaLinha, mensagem: '✅ ' + dados.cliente.trim() + ' cadastrado com sucesso!' };
     }
 
   } catch (erro) {
-    return { sucesso: false, mensagem: '❌ ' + erro.message };
+    resultado = { sucesso: false, mensagem: '❌ ' + erro.message };
   } finally {
     lock.releaseLock();
   }
+
+  // Notificação PAP fora do lock (chamada HTTP não pode ocorrer dentro do lock)
+  if (resultado.sucesso && _papLinha) {
+    try {
+      var c      = CONFIG.COLUNAS;
+      var numCols = c.CLIENTE + 1; // lê até col T (CLIENTE=19)
+      var rowPAP = _getSheet().getRange(_papLinha, 1, 1, numCols).getValues()[0];
+      if (rowPAP[c.CANAL] === 'PAP') {
+        var evPAP = (dados.status === '3 - Finalizada/Instalada') ? 'instalada' : 'aguardando_instalacao';
+        var vPAP  = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
+        if (vPAP && vPAP.subscriberId) {
+          _papNotificarVendedorPAP(evPAP, vPAP.subscriberId, {
+            pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
+            pap_plano:        String(rowPAP[c.PLANO]   || ''),
+            pap_agenda:       (function(v){ if(!v) return ''; var d = new Date(v); return isNaN(d)?String(v):Utilities.formatDate(d,Session.getScriptTimeZone(),'dd/MM/yyyy'); })(rowPAP[c.AGENDA]),
+            pap_turno:        String(rowPAP[c.TURNO]   || ''),
+            pap_status:       dados.status
+          });
+        }
+      }
+    } catch (ne) { Logger.log('salvarVenda PAP notif: ' + ne.message); }
+  }
+
+  return resultado;
 }
 
 
@@ -2964,14 +3026,16 @@ function moverVendaFunil(payload) {
       (novoStatus === '2- Aguardando Instalação' || novoStatus === '3 - Finalizada/Instalada')) {
     try {
       var c      = CONFIG.COLUNAS;
-      var rowPAP = sheet.getRange(linha, 1, 1, c.RESP + 1).getValues()[0];
+      var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
       if (rowPAP[c.CANAL] === 'PAP') {
         var vPAP  = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
         if (vPAP && vPAP.subscriberId) {
           var evPAP = (novoStatus === '3 - Finalizada/Instalada') ? 'instalada' : 'aguardando_instalacao';
           _papNotificarVendedorPAP(evPAP, vPAP.subscriberId, {
-            pap_nome_cliente: rowPAP[c.CLIENTE] || '',
-            pap_plano:        rowPAP[c.PLANO]   || '',
+            pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
+            pap_plano:        String(rowPAP[c.PLANO]   || ''),
+            pap_agenda:       (function(v){ if(!v) return ''; var d = new Date(v); return isNaN(d)?String(v):Utilities.formatDate(d,Session.getScriptTimeZone(),'dd/MM/yyyy'); })(rowPAP[c.AGENDA]),
+            pap_turno:        String(rowPAP[c.TURNO]   || ''),
             pap_status:       novoStatus
           });
         }
@@ -2983,9 +3047,36 @@ function moverVendaFunil(payload) {
 }
 
 // ─── FUNÇÕES PRIVADAS ──────────────────────────────────────────────────────
+function _getSpreadsheet_() {
+  try {
+    var active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active) return active;
+  } catch (e) {}
+
+  var scriptProps = PropertiesService.getScriptProperties();
+  var fallbackId = String(
+    (CONFIG && CONFIG.SPREADSHEET_ID) ||
+    scriptProps.getProperty('CRM_SPREADSHEET_ID') ||
+    ''
+  ).trim();
+
+  if (!fallbackId) {
+    throw new Error(
+      'Planilha do CRM nao encontrada. Configure CRM_SPREADSHEET_ID nas propriedades do script ou publique o projeto vinculado a planilha correta.'
+    );
+  }
+
+  try {
+    return SpreadsheetApp.openById(fallbackId);
+  } catch (e) {
+    throw new Error(
+      'Nao foi possivel abrir a planilha do CRM (' + fallbackId + '). Verifique se ela existe e se a conta do deploy tem acesso.'
+    );
+  }
+}
 
 function _getSheet() {
-  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var ss    = _getSpreadsheet_();
   var sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
   if (!sheet) throw new Error('Planilha "' + CONFIG.SHEET_NAME + '" não encontrada!');
   return sheet;
@@ -3201,7 +3292,7 @@ function repararSistemaSegmentacao() {
   _limparCache();
   var msg = 'repararSistemaSegmentacao: ' + corrigidos + ' linha(s) corrigida(s) de ' + dados.length + ' total.';
   Logger.log(msg);
-  SpreadsheetApp.getActiveSpreadsheet().toast(msg, '✅ Reparo concluído', 10);
+  _getSpreadsheet_().toast(msg, '✅ Reparo concluído', 10);
 }
 
 
@@ -3269,7 +3360,7 @@ function onEdit(e) {
 
   if (permitidos.indexOf(novoStatus) === -1) {
     range.clearContent();
-    SpreadsheetApp.getActiveSpreadsheet().toast(
+  _getSpreadsheet_().toast(
       'Permitidos: ' + permitidos.join(' | '),
       '⚠️ Status inválido para ' + tipoLabel,
       8
@@ -3308,16 +3399,6 @@ function limparCacheCompleto() {
     Logger.log('limparCacheCompleto erro: ' + e);
     return { sucesso: false, erro: e.message };
   }
-}
-
-function _registrarChaveCache(key) {
-  var cache = CacheService.getScriptCache();
-  try {
-    var metaRaw = cache.get(CONFIG.CACHE_PREFIX + 'keys');
-    var keys    = metaRaw ? JSON.parse(metaRaw) : [];
-    if (keys.indexOf(key) === -1) keys.push(key);
-    cache.put(CONFIG.CACHE_PREFIX + 'keys', JSON.stringify(keys), CONFIG.CACHE_TTL + 10);
-  } catch (e) { /* ignora */ }
 }
 
 // Versão otimizada para listagens — recebe timezone explícito (evita Session.getScriptTimeZone() repetido)
@@ -3574,6 +3655,9 @@ function _normalizarCamposClienteLegado(row, c) {
 //  DASHBOARD — getDashboard(mes, ano)
 //  mes/ano: inteiros. Se null, usa mês/ano atual.
 // ══════════════════════════════════════════════════════════════════════════
+// ============================================================================
+// CONTEXTO 1.8 - DASHBOARD E RESUMOS OPERACIONAIS
+// ============================================================================
 function getDashboard(mes, ano) {
   try {
     var hoje   = new Date();
@@ -3945,7 +4029,12 @@ function getFilaPAPHtml() {
   return HtmlService.createHtmlOutputFromFile('FilaPAP').getContent();
 }
 
+function getPainelAdsHtml() {
+  return HtmlService.createHtmlOutputFromFile('PainelAds').getContent();
+}
+
 // Retorna HTML do dashboard já com dados embutidos — apenas 1 roundtrip
+// Suspeita: helper opcional sem uso claro na UI atual. Mantido por seguranca.
 function getDashboardComDados(mes, ano) {
   var html  = HtmlService.createHtmlOutputFromFile('Dashboard').getContent();
   var dados = getDashboard(mes, ano);
@@ -3959,8 +4048,9 @@ function getDashboardComDados(mes, ano) {
 // ─── DIAGNÓSTICO DASHBOARD (rode no editor Apps Script para testar) ──────────
 // Vá em: Apps Script → selecione "diagnosticoDashboard" → clique ▶ Executar
 // Veja o resultado em: Visualizar → Registros de execução
+// Suspeita: rotina manual de suporte/infra. Nao chamada pela UI atual.
 function diagnosticoDashboard() {
-  var ss     = SpreadsheetApp.getActiveSpreadsheet();
+  var ss     = _getSpreadsheet_();
   var sheet  = ss.getSheetByName('1 - Vendas');
   var tz     = ss.getSpreadsheetTimeZone();
   var hoje   = new Date();
@@ -4033,9 +4123,12 @@ function diagnosticoDashboard() {
 
 var _ABA_IND = '#Lead Indicação';
 
+// ============================================================================
+// CONTEXTO 1.9 - INDICACOES
+// ============================================================================
 function getIndicacoes() {
   try {
-    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(_ABA_IND);
+    var sh = _getSpreadsheet_().getSheetByName(_ABA_IND);
     if (!sh) return { dados: [], erro: 'Aba "' + _ABA_IND + '" não encontrada.' };
     var ult = sh.getLastRow();
     if (ult < 2) return { dados: [] };
@@ -4078,7 +4171,7 @@ function getIndicacoes() {
 
 function salvarIndicacao(payload) {
   try {
-    var sh   = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(_ABA_IND);
+    var sh   = _getSpreadsheet_().getSheetByName(_ABA_IND);
     if (!sh) return { sucesso: false, erro: 'Aba "' + _ABA_IND + '" não encontrada.' };
     var tz   = Session.getScriptTimeZone();
     var hoje = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy');
@@ -4101,7 +4194,7 @@ function salvarIndicacao(payload) {
 // Atualiza Status Pagamento (col M = coluna 13) de uma linha da aba Indicações
 function atualizarStatusPgtoInd(linha, novoStatus) {
   try {
-    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(_ABA_IND);
+    var sh = _getSpreadsheet_().getSheetByName(_ABA_IND);
     if (!sh) return { sucesso: false, erro: 'Aba não encontrada.' };
     sh.getRange(linha, 13).setValue(novoStatus || '');
     return { sucesso: true };
@@ -4114,7 +4207,7 @@ function atualizarStatusPgtoInd(linha, novoStatus) {
 // Atualiza Data Pagamento (col N = coluna 14) de uma linha da aba Indicações
 function atualizarDataPgtoInd(linha, dataBR) {
   try {
-    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(_ABA_IND);
+    var sh = _getSpreadsheet_().getSheetByName(_ABA_IND);
     if (!sh) return { sucesso: false, erro: 'Aba não encontrada.' };
     sh.getRange(linha, 14).setValue(dataBR || '');
     return { sucesso: true };
@@ -4278,7 +4371,7 @@ function exibirMensagemAguardandoWeb() {
  * Retorna HTML da agenda do dia para o modal no CRM Web.
  */
 function exibirAgendamentosDoDiaWeb() {
-  var ss        = SpreadsheetApp.getActiveSpreadsheet();
+  var ss        = _getSpreadsheet_();
   var dashboard = ss.getSheetByName('2 - Dashboard');
   var abaVendas = ss.getSheetByName('1 - Vendas');
 
@@ -4339,6 +4432,9 @@ function _num(v) { return isNaN(parseFloat(v)) ? 0 : parseFloat(v); }
 // ══════════════════════════════════════════════════════════════════════════
 var TICKETS_KEY = 'dharmapro_tickets';
 
+// ============================================================================
+// CONTEXTO 1.10 - TICKETS E ANEXOS
+// ============================================================================
 function getTickets() {
   try {
     var props = PropertiesService.getScriptProperties();
@@ -4428,6 +4524,9 @@ function deletePrintTicket(fileId) {
  * O dashboard usa cache.put() simples com TTL 300s — verificamos a mesma chave
  * para só recalcular quando o cache expirou de verdade (a cada ~5 min).
  */
+// ============================================================================
+// CONTEXTO 2.0 - PERFORMANCE E MANUTENCAO OPERACIONAL
+// ============================================================================
 function _warmupScript() {
   try {
     var hoje  = new Date();
@@ -4452,6 +4551,7 @@ function _warmupScript() {
  * Execute esta função UMA VEZ manualmente no editor do Apps Script.
  * Verifica se já existe antes de criar um duplicado.
  */
+// Suspeita: rotina operacional manual. Nao ha chamada pela UI atual.
 function configurarTriggerWarmup() {
   var FUNC = '_warmupScript';
   var triggers = ScriptApp.getProjectTriggers();
@@ -4476,6 +4576,7 @@ function configurarTriggerWarmup() {
 /**
  * Remove o trigger de warmup caso queira desativar.
  */
+// Suspeita: rotina operacional manual. Nao ha chamada pela UI atual.
 function removerTriggerWarmup() {
   var FUNC = '_warmupScript';
   var triggers = ScriptApp.getProjectTriggers();
@@ -4591,6 +4692,9 @@ function consultarAssertivaCNPJ(cnpj) {
   }
 }
 
+// ============================================================================
+// CONTEXTO 2.1 - ASSERTIVA
+// ============================================================================
 function consultarAssertivaCPF(cpf) {
   try {
     var limpo = (cpf || '').replace(/\D/g, '');
@@ -4810,6 +4914,9 @@ function consultarAssertivaNome(nome) {
 //  Pasta: "DharmaPro - Extratos" (criada automaticamente na raiz do Drive)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ============================================================================
+// CONTEXTO 2.2 - EXTRATO MENSAL E ARQUIVOS DE FECHAMENTO
+// ============================================================================
 function _epGetPasta() {
   var it = DriveApp.getFoldersByName('DharmaPro - Extratos');
   return it.hasNext() ? it.next() : DriveApp.createFolder('DharmaPro - Extratos');
@@ -4929,7 +5036,7 @@ function migrarColunas() {
     [51,41]  // VIABILIDADE   AZ→AP
   ];
 
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(CONFIG.SHEET_NAME);
+  var sheet = _getSpreadsheet_().getSheetByName(CONFIG.SHEET_NAME);
   if (!sheet) return 'Aba "' + CONFIG.SHEET_NAME + '" não encontrada.';
 
   var totalLinhas = sheet.getLastRow();
