@@ -5503,24 +5503,16 @@ function detectarAlertasAtivos(usuario) {
       Logger.log('detectarAlertasAtivos — campanhas: ' + eCamp.toString());
     }
 
-    // ── Filtrar já lidos via UserProperties ──────────────────────────────
-    var lidos = [];
-    try {
-      var lStr = PropertiesService.getUserProperties()
-        .getProperty('ALERTAS_LIDOS_' + usuario);
-      lidos = lStr ? JSON.parse(lStr) : [];
-    } catch(e) { lidos = []; }
+    // Estado "lido" é gerenciado pelo frontend (sessionStorage) — backend sempre retorna lido:false.
+    // Isso evita que alertas de WABA/CPL fiquem presos como lidos permanentemente no UserProperties.
+    alertas.forEach(function(a) { a.lido = false; });
 
-    alertas.forEach(function(a) { a.lido = lidos.indexOf(a.id) >= 0; });
-
-    // Critérios primeiro, não-lidos antes dos lidos
+    // Críticos primeiro
     alertas.sort(function(a, b) {
-      if (a.lido !== b.lido) return a.lido ? 1 : -1;
       return (a.severidade === 'critico' ? 0 : 1) - (b.severidade === 'critico' ? 0 : 1);
     });
 
-    var naoLidos = alertas.filter(function(a) { return !a.lido; }).length;
-    return { alertas: alertas, total: alertas.length, naoLidos: naoLidos };
+    return { alertas: alertas, total: alertas.length, naoLidos: alertas.length };
 
   } catch(e) {
     Logger.log('detectarAlertasAtivos erro geral: ' + e.toString());
@@ -5529,30 +5521,9 @@ function detectarAlertasAtivos(usuario) {
 }
 
 /**
- * Marca alertas como lidos gravando seus IDs no UserProperties.
- * @param {string} usuario — login do usuário
- * @param {string[]} ids   — array de alert IDs a marcar como lidos
+ * No-op mantido para compatibilidade com chamadas antigas do frontend.
+ * Estado "lido" migrado para sessionStorage no cliente (não persiste entre sessões).
  */
 function marcarAlertasLidos(usuario, ids) {
-  try {
-    var props = PropertiesService.getUserProperties();
-    var key   = 'ALERTAS_LIDOS_' + usuario;
-    var existentes = [];
-    try {
-      var lStr = props.getProperty(key);
-      existentes = lStr ? JSON.parse(lStr) : [];
-    } catch(e) { existentes = []; }
-
-    ids.forEach(function(id) {
-      if (existentes.indexOf(id) < 0) existentes.push(id);
-    });
-
-    // Mantém só os últimos 300 IDs para não inflar a propriedade
-    if (existentes.length > 300) existentes = existentes.slice(-300);
-    props.setProperty(key, JSON.stringify(existentes));
-    return { ok: true };
-  } catch(e) {
-    Logger.log('marcarAlertasLidos erro: ' + e.toString());
-    return { ok: false, erro: e.message };
-  }
+  return { ok: true };
 }

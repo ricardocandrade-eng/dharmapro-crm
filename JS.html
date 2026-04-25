@@ -10347,6 +10347,19 @@ function _sinoGetUsuario() {
   try { return sessionStorage.getItem('crm_usuario') || ''; } catch(e) { return ''; }
 }
 
+/** Retorna Set de IDs lidos nesta sessão (sessionStorage). */
+function _sinoGetLidosSessao() {
+  try {
+    var raw = sessionStorage.getItem('sino_lidos') || '[]';
+    return JSON.parse(raw);
+  } catch(e) { return []; }
+}
+
+/** Salva IDs lidos na sessão. */
+function _sinoSetLidosSessao(ids) {
+  try { sessionStorage.setItem('sino_lidos', JSON.stringify(ids)); } catch(e) {}
+}
+
 /** Inicializa o sino: carrega imediatamente e agenda polling a cada 5 min.
  *  Também registra listener global para fechar dropdown ao clicar fora. */
 function inicializarSino() {
@@ -10387,21 +10400,29 @@ function carregarAlertas() {
   google.script.run
     .withSuccessHandler(function(res) {
       if (!res) return;
-      console.log('[Sino] retorno:', res.naoLidos, 'não lidos,', res.total, 'total', res.erro ? '| erro: ' + res.erro : '');
-      // Merge: backend adiciona alertas novos (ex: WABA, campanhas) mas não sobrescreve
-      // alertas locais já marcados como lido:false pela detecção do funil.
+      console.log('[Sino] backend:', res.total, 'alertas', res.erro ? '| erro: ' + res.erro : '');
+
+      // Backend retorna tudo com lido:false — aplica lidos da sessão atual
+      var lidosSessao = _sinoGetLidosSessao();
       var backendAlertas = res.alertas || [];
+      backendAlertas.forEach(function(a) {
+        a.lido = lidosSessao.indexOf(a.id) >= 0;
+      });
+
+      // Merge: preserva alertas locais (funil) que o backend já conhece;
+      // atualiza com dados frescos do backend.
       var idxMap = {};
       _sinoAlertas.forEach(function(a, i) { idxMap[a.id] = i; });
       backendAlertas.forEach(function(a) {
         if (idxMap[a.id] !== undefined) {
-          // Preserva lido:false local — se já está não-lido localmente, mantém
-          if (_sinoAlertas[idxMap[a.id]].lido) _sinoAlertas[idxMap[a.id]] = a;
+          _sinoAlertas[idxMap[a.id]] = a;
         } else {
           _sinoAlertas.push(a);
         }
       });
+
       var naoLidos = _sinoAlertas.filter(function(a) { return !a.lido; }).length;
+      console.log('[Sino]', naoLidos, 'não lidos nesta sessão');
       _renderizarAlertas(naoLidos);
     })
     .withFailureHandler(function(err) {
@@ -10458,19 +10479,18 @@ function tktToggleNotifDropdown() {
   drop.classList.toggle('aberto');
 }
 
-/** Marca todos os alertas como lidos e fecha o dropdown. */
+/** Marca todos os alertas como lidos (sessionStorage) e fecha o dropdown. */
 function tktLimparNotifs() {
   if (!_sinoAlertas || _sinoAlertas.length === 0) return;
   var ids = _sinoAlertas.map(function(a) { return a.id; });
-  google.script.run
-    .withSuccessHandler(function() {
-      _sinoAlertas.forEach(function(a) { a.lido = true; });
-      _renderizarAlertas(0);
-      var drop = document.getElementById('notifDropdown');
-      if (drop) drop.classList.remove('aberto');
-    })
-    .withFailureHandler(function() {})
-    .marcarAlertasLidos(_sinoGetUsuario(), ids);
+  // Salva lidos na sessão (não persiste entre logins)
+  var atuais = _sinoGetLidosSessao();
+  ids.forEach(function(id) { if (atuais.indexOf(id) < 0) atuais.push(id); });
+  _sinoSetLidosSessao(atuais);
+  _sinoAlertas.forEach(function(a) { a.lido = true; });
+  _renderizarAlertas(0);
+  var drop = document.getElementById('notifDropdown');
+  if (drop) drop.classList.remove('aberto');
 }
 
 /** Marca um alerta como lido, navega para a tela correspondente e fecha o dropdown. */
@@ -10488,14 +10508,14 @@ function tktMarcarAlertaLido(id) {
   // Navega para a tela do alerta
   if (alerta.destino) navegar(alerta.destino);
 
-  // Marca como lido (mesmo que já estivesse, para atualizar a lista)
+  // Marca como lido na sessão
   if (!alerta.lido) {
     alerta.lido = true;
+    var lidos = _sinoGetLidosSessao();
+    if (lidos.indexOf(id) < 0) lidos.push(id);
+    _sinoSetLidosSessao(lidos);
     var naoLidos = _sinoAlertas.filter(function(a) { return !a.lido; }).length;
     _renderizarAlertas(naoLidos);
-    google.script.run
-      .withFailureHandler(function() {})
-      .marcarAlertasLidos(_sinoGetUsuario(), [id]);
   }
 }
 
