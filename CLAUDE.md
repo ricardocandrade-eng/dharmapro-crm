@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 17:16 -->
+<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 17:53 -->
 
 # dharmapro-crm
 
@@ -18,6 +18,10 @@ Em 25/04/2026 o fluxo de vendas tambem passou por uma sincronizacao estrutural:
 edicoes parciais agora preservam campos ja gravados na linha, o painel lateral
 passou a editar `Data Ativacao` e `Data Instalacao`, e a persistencia passou
 a manter tambem `VEROHUB`, `BC_TAGS`, `BC_STATUS` e `VIABILIDADE` durante updates.
+
+Na mesma data, vendas `Fibra Combo` passaram a suportar criacao de `Móvel`
+vinculado via botao no painel lateral, com registro estrutural em aba propria
+de vinculos e alerta visual quando existir combo sem venda movel associada.
 
 ---
 

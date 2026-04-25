@@ -3896,8 +3896,17 @@ function _criarItemVenda(v, index) {
 
   // Plano + valor inline
   var planoVal = [v.plano, v.valor].filter(Boolean).join(' · ');
+  var comboBadge = v.comboMovelPendente
+    ? '<span class="vi-prestatus-badge" style="background:rgba(247,162,59,.14);color:var(--yellow);border-color:rgba(247,162,59,.35);">⚠ Combo sem móvel</span>'
+    : '';
 
   // Responsável: avatar com iniciais colorido
+  var comboBadge = v.comboMovelPendente
+    ? '<span class="vi-prestatus-badge" style="background:rgba(247,162,59,.14);color:var(--yellow);border-color:rgba(247,162,59,.35);">⚠ Combo sem móvel</span>'
+    : '';
+  var comboBadge = v.comboMovelPendente
+    ? '<span class="vi-prestatus-badge" style="background:rgba(247,162,59,.14);color:var(--yellow);border-color:rgba(247,162,59,.35);">⚠ Combo sem móvel</span>'
+    : '';
   var respHtml = '';
   if (v.resp) {
     var ini = _iniciais(v.resp);
@@ -3957,6 +3966,7 @@ function _criarItemVenda(v, index) {
         // Esquerda: produto + plano/valor + etiquetas BotConversa
         '<div class="vi-bot-left">' +
           (v.produto ? '<span class="vi-produto ' + prodCls + '">' + esc(_produtoComEmoji(v.produto)) + '</span>' : '') +
+          comboBadge +
           (planoVal  ? '<span class="vi-plano-val">' + esc(planoVal) + '</span>' : '') +
           (v.bcTags || v.bcStatus ? '<span class="vi-bc-tags">' +
             (v.bcStatus ? '<span class="vi-bc-status vi-bc-status--' + (v.bcStatus === 'Aberto' ? 'aberto' : 'ok') + '">' + esc(v.bcStatus) + '</span>' : '') +
@@ -4011,6 +4021,9 @@ function mostrarPainel(v) {
     '<span class="badge badge-meta" style="margin-left:4px;">Linha ' + esc(v.linha) + '</span>';
 
   // Endereço completo para Google Maps
+  if (v.comboMovelPendente) {
+    document.getElementById('pStatusWrap').innerHTML += '<span class="badge badge-meta" style="margin-left:4px;color:var(--yellow);border-color:rgba(247,162,59,.35);background:rgba(247,162,59,.12);">Combo sem móvel</span>';
+  }
   var endCompleto = [v.rua, v.num, v.complemento, v.bairro, v.cidade, v.uf].filter(Boolean).join(', ');
   var mapsUrl = endCompleto ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(endCompleto) : '';
 
@@ -4125,6 +4138,8 @@ function mostrarPainel(v) {
 
   var whatsBtn = document.getElementById('pBtnWhats');
   whatsBtn.style.display = v.whats ? 'flex' : 'none';
+  var btnDuplicarMovel = document.getElementById('pBtnDuplicarMovel');
+  if (btnDuplicarMovel) btnDuplicarMovel.style.display = v.comboMovelPendente ? 'flex' : 'none';
 
   document.getElementById('painelVazio').style.display = 'none';
   document.getElementById('painelConteudo').classList.add('ativo');
@@ -9484,7 +9499,11 @@ function _nvExecutarSalvar(dados) {
       }
       _listaNeedsReload = true; // invalida cache — nova venda precisa aparecer na lista
       if (dados.produto === 'Fibra Combo') {
-        _abrirModalMovelCombo(dados);
+        _abrirModalMovelCombo({
+          linhaOrigem: res.linha,
+          cliente: dados.cliente,
+          cidade: dados.cidade
+        });
       } else {
         mostrarToast('✅ ' + res.mensagem, 'success');
         setTimeout(function() { navegar('lista'); }, 600);
@@ -9506,7 +9525,8 @@ var _mmcDadosFibra = null;
 
 function _abrirModalMovelCombo(dados) {
   _mmcDadosFibra = dados;
-  document.getElementById('mmc-cliente').textContent = dados.nome || '—';
+  document.getElementById('mmc-cliente').textContent = dados.cliente || dados.nome || '—';
+  document.getElementById('mmc-produto').value = 'Móvel Combo';
   document.getElementById('mmc-contrato').value = '';
   document.getElementById('mmc-linha').value = '';
   document.getElementById('mmc-portabilidade').value = '';
@@ -9514,8 +9534,30 @@ function _abrirModalMovelCombo(dados) {
   var btn = document.getElementById('mmc-btn-confirmar');
   btn.disabled = false;
   btn.textContent = '✅ Criar Venda Móvel';
+  mmcOnProdutoChange();
+  document.getElementById('modalMovelCombo').style.display = 'flex';
+}
 
+function _fecharModalMovelCombo() {
+  document.getElementById('modalMovelCombo').style.display = 'none';
+}
+
+function _abrirModalMovelDoPainel() {
+  var v = AppState.get('vendaSelecionada');
+  if (!v || !v.linha) {
+    mostrarToast('Venda não identificada.', 'warning');
+    return;
+  }
+  _abrirModalMovelCombo({
+    linhaOrigem: v.linha,
+    cliente: v.cliente,
+    cidade: v.cidade
+  });
+}
+
+function mmcOnProdutoChange() {
   var sel = document.getElementById('mmc-plano');
+  var produto = document.getElementById('mmc-produto').value || 'Móvel Combo';
   sel.innerHTML = '<option value="">— carregando... —</option>';
   sel.disabled = true;
 
@@ -9523,15 +9565,18 @@ function _abrirModalMovelCombo(dados) {
     .withSuccessHandler(function(res) {
       sel.innerHTML = '<option value="">— Selecione o plano —</option>';
       if (!res.erro && res.planos && res.planos.length) {
-        // Filtra apenas planos da categoria MÓVEL COMBO (exclui MÓVEL ALONE)
-        var inCombo = false;
+        var categoriaAlvo = (produto || '').toUpperCase().indexOf('ALONE') > -1 ? 'ALONE' : 'COMBO';
+        var categoriaAtual = '';
         res.planos.forEach(function(p) {
           var isHeader = p.indexOf('▶') > -1;
           if (isHeader) {
-            inCombo = p.toUpperCase().indexOf('COMBO') > -1;
+            var pNorm = p.toUpperCase();
+            if (pNorm.indexOf('COMBO') > -1) categoriaAtual = 'COMBO';
+            else if (pNorm.indexOf('ALONE') > -1) categoriaAtual = 'ALONE';
+            else categoriaAtual = '';
             return;
           }
-          if (!inCombo) return;
+          if (categoriaAtual !== categoriaAlvo) return;
           var opt = document.createElement('option');
           opt.value = p;
           opt.textContent = p;
@@ -9544,18 +9589,19 @@ function _abrirModalMovelCombo(dados) {
       sel.innerHTML = '<option value="">— erro ao carregar —</option>';
       sel.disabled = false;
     })
-    .getPlanosPorCidadeProduto(dados.cidade || '', 'Móvel Combo');
-
-  document.getElementById('modalMovelCombo').style.display = 'flex';
+    .getPlanosPorCidadeProduto((_mmcDadosFibra && _mmcDadosFibra.cidade) || '', produto);
 }
 
 function _confirmarMovelCombo() {
+  var produto       = document.getElementById('mmc-produto').value.trim();
   var plano         = document.getElementById('mmc-plano').value.trim();
   var contrato      = document.getElementById('mmc-contrato').value.trim();
   var portabilidade = document.getElementById('mmc-portabilidade').value.trim();
   var linha         = document.getElementById('mmc-linha').value.trim();
   var erro          = document.getElementById('mmc-erro');
 
+  if (!_mmcDadosFibra || !_mmcDadosFibra.linhaOrigem) { erro.textContent = 'Venda de origem não encontrada.'; erro.style.display = 'block'; return; }
+  if (!produto)       { erro.textContent = 'Selecione o produto móvel.';      erro.style.display = 'block'; return; }
   if (!plano)         { erro.textContent = 'Selecione o plano.';              erro.style.display = 'block'; return; }
   if (!contrato)      { erro.textContent = 'Preencha o ID Contrato Móvel.';   erro.style.display = 'block'; return; }
   if (!portabilidade) { erro.textContent = 'Selecione a portabilidade.';      erro.style.display = 'block'; return; }
@@ -9569,21 +9615,28 @@ function _confirmarMovelCombo() {
   var partes = plano.split(' | ');
   var valor  = partes.length > 1 ? partes[partes.length - 1].replace('R$ ', '').trim() : '';
 
-  var dadosMovel = Object.assign({}, _mmcDadosFibra, {
-    produto:         'Móvel Combo',
+  var dadosMovel = {
+    linhaOrigem:     _mmcDadosFibra.linhaOrigem,
+    produto:         produto,
     plano:           plano,
     valor:           valor,
     contrato:        contrato,
     portabilidade:   portabilidade,
-    linhaMovel:      linha,
-    linhaReferencia: undefined
-  });
-  delete dadosMovel.linhaReferencia;
+    linhaMovel:      linha
+  };
 
   google.script.run
-    .withSuccessHandler(function() {
-      document.getElementById('modalMovelCombo').style.display = 'none';
-      mostrarToast('✅ Fibra Combo + Móvel Combo cadastrados!', 'success');
+    .withSuccessHandler(function(res) {
+      if (!res || res.sucesso === false) {
+        btn.disabled = false;
+        btn.textContent = '✅ Criar Venda Móvel';
+        erro.textContent = res && res.mensagem ? res.mensagem : 'Erro ao criar venda móvel.';
+        erro.style.display = 'block';
+        return;
+      }
+      _listaNeedsReload = true;
+      _fecharModalMovelCombo();
+      mostrarToast('✅ Venda móvel vinculada criada!', 'success');
       setTimeout(function() { navegar('lista'); }, 700);
     })
     .withFailureHandler(function(err) {
@@ -9592,16 +9645,7 @@ function _confirmarMovelCombo() {
       erro.textContent = 'Erro ao salvar: ' + (err && err.message ? err.message : 'tente novamente');
       erro.style.display = 'block';
     })
-    .salvarVenda(dadosMovel);
-}
-
-function _cancelarMovelCombo() {
-  var erro = document.getElementById('mmc-erro');
-  if (erro) {
-    erro.textContent = 'O cadastro do Móvel Combo é obrigatório para vendas de Fibra Combo.';
-    erro.style.display = 'block';
-  }
-  mostrarToast('Preencha o Móvel Combo para concluir a venda.', 'warning');
+    .criarVendaMovelVinculada(dadosMovel);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -10544,5 +10588,26 @@ function tktMarcarAlertaLido(id) {
     _renderizarAlertas(naoLidos);
   }
 }
+
+var _dhpCriarItemVendaOriginal = _criarItemVenda;
+_criarItemVenda = function(v, index) {
+  var html = _dhpCriarItemVendaOriginal(v, index);
+  if (!v || !v.comboMovelPendente) return html;
+  var badge = '<span class="vi-prestatus-badge" style="background:rgba(247,162,59,.14);color:var(--yellow);border-color:rgba(247,162,59,.35);">⚠ Combo sem móvel</span>';
+  return html.replace(/(<span class="vi-produto[^>]*>.*?<\/span>)/, '$1' + badge);
+};
+
+var _dhpMostrarPainelOriginal = mostrarPainel;
+mostrarPainel = function(v) {
+  _dhpMostrarPainelOriginal(v);
+  var btnDuplicarMovel = document.getElementById('pBtnDuplicarMovel');
+  if (btnDuplicarMovel) btnDuplicarMovel.style.display = v && v.comboMovelPendente ? 'flex' : 'none';
+  if (v && v.comboMovelPendente) {
+    var wrap = document.getElementById('pStatusWrap');
+    if (wrap && wrap.innerHTML.indexOf('Combo sem móvel') === -1) {
+      wrap.innerHTML += '<span class="badge badge-meta" style="margin-left:4px;color:var(--yellow);border-color:rgba(247,162,59,.35);background:rgba(247,162,59,.12);">Combo sem móvel</span>';
+    }
+  }
+};
 
 </script>

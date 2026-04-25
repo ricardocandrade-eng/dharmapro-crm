@@ -18,6 +18,7 @@
 
 var CONFIG = {
   SHEET_NAME:      '1 - Vendas',
+  SHEET_VINCULOS_VENDAS: 'Vinculos Vendas',
   SPREADSHEET_ID:  '1H1qNgyNjmIYiZWT0wHwzANLf7yLggzYzBNVgAWCJ9lE',
   SHEET_USUARIOS:  'Usuarios',   // aba: A=usuario | B=senha | C=nome exibição
   SHEET_HISTORICO: 'Histórico',  // aba de arquivo — criada por criarAbaHistorico()
@@ -2746,12 +2747,13 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
     }
 
     // ── FASE 4: Mapeia na ordem desc (linhasSlice já está em ordem desc) ─────
+    var vinculosMap = _getVinculosVendasMap_();
     var vendas = [];
     for (var k = 0; k < linhasSlice.length; k++) {
       var numLinha = linhasSlice[k];
       var row = mapaLinhas[numLinha];
       if (!row) continue;
-      vendas.push(_mapearLinhaLista(row, numLinha, tz));
+      vendas.push(_decorarVendaComVinculos_(_mapearLinhaLista(row, numLinha, tz), vinculosMap));
     }
 
     // ── Salva no cache (somente offset=0, sem filtro, TTL 90s) ───────────────
@@ -2780,9 +2782,118 @@ function getVendaPorLinha(numeroLinha) {
   try {
     var sheet = _getSheet();
     var dados = sheet.getRange(numeroLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
-    return _mapearLinha(dados, numeroLinha);
+    return _decorarVendaComVinculos_(_mapearLinha(dados, numeroLinha), _getVinculosVendasMap_());
   } catch (erro) {
     throw new Error('Erro ao buscar venda: ' + erro.message);
+  }
+}
+
+function criarVendaMovelVinculada(payload) {
+  payload = payload || {};
+  var linhaOrigem = parseInt(payload.linhaOrigem || payload.linhaMae || payload.linha || '', 10);
+  if (isNaN(linhaOrigem) || linhaOrigem < 3) {
+    throw new Error('Venda de origem inválida.');
+  }
+
+  var produtoMovel = String(payload.produto || '').trim();
+  var plano = String(payload.plano || '').trim();
+  var contrato = String(payload.contrato || '').trim();
+  var portabilidade = String(payload.portabilidade || '').trim();
+  var linhaMovel = String(payload.linhaMovel || '').trim();
+  var valor = String(payload.valor || '').trim();
+
+  if (!produtoMovel) throw new Error('Produto móvel é obrigatório.');
+  if (_normalizarTexto(produtoMovel).indexOf('MOVEL') === -1) throw new Error('Produto inválido para duplicação móvel.');
+  if (!plano) throw new Error('Plano móvel é obrigatório.');
+  if (!contrato) throw new Error('ID Contrato móvel é obrigatório.');
+  if (!portabilidade) throw new Error('Portabilidade é obrigatória.');
+
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch (le) {
+    return { sucesso: false, mensagem: '⚠️ Sistema ocupado. Tente novamente em instantes.' };
+  }
+
+  try {
+    var sheet = _getSheet();
+    var rowOrigem = sheet.getRange(linhaOrigem, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+    var vendaOrigem = _mapearLinha(rowOrigem, linhaOrigem);
+    if (_normalizarTexto(vendaOrigem.produto) !== 'FIBRA COMBO') {
+      throw new Error('A duplicação móvel só está disponível para vendas Fibra Combo.');
+    }
+
+    var vinculos = _getVinculosVendasMap_();
+    if ((vinculos.filhasPorMae[linhaOrigem] || []).length > 0) {
+      throw new Error('Esta venda já possui um móvel vinculado.');
+    }
+
+    if (!valor) valor = _extrairValorDoPlano_(plano);
+
+    var observacaoBase = String(vendaOrigem.observacao || '').trim();
+    var obsVinculo = 'Venda móvel vinculada à linha ' + linhaOrigem + (vendaOrigem.contrato ? ' (Fibra ID ' + vendaOrigem.contrato + ')' : '');
+    var dadosMovel = {
+      canal:           vendaOrigem.canal || '',
+      produto:         produtoMovel,
+      status:          '1- Conferencia/Ativação',
+      preStatus:       vendaOrigem.preStatus || '',
+      dataAtiv:        '',
+      contrato:        contrato,
+      codCli:          '',
+      resp:            vendaOrigem.resp || '',
+      agenda:          '',
+      turno:           '',
+      instal:          '',
+      observacao:      [observacaoBase, obsVinculo].filter(Boolean).join(' | '),
+      cpf:             vendaOrigem.cpf || '',
+      cliente:         vendaOrigem.cliente || '',
+      whats:           vendaOrigem.whats || '',
+      tel:             vendaOrigem.tel || '',
+      cep:             vendaOrigem.cep || '',
+      rua:             vendaOrigem.rua || '',
+      num:             vendaOrigem.num || '',
+      complemento:     vendaOrigem.complemento || '',
+      bairro:          vendaOrigem.bairro || '',
+      cidade:          vendaOrigem.cidade || '',
+      uf:              vendaOrigem.uf || '',
+      sistema:         vendaOrigem.sistema || '',
+      venc:            vendaOrigem.venc || '',
+      fat:             vendaOrigem.fat || '',
+      plano:           plano,
+      valor:           valor,
+      linhaMovel:      linhaMovel,
+      portabilidade:   portabilidade,
+      nomeMae:         vendaOrigem.nomeMae || '',
+      dtNasc:          vendaOrigem.dtNasc || '',
+      rg:              vendaOrigem.rg || '',
+      segmentacao:     vendaOrigem.segmentacao || '',
+      reagendamentos:  0,
+      statusPAP:       vendaOrigem.statusPAP || 'Em Aberto',
+      verohub:         '',
+      verohubPedido:   '',
+      verohubPedidoDt: '',
+      bcTags:          '',
+      bcStatus:        '',
+      viabilidade:     ''
+    };
+
+    var linhaDados = _construirLinhaDados(dadosMovel);
+    var ultimaSheet = sheet.getLastRow();
+    var novaLinha = 3;
+    if (ultimaSheet >= 3) {
+      var colStatus = sheet.getRange(3, CONFIG.COLUNAS.STATUS + 1, ultimaSheet - 2, 1).getValues();
+      for (var r = colStatus.length - 1; r >= 0; r--) {
+        if (colStatus[r][0] !== '' && colStatus[r][0] !== null && colStatus[r][0] !== undefined) {
+          novaLinha = r + 4;
+          break;
+        }
+      }
+    }
+
+    sheet.getRange(novaLinha, 1, 1, linhaDados.length).setValues([linhaDados]);
+    _registrarVinculoVenda_(linhaOrigem, novaLinha, 'COMBO_MOVEL');
+    _limparCache();
+    return { sucesso: true, linha: novaLinha, mensagem: '✅ Venda móvel vinculada criada com sucesso!' };
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -3670,6 +3781,97 @@ function _mesclarDadosVendaComLinhaAtual_(dados, linhaAtual, numeroLinha) {
   });
   mesclado.linhaReferencia = String(dados.linhaReferencia || numeroLinha || '');
   return mesclado;
+}
+
+function _getSheetVinculosVendas_(createIfMissing) {
+  var ss = _getSpreadsheet_();
+  var sh = ss.getSheetByName(CONFIG.SHEET_VINCULOS_VENDAS);
+  if (!sh && createIfMissing) {
+    sh = ss.insertSheet(CONFIG.SHEET_VINCULOS_VENDAS);
+    sh.getRange(1, 1, 1, 8).setValues([[
+      'CriadoEm',
+      'TipoVinculo',
+      'VendaMaeLinha',
+      'VendaFilhaLinha',
+      'VendaMaeContrato',
+      'VendaFilhaContrato',
+      'Status',
+      'Observacao'
+    ]]);
+  }
+  return sh;
+}
+
+function _getVinculosVendasMap_() {
+  var sh = _getSheetVinculosVendas_(false);
+  var mapa = { filhasPorMae: {}, maePorFilha: {} };
+  if (!sh || sh.getLastRow() < 2) return mapa;
+
+  var raw = sh.getRange(2, 1, sh.getLastRow() - 1, 8).getValues();
+  for (var i = 0; i < raw.length; i++) {
+    var row = raw[i];
+    var status = _normalizarTexto(row[6] || 'ATIVO');
+    if (status && status !== 'ATIVO') continue;
+
+    var maeLinha = parseInt(row[2], 10);
+    var filhaLinha = parseInt(row[3], 10);
+    if (isNaN(maeLinha) || isNaN(filhaLinha)) continue;
+
+    var vinculo = {
+      tipo: String(row[1] || '').trim(),
+      vendaMaeLinha: maeLinha,
+      vendaFilhaLinha: filhaLinha,
+      vendaMaeContrato: String(row[4] || '').trim(),
+      vendaFilhaContrato: String(row[5] || '').trim()
+    };
+    if (!mapa.filhasPorMae[maeLinha]) mapa.filhasPorMae[maeLinha] = [];
+    mapa.filhasPorMae[maeLinha].push(vinculo);
+    mapa.maePorFilha[filhaLinha] = vinculo;
+  }
+  return mapa;
+}
+
+function _decorarVendaComVinculos_(venda, vinculosMap) {
+  var v = {};
+  Object.keys(venda || {}).forEach(function(chave) {
+    v[chave] = venda[chave];
+  });
+  vinculosMap = vinculosMap || { filhasPorMae: {}, maePorFilha: {} };
+
+  var filhos = vinculosMap.filhasPorMae[v.linha] || [];
+  var pai = vinculosMap.maePorFilha[v.linha] || null;
+  var produtoNorm = _normalizarTexto(v.produto);
+
+  v.vendaMovelLinha = filhos.length ? filhos[0].vendaFilhaLinha : '';
+  v.temVendaMovelVinculada = filhos.length > 0;
+  v.comboMovelPendente = (produtoNorm === 'FIBRA COMBO') && !v.temVendaMovelVinculada;
+  v.vendaMaeLinha = pai ? pai.vendaMaeLinha : '';
+  v.tipoVinculo = pai ? pai.tipo : (filhos.length ? filhos[0].tipo : '');
+  return v;
+}
+
+function _registrarVinculoVenda_(maeLinha, filhaLinha, tipo) {
+  var sheetVendas = _getSheet();
+  var rowMae = sheetVendas.getRange(maeLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+  var rowFilha = sheetVendas.getRange(filhaLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+  var c = CONFIG.COLUNAS;
+  var sh = _getSheetVinculosVendas_(true);
+  sh.appendRow([
+    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss'),
+    String(tipo || 'COMBO_MOVEL'),
+    maeLinha,
+    filhaLinha,
+    String(rowMae[c.CONTRATO] || '').trim(),
+    String(rowFilha[c.CONTRATO] || '').trim(),
+    'ATIVO',
+    ''
+  ]);
+}
+
+function _extrairValorDoPlano_(plano) {
+  var texto = String(plano || '');
+  var match = texto.match(/R\$\s*([\d\.,]+)/i);
+  return match ? ('R$ ' + match[1].trim()) : '';
 }
 
 function _formatarData(valor) {

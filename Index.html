@@ -2638,6 +2638,9 @@
                 <button class="btn btn-ghost" id="pBtnWhats" onclick="abrirWhatsPanel()" style="display:none;">📲 WhatsApp</button>
               </div>
               <div class="painel-acoes-row">
+                <button class="btn btn-ghost" id="pBtnDuplicarMovel" onclick="_abrirModalMovelDoPainel()" style="display:none;background:rgba(79,158,255,0.08);border-color:rgba(79,158,255,0.25);color:var(--blue);">📱 Duplicar para Móvel</button>
+              </div>
+              <div class="painel-acoes-row">
                 <button class="btn btn-ghost" onclick="copiarDadosPanel()" style="background:rgba(230,62,109,0.08);border-color:rgba(230,62,109,0.25);color:var(--accent);">📋 Copiar Resumo</button>
               </div>
             </div>
@@ -3246,8 +3249,11 @@
         </p>
         <div class="mvh-grid">
           <div class="mvh-field mvh-full">
-            <label class="mvh-label">Produto</label>
-            <input type="text" class="mvh-input" value="Móvel Combo" disabled style="opacity:.5;cursor:not-allowed;">
+            <label class="mvh-label">Produto <span style="color:var(--accent)">*</span></label>
+            <select id="mmc-produto" class="mvh-input" onchange="mmcOnProdutoChange()">
+              <option value="Móvel Combo">Móvel Combo</option>
+              <option value="Móvel Alone">Móvel Alone</option>
+            </select>
           </div>
           <div class="mvh-field mvh-full">
             <label class="mvh-label">Plano <span style="color:var(--accent)">*</span></label>
@@ -3275,6 +3281,7 @@
         <div id="mmc-erro" style="display:none;margin-top:12px;padding:10px 12px;background:rgba(230,62,109,.08);border:1px solid rgba(230,62,109,.3);border-radius:8px;font-size:12px;color:var(--accent);"></div>
       </div>
       <div class="modal-foot">
+        <button class="btn btn-ghost" type="button" onclick="_fecharModalMovelCombo()">Fechar</button>
         <button class="btn" id="mmc-btn-confirmar" onclick="_confirmarMovelCombo()">✅ Criar Venda Móvel</button>
       </div>
     </div>

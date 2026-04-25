@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | AGENTS.md | 25/04/2026 17:16 -->
+<!-- dharmapro-crm | AGENTS.md | 25/04/2026 17:53 -->
 
 # DharmaPro CRM
 
@@ -81,6 +81,10 @@ Estado atualizado em 25/04/2026:
 - o painel lateral de `Lista de Vendas` agora expoe `Data Ativacao` e `Data Instalacao`;
 - a persistencia passou a manter tambem `VEROHUB`, `BC_TAGS`, `BC_STATUS` e `VIABILIDADE`
   quando a venda e atualizada por qualquer fluxo.
+- combos com movel agora usam vinculo estrutural em aba `Vinculos Vendas`, sem depender
+  de observacao solta na venda;
+- `Fibra Combo` sem venda movel vinculada deve exibir alerta visual e botao
+  `Duplicar para Movel` no painel lateral.
 
 ### Views HTML do sistema
 
