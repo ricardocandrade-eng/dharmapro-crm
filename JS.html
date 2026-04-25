@@ -10386,8 +10386,21 @@ function carregarAlertas() {
     .withSuccessHandler(function(res) {
       if (!res) return;
       console.log('[Sino] retorno:', res.naoLidos, 'não lidos,', res.total, 'total', res.erro ? '| erro: ' + res.erro : '');
-      _sinoAlertas = res.alertas || [];
-      _renderizarAlertas(res.naoLidos || 0);
+      // Merge: backend adiciona alertas novos (ex: WABA, campanhas) mas não sobrescreve
+      // alertas locais já marcados como lido:false pela detecção do funil.
+      var backendAlertas = res.alertas || [];
+      var idxMap = {};
+      _sinoAlertas.forEach(function(a, i) { idxMap[a.id] = i; });
+      backendAlertas.forEach(function(a) {
+        if (idxMap[a.id] !== undefined) {
+          // Preserva lido:false local — se já está não-lido localmente, mantém
+          if (_sinoAlertas[idxMap[a.id]].lido) _sinoAlertas[idxMap[a.id]] = a;
+        } else {
+          _sinoAlertas.push(a);
+        }
+      });
+      var naoLidos = _sinoAlertas.filter(function(a) { return !a.lido; }).length;
+      _renderizarAlertas(naoLidos);
     })
     .withFailureHandler(function(err) {
       console.error('[Sino] detectarAlertasAtivos falhou:', err && err.message ? err.message : err);
@@ -10407,9 +10420,14 @@ function _renderizarAlertas(naoLidos) {
     badge.textContent = naoLidos > 99 ? '99+' : String(naoLidos);
     badge.style.display = 'flex';
     btn.classList.add('tem-alerta');
+    // Vermelho se há algum alerta crítico, amarelo se só atenção
+    var temCritico = _sinoAlertas.some(function(a) { return !a.lido && a.severidade === 'critico'; });
+    badge.style.background = temCritico ? '#e63e6d' : '#f7a23b';
+    btn.classList.toggle('tem-alerta-critico', temCritico);
   } else {
     badge.style.display = 'none';
-    btn.classList.remove('tem-alerta');
+    badge.style.background = '';
+    btn.classList.remove('tem-alerta', 'tem-alerta-critico');
   }
 
   // Lista
