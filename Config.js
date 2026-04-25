@@ -117,8 +117,8 @@ var ALERTAS_CONFIG = {
     '2- Aguardando Instalação': 1,   // 1+ dia após data de agenda = alerta no sino
     'Pendencia Vero':           3    // 3+ dias em pendência Vero
   },
-  CAMPANHA_CPL_MAX:   80,           // R$ 80 de CPL já aciona alerta
-  WABA_SCORES_ALERTA: ['YELLOW', 'RED']
+  CAMPANHA_CPL_MAX:   0,            // TESTE: 0 = qualquer campanha ativa dispara alerta
+  WABA_SCORES_ALERTA: ['GREEN', 'YELLOW', 'RED'] // TESTE: GREEN incluído para forçar alerta
 };
 
 // ── MENSAGEM DO SISTEMA ────────────────────────────────────────────────────
