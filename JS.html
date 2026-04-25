@@ -6465,6 +6465,9 @@ function _sincronizarAoLogar(nomeUsuario) {
   // Polling de alertas PAP — atualiza badge do menu a cada 60s
   _pollPendentes();
   setInterval(_pollPendentes, 60000);
+
+  // Sino de alertas internos — inicializa para todos os usuários
+  inicializarSino();
 }
 
 function _pollPendentes() {
