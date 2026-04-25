@@ -11,7 +11,8 @@ Em 24/04/2026 o projeto passou por uma recuperacao completa de producao, consoli
 de modulos operacionais e implementacao do modulo de Gerenciar Usuarios.
 
 Em 25/04/2026 o modulo `Cruzamento Vero` foi revisado para tratar IDs de contrato
-com prefixo `NG`, consolidar `CANCELAMENTO` + `CHURN` e limpar a interface.
+com prefixo `NG`, consolidar `CANCELAMENTO` + `CHURN`, incluir uma aba propria
+de `Movel` e limpar a interface.
 
 ---
 
@@ -36,6 +37,7 @@ Estao funcionando:
 - `Lista de Vendas`
 - `Funil de Instalacoes`
 - `Cruzamento Vero` com normalizacao de `ID Contrato` e leitura de `CHURN`
+- `Cruzamento Vero` com aba dedicada para `Movel`
 - `Leads Meta Ads`
 - `Painel Ads`
 - `Disparos em Massa`

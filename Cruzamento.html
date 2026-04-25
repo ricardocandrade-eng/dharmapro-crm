@@ -91,6 +91,7 @@
     border-bottom: 1px solid var(--border);
     background: var(--surface);
     padding: 0 24px;
+    overflow-x: auto;
   }
 
   .cruz-tab {
@@ -365,7 +366,7 @@
 <div id="pageCruzamento" class="page">
   <div class="cruz-toolbar">
     <h2>Cruzamento Vero</h2>
-    <label class="cruz-upload-btn" for="cruzInputFile">Importar relatório XLS</label>
+    <label class="cruz-upload-btn" for="cruzInputFile">Importar relatorio XLS</label>
     <input type="file" id="cruzInputFile" accept=".xlsx,.xls" onchange="_cruzamentoImportar(this)">
     <span class="cruz-status" id="cruzStatus">Nenhum arquivo importado</span>
     <button class="btn btn-ghost btn-sm" onclick="_cruzamentoLimpar()" id="cruzBtnLimpar" style="display:none">Limpar</button>
@@ -376,17 +377,20 @@
       Venda Bruta <span class="cruz-tab-badge" id="cruzBadgeVendas">-</span>
     </div>
     <div class="cruz-tab" onclick="_cruzTab('instalacoes', this)">
-      Instalações <span class="cruz-tab-badge" id="cruzBadgeInstalacoes">-</span>
+      Instalacoes <span class="cruz-tab-badge" id="cruzBadgeInstalacoes">-</span>
     </div>
     <div class="cruz-tab" onclick="_cruzTab('cancelamentos', this)">
       Cancelamentos <span class="cruz-tab-badge" id="cruzBadgeCancelamentos">-</span>
+    </div>
+    <div class="cruz-tab" onclick="_cruzTab('movel', this)">
+      Movel <span class="cruz-tab-badge" id="cruzBadgeMovel">-</span>
     </div>
   </div>
 
   <div class="cruz-body" id="cruzBody">
     <div class="cruz-empty">
       <div class="cruz-empty-icon">+</div>
-      <h3>Nenhum relatório importado</h3>
+      <h3>Nenhum relatorio importado</h3>
       <p>Importe o arquivo XLS enviado pela Vero para cruzar os contratos com a base atual do CRM.</p>
     </div>
   </div>
@@ -418,7 +422,7 @@ function _cruzamentoImportar(inputEl) {
   reader.onload = function(e) {
     try {
       if (typeof XLSX === 'undefined') {
-        _cruzSetStatus('Biblioteca XLSX não carregada. Recarregue a página.', 'err');
+        _cruzSetStatus('Biblioteca XLSX nao carregada. Recarregue a pagina.', 'err');
         return;
       }
 
@@ -426,20 +430,22 @@ function _cruzamentoImportar(inputEl) {
       var wb = XLSX.read(data, { type: 'array' });
 
       var vendas = _cruzLerAba(wb, ['VENDAS']);
-      var instalacoes = _cruzLerAba(wb, ['INSTALACOES', 'INSTALAÇÕES']);
+      var instalacoes = _cruzLerAba(wb, ['INSTALACOES', 'INSTALACOES', 'INSTALACOES']);
       var cancelamento = _cruzLerAba(wb, ['CANCELAMENTO', 'CANCELAMENTOS']);
       var churn = _cruzLerAba(wb, ['CHURN']);
+      var movel = _cruzLerAba(wb, ['MOVEL', 'MOVEL']);
       var cancelamentos = _cruzCombinarAbas([cancelamento, churn]);
 
-      if (!vendas.length && !instalacoes.length && !cancelamentos.length) {
-        _cruzSetStatus('Nenhuma aba válida encontrada. Abas disponíveis: ' + wb.SheetNames.join(', '), 'err');
+      if (!vendas.length && !instalacoes.length && !cancelamentos.length && !movel.length) {
+        _cruzSetStatus('Nenhuma aba valida encontrada. Abas disponiveis: ' + wb.SheetNames.join(', '), 'err');
         return;
       }
 
       _cruzDados = {
         vendas: vendas,
         instalacoes: instalacoes,
-        cancelamentos: cancelamentos
+        cancelamentos: cancelamentos,
+        movel: movel
       };
 
       _cruzSetStatus('Carregando dados do CRM...', '');
@@ -462,7 +468,7 @@ function _cruzamentoImportar(inputEl) {
         _cruzDadosCRM = [];
         document.getElementById('cruzTabs').style.display = 'flex';
         document.getElementById('cruzBtnLimpar').style.display = '';
-        _cruzSetStatus(file.name + ' importado em modo teste. CRM indisponível neste ambiente.', 'ok');
+        _cruzSetStatus(file.name + ' importado em modo teste. CRM indisponivel neste ambiente.', 'ok');
         _cruzRenderizar();
       }
     } catch (err) {
@@ -560,6 +566,11 @@ function _cruzEhCancelado(status) {
   return key.indexOf('CANCEL') > -1 || key.indexOf('CHURN') > -1 || key.indexOf('DEVOLVID') > -1;
 }
 
+function _cruzEhMovelAtivo(status) {
+  var key = _cruzStatusKey(status);
+  return key.indexOf('ATIVO') > -1 || key.indexOf('ATIVACAO') > -1;
+}
+
 function _cruzMesAno(dataStr) {
   if (!dataStr) return null;
   var s = String(dataStr).trim();
@@ -632,13 +643,14 @@ function _cruzamentoLimpar() {
   document.getElementById('cruzBadgeVendas').textContent = '-';
   document.getElementById('cruzBadgeInstalacoes').textContent = '-';
   document.getElementById('cruzBadgeCancelamentos').textContent = '-';
+  document.getElementById('cruzBadgeMovel').textContent = '-';
   document.querySelectorAll('.cruz-tab').forEach(function(tab, idx) {
     tab.classList.toggle('ativo', idx === 0);
   });
   document.getElementById('cruzBody').innerHTML =
     '<div class="cruz-empty">' +
       '<div class="cruz-empty-icon">+</div>' +
-      '<h3>Nenhum relatório importado</h3>' +
+      '<h3>Nenhum relatorio importado</h3>' +
       '<p>Importe o arquivo XLS enviado pela Vero para cruzar os contratos com a base atual do CRM.</p>' +
     '</div>';
 }
@@ -660,7 +672,7 @@ function _cruzRenderizar() {
     body.innerHTML =
       '<div class="cruz-empty">' +
         '<div class="cruz-empty-icon">+</div>' +
-        '<h3>Nenhum relatório importado</h3>' +
+        '<h3>Nenhum relatorio importado</h3>' +
       '</div>';
     return;
   }
@@ -674,6 +686,9 @@ function _cruzRenderizar() {
       } else if (_cruzTabAtiva === 'instalacoes') {
         _cruzRemoverIconesLista();
         _cruzRenderInstalacoes();
+      } else if (_cruzTabAtiva === 'movel') {
+        _cruzRemoverIconesLista();
+        _cruzRenderMovel();
       } else {
         _cruzRemoverIconesLista();
         _cruzRenderCancelamentos();
@@ -696,12 +711,12 @@ function _cruzResumoPainel(cfg) {
         '<div class="cruz-summary-file">' + _escapeHtml(_cruzArquivoNome || 'Arquivo local') + '</div>' +
       '</div>' +
       '<div class="cruz-summary-grid">' +
-        _cruzResumoCard('Relatório Vero', cfg.totalRelatorio) +
+        _cruzResumoCard('Relatorio Vero', cfg.totalRelatorio) +
         _cruzResumoCard('Contratos CRM', cfg.totalCRM) +
-        _cruzResumoCard('Mês de referência', cfg.mes || 'Todos') +
-        _cruzResumoCard('Observação', cfg.infoCurta || 'IDs normalizados') +
+        _cruzResumoCard('Mes de referencia', cfg.mes || 'Todos') +
+        _cruzResumoCard('Observacao', cfg.infoCurta || 'IDs normalizados') +
       '</div>' +
-      '<div class="cruz-summary-note">' + _escapeHtml(cfg.nota || 'IDs com prefixos como NG são normalizados automaticamente antes da comparação.') + '</div>' +
+      '<div class="cruz-summary-note">' + _escapeHtml(cfg.nota || 'IDs com prefixos como NG sao normalizados automaticamente antes da comparacao.') + '</div>' +
     '</div>'
   );
 }
@@ -808,12 +823,12 @@ function _cruzRenderVendas() {
   var html =
     _cruzResumoPainel({
       titulo: 'Venda Bruta',
-      subtitulo: 'Comparação por ID Contrato entre a aba de vendas da Vero e os contratos ativos do CRM.',
+      subtitulo: 'Comparacao por ID Contrato entre a aba de vendas da Vero e os contratos ativos do CRM.',
       totalRelatorio: rows.length,
       totalCRM: crmMes.length,
       mes: mesVigente || 'Todos',
       infoCurta: 'NG ignorado',
-      nota: 'A comparação usa apenas o ID Contrato normalizado. Prefixos como NG, aspas e sufixos .0 são removidos antes do match.'
+      nota: 'A comparacao usa apenas o ID Contrato normalizado. Prefixos como NG, aspas e sufixos .0 sao removidos antes do match.'
     }) +
     _cruzKanban(
       {
@@ -827,13 +842,13 @@ function _cruzRenderVendas() {
             _rows: [
               'ID: ' + _cruzNormId(idVero),
               item.crm.status || 'Sem status',
-              'Ativação CRM: ' + _fmtData(item.crm.dataAtiv)
+              'Ativacao CRM: ' + _fmtData(item.crm.dataAtiv)
             ]
           };
         })
       },
       {
-        titulo: 'Apenas no Relatório Vero',
+        titulo: 'Apenas no Relatorio Vero',
         cor: 'var(--yellow)',
         items: soVero.map(function(row) {
           var idVero = row.ID_CONTRATO || row.CONTRATO || row.Contrato || 'Sem ID';
@@ -841,8 +856,8 @@ function _cruzRenderVendas() {
             _nome: _cruzNormId(idVero) || idVero,
             _cls: 'amarelo',
             _rows: [
-              row.NOME_PLANO_ATUAL || 'Plano não informado',
-              row.CIDADE_HIERARQUIA || 'Cidade não informada',
+              row.NOME_PLANO_ATUAL || 'Plano nao informado',
+              row.CIDADE_HIERARQUIA || 'Cidade nao informada',
               'Cadastro Vero: ' + (row.DATA_CADASTRO || '')
             ]
           };
@@ -858,7 +873,7 @@ function _cruzRenderVendas() {
             _rows: [
               'ID: ' + _cruzNormId(item.contrato),
               item.status || 'Sem status',
-              'Ativação CRM: ' + _fmtData(item.dataAtiv)
+              'Ativacao CRM: ' + _fmtData(item.dataAtiv)
             ]
           };
         })
@@ -870,7 +885,7 @@ function _cruzRenderVendas() {
 
 function _cruzRenderInstalacoes() {
   var rows = _cruzDados.instalacoes || [];
-  var mesVigente = _cruzMesVigente(rows, 'DATA_HABILITAÇÃO') || _cruzMesVigente(rows, 'DATA_HABILITACAO');
+  var mesVigente = _cruzMesVigente(rows, 'DATA_HABILITACAO') || _cruzMesVigente(rows, 'DATA_HABILITAÇÃO');
   var crmMes = _cruzCRMdoMes('instal', mesVigente);
   var mapaCRM = _cruzMapear(crmMes);
 
@@ -901,45 +916,45 @@ function _cruzRenderInstalacoes() {
 
   var html =
     _cruzResumoPainel({
-      titulo: 'Instalações',
-      subtitulo: 'Conciliação entre habilitações da Vero e contratos efetivamente instalados no CRM.',
+      titulo: 'Instalacoes',
+      subtitulo: 'Conciliacao entre habilitacoes da Vero e contratos efetivamente instalados no CRM.',
       totalRelatorio: rows.length,
       totalCRM: crmMes.length,
       mes: mesVigente || 'Todos',
-      infoCurta: 'Conciliação',
-      nota: 'Quando o contrato aparece na Vero mas ainda não está finalizado no CRM, ele fica na coluna intermediária para tratamento operacional.'
+      infoCurta: 'Conciliacao',
+      nota: 'Quando o contrato aparece na Vero mas ainda nao esta finalizado no CRM, ele fica na coluna intermediaria para tratamento operacional.'
     }) +
     _cruzKanban(
       {
         titulo: 'Match',
         cor: 'var(--green)',
         items: bateu.map(function(item) {
-          var dataHab = item.vero['DATA_HABILITAÇÃO'] || item.vero['DATA_HABILITACAO'] || '';
+          var dataHab = item.vero.DATA_HABILITACAO || item.vero['DATA_HABILITACAO'] || item.vero['DATA_HABILITAÇÃO'] || '';
           var idVero = item.vero.ID_CONTRATO || item.vero.CONTRATO || item.vero.Contrato;
           return {
             _nome: item.crm.cliente || idVero,
             _cls: 'verde',
             _rows: [
               'ID: ' + _cruzNormId(idVero),
-              'Habilitação Vero: ' + dataHab,
+              'Habilitacao Vero: ' + dataHab,
               'Valor: R$ ' + (item.vero.VALOR_CONTRATO || '')
             ]
           };
         })
       },
       {
-        titulo: 'Apenas no Relatório Vero',
+        titulo: 'Apenas no Relatorio Vero',
         cor: 'var(--yellow)',
         items: pendente.map(function(item) {
-          var dataHab = item.vero['DATA_HABILITAÇÃO'] || item.vero['DATA_HABILITACAO'] || '';
+          var dataHab = item.vero.DATA_HABILITACAO || item.vero['DATA_HABILITACAO'] || item.vero['DATA_HABILITAÇÃO'] || '';
           var idVero = item.vero.ID_CONTRATO || item.vero.CONTRATO || item.vero.Contrato;
           return {
             _nome: item.crm ? (item.crm.cliente || _cruzNormId(idVero)) : (_cruzNormId(idVero) || idVero),
             _cls: 'amarelo',
             _rows: [
               'ID: ' + _cruzNormId(idVero),
-              item.crm ? 'Status CRM: ' + (item.crm.status || 'Sem status') : 'Não encontrado no CRM',
-              'Habilitação Vero: ' + dataHab
+              item.crm ? 'Status CRM: ' + (item.crm.status || 'Sem status') : 'Nao encontrado no CRM',
+              'Habilitacao Vero: ' + dataHab
             ]
           };
         })
@@ -953,7 +968,7 @@ function _cruzRenderInstalacoes() {
             _cls: 'vermelho',
             _rows: [
               'ID: ' + _cruzNormId(item.contrato),
-              'Instalação CRM: ' + _fmtData(item.instal),
+              'Instalacao CRM: ' + _fmtData(item.instal),
               item.status || 'Sem status'
             ]
           };
@@ -997,11 +1012,11 @@ function _cruzRenderCancelamentos() {
   var html =
     _cruzResumoPainel({
       titulo: 'Cancelamentos',
-      subtitulo: 'Leitura conjunta das abas CANCELAMENTO e CHURN para não perder cancelamentos do arquivo da Vero.',
+      subtitulo: 'Leitura conjunta das abas CANCELAMENTO e CHURN para nao perder cancelamentos do arquivo da Vero.',
       totalRelatorio: rows.length,
       totalCRM: _cruzDadosCRM.length,
       mes: _cruzMesVigente(rows, 'DATA_CANCELAMENTO') || 'Todos',
-      infoCurta: 'CHURN incluído',
+      infoCurta: 'CHURN incluido',
       nota: 'Esta aba soma os registros de CANCELAMENTO e CHURN. Assim o cruzamento reflete o arquivo real da Vero, mesmo quando os cancelamentos vierem separados.'
     }) +
     _cruzKanban(
@@ -1022,7 +1037,7 @@ function _cruzRenderCancelamentos() {
         })
       },
       {
-        titulo: 'Apenas no Relatório Vero',
+        titulo: 'Apenas no Relatorio Vero',
         cor: 'var(--yellow)',
         items: soVero.map(function(item) {
           var idVero = item.vero.ID_CONTRATO || item.vero.CONTRATO || item.vero.Contrato;
@@ -1031,8 +1046,8 @@ function _cruzRenderCancelamentos() {
             _cls: 'amarelo',
             _rows: [
               'ID: ' + _cruzNormId(idVero),
-              item.crm ? 'Status atual no CRM: ' + (item.crm.status || 'Sem status') : 'Não encontrado no CRM',
-              item.vero.MOTIVO_CANCELAMENTO || item.vero.TIPO_CANCELAMENTO || 'Motivo não informado'
+              item.crm ? 'Status atual no CRM: ' + (item.crm.status || 'Sem status') : 'Nao encontrado no CRM',
+              item.vero.MOTIVO_CANCELAMENTO || item.vero.TIPO_CANCELAMENTO || 'Motivo nao informado'
             ]
           };
         })
@@ -1047,7 +1062,100 @@ function _cruzRenderCancelamentos() {
             _rows: [
               'ID: ' + _cruzNormId(item.contrato),
               item.status || 'Sem status',
-              'Ativação CRM: ' + _fmtData(item.dataAtiv)
+              'Ativacao CRM: ' + _fmtData(item.dataAtiv)
+            ]
+          };
+        })
+      }
+    );
+
+  document.getElementById('cruzBody').innerHTML = html;
+}
+
+function _cruzRenderMovel() {
+  var rows = _cruzDados.movel || [];
+  var mesVigente = _cruzMesVigente(rows, 'DATA_VENDA');
+  var crmMes = _cruzCRMdoMes('dataAtiv', mesVigente);
+  var mapaCRM = _cruzMapear(crmMes);
+
+  document.getElementById('cruzBadgeMovel').textContent = rows.length;
+
+  var idsMovel = {};
+  var bateu = [];
+  var soMovel = [];
+  var soCRM = [];
+
+  rows.forEach(function(row) {
+    var id = _cruzNormId(row.IDCONTRATO || row.ID_CONTRATO || row.CONTRATO || row.Contrato);
+    if (!id) return;
+    idsMovel[id] = true;
+    if (mapaCRM[id]) {
+      bateu.push({ movel: row, crm: mapaCRM[id] });
+    } else {
+      soMovel.push(row);
+    }
+  });
+
+  crmMes.forEach(function(item) {
+    var id = _cruzNormId(item.contrato);
+    if (!id || !_cruzEhMovelAtivo(item.status) || idsMovel[id]) return;
+    soCRM.push(item);
+  });
+
+  var html =
+    _cruzResumoPainel({
+      titulo: 'Movel',
+      subtitulo: 'Comparacao da aba MOVEL da Vero com os contratos do CRM do mesmo mes de referencia.',
+      totalRelatorio: rows.length,
+      totalCRM: crmMes.length,
+      mes: mesVigente || 'Todos',
+      infoCurta: 'NG normalizado',
+      nota: 'O ID do movel tambem passa pela mesma normalizacao. Ex.: NG202750109 vira 202750109 antes do cruzamento.'
+    }) +
+    _cruzKanban(
+      {
+        titulo: 'Match',
+        cor: 'var(--green)',
+        items: bateu.map(function(item) {
+          var idMovel = item.movel.IDCONTRATO || item.movel.ID_CONTRATO || item.movel.CONTRATO || item.movel.Contrato;
+          return {
+            _nome: item.crm.cliente || _cruzNormId(idMovel),
+            _cls: 'verde',
+            _rows: [
+              'ID: ' + _cruzNormId(idMovel),
+              item.movel.STATUS_CONTRATO || 'Sem status Vero',
+              'Plano: ' + (item.movel.PLANO || item.movel.NOME_PLANO_ATUAL || '')
+            ]
+          };
+        })
+      },
+      {
+        titulo: 'Apenas no Relatorio Movel',
+        cor: 'var(--yellow)',
+        items: soMovel.map(function(row) {
+          var idMovel = row.IDCONTRATO || row.ID_CONTRATO || row.CONTRATO || row.Contrato || 'Sem ID';
+          return {
+            _nome: _cruzNormId(idMovel) || idMovel,
+            _cls: 'amarelo',
+            _rows: [
+              'Status: ' + (row.STATUS_CONTRATO || 'Nao informado'),
+              'Cliente: ' + (row.IDCLIENTE || row.COD_CLIENTE || 'Nao informado'),
+              'Canal/CRM: ' + ((row.CRM || '-') + ' / ' + (row.TIPO_VENDAS || '-'))
+            ]
+          };
+        })
+      },
+      {
+        titulo: 'Apenas no CRM',
+        cor: 'var(--accent)',
+        items: soCRM.map(function(item) {
+          return {
+            _nome: item.cliente || item.contrato,
+            _cls: 'vermelho',
+            _rows: [
+              'ID: ' + _cruzNormId(item.contrato),
+              item.status || 'Sem status',
+              'Ativacao CRM: ' + _fmtData(item.dataAtiv)
             ]
           };
         })
@@ -1084,10 +1192,10 @@ function _cruzAtualizarIconesLista(bateu, soVero, soCRM) {
 
     if (setBateu[id]) {
       icone.textContent = 'OK';
-      icone.title = 'Encontrado no relatório da Vero';
+      icone.title = 'Encontrado no relatorio da Vero';
     } else if (setSoCRM[id]) {
       icone.textContent = 'Vero?';
-      icone.title = 'Contrato do CRM não encontrado no relatório da Vero';
+      icone.title = 'Contrato do CRM nao encontrado no relatorio da Vero';
     } else {
       return;
     }

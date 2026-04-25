@@ -96,6 +96,7 @@ Estado atualizado em 25/04/2026:
 - o frontend normaliza o ID removendo prefixos e caracteres nao numericos
   como `NG`, aspas e sufixo `.0` antes do match;
 - a aba de cancelamentos agora consolida `CANCELAMENTO` + `CHURN` do XLS da Vero;
+- a aba `MOVEL` do XLS agora possui uma visao propria dentro do CRM;
 - a view foi reescrita para evitar textos quebrados e melhorar a leitura operacional.
 
 ---
