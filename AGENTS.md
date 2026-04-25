@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | AGENTS.md | 25/04/2026 -->
+<!-- dharmapro-crm | AGENTS.md | 25/04/2026 16:10 -->
 
 # DharmaPro CRM
 
@@ -88,6 +88,15 @@ Papel no ecossistema:
 - `PainelAds.html`: painel operacional de Meta Ads.
 - `Disparos.html`: modulo de Disparos em Massa.
 - `Usuarios.html`: painel de Gerenciar Usuarios (admin only) — duas abas: Usuarios e Permissoes por Perfil.
+
+### Cruzamento Vero
+
+Estado atualizado em 25/04/2026:
+- a chave principal de comparacao e o `ID Contrato`;
+- o frontend normaliza o ID removendo prefixos e caracteres nao numericos
+  como `NG`, aspas e sufixo `.0` antes do match;
+- a aba de cancelamentos agora consolida `CANCELAMENTO` + `CHURN` do XLS da Vero;
+- a view foi reescrita para evitar textos quebrados e melhorar a leitura operacional.
 
 ---
 
@@ -254,6 +263,8 @@ Fatos confirmados:
 - deploy automatizado via GitHub Actions com `clasp push --force`;
 - workflow atualiza `DEPLOY_DATE` em `Config.js` antes do deploy;
 - `deploymentId` fixo: `AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw`
+- depois de qualquer ajuste em producao, validar sincronismo entre pasta local,
+  `git status` e ultimo `clasp push/deploy`.
 
 Fluxo manual de deploy:
 ```bash

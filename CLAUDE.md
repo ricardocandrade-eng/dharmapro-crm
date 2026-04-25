@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 08:02 -->
+<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 16:10 -->
 
 # dharmapro-crm
 
@@ -9,6 +9,9 @@ Roda em **Google Apps Script + Google Sheets + HTML/JS** e esta em **producao**.
 
 Em 24/04/2026 o projeto passou por uma recuperacao completa de producao, consolidacao
 de modulos operacionais e implementacao do modulo de Gerenciar Usuarios.
+
+Em 25/04/2026 o modulo `Cruzamento Vero` foi revisado para tratar IDs de contrato
+com prefixo `NG`, consolidar `CANCELAMENTO` + `CHURN` e limpar a interface.
 
 ---
 
@@ -32,6 +35,7 @@ Estao funcionando:
 - `Dashboard`
 - `Lista de Vendas`
 - `Funil de Instalacoes`
+- `Cruzamento Vero` com normalizacao de `ID Contrato` e leitura de `CHURN`
 - `Leads Meta Ads`
 - `Painel Ads`
 - `Disparos em Massa`
@@ -183,6 +187,7 @@ Observacao importante:
 - `Dashboard.html`
 
 ### Views importantes
+- `Cruzamento.html`
 - `PainelAds.html`
 - `Disparos.html`
 - `LeadsMetaAds.html`
