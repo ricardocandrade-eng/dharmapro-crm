@@ -1306,7 +1306,7 @@ function confirmarAlteracaoSenha() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -1323,7 +1323,8 @@ var _menuMap = {
   'tickets':     'menuTickets',
   'extrato':     'menuExtrato',
   'config':      'menuConfig',
-  'disparos':    'menuDisparos'
+  'disparos':    'menuDisparos',
+  'usuarios':    'menuUsuarios'
 };
 
 function _aplicarMenus(menus) {
@@ -1605,6 +1606,30 @@ function navegar(pagina) {
           dpc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Disparos: ' + e.message + '</div>';
         })
         .getDisparosHtml();
+    }
+
+  } else if (pagina === 'usuarios') {
+    document.getElementById('menuUsuarios').classList.add('ativo');
+    document.getElementById('pageUsuarios').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Gerenciar Usuários';
+    var uc = document.getElementById('usuariosContainer');
+    if (!uc.getAttribute('data-loaded')) {
+      uc.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          uc.innerHTML = html;
+          uc.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+          if (typeof usuariosInit === 'function') usuariosInit();
+        })
+        .withFailureHandler(function(e) {
+          uc.removeAttribute('data-loaded');
+          uc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Usuários: ' + e.message + '</div>';
+        })
+        .getUsuariosHtml();
     }
   }
 }
@@ -6407,7 +6432,7 @@ function _resetarTimerInatividade() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -6424,7 +6449,8 @@ var _menuMap = {
   'tickets':     'menuTickets',
   'extrato':     'menuExtrato',
   'config':      'menuConfig',
-  'disparos':    'menuDisparos'
+  'disparos':    'menuDisparos',
+  'usuarios':    'menuUsuarios'
 };
 
 function _aplicarMenus(menus) {
@@ -6706,6 +6732,30 @@ function navegar(pagina) {
           dpc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Disparos: ' + e.message + '</div>';
         })
         .getDisparosHtml();
+    }
+
+  } else if (pagina === 'usuarios') {
+    document.getElementById('menuUsuarios').classList.add('ativo');
+    document.getElementById('pageUsuarios').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Gerenciar Usuários';
+    var uc = document.getElementById('usuariosContainer');
+    if (!uc.getAttribute('data-loaded')) {
+      uc.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          uc.innerHTML = html;
+          uc.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+          if (typeof usuariosInit === 'function') usuariosInit();
+        })
+        .withFailureHandler(function(e) {
+          uc.removeAttribute('data-loaded');
+          uc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Usuários: ' + e.message + '</div>';
+        })
+        .getUsuariosHtml();
     }
   }
 }

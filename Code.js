@@ -1154,6 +1154,67 @@ function doPost(e) {
 
 // ─── AUTENTICAÇÃO REAL ─────────────────────────────────────────────────────
 
+// Lê usuários da aba Usuarios da planilha. Retorna [] em qualquer erro.
+function _getUsuariosSheet_() {
+  try {
+    var ss    = _getSpreadsheet_();
+    var sheet = ss.getSheetByName(CONFIG.SHEET_USUARIOS);
+    if (!sheet || sheet.getLastRow() < 2) return [];
+    var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues();
+    return data.map(function(r) {
+      return {
+        usuario:   String(r[0]).trim(),
+        senhaHash: String(r[1]).trim(),
+        nome:      String(r[2]).trim(),
+        perfil:    String(r[3]).trim() || 'backoffice',
+        foto:      String(r[4]).trim(),
+        ativo:     r[5] === true || String(r[5]).toLowerCase() === 'true'
+      };
+    }).filter(function(u) { return u.usuario !== ''; });
+  } catch(e) {
+    Logger.log('_getUsuariosSheet_ erro: ' + e.message);
+    return [];
+  }
+}
+
+// Retorna PERFIS_MENUS vigente: PropertiesService (editado via CRM) ou Config.js (padrão).
+function _getPerfilMenus_() {
+  try {
+    var json = PropertiesService.getScriptProperties().getProperty('PERFIS_MENUS_JSON');
+    if (json) return JSON.parse(json);
+  } catch(e) {
+    Logger.log('_getPerfilMenus_ parse erro: ' + e.message);
+  }
+  return PERFIS_MENUS;
+}
+
+// Retorna PERFIS_MENUS vigente para o frontend (leitura pública após login).
+function getPerfilMenus(adminUsuario) {
+  try {
+    _assertAdmin_(adminUsuario);
+    return { ok: true, data: _getPerfilMenus_() };
+  } catch(e) {
+    return { ok: false, mensagem: e.message };
+  }
+}
+
+// Salva PERFIS_MENUS customizado no PropertiesService.
+// perfilMenus = { admin: [...], supervisor: [...], backoffice: [...] }
+function salvarPerfilMenus(adminUsuario, perfilMenus) {
+  try {
+    _assertAdmin_(adminUsuario);
+    var perfisValidos = ['admin', 'supervisor', 'backoffice'];
+    perfisValidos.forEach(function(p) {
+      if (!Array.isArray(perfilMenus[p])) throw new Error('Perfil "' + p + '" inválido ou ausente.');
+    });
+    PropertiesService.getScriptProperties().setProperty('PERFIS_MENUS_JSON', JSON.stringify(perfilMenus));
+    return { ok: true, mensagem: 'Permissões salvas com sucesso.' };
+  } catch(e) {
+    Logger.log('salvarPerfilMenus erro: ' + e.message);
+    return { ok: false, mensagem: e.message };
+  }
+}
+
 // Converte string para hash SHA-256 (hex) usando Utilities do GAS
 function _sha256(texto) {
   var bytes = Utilities.computeDigest(
@@ -1248,28 +1309,33 @@ function validarLogin(usuario, senha) {
 
     var senhaHash = _sha256(senha);
 
-    // Menus definidos em Config.js (PERFIS_MENUS) — fonte única de verdade
-    for (var i = 0; i < USUARIOS.length; i++) {
-      var reg = USUARIOS[i];
+    // Fonte primária: planilha Usuarios. Fallback: Config.js
+    var todosList = _getUsuariosSheet_();
+    if (!todosList || todosList.length === 0) todosList = USUARIOS;
+
+    for (var i = 0; i < todosList.length; i++) {
+      var reg = todosList[i];
+      if (reg.ativo === false) continue; // ignora usuários inativos (apenas na planilha)
       if (String(reg.usuario).trim().toLowerCase() !== u) continue;
 
       // Prioridade de verificação de senha:
       // 1. PropertiesService (senha alterada pelo próprio usuário — tem precedência)
-      // 2. senhaHash em Config.js (hash SHA-256 — padrão)
+      // 2. senhaHash no registro (planilha ou Config.js)
       // 3. senha em Config.js (texto puro — legado, suporte à migração)
       var hashSalvo = PropertiesService.getScriptProperties().getProperty('pwd_' + u);
       var senhaOk = hashSalvo
         ? hashSalvo === senhaHash
         : reg.senhaHash
           ? reg.senhaHash === senhaHash
-          : String(reg.senha) === senha;
+          : String(reg.senha || '') === senha;
 
       if (senhaOk) {
         _limparFalhasLogin(u);
-        var perfil = reg.perfil || 'backoffice';
-        var menus  = (typeof PERFIS_MENUS !== 'undefined' && PERFIS_MENUS[perfil])
-                       ? PERFIS_MENUS[perfil]
-                       : ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','config'];
+        var perfil     = reg.perfil || 'backoffice';
+        var perfilMap  = _getPerfilMenus_();
+        var menus      = (perfilMap && perfilMap[perfil])
+                           ? perfilMap[perfil]
+                           : ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','config'];
         return {
           autorizado: true,
           nome:       reg.nome   || reg.usuario,
@@ -5064,4 +5130,211 @@ function migrarColunas() {
   var msg = 'migrarColunas() OK — ' + (totalLinhas - 2) + ' linhas de dados remapeadas para ' + CONFIG.TOTAL_COLUNAS + ' colunas.';
   Logger.log(msg);
   return msg;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  GERENCIAR USUÁRIOS — API do painel admin
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Migração única: copia usuários de Config.js para a aba Usuarios da planilha.
+// Idempotente — não faz nada se já houver linhas de dados.
+// Execute UMA VEZ no editor Apps Script: Ferramentas → Executar → migrarUsuariosParaSheet
+function migrarUsuariosParaSheet() {
+  var ss    = _getSpreadsheet_();
+  var sheet = ss.getSheetByName(CONFIG.SHEET_USUARIOS);
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.SHEET_USUARIOS);
+  }
+  if (sheet.getLastRow() > 1) {
+    Logger.log('migrarUsuariosParaSheet: planilha já populada — nenhuma ação tomada.');
+    return 'Já populada.';
+  }
+  sheet.getRange(1, 1, 1, 6).setValues([['usuario', 'senhaHash', 'nome', 'perfil', 'foto', 'ativo']]);
+  var rows = USUARIOS.map(function(u) {
+    return [u.usuario, u.senhaHash || '', u.nome, u.perfil, u.foto || '', true];
+  });
+  sheet.getRange(2, 1, rows.length, 6).setValues(rows);
+  var msg = 'migrarUsuariosParaSheet: ' + rows.length + ' usuários migrados.';
+  Logger.log(msg);
+  return msg;
+}
+
+// Verifica se adminUsuario é admin. Lança erro se não for.
+function _assertAdmin_(adminUsuario) {
+  var u     = String(adminUsuario || '').trim().toLowerCase();
+  var lista = _getUsuariosSheet_();
+  if (!lista || lista.length === 0) lista = USUARIOS;
+  var match = lista.filter(function(r) {
+    return String(r.usuario).trim().toLowerCase() === u && r.ativo !== false;
+  });
+  if (!match.length || match[0].perfil !== 'admin') {
+    throw new Error('Acesso negado: apenas administradores podem executar esta ação.');
+  }
+}
+
+// Retorna lista de usuários sem senhaHash (apenas para admin).
+function getUsuarios(adminUsuario) {
+  try {
+    _assertAdmin_(adminUsuario);
+    var lista = _getUsuariosSheet_();
+    if (!lista || lista.length === 0) {
+      lista = USUARIOS.map(function(u) {
+        return { usuario: u.usuario, nome: u.nome, perfil: u.perfil, foto: u.foto || '', ativo: true };
+      });
+    }
+    return lista.map(function(u) {
+      return { usuario: u.usuario, nome: u.nome, perfil: u.perfil, foto: u.foto, ativo: u.ativo !== false };
+    });
+  } catch(e) {
+    Logger.log('getUsuarios erro: ' + e.message);
+    return { erro: e.message };
+  }
+}
+
+// Cria ou atualiza um usuário na planilha.
+// dados = { usuario, nome, perfil, foto?, ativo?, senhaInicial? }
+function salvarUsuario(adminUsuario, dados) {
+  try {
+    _assertAdmin_(adminUsuario);
+    if (!dados || !dados.usuario || !dados.nome || !dados.perfil) {
+      return { ok: false, mensagem: 'Campos obrigatórios ausentes.' };
+    }
+    if (['admin','supervisor','backoffice'].indexOf(dados.perfil) === -1) {
+      return { ok: false, mensagem: 'Perfil inválido.' };
+    }
+    var ss    = _getSpreadsheet_();
+    var sheet = ss.getSheetByName(CONFIG.SHEET_USUARIOS);
+    if (!sheet) return { ok: false, mensagem: 'Aba Usuarios não encontrada. Execute migrarUsuariosParaSheet primeiro.' };
+
+    var uKey    = String(dados.usuario).trim().toLowerCase();
+    var lastRow = sheet.getLastRow();
+    var existingRow = -1;
+
+    if (lastRow >= 2) {
+      var colA = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (var i = 0; i < colA.length; i++) {
+        if (String(colA[i][0]).trim().toLowerCase() === uKey) {
+          existingRow = i + 2;
+          break;
+        }
+      }
+    }
+
+    var novoHash = '';
+    if (existingRow > 0) {
+      novoHash = sheet.getRange(existingRow, 2).getValue() || '';
+    } else if (dados.senhaInicial) {
+      novoHash = _sha256(dados.senhaInicial);
+    }
+
+    var rowData = [
+      dados.usuario,
+      novoHash,
+      dados.nome,
+      dados.perfil,
+      dados.foto || '',
+      dados.ativo !== false
+    ];
+
+    if (existingRow > 0) {
+      sheet.getRange(existingRow, 1, 1, 6).setValues([rowData]);
+      return { ok: true, mensagem: 'Usuário atualizado com sucesso.' };
+    } else {
+      sheet.appendRow(rowData);
+      return { ok: true, mensagem: 'Usuário criado com sucesso.' };
+    }
+  } catch(e) {
+    Logger.log('salvarUsuario erro: ' + e.message);
+    return { ok: false, mensagem: e.message };
+  }
+}
+
+// Ativa ou desativa um usuário na planilha.
+function toggleAtivoUsuario(adminUsuario, usuarioAlvo, ativo) {
+  try {
+    _assertAdmin_(adminUsuario);
+    var ss    = _getSpreadsheet_();
+    var sheet = ss.getSheetByName(CONFIG.SHEET_USUARIOS);
+    if (!sheet) return { ok: false, mensagem: 'Aba Usuarios não encontrada.' };
+
+    var uKey    = String(usuarioAlvo).trim().toLowerCase();
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { ok: false, mensagem: 'Nenhum usuário encontrado.' };
+
+    var colA = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < colA.length; i++) {
+      if (String(colA[i][0]).trim().toLowerCase() === uKey) {
+        sheet.getRange(i + 2, 6).setValue(ativo === true);
+        return { ok: true, mensagem: 'Status atualizado.' };
+      }
+    }
+    return { ok: false, mensagem: 'Usuário não encontrado.' };
+  } catch(e) {
+    Logger.log('toggleAtivoUsuario erro: ' + e.message);
+    return { ok: false, mensagem: e.message };
+  }
+}
+
+// Redefine a senha de um usuário (admin pode redefinir qualquer um).
+// Grava em PropertiesService (prioridade no login) e atualiza coluna B da planilha.
+function resetarSenha(adminUsuario, usuarioAlvo, novaSenha) {
+  try {
+    _assertAdmin_(adminUsuario);
+    if (!novaSenha || novaSenha.length < 6) {
+      return { ok: false, mensagem: 'A senha deve ter ao menos 6 caracteres.' };
+    }
+    var u        = String(usuarioAlvo).trim().toLowerCase();
+    var novoHash = _sha256(novaSenha);
+    PropertiesService.getScriptProperties().setProperty('pwd_' + u, novoHash);
+
+    // Atualiza coluna B na planilha para manter consistência
+    var ss    = _getSpreadsheet_();
+    var sheet = ss.getSheetByName(CONFIG.SHEET_USUARIOS);
+    if (sheet && sheet.getLastRow() >= 2) {
+      var colA = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues();
+      for (var i = 0; i < colA.length; i++) {
+        if (String(colA[i][0]).trim().toLowerCase() === u) {
+          sheet.getRange(i + 2, 2).setValue(novoHash);
+          break;
+        }
+      }
+    }
+    return { ok: true, mensagem: 'Senha redefinida com sucesso.' };
+  } catch(e) {
+    Logger.log('resetarSenha erro: ' + e.message);
+    return { ok: false, mensagem: e.message };
+  }
+}
+
+// Remove um usuário da aba Usuarios. Não permite excluir o próprio admin logado.
+function excluirUsuario(adminUsuario, usuarioAlvo) {
+  try {
+    _assertAdmin_(adminUsuario);
+    var uAdmin = String(adminUsuario).trim().toLowerCase();
+    var uAlvo  = String(usuarioAlvo).trim().toLowerCase();
+    if (uAdmin === uAlvo) {
+      return { ok: false, mensagem: 'Você não pode excluir o seu próprio usuário.' };
+    }
+    var ss    = _getSpreadsheet_();
+    var sheet = ss.getSheetByName(CONFIG.SHEET_USUARIOS);
+    if (!sheet) return { ok: false, mensagem: 'Aba Usuarios não encontrada.' };
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return { ok: false, mensagem: 'Nenhum usuário encontrado.' };
+    var colA = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < colA.length; i++) {
+      if (String(colA[i][0]).trim().toLowerCase() === uAlvo) {
+        sheet.deleteRow(i + 2);
+        return { ok: true, mensagem: 'Usuário excluído.' };
+      }
+    }
+    return { ok: false, mensagem: 'Usuário não encontrado na planilha.' };
+  } catch(e) {
+    Logger.log('excluirUsuario erro: ' + e.message);
+    return { ok: false, mensagem: e.message };
+  }
+}
+
+// Retorna o HTML do painel de usuários para injeção no CRM.
+function getUsuariosHtml() {
+  return HtmlService.createHtmlOutputFromFile('Usuarios').getContent();
 }

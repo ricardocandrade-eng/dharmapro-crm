@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<!-- Usuarios.html — DharmaPro CRM · Gerenciar Usuários + Permissões por Perfil -->
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Usuários — DharmaPro</title>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #141720;
+      --surface2: #1c2030;
+      --border:   #252a3a;
+      --border2:  #353d58;
+      --accent:   #e63e6d;
+      --accent-h: #c73260;
+      --green:    #22d98a;
+      --blue:     #4f9eff;
+      --text:     #e4e8f5;
+      --muted:    #7a82a0;
+      --radius:   12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Sora', sans-serif; overflow-x: hidden; }
+
+    /* TOAST */
+    #usToast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 10px; padding: 11px 20px; font-size: 13px;
+      z-index: 9999; opacity: 0; transition: opacity .3s, transform .3s;
+      pointer-events: none; white-space: nowrap; max-width: 90vw;
+    }
+    #usToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #usToast.ok  { border-color: var(--green);  color: var(--green);  }
+    #usToast.err { border-color: var(--accent); color: var(--accent); }
+
+    /* LAYOUT */
+    .us-wrap { padding: 28px 32px; max-width: 960px; }
+
+    /* HEADER */
+    .us-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 16px; flex-wrap: wrap; }
+    .us-title { font-size: 20px; font-weight: 700; }
+    .us-subtitle { font-size: 13px; color: var(--muted); margin-top: 3px; }
+
+    /* TABS */
+    .us-tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--border); }
+    .us-tab {
+      padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+      color: var(--muted); border: none; background: transparent;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+      font-family: 'Sora', sans-serif; transition: color .15s, border-color .15s;
+    }
+    .us-tab:hover { color: var(--text); }
+    .us-tab.ativa { color: var(--text); border-bottom-color: var(--accent); }
+
+    .us-panel { display: none; }
+    .us-panel.ativa { display: block; }
+
+    /* BOTÕES */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px; border-radius: 8px; font-size: 13px;
+      font-family: 'Sora', sans-serif; font-weight: 600;
+      cursor: pointer; border: none; transition: background .15s, opacity .15s;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-h); }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border2); }
+    .btn-ghost:hover:not(:disabled) { color: var(--text); background: var(--surface2); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; }
+
+    /* CARD / TABELA */
+    .us-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .us-table { width: 100%; border-collapse: collapse; }
+    .us-table th {
+      text-align: left; padding: 12px 16px; font-size: 11px; font-weight: 600;
+      letter-spacing: .06em; color: var(--muted); text-transform: uppercase;
+      border-bottom: 1px solid var(--border); background: var(--surface2);
+    }
+    .us-table td { padding: 13px 16px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .us-table tr:last-child td { border-bottom: none; }
+    .us-table tr:hover td { background: var(--surface2); }
+
+    /* AVATAR */
+    .us-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; background: var(--surface2); border: 1px solid var(--border2); display: inline-block; vertical-align: middle; }
+    .us-avatar-ph { width: 36px; height: 36px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border2); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: var(--muted); vertical-align: middle; }
+    .us-user-info { display: inline-block; vertical-align: middle; margin-left: 10px; }
+    .us-user-nome { font-weight: 600; font-size: 13px; }
+    .us-user-login { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+    /* BADGES */
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: .03em; }
+    .badge-admin      { background: rgba(230,62,109,.15); color: var(--accent); border: 1px solid rgba(230,62,109,.3); }
+    .badge-supervisor { background: rgba(79,158,255,.12); color: var(--blue);   border: 1px solid rgba(79,158,255,.3); }
+    .badge-backoffice { background: rgba(122,130,160,.12); color: var(--muted); border: 1px solid rgba(122,130,160,.25); }
+
+    /* TOGGLE */
+    .toggle { position: relative; width: 38px; height: 22px; display: inline-block; cursor: pointer; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; border-radius: 22px; background: var(--border2); transition: background .2s; }
+    .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%; left: 3px; top: 3px; background: var(--muted); transition: transform .2s, background .2s; }
+    .toggle input:checked + .toggle-slider { background: rgba(34,217,138,.2); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(16px); background: var(--green); }
+
+    /* AÇÕES */
+    .us-actions { display: flex; gap: 6px; }
+
+    /* MODAL */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(3px); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--surface); border: 1px solid var(--border2); border-radius: 16px; padding: 28px 28px 24px; width: 100%; max-width: 440px; box-shadow: 0 24px 60px rgba(0,0,0,.5); }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+
+    /* FORM */
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; letter-spacing: .04em; }
+    .form-input, .form-select {
+      width: 100%; padding: 10px 13px; border-radius: 8px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text); font-family: 'Sora', sans-serif; font-size: 13px;
+      transition: border-color .2s; outline: none;
+    }
+    .form-input:focus, .form-select:focus { border-color: var(--accent); }
+    .form-input:disabled { opacity: .5; cursor: not-allowed; }
+    .form-select option { background: var(--surface2); }
+
+    /* PERMISSÕES POR PERFIL */
+    .perm-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 4px; }
+    .perm-col { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .perm-col-header {
+      padding: 12px 16px; font-size: 12px; font-weight: 700;
+      letter-spacing: .05em; text-transform: uppercase;
+      border-bottom: 1px solid var(--border); background: var(--surface2);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .perm-col-header .badge { font-size: 10px; }
+    .perm-list { padding: 8px 0; }
+    .perm-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 16px; cursor: pointer;
+      transition: background .1s;
+    }
+    .perm-item:hover { background: var(--surface2); }
+    .perm-item input[type=checkbox] {
+      width: 15px; height: 15px; accent-color: var(--accent);
+      cursor: pointer; flex-shrink: 0;
+    }
+    .perm-item-label { font-size: 13px; cursor: pointer; user-select: none; }
+    .perm-item-id { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; margin-left: auto; }
+
+    .perm-footer { display: flex; justify-content: flex-end; padding: 16px 0 0; }
+
+    /* EMPTY / SPINNER */
+    .us-empty { padding: 56px 24px; text-align: center; color: var(--muted); font-family: 'DM Mono', monospace; font-size: 13px; }
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div id="usToast"></div>
+
+<div class="us-wrap">
+
+  <!-- Header -->
+  <div class="us-header">
+    <div>
+      <div class="us-title">Gerenciar Usuários</div>
+      <div class="us-subtitle">Usuários, acessos e permissões por perfil</div>
+    </div>
+    <button class="btn btn-primary" id="usBtnNovo" onclick="usAbrirModalNovo()" style="display:none">+ Novo Usuário</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="us-tabs">
+    <button class="us-tab ativa" onclick="usMudarTab('usuarios', this)">Usuários</button>
+    <button class="us-tab" onclick="usMudarTab('permissoes', this)">Permissões por Perfil</button>
+  </div>
+
+  <!-- Painel: Usuários -->
+  <div class="us-panel ativa" id="usPainelUsuarios">
+    <div class="us-card">
+      <table class="us-table">
+        <thead>
+          <tr>
+            <th>Usuário</th>
+            <th>Perfil</th>
+            <th>Acesso</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="usTbody">
+          <tr><td colspan="4" class="us-empty"><span class="spinner"></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Painel: Permissões por Perfil -->
+  <div class="us-panel" id="usPainelPermissoes">
+    <div id="usPermLoading" style="padding:40px;text-align:center;color:var(--muted);font-family:'DM Mono',monospace;font-size:13px">
+      <span class="spinner"></span>
+    </div>
+    <div id="usPermConteudo" style="display:none">
+      <div class="perm-grid" id="usPermGrid"></div>
+      <div class="perm-footer">
+        <button class="btn btn-primary" id="usBtnSalvarPerm" onclick="usSalvarPermissoes()">Salvar Permissões</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL EDITAR / CRIAR -->
+<div class="modal-overlay" id="usModalEdit">
+  <div class="modal-box">
+    <div class="modal-title" id="usModalEditTitle">Novo Usuário</div>
+    <div class="form-group">
+      <label class="form-label">Login (usuário)</label>
+      <input class="form-input" id="usFieldUsuario" type="text" placeholder="Ex: Maria.Silva" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Nome completo</label>
+      <input class="form-input" id="usFieldNome" type="text" placeholder="Ex: Maria Silva" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Perfil</label>
+      <select class="form-select" id="usFieldPerfil">
+        <option value="backoffice">Backoffice</option>
+        <option value="supervisor">Supervisor</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">URL da foto (opcional)</label>
+      <input class="form-input" id="usFieldFoto" type="text" placeholder="https://drive.google.com/thumbnail?id=..." autocomplete="off">
+    </div>
+    <div class="form-group" id="usGrupoSenhaInicial">
+      <label class="form-label">Senha inicial (mín. 6 caracteres)</label>
+      <input class="form-input" id="usFieldSenhaInicial" type="password" placeholder="Deixe em branco para sem senha" autocomplete="new-password">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="usFecharModal()">Cancelar</button>
+      <button class="btn btn-primary" id="usBtnSalvar" onclick="usSalvar()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RESETAR SENHA -->
+<div class="modal-overlay" id="usModalSenha">
+  <div class="modal-box">
+    <div class="modal-title">Redefinir Senha</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px;">
+      Definindo nova senha para <strong id="usNomeSenha" style="color:var(--text)"></strong>.
+    </p>
+    <input type="hidden" id="usAlvoSenha">
+    <div class="form-group">
+      <label class="form-label">Nova senha</label>
+      <input class="form-input" id="usNovaSenha" type="password" placeholder="Mín. 6 caracteres" autocomplete="new-password">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Confirmar senha</label>
+      <input class="form-input" id="usConfirmarSenha" type="password" placeholder="Repita a senha" autocomplete="new-password">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="usFecharModalSenha()">Cancelar</button>
+      <button class="btn btn-primary" id="usBtnResetar" onclick="usResetar()">Redefinir</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  var _adminUs  = '';
+  var _dados    = [];
+  var _dadosMap = {};
+  var _permCarregado = false;
+
+  // Mapeamento de IDs de menu para labels legíveis
+  var US_MENU_LABELS = {
+    'dash':       'Dashboard',
+    'formulario': 'Nova Venda (form)',
+    'lista':      'Lista de Vendas',
+    'funil':      'Funil de Instalações',
+    'leads':      'Leads',
+    'pap':        'PAP',
+    'filaPAP':    'Fila PAP',
+    'metaads':    'Leads Meta Ads',
+    'painelads':  'Painel Ads',
+    'indicacao':  'Indicações',
+    'docs':       'Documentos',
+    'cruzamento': 'Cruzamento Vero',
+    'tickets':    'Tickets',
+    'novaVenda':  'Ação: Nova Venda',
+    'extrato':    'Extrato',
+    'config':     'Configurações',
+    'disparos':   'Disparos em Massa',
+    'usuarios':   'Gerenciar Usuários'
+  };
+
+  // Menus exibidos nas permissões por perfil (novaVenda é interno, vinculado a formulario)
+  var US_TODOS_MENUS = [
+    'dash','formulario','lista','funil','leads',
+    'pap','filaPAP','metaads','painelads','indicacao',
+    'docs','cruzamento','tickets','extrato',
+    'config','disparos','usuarios'
+  ];
+
+  function usuariosInit() {
+    _adminUs = sessionStorage.getItem('crm_usuario') || '';
+    document.getElementById('usBtnNovo').style.display = '';
+    usCarregar();
+  }
+
+  /* ── TABS ── */
+  function usMudarTab(tab, el) {
+    document.querySelectorAll('.us-tab').forEach(function(t) { t.classList.remove('ativa'); });
+    document.querySelectorAll('.us-panel').forEach(function(p) { p.classList.remove('ativa'); });
+    el.classList.add('ativa');
+
+    if (tab === 'usuarios') {
+      document.getElementById('usPainelUsuarios').classList.add('ativa');
+      document.getElementById('usBtnNovo').style.display = '';
+    } else {
+      document.getElementById('usPainelPermissoes').classList.add('ativa');
+      document.getElementById('usBtnNovo').style.display = 'none';
+      if (!_permCarregado) usCarregarPermissoes();
+    }
+  }
+
+  /* ── ABA USUÁRIOS ── */
+  function usCarregar() {
+    document.getElementById('usTbody').innerHTML =
+      '<tr><td colspan="4" class="us-empty"><span class="spinner"></span></td></tr>';
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (res && res.erro) { usToast('Erro: ' + res.erro, 'err'); return; }
+        _dados = res || [];
+        usRenderizar(_dados);
+      })
+      .withFailureHandler(function(e) {
+        usToast('Erro ao carregar: ' + e.message, 'err');
+        document.getElementById('usTbody').innerHTML =
+          '<tr><td colspan="4" class="us-empty">Falha ao carregar usuários.</td></tr>';
+      })
+      .getUsuarios(_adminUs);
+  }
+
+  function usRenderizar(lista) {
+    var tbody = document.getElementById('usTbody');
+    if (!lista || lista.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="us-empty">Nenhum usuário cadastrado.</td></tr>';
+      return;
+    }
+    _dadosMap = {};
+    lista.forEach(function(u) { _dadosMap[u.usuario] = u; });
+    tbody.innerHTML = lista.map(function(u) {
+      var avatarHtml = u.foto
+        ? '<img class="us-avatar" src="' + _esc(u.foto) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'inline-flex\'">' +
+          '<span class="us-avatar-ph" style="display:none">👤</span>'
+        : '<span class="us-avatar-ph">👤</span>';
+      var badgeClass = u.perfil === 'admin' ? 'badge-admin' : u.perfil === 'supervisor' ? 'badge-supervisor' : 'badge-backoffice';
+      var badgeLabel = u.perfil === 'admin' ? 'Admin' : u.perfil === 'supervisor' ? 'Supervisor' : 'Backoffice';
+      var ativo = u.ativo !== false;
+      return '<tr>' +
+        '<td>' + avatarHtml + '<span class="us-user-info"><div class="us-user-nome">' + _esc(u.nome) + '</div><div class="us-user-login">' + _esc(u.usuario) + '</div></span></td>' +
+        '<td><span class="badge ' + badgeClass + '">' + badgeLabel + '</span></td>' +
+        '<td><label class="toggle"><input type="checkbox" ' + (ativo ? 'checked' : '') + ' onchange="usToggle(\'' + _esc(u.usuario) + '\',this.checked)"><span class="toggle-slider"></span></label></td>' +
+        '<td><div class="us-actions">' +
+          '<button class="btn btn-ghost btn-sm" onclick="usAbrirModalEditar(\'' + _esc(u.usuario) + '\')">Editar</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="usAbrirModalSenha(\'' + _esc(u.usuario) + '\',\'' + _esc(u.nome) + '\')">Senha</button>' +
+          '<button class="btn btn-ghost btn-sm" style="color:#e63e6d;border-color:rgba(230,62,109,.3)" onclick="usExcluir(\'' + _esc(u.usuario) + '\',\'' + _esc(u.nome) + '\')">Excluir</button>' +
+        '</div></td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  /* ── ABA PERMISSÕES POR PERFIL ── */
+  function usCarregarPermissoes() {
+    _permCarregado = true;
+    document.getElementById('usPermLoading').style.display = '';
+    document.getElementById('usPermConteudo').style.display = 'none';
+    google.script.run
+      .withSuccessHandler(function(res) {
+        document.getElementById('usPermLoading').style.display = 'none';
+        if (!res || !res.ok) {
+          usToast((res && res.mensagem) || 'Erro ao carregar permissões.', 'err');
+          _permCarregado = false;
+          return;
+        }
+        usRenderizarPermissoes(res.data);
+        document.getElementById('usPermConteudo').style.display = '';
+      })
+      .withFailureHandler(function(e) {
+        usToast('Erro: ' + e.message, 'err');
+        document.getElementById('usPermLoading').style.display = 'none';
+        _permCarregado = false;
+      })
+      .getPerfilMenus(_adminUs);
+  }
+
+  function usRenderizarPermissoes(perfilMenus) {
+    var perfis = [
+      { id: 'admin',      label: 'Admin',      badgeClass: 'badge-admin' },
+      { id: 'supervisor', label: 'Supervisor',  badgeClass: 'badge-supervisor' },
+      { id: 'backoffice', label: 'Backoffice',  badgeClass: 'badge-backoffice' }
+    ];
+    var grid = document.getElementById('usPermGrid');
+    grid.innerHTML = perfis.map(function(p) {
+      var permitidos = perfilMenus[p.id] || [];
+      var itens = US_TODOS_MENUS.map(function(mid) {
+        var checked = permitidos.indexOf(mid) > -1 ? 'checked' : '';
+        var label   = US_MENU_LABELS[mid] || mid;
+        return '<label class="perm-item">' +
+          '<input type="checkbox" id="perm_' + p.id + '_' + mid + '" ' + checked + '>' +
+          '<span class="perm-item-label">' + label + '</span>' +
+          '<span class="perm-item-id">' + mid + '</span>' +
+        '</label>';
+      }).join('');
+      return '<div class="perm-col">' +
+        '<div class="perm-col-header"><span class="badge ' + p.badgeClass + '">' + p.label + '</span></div>' +
+        '<div class="perm-list">' + itens + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function usSalvarPermissoes() {
+    var btn = document.getElementById('usBtnSalvarPerm');
+    var perfis = ['admin', 'supervisor', 'backoffice'];
+    var resultado = {};
+    perfis.forEach(function(p) {
+      resultado[p] = US_TODOS_MENUS.filter(function(mid) {
+        var el = document.getElementById('perm_' + p + '_' + mid);
+        return el && el.checked;
+      });
+    });
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+    google.script.run
+      .withSuccessHandler(function(res) {
+        btn.disabled = false;
+        btn.textContent = 'Salvar Permissões';
+        if (res && res.ok) {
+          usToast('Permissões salvas! Válidas no próximo login.', 'ok');
+        } else {
+          usToast((res && res.mensagem) || 'Erro ao salvar.', 'err');
+        }
+      })
+      .withFailureHandler(function(e) {
+        btn.disabled = false;
+        btn.textContent = 'Salvar Permissões';
+        usToast('Erro: ' + e.message, 'err');
+      })
+      .salvarPerfilMenus(_adminUs, resultado);
+  }
+
+  /* ── EXCLUIR ── */
+  function usExcluir(usuario, nome) {
+    if (!confirm('Excluir "' + nome + '"?\n\nEsta ação não pode ser desfeita.')) return;
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (res && res.ok) { usToast('Usuário excluído.', 'ok'); usCarregar(); }
+        else usToast((res && res.mensagem) || 'Erro ao excluir.', 'err');
+      })
+      .withFailureHandler(function(e) { usToast('Erro: ' + e.message, 'err'); })
+      .excluirUsuario(_adminUs, usuario);
+  }
+
+  /* ── MODAL EDITAR / CRIAR ── */
+  function usAbrirModalNovo() {
+    document.getElementById('usModalEditTitle').textContent = 'Novo Usuário';
+    document.getElementById('usFieldUsuario').value    = '';
+    document.getElementById('usFieldUsuario').disabled = false;
+    document.getElementById('usFieldNome').value       = '';
+    document.getElementById('usFieldPerfil').value     = 'backoffice';
+    document.getElementById('usFieldFoto').value       = '';
+    document.getElementById('usFieldSenhaInicial').value = '';
+    document.getElementById('usGrupoSenhaInicial').style.display = '';
+    document.getElementById('usBtnSalvar').disabled    = false;
+    document.getElementById('usBtnSalvar').textContent = 'Salvar';
+    document.getElementById('usModalEdit').classList.add('open');
+    document.getElementById('usFieldNome').focus();
+  }
+
+  function usAbrirModalEditar(usuario) {
+    var u = _dadosMap[usuario];
+    if (!u) return;
+    document.getElementById('usModalEditTitle').textContent = 'Editar Usuário';
+    document.getElementById('usFieldUsuario').value    = u.usuario || '';
+    document.getElementById('usFieldUsuario').disabled = true;
+    document.getElementById('usFieldNome').value       = u.nome    || '';
+    document.getElementById('usFieldPerfil').value     = u.perfil  || 'backoffice';
+    document.getElementById('usFieldFoto').value       = u.foto    || '';
+    document.getElementById('usGrupoSenhaInicial').style.display = 'none';
+    document.getElementById('usBtnSalvar').disabled    = false;
+    document.getElementById('usBtnSalvar').textContent = 'Salvar';
+    document.getElementById('usModalEdit').classList.add('open');
+    document.getElementById('usFieldNome').focus();
+  }
+
+  function usFecharModal() { document.getElementById('usModalEdit').classList.remove('open'); }
+
+  function usSalvar() {
+    var btn   = document.getElementById('usBtnSalvar');
+    var dados = {
+      usuario:      document.getElementById('usFieldUsuario').value.trim(),
+      nome:         document.getElementById('usFieldNome').value.trim(),
+      perfil:       document.getElementById('usFieldPerfil').value,
+      foto:         document.getElementById('usFieldFoto').value.trim(),
+      ativo:        true,
+      senhaInicial: document.getElementById('usFieldSenhaInicial').value
+    };
+    if (!dados.usuario || !dados.nome) { usToast('Preencha login e nome.', 'err'); return; }
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    google.script.run
+      .withSuccessHandler(function(res) {
+        btn.disabled = false; btn.textContent = 'Salvar';
+        if (res && res.ok) { usFecharModal(); usToast(res.mensagem, 'ok'); usCarregar(); }
+        else usToast((res && res.mensagem) || 'Erro ao salvar.', 'err');
+      })
+      .withFailureHandler(function(e) { btn.disabled = false; btn.textContent = 'Salvar'; usToast('Erro: ' + e.message, 'err'); })
+      .salvarUsuario(_adminUs, dados);
+  }
+
+  /* ── TOGGLE ATIVO ── */
+  function usToggle(usuario, ativo) {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (res && res.ok) usToast(ativo ? 'Usuário ativado.' : 'Usuário desativado.', 'ok');
+        else { usToast((res && res.mensagem) || 'Erro.', 'err'); usCarregar(); }
+      })
+      .withFailureHandler(function(e) { usToast('Erro: ' + e.message, 'err'); usCarregar(); })
+      .toggleAtivoUsuario(_adminUs, usuario, ativo);
+  }
+
+  /* ── MODAL SENHA ── */
+  function usAbrirModalSenha(usuario, nome) {
+    document.getElementById('usAlvoSenha').value         = usuario;
+    document.getElementById('usNomeSenha').textContent   = nome;
+    document.getElementById('usNovaSenha').value         = '';
+    document.getElementById('usConfirmarSenha').value    = '';
+    document.getElementById('usBtnResetar').disabled     = false;
+    document.getElementById('usBtnResetar').textContent  = 'Redefinir';
+    document.getElementById('usModalSenha').classList.add('open');
+    document.getElementById('usNovaSenha').focus();
+  }
+
+  function usFecharModalSenha() { document.getElementById('usModalSenha').classList.remove('open'); }
+
+  function usResetar() {
+    var btn     = document.getElementById('usBtnResetar');
+    var alvo    = document.getElementById('usAlvoSenha').value;
+    var nova    = document.getElementById('usNovaSenha').value;
+    var confirm = document.getElementById('usConfirmarSenha').value;
+    if (nova.length < 6) { usToast('A senha deve ter ao menos 6 caracteres.', 'err'); return; }
+    if (nova !== confirm) { usToast('As senhas não coincidem.', 'err'); return; }
+    btn.disabled = true; btn.textContent = 'Redefinindo...';
+    google.script.run
+      .withSuccessHandler(function(res) {
+        btn.disabled = false; btn.textContent = 'Redefinir';
+        if (res && res.ok) { usFecharModalSenha(); usToast('Senha redefinida com sucesso.', 'ok'); }
+        else usToast((res && res.mensagem) || 'Erro.', 'err');
+      })
+      .withFailureHandler(function(e) { btn.disabled = false; btn.textContent = 'Redefinir'; usToast('Erro: ' + e.message, 'err'); })
+      .resetarSenha(_adminUs, alvo, nova);
+  }
+
+  /* ── TOAST ── */
+  var _usTimer;
+  function usToast(msg, tipo) {
+    var el = document.getElementById('usToast');
+    el.textContent = msg;
+    el.className   = 'show ' + (tipo === 'ok' ? 'ok' : 'err');
+    clearTimeout(_usTimer);
+    _usTimer = setTimeout(function() { el.className = ''; }, 3500);
+  }
+
+  function _esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  document.getElementById('usModalEdit').addEventListener('click', function(e) { if (e.target === this) usFecharModal(); });
+  document.getElementById('usModalSenha').addEventListener('click', function(e) { if (e.target === this) usFecharModalSenha(); });
+</script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 24/04/2026 -->
+<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 -->
 
 # dharmapro-crm
 
@@ -7,8 +7,8 @@
 `dharmapro-crm` e o CRM operacional principal da Mobile Digital / Mobile Fibra.
 Roda em **Google Apps Script + Google Sheets + HTML/JS** e esta em **producao**.
 
-Em 24/04/2026 o projeto passou por uma recuperacao completa de producao e consolidacao
-de modulos operacionais dentro do CRM.
+Em 24/04/2026 o projeto passou por uma recuperacao completa de producao, consolidacao
+de modulos operacionais e implementacao do modulo de Gerenciar Usuarios.
 
 ---
 
@@ -36,6 +36,7 @@ Estao funcionando:
 - `Painel Ads`
 - `Disparos em Massa`
 - `WABA Monitor` dentro do dashboard
+- `Gerenciar Usuarios` (admin only)
 
 ### Dashboard
 
@@ -59,6 +60,48 @@ Fontes lidas pelo dashboard:
 - `v_campaign_stats`
 - `v_suppression_summary`
 - `waba_health_snapshots`
+
+---
+
+## Modulo Gerenciar Usuarios
+
+Implementado em 24/04/2026. Acessivel apenas para o perfil `admin`.
+
+### Funcionalidades
+
+- **Aba Usuarios**: listar, editar perfil/nome/foto, ativar/desativar, redefinir senha, excluir
+- **Aba Permissoes por Perfil**: configurar quais paginas cada perfil (admin/supervisor/backoffice) pode acessar
+
+### Arquitetura
+
+**Fonte de dados**: aba `Usuarios` da planilha principal (colunas A-F: usuario, senhaHash, nome, perfil, foto, ativo).
+
+**Migracao**: funcao `migrarUsuariosParaSheet()` em `Code.js` — rodar UMA VEZ no editor Apps Script para popular a aba a partir do array `USUARIOS` do `Config.js`. Idempotente.
+
+**Fallback de auth**: se a aba `Usuarios` estiver vazia ou inacessivel, `validarLogin()` usa o array `USUARIOS` do `Config.js` automaticamente.
+
+**Permissoes por perfil**: salvas em PropertiesService com chave `PERFIS_MENUS_JSON` (JSON). Se nao existir, usa `PERFIS_MENUS` do `Config.js`. Entram em vigor no proximo login do usuario.
+
+### Funcoes backend (`Code.js`)
+
+| Funcao | Descricao |
+|--------|-----------|
+| `_getUsuariosSheet_()` | Le aba Usuarios, retorna `[]` em erro |
+| `_getPerfilMenus_()` | Retorna PERFIS_MENUS do PropertiesService ou Config.js |
+| `_assertAdmin_(adminUsuario)` | Valida que o chamador e admin; lanca erro se nao for |
+| `getUsuarios(adminUsuario)` | Lista usuarios sem senhaHash |
+| `salvarUsuario(adminUsuario, dados)` | Cria ou atualiza usuario na planilha |
+| `toggleAtivoUsuario(adminUsuario, usuarioAlvo, ativo)` | Ativa/desativa usuario |
+| `resetarSenha(adminUsuario, usuarioAlvo, novaSenha)` | Redefine senha via PropertiesService + planilha |
+| `excluirUsuario(adminUsuario, usuarioAlvo)` | Remove linha da planilha; bloqueia excluir o proprio admin |
+| `getPerfilMenus(adminUsuario)` | Retorna PERFIS_MENUS vigente |
+| `salvarPerfilMenus(adminUsuario, perfilMenus)` | Salva PERFIS_MENUS no PropertiesService |
+| `migrarUsuariosParaSheet()` | Migracao unica de Config.js para a planilha |
+| `getUsuariosHtml()` | Retorna conteudo de Usuarios.html para injecao no CRM |
+
+### Nota sobre `novaVenda`
+
+O ID `novaVenda` e um alvo interno de `navegar()`, vinculado funcionalmente ao ID `formulario` (menu Nova Venda). Nao e exibido na UI de permissoes por perfil para evitar confusao. Sempre incluir `novaVenda` quando incluir `formulario` no array de menus de um perfil.
 
 ---
 
@@ -144,6 +187,7 @@ Observacao importante:
 - `LeadsMetaAds.html`
 - `FilaPAP.html`
 - `Parceiros.html`
+- `Usuarios.html` (admin only — Gerenciar Usuarios)
 
 ---
 
@@ -155,10 +199,13 @@ Propriedades relevantes:
 - `CRM_SPREADSHEET_ID`
 - `SUPABASE_SERVICE_ROLE`
 - `META_ACCESS_TOKEN`
+- `PERFIS_MENUS_JSON` — permissoes por perfil editadas via CRM (JSON); se ausente, usa Config.js
+- `pwd_<usuario>` — hash SHA-256 de senha alterada pelo usuario ou pelo admin
 
 Cuidados:
 - `SUPABASE_SERVICE_ROLE` deve ser a chave correta do projeto Supabase em uso;
-- chaves expostas em testes devem ser rotacionadas depois.
+- chaves expostas em testes devem ser rotacionadas depois;
+- para restaurar permissoes padrao do Config.js, deletar `PERFIS_MENUS_JSON` nas propriedades do script.
 
 ---
 
@@ -173,11 +220,12 @@ clasp deploy --deploymentId AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyD
 ```
 
 Deploys importantes de 24/04/2026:
-- restauracao do CRM;
+- restauracao do CRM (v325);
 - correcao do `Painel Ads`;
 - limpeza dos diagnosticos temporarios;
 - integracao do `WABA Monitor`;
-- polimento visual e fallback de tier no dashboard.
+- polimento visual e fallback de tier no dashboard;
+- implementacao do modulo `Gerenciar Usuarios` com CRUD, permissoes por perfil e reset de senha (v372-v378).
 
 ---
 
@@ -186,12 +234,14 @@ Deploys importantes de 24/04/2026:
 - preservar contratos do frontend com `google.script.run`;
 - evitar depender so de planilha ativa no GAS;
 - nao remover integracoes com Supabase sem revisar `Dashboard`, `Painel Ads` e `Disparos`;
-- quando a decisao for entre painel externo e CRM, preferir consolidar a operacao no DharmaPro.
+- quando a decisao for entre painel externo e CRM, preferir consolidar a operacao no DharmaPro;
+- todas as funcoes da API de usuarios exigem `adminUsuario` como primeiro argumento e validam via `_assertAdmin_()`.
 
 ---
 
 ## Proximos Passos Naturais
 
+- rodar `migrarUsuariosParaSheet()` no editor Apps Script para ativar a gestao de usuarios via CRM;
 - consolidar o workflow WABA final no projeto `disparo-massa`;
 - documentar de forma definitiva a captura correta de `messaging_limit_tier`;
 - revisar encoding de arquivos HTML/JS antigos;

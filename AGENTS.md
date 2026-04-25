@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | 190426_0218 | AGENTS.md atualizado apos leitura da estrutura real do projeto -->
+<!-- dharmapro-crm | AGENTS.md | 25/04/2026 -->
 
 # DharmaPro CRM
 
@@ -30,12 +30,15 @@ Papel no ecossistema:
     extrato e varias rotinas auxiliares;
   - define `CONFIG` com nomes de abas e mapeamento detalhado de colunas da
     aba principal `1 - Vendas`;
-  - usa cache e helpers para reduzir leituras de planilha.
+  - usa cache e helpers para reduzir leituras de planilha;
+  - contem o modulo completo de Gerenciar Usuarios (ver secao abaixo).
 
 - `Config.js`
   - configuracao central da aplicacao;
-  - `DEPLOY_DATE`;
-  - usuarios, perfis e menus visiveis;
+  - `DEPLOY_DATE` (atualizado automaticamente pelo bat de deploy);
+  - `USUARIOS`: array de usuarios — serve como fallback se a aba Usuarios estiver vazia;
+  - `PERFIS_MENUS`: mapeamento perfil → menus permitidos — serve como fallback se
+    `PERFIS_MENUS_JSON` nao existir no PropertiesService;
   - metas e parametros do dashboard;
   - mensagem global do sistema;
   - estrutura inicial de tickets.
@@ -49,6 +52,10 @@ Papel no ecossistema:
   - autentica parceiro, consulta viabilidade, credito, Assertiva, CEP,
     salva pre-venda, aprova/rejeita e move negocio para `1 - Vendas`.
 
+- `DisparosAPI.js`
+  - backend do modulo de Disparos em Massa;
+  - le campanhas do Supabase (`v_campaign_stats`).
+
 ### Frontend principal
 
 - `Index.html`
@@ -59,12 +66,15 @@ Papel no ecossistema:
 
 - `JS.html`
   - controlador client-side principal;
-  - concentra boa parte da logica da UI: filtros, edicao inline, formularios,
-    busca global, efeitos, validacoes, integracoes da interface e fluxos de modais.
+  - concentra logica da UI: filtros, edicao inline, formularios,
+    busca global, efeitos, validacoes, integracoes da interface e fluxos de modais;
+  - define `_menuMap` e `_menusPermitidos` — base do sistema de permissoes por perfil;
+  - contem duas definicoes de `navegar()` (desktop e mobile) — qualquer novo modulo
+    deve adicionar a branch `else if` nas duas ocorrencias.
 
 ### Views HTML do sistema
 
-- `Dashboard.html`: painel KPI com funil, rankings, canais e auto refresh.
+- `Dashboard.html`: painel KPI com funil, rankings, canais, Agente IA e WABA Monitor.
 - `Nova_venda.html`: wizard de cadastro de nova venda.
 - `LeadsMetaAds.html`: tela operacional da aba `Leads Meta Ads`.
 - `FilaPAP.html`: fila de aprovacao de consultas e pre-vendas PAP.
@@ -75,6 +85,66 @@ Papel no ecossistema:
 - `Parceiros.html`: portal web dos parceiros/freelancers PAP.
 - `Mobile.html`: interface mobile-first com dashboard, lista, funil, PAP e tickets.
 - `Cruzamento.html`: conciliacao entre CRM e bases importadas.
+- `PainelAds.html`: painel operacional de Meta Ads.
+- `Disparos.html`: modulo de Disparos em Massa.
+- `Usuarios.html`: painel de Gerenciar Usuarios (admin only) — duas abas: Usuarios e Permissoes por Perfil.
+
+---
+
+## Modulo Gerenciar Usuarios
+
+Implementado em 24/04/2026. Menu ID: `usuarios`. Visivel apenas para perfil `admin`.
+
+### Fonte de dados
+
+Aba `Usuarios` da planilha principal:
+- Coluna A: `usuario` (login key, case-insensitive)
+- Coluna B: `senhaHash` (SHA-256 hex)
+- Coluna C: `nome`
+- Coluna D: `perfil` (admin / supervisor / backoffice)
+- Coluna E: `foto` (URL Google Drive thumbnail)
+- Coluna F: `ativo` (TRUE / FALSE)
+
+Se a aba estiver vazia ou inacessivel, `validarLogin()` faz fallback automatico
+para o array `USUARIOS` do `Config.js`.
+
+### Migracao
+
+Funcao `migrarUsuariosParaSheet()` em `Code.js`:
+- rodar UMA VEZ no editor Apps Script;
+- idempotente (nao faz nada se a aba ja tiver dados);
+- copia os 4 usuarios do `Config.js` com `ativo = TRUE`.
+
+### Permissoes por perfil
+
+- Armazenadas no PropertiesService com chave `PERFIS_MENUS_JSON` (JSON).
+- Se ausente, usa `PERFIS_MENUS` do `Config.js` como fallback.
+- Editaveis pela aba "Permissoes por Perfil" do painel `Usuarios.html`.
+- Entram em vigor no proximo login de cada usuario.
+- Para restaurar o padrao do Config.js: deletar `PERFIS_MENUS_JSON` nas propriedades do script.
+
+### API backend (`Code.js`)
+
+| Funcao | Descricao |
+|--------|-----------|
+| `_getUsuariosSheet_()` | Helper privado: le aba Usuarios, retorna `[]` em erro |
+| `_getPerfilMenus_()` | Helper privado: retorna PERFIS_MENUS do PropertiesService ou Config.js |
+| `_assertAdmin_(adminUsuario)` | Guard: lanca erro se o usuario nao for admin |
+| `getUsuarios(adminUsuario)` | Lista usuarios sem senhaHash |
+| `salvarUsuario(adminUsuario, dados)` | Cria ou atualiza usuario |
+| `toggleAtivoUsuario(adminUsuario, usuarioAlvo, ativo)` | Ativa/desativa usuario |
+| `resetarSenha(adminUsuario, usuarioAlvo, novaSenha)` | Redefine senha via PropertiesService + planilha |
+| `excluirUsuario(adminUsuario, usuarioAlvo)` | Remove linha da planilha; bloqueia excluir o proprio admin |
+| `getPerfilMenus(adminUsuario)` | Retorna PERFIS_MENUS vigente |
+| `salvarPerfilMenus(adminUsuario, perfilMenus)` | Salva PERFIS_MENUS no PropertiesService |
+| `migrarUsuariosParaSheet()` | Migracao unica de Config.js para a planilha |
+| `getUsuariosHtml()` | Retorna conteudo de Usuarios.html |
+
+### Nota sobre `novaVenda`
+
+O ID `novaVenda` e um alvo interno de `navegar()` vinculado ao ID `formulario`
+(menu Nova Venda na sidebar). Nao e exibido na UI de permissoes por perfil.
+Sempre incluir `novaVenda` junto com `formulario` no array de menus de qualquer perfil.
 
 ---
 
@@ -82,7 +152,7 @@ Papel no ecossistema:
 
 Abas confirmadas no codigo:
 - `1 - Vendas`: base principal do CRM.
-- `Usuarios`: usuarios e permissoes operacionais.
+- `Usuarios`: usuarios e permissoes — colunas A-F (usuario, senhaHash, nome, perfil, foto, ativo).
 - `Historico`: historico de alteracoes.
 - `Leads Meta Ads`: leads vindos de Meta Ads com status e motivo.
 - `Consultas`: consultas PAP.
@@ -131,6 +201,12 @@ Observacoes importantes:
 - existe uma extensao Chrome dedicada para automatizar parte desse fluxo;
 - esta integracao e operacional e deve ser tratada como sensivel.
 
+### Supabase
+
+- projeto `zfunugupwvktcggvicuk`;
+- lido pelo Dashboard (WABA Monitor) e pelo modulo Disparos em Massa;
+- credencial: PropertiesService `SUPABASE_SERVICE_ROLE`.
+
 ### Documentos e anexos
 
 - `Docs.html` lista arquivos do Drive;
@@ -177,13 +253,28 @@ Fatos confirmados:
   - `access: ANYONE_ANONYMOUS`
 - deploy automatizado via GitHub Actions com `clasp push --force`;
 - workflow atualiza `DEPLOY_DATE` em `Config.js` antes do deploy;
-- existe `deploymentId` fixo configurado na pipeline.
+- `deploymentId` fixo: `AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw`
 
-Observacao importante:
-- `.claspignore` impede envio de arquivos como `.git`, `.clasp.json`, `.claspignore`
-  e scripts `.bat`;
-- nem todo arquivo auxiliar da pasta vai para o Apps Script;
-- sempre separar claramente codigo de runtime GAS de artefatos locais.
+Fluxo manual de deploy:
+```bash
+clasp push --force
+clasp version "descricao"
+clasp deploy --deploymentId AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw --description "descricao"
+```
+
+---
+
+## PropertiesService — Chaves Relevantes
+
+| Chave | Descricao |
+|-------|-----------|
+| `CRM_SPREADSHEET_ID` | ID da planilha principal |
+| `SUPABASE_SERVICE_ROLE` | Chave de servico do Supabase |
+| `META_ACCESS_TOKEN` | Token da Meta Ads API |
+| `PERFIS_MENUS_JSON` | Permissoes por perfil editadas via CRM (JSON); ausente = usa Config.js |
+| `pwd_<usuario>` | Hash SHA-256 de senha alterada pelo usuario ou pelo admin |
+| `auth_lock_<usuario>` | Flag de bloqueio por tentativas excessivas (30 min) |
+| `auth_fail_<usuario>` | Contador de falhas de login (janela 15 min) |
 
 ---
 
@@ -208,7 +299,8 @@ Observacao importante:
 
 - credenciais nunca devem ser hardcoded em codigo novo;
 - preferir PropertiesService, ambiente externo ou cofre de senhas;
-- integracoes com Assertiva, portais externos e webhooks exigem cuidado adicional.
+- integracoes com Assertiva, portais externos e webhooks exigem cuidado adicional;
+- todas as funcoes da API de usuarios passam por `_assertAdmin_()` antes de executar.
 
 ### 4. Convencao de arquivos
 
@@ -217,13 +309,25 @@ Ao criar artefatos novos:
 - incluir comentario de cabecalho com projeto, data/hora e resumo;
 - adaptar comentario ao tipo do arquivo.
 
+### 5. Adicionar novo modulo ao CRM
+
+Passos obrigatorios:
+1. Criar `NomeModulo.html`;
+2. Adicionar `getNomeModuloHtml()` em `Code.js`;
+3. Adicionar ID do menu no `PERFIS_MENUS` de `Config.js`;
+4. Adicionar entrada em `_menuMap` no `JS.html`;
+5. Adicionar item `<div class="nav-item">` no sidebar em `Index.html`;
+6. Adicionar container `<div id="pageNomeModulo">` em `Index.html`;
+7. Adicionar branch `else if (pagina === 'nomeModulo')` nas **duas** ocorrencias
+   de `navegar()` em `JS.html` (linhas ~1343 e ~6444).
+
 ---
 
 ## Pontos de Atencao ao Editar
 
 ### Se a mudanca for no backend
 
-- localizar primeiro se a logica esta em `Code.js`, `MetaAdsAPI.js` ou `ParceirosAPI.js`;
+- localizar primeiro se a logica esta em `Code.js`, `MetaAdsAPI.js`, `DisparosAPI.js` ou `ParceirosAPI.js`;
 - confirmar impacto em nome de aba, coluna, cache, webhook e payloads;
 - verificar se a funcao e chamada por alguma view HTML ou por `google.script.run`.
 
@@ -231,7 +335,15 @@ Ao criar artefatos novos:
 
 - olhar `Index.html` e `JS.html` juntos;
 - evitar duplicar logica client-side espalhada;
-- confirmar se a experiencia desktop e mobile continuam coerentes.
+- confirmar se a experiencia desktop e mobile continuam coerentes;
+- `navegar()` existe em DOIS lugares em `JS.html` — sempre alterar os dois.
+
+### Se a mudanca for em permissoes
+
+- `PERFIS_MENUS` em `Config.js` e o padrao base;
+- `PERFIS_MENUS_JSON` no PropertiesService sobrescreve o padrao em runtime;
+- o painel `Usuarios.html` edita o PropertiesService, nao o Config.js;
+- `novaVenda` deve sempre acompanhar `formulario` nos arrays de menu.
 
 ### Se a mudanca for em PAP
 
@@ -250,17 +362,33 @@ Ao criar artefatos novos:
 
 ---
 
+## Atalho Mental por Area
+
+| Area | Arquivos |
+|------|----------|
+| CRM central | `Code.js` + `Index.html` + `JS.html` |
+| Configuracao e permissoes | `Config.js` + PropertiesService `PERFIS_MENUS_JSON` |
+| Usuarios e acessos | `Usuarios.html` + funcoes `*Usuario*` e `*PerfilMenus*` em `Code.js` |
+| Meta Ads | `MetaAdsAPI.js` + `LeadsMetaAds.html` |
+| PAP | `ParceirosAPI.js` + `Parceiros.html` + `FilaPAP.html` |
+| Disparos em Massa | `DisparosAPI.js` + `Disparos.html` |
+| Dashboard / WABA | `Dashboard.html` + Supabase `zfunugupwvktcggvicuk` |
+| Mobile | `Mobile.html` |
+| Financeiro | `Extrato.html` |
+| Suporte interno | `Tickets.html` |
+| Reconciliacao | `Cruzamento.html` |
+
+---
+
 ## Arquivos Auxiliares e Sensiveis
 
-Arquivos auxiliares detectados fora do runtime principal:
-- `dharma_ajustes_130426.md`
+- `dharma_ajustes_130426.md`: registro de ajustes anteriores
 - scripts de exportacao de conversas do BotConversa
 - artefatos da extensao
 
 Observacao:
 - existem scripts auxiliares com finalidade operacional fora do GAS;
-- tratar esses arquivos como sensiveis e nao replicar credenciais em novas alteracoes;
-- se precisar mexer neles, revisar antes onde o arquivo entra no fluxo real.
+- tratar esses arquivos como sensiveis e nao replicar credenciais em novas alteracoes.
 
 ---
 
@@ -272,26 +400,3 @@ Fluxo recomendado ao iniciar uma tarefa:
 3. conferir impacto em Sheets, Drive, webhook ou extensao;
 4. fazer mudanca minima e segura;
 5. validar efeitos colaterais no fluxo comercial.
-
-Atalho mental util:
-- CRM central: `Code.js` + `Index.html` + `JS.html`
-- configuracao e permissoes: `Config.js`
-- Meta Ads: `MetaAdsAPI.js` + `LeadsMetaAds.html`
-- PAP: `ParceirosAPI.js` + `Parceiros.html` + `FilaPAP.html`
-- mobile: `Mobile.html`
-- financeiro: `Extrato.html`
-- suporte interno: `Tickets.html`
-- reconciliacao: `Cruzamento.html`
-
----
-
-## Origem Deste AGENTS
-
-Este arquivo foi consolidado a partir de:
-- `G:\Meu Drive\Projetos Claude\AGENTS.md`
-- estrutura real da pasta `G:\Meu Drive\Projetos Claude\dharmapro-crm`
-- leitura dos arquivos principais do projeto
-- manifesto Apps Script e pipeline de deploy
-
-Se a arquitetura mudar, este AGENTS deve ser atualizado antes de novas rodadas
-grandes de manutencao.

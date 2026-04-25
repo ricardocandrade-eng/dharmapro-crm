@@ -1971,6 +1971,7 @@
         <div class="nav-item" id="menuCruzamento"  onclick="navegar('cruzamento')"> <span class="icon">☷</span> Cruzamento Vero</div>
 
         <div class="nav-label">Sistema</div>
+        <div class="nav-item" id="menuUsuarios" onclick="navegar('usuarios')"><span class="icon">👥</span> Gerenciar Usuários</div>
         <div class="nav-item" id="menuConfig" onclick="navegar('config')"><span class="icon">⚙</span> Configurações</div>
         <div class="nav-item" onclick="abrirModalSenha()"><span class="icon">◌</span> Alterar senha</div>
       </div>
@@ -2986,6 +2987,11 @@
       <!-- ── DISPAROS EM MASSA ── -->
       <div id="pageDisparos" class="page page-full">
         <div id="disparosContainer" style="width:100%;height:100%;overflow-y:auto;"></div>
+      </div>
+
+      <!-- ── GERENCIAR USUÁRIOS ── -->
+      <div id="pageUsuarios" class="page page-full">
+        <div id="usuariosContainer" style="width:100%;height:100%;overflow-y:auto;"></div>
       </div>
 
       <!-- ── INDICAÇÕES ── -->
