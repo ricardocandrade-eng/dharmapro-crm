@@ -10940,4 +10940,14 @@ function _dhpCriarItemVendaAgrupadaV3(v, index) {
   '</div>';
 }
 
+if (typeof _normalizarTexto !== 'function') {
+  function _normalizarTexto(valor) {
+    return String(valor || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .trim();
+  }
+}
+
 </script>

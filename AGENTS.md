@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | AGENTS.md | 25/04/2026 19:03 -->
+<!-- dharmapro-crm | AGENTS.md | 25/04/2026 19:12 -->
 
 # DharmaPro CRM
 
@@ -15,6 +15,9 @@ No fluxo comercial de combos, o backend deve continuar tratando fibra e movel
 como duas linhas independentes na aba principal, inclusive para status, relatorios
 e automacoes. No frontend, quando existir vinculo estrutural entre essas duas
 linhas, a `Lista de Vendas` pode consolidar a exibicao em um unico card visual.
+Se essa camada cliente usar normalizacao de texto para agrupar ou comparar
+produtos/status, o helper precisa existir no frontend e nao pode depender apenas
+da implementacao backend em `Code.js`.
 
 Papel no ecossistema:
 - receber e organizar leads vindos de WhatsApp, indicacoes, PAP e Meta Ads;

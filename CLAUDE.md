@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 19:03 -->
+<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 19:12 -->
 
 # dharmapro-crm
 
@@ -33,6 +33,8 @@ fibra + movel em um unico card quando ha vinculo estrutural entre as duas linhas
 O backend continua mantendo dois registros separados no Sheets, mas o frontend
 agora esconde a linha movel duplicada quando a fibra correspondente esta na mesma
 pagina e mostra o alerta `Combo sem movel` ao lado do nome do cliente.
+O hotfix mais recente restaurou o carregamento da lista adicionando no frontend
+o helper local de normalizacao de texto usado por esse agrupamento.
 
 ---
 
