@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | AGENTS.md | 25/04/2026 19:30 -->
+<!-- dharmapro-crm | AGENTS.md | 25/04/2026 19:42 -->
 
 # DharmaPro CRM
 
@@ -22,6 +22,9 @@ Para combos antigos sem registro na aba `Vinculos Vendas`, o backend pode inferi
 agrupamento retroativo apenas em casos inequivocos, mas essa inferencia nao deve
 rodar dentro da abertura da `Lista de Vendas`. O caminho seguro atual e preparar
 esse cache legado por rotina separada e depois reutilizar o resultado na listagem.
+Nos cards agrupados de combo, evitar excesso de cores nos substatus. O padrao
+atual usa emoji + texto neutro para cada status secundario, preservando a cor
+forte apenas no status principal da venda.
 
 Papel no ecossistema:
 - receber e organizar leads vindos de WhatsApp, indicacoes, PAP e Meta Ads;

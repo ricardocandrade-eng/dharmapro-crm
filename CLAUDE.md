@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 19:30 -->
+<!-- dharmapro-crm | CLAUDE.md | 25/04/2026 19:42 -->
 
 # dharmapro-crm
 
@@ -39,6 +39,9 @@ Depois disso, o backend passou a suportar inferencia conservadora de vinculos
 legados de combo, mas essa retroacao saiu do caminho critico da `Lista de Vendas`
 para nao travar o carregamento. A preparacao desses vinculos antigos agora pode
 ser feita por rotina separada de cache.
+No card agrupado de combo, os substatus dos planos passaram a usar emoji antes
+do texto em vez de colorizacao adicional, mantendo o status principal como foco
+visual do card. `4 - Entregue` tambem usa `✅`.
 
 ---
 

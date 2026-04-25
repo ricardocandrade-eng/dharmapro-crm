@@ -10875,12 +10875,30 @@ function _dhpAcoesVendaV3(index, v) {
   '</div>';
 }
 
+function _dhpStatusEmojiV3(status) {
+  var norm = _normalizarTexto(status || '');
+  if (norm === '1- CONFERENCIA/ATIVACAO') return '📝';
+  if (norm === '2- AGUARDANDO INSTALACAO') return '🛠️';
+  if (norm === '2- AGUARDANDO ENTREGA') return '📦';
+  if (norm === '3 - FINALIZADA/INSTALADA') return '✅';
+  if (norm === '3- AGUARDANDO RETIRADA') return '🚚';
+  if (norm === '4- ENTREGUE') return '✅';
+  if (norm === '5 - FINALIZADO') return '🏁';
+  if (norm === 'PENDENCIA VERO') return '⚠️';
+  if (norm === 'CANCELADO') return '❌';
+  if (norm === 'CANCELAMENTO TECNICO') return '❌';
+  if (norm === 'CANCELAMENTO COMERCIAL') return '❌';
+  if (norm === 'CHURN') return '🔁';
+  if (norm === 'DEVOLVIDO') return '↩️';
+  return '•';
+}
+
 function _dhpLinhaPlanoComboV3(venda) {
   if (!venda) return '';
   var produto = venda.produto ? '<span class="vi-produto ' + _dhpProdutoClsV3(venda.produto) + '">' + esc(_produtoComEmoji(venda.produto)) + '</span>' : '';
   var planoValor = _dhpPlanoValorV3(venda);
   var meta = [];
-  if (venda.status) meta.push(venda.status);
+  if (venda.status) meta.push(_dhpStatusEmojiV3(venda.status) + ' ' + venda.status);
   if (venda.linhaMovel) meta.push('Linha ' + venda.linhaMovel);
   else if (venda.contrato) meta.push('ID ' + venda.contrato);
   return '<div class="dhp-combo-linha">' +
