@@ -3456,17 +3456,25 @@ function _limparCacheListaCompleta() {
   } catch(e) { Logger.log('_limparCacheListaCompleta erro: ' + e); }
 }
 
-// Remove todos os chunks do cache chunked da lista principal (lista_v3)
+// Remove todos os chunks do cache chunked das listas principais
 function _limparCacheListaV3() {
   var cache  = CacheService.getScriptCache();
-  var prefix = CONFIG.CACHE_PREFIX + 'lista_v3';
   try {
-    var metaRaw = cache.get(prefix + '_meta');
-    var keys    = [prefix + '_meta'];
-    if (metaRaw) {
-      var meta = JSON.parse(metaRaw);
-      if (meta && meta.total) {
-        for (var i = 0; i < meta.total; i++) keys.push(prefix + '_' + i);
+    var prefixes = [
+      CONFIG.CACHE_PREFIX + 'lista_v3',
+      CONFIG.CACHE_PREFIX + 'lista_v4'
+    ];
+    var keys = [];
+
+    for (var p = 0; p < prefixes.length; p++) {
+      var prefix = prefixes[p];
+      var metaRaw = cache.get(prefix + '_meta');
+      keys.push(prefix + '_meta');
+      if (metaRaw) {
+        var meta = JSON.parse(metaRaw);
+        if (meta && meta.total) {
+          for (var i = 0; i < meta.total; i++) keys.push(prefix + '_' + i);
+        }
       }
     }
     cache.removeAll(keys);
@@ -3920,10 +3928,10 @@ function _resumirVendaVinculada_(venda) {
 
 function _mesclarVinculosLegadosInferidos_(mapa) {
   var cacheKey = CONFIG.CACHE_PREFIX + 'vinculos_legados_v1';
-  var inferidos = _cacheGet(cacheKey);
+  var inferidos = _cacheGetChunked(cacheKey);
   if (!Array.isArray(inferidos)) {
     inferidos = _inferirVinculosLegados_(mapa);
-    _cachePut(cacheKey, inferidos, 300);
+    _cachePutChunked(cacheKey, inferidos, 300);
   }
 
   for (var i = 0; i < inferidos.length; i++) {
