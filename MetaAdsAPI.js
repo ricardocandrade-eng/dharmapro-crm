@@ -456,3 +456,261 @@ function getPainelAdsData(periodo) {
     return { erro: 'Erro inesperado: ' + e.message };
   }
 }
+
+function _getClaudeAdsBridgeData_() {
+  var props = PropertiesService.getScriptProperties();
+  var bridgeJson = props.getProperty('CLAUDE_ADS_BRIDGE_JSON');
+  var bridgeUrl = props.getProperty('CLAUDE_ADS_BRIDGE_URL');
+
+  try {
+    if (bridgeJson) return JSON.parse(bridgeJson);
+
+    if (bridgeUrl) {
+      var resp = UrlFetchApp.fetch(bridgeUrl, { muteHttpExceptions: true });
+      if (resp.getResponseCode() >= 200 && resp.getResponseCode() < 300) {
+        return JSON.parse(resp.getContentText());
+      }
+      throw new Error('Bridge URL retornou HTTP ' + resp.getResponseCode());
+    }
+  } catch (e) {
+    return { erro_bridge: e.message };
+  }
+
+  return null;
+}
+
+function _collectBridgeCampaigns_(bridge) {
+  var all = [];
+  var groups = bridge && bridge.acoes_prioritarias ? bridge.acoes_prioritarias : {};
+
+  ['pause_top', 'scale_top', 'maintain_top', 'review_top'].forEach(function(key) {
+    if (groups[key]) all.push(groups[key]);
+  });
+
+  return all.filter(Boolean);
+}
+
+function _buildPainelAdsCockpitData_(bridge, periodo) {
+  var campaigns = _collectBridgeCampaigns_(bridge);
+  var totalGasto = 0;
+  var totalLeads = 0;
+  var totalVendas = 0;
+  var campanhas = [];
+  var alertas = [];
+
+  for (var i = 0; i < campaigns.length; i++) {
+    var item = campaigns[i];
+    totalGasto += parseFloat(item.spend_brl || 0);
+    totalLeads += parseFloat(item.leads || 0);
+    totalVendas += parseFloat(item.sales || 0);
+
+    var status = 'ok';
+    if (bridge.acoes_prioritarias.pause_top && item.campaign_key === bridge.acoes_prioritarias.pause_top.campaign_key) status = 'erro';
+    if (bridge.acoes_prioritarias.review_top && item.campaign_key === bridge.acoes_prioritarias.review_top.campaign_key) status = 'aviso';
+
+    campanhas.push({
+      id: item.campaign_key,
+      nome: item.campaign_key,
+      gasto: parseFloat(item.spend_brl || 0),
+      leads: parseFloat(item.leads || 0),
+      impressoes: 0,
+      cliques: 0,
+      ctr: 0,
+      cpm: 0,
+      cpc: 0,
+      frequencia: 0,
+      cpl: item.cpl_brl,
+      status: status
+    });
+  }
+
+  if (bridge.acoes_prioritarias.pause_top) {
+    alertas.push({ tipo: 'erro', texto: 'PAUSAR: ' + bridge.acoes_prioritarias.pause_top.campaign_key + ' - ' + bridge.acoes_prioritarias.pause_top.explanation });
+  }
+  if (bridge.acoes_prioritarias.review_top) {
+    alertas.push({ tipo: 'aviso', texto: 'REVISAR: ' + bridge.acoes_prioritarias.review_top.campaign_key + ' - ' + bridge.acoes_prioritarias.review_top.explanation });
+  }
+  if (bridge.inteligencia_comercial && bridge.inteligencia_comercial.pior_publico && bridge.inteligencia_comercial.pior_publico.key) {
+    alertas.push({ tipo: 'aviso', texto: 'Publico fraco: ' + bridge.inteligencia_comercial.pior_publico.key + ' - desqualificacao ' + bridge.inteligencia_comercial.pior_publico.disqualification_rate_percent + '%' });
+  }
+
+  var cplMedio = totalLeads > 0 ? (totalGasto / totalLeads) : null;
+  var cpaReal = totalVendas > 0 ? (totalGasto / totalVendas) : null;
+
+  return {
+    modo: 'cockpit_bridge',
+    fonte: 'Claude Ads 2.0',
+    periodo: {
+      since: periodo || '7d',
+      until: bridge.generated_at || '',
+      label: periodo || '7d'
+    },
+    resumo: {
+      gasto: totalGasto.toFixed(2),
+      leads: totalLeads,
+      impressoes: 0,
+      cliques: 0,
+      cpl: cplMedio !== null ? cplMedio.toFixed(2) : null,
+      ctr: null,
+      cpm: null,
+      conversoes: totalVendas,
+      taxaConv: totalLeads > 0 ? ((totalVendas / totalLeads) * 100).toFixed(1) : '0',
+      cpaReal: cpaReal !== null ? cpaReal.toFixed(2) : null
+    },
+    campanhas: campanhas,
+    alertas: alertas,
+    dharma: {
+      total: totalLeads,
+      convertidos: totalVendas,
+      pendentes: 0,
+      taxa_conv: totalLeads > 0 ? ((totalVendas / totalLeads) * 100).toFixed(1) : '0'
+    },
+    cockpit: bridge
+  };
+}
+
+function getPainelAdsData(periodo) {
+  var bridge = _getClaudeAdsBridgeData_();
+  if (bridge && !bridge.erro_bridge && bridge.crm_mode === 'cockpit_ads') {
+    return _buildPainelAdsCockpitData_(bridge, periodo);
+  }
+  if (bridge && bridge.erro_bridge) {
+    return { erro: 'Falha ao ler o Claude Ads Bridge: ' + bridge.erro_bridge };
+  }
+
+  var token = PropertiesService.getScriptProperties().getProperty('META_ACCESS_TOKEN');
+  if (!token) {
+    return { erro: 'Nem Claude Ads Bridge nem META_ACCESS_TOKEN estao configurados.' };
+  }
+
+  periodo = periodo || '7d';
+  var tz = Session.getScriptTimeZone();
+  var hoje = new Date();
+  var until = Utilities.formatDate(hoje, tz, 'yyyy-MM-dd');
+  var since;
+
+  if (periodo === 'hoje') {
+    since = until;
+  } else if (periodo === '7d') {
+    var d7 = new Date(hoje); d7.setDate(d7.getDate() - 6);
+    since = Utilities.formatDate(d7, tz, 'yyyy-MM-dd');
+  } else {
+    var d30 = new Date(hoje); d30.setDate(d30.getDate() - 29);
+    since = Utilities.formatDate(d30, tz, 'yyyy-MM-dd');
+  }
+
+  var base = 'https://graph.facebook.com/' + CFG_META.API_VERSION + '/' + CFG_META.AD_ACCOUNT_ID + '/insights';
+  var params = {
+    access_token: token,
+    fields: 'campaign_id,campaign_name,impressions,clicks,ctr,cpm,cpc,spend,actions,frequency',
+    time_range: JSON.stringify({ since: since, until: until }),
+    level: 'campaign',
+    limit: '50'
+  };
+
+  var qs = Object.keys(params).map(function(k) {
+    return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+  }).join('&');
+
+  try {
+    var resp = UrlFetchApp.fetch(base + '?' + qs, { muteHttpExceptions: true });
+    var json = JSON.parse(resp.getContentText());
+
+    if (json.error) {
+      return { erro: 'Meta Ads API: ' + json.error.message + ' (code ' + json.error.code + ')' };
+    }
+
+    var data = json.data || [];
+    var totalGasto = 0, totalLeads = 0, totalImpr = 0, totalCliques = 0;
+    var campanhasData = [];
+    var alertas = [];
+    var L = CFG_META.LIMITES;
+
+    for (var i = 0; i < data.length; i++) {
+      var row = data[i];
+      var gasto = parseFloat(row.spend || 0);
+      var impr = parseInt(row.impressions || 0, 10);
+      var cliques = parseInt(row.clicks || 0, 10);
+      var ctr = parseFloat(row.ctr || 0);
+      var cpm = parseFloat(row.cpm || 0);
+      var cpc = parseFloat(row.cpc || 0);
+      var freq = parseFloat(row.frequency || 0);
+
+      var leadsAct = (row.actions || []).filter(function(a) {
+        return a.action_type === 'lead' || a.action_type === 'onsite_conversion.messaging_conversation_started_7d';
+      });
+      var leads = leadsAct.length > 0 ? parseFloat(leadsAct[0].value || 0) : 0;
+
+      totalGasto += gasto;
+      totalLeads += leads;
+      totalImpr += impr;
+      totalCliques += cliques;
+
+      var cpl = leads > 0 ? gasto / leads : null;
+      var status = 'ok';
+
+      if (cpl && cpl > L.CPL_MAX && gasto > 100) {
+        alertas.push({ tipo: 'erro', texto: 'PAUSAR: ' + row.campaign_name + ' - CPL R$' + cpl.toFixed(2) + ' > R$' + L.CPL_MAX });
+        status = 'erro';
+      } else if (ctr < L.CTR_MIN && gasto > 20) {
+        alertas.push({ tipo: 'erro', texto: 'PAUSAR: ' + row.campaign_name + ' - CTR ' + ctr.toFixed(2) + '% < ' + L.CTR_MIN + '%' });
+        status = 'erro';
+      } else if (freq > L.FREQUENCIA_MAX) {
+        alertas.push({ tipo: 'aviso', texto: 'ATENCAO: ' + row.campaign_name + ' - Frequencia ' + freq.toFixed(1) + 'x (limite: ' + L.FREQUENCIA_MAX + 'x)' });
+        status = 'aviso';
+      }
+
+      campanhasData.push({
+        id: row.campaign_id,
+        nome: row.campaign_name,
+        gasto: gasto,
+        leads: leads,
+        impressoes: impr,
+        cliques: cliques,
+        ctr: ctr,
+        cpm: cpm,
+        cpc: cpc,
+        frequencia: freq,
+        cpl: cpl,
+        status: status
+      });
+    }
+
+    var dharmaResult = exportarLeadsMetaAds();
+    var dharma = dharmaResult.resumo || {};
+    var vendas = dharma.convertidos || 0;
+    var totalLeadsDharma = dharma.total || 0;
+    var cplMedio = totalLeads > 0 ? (totalGasto / totalLeads).toFixed(2) : null;
+    var ctrMedio = totalImpr > 0 ? ((totalCliques / totalImpr) * 100).toFixed(2) : null;
+    var cpmMedio = totalImpr > 0 ? ((totalGasto / totalImpr) * 1000).toFixed(2) : null;
+    var taxaConv = totalLeadsDharma > 0 ? ((vendas / totalLeadsDharma) * 100).toFixed(1) : '0';
+    var cpaReal = vendas > 0 ? (totalGasto / vendas).toFixed(2) : null;
+
+    if (cpaReal && parseFloat(cpaReal) > L.CPA_MAX) {
+      alertas.push({ tipo: 'erro', texto: 'CPA real R$' + cpaReal + ' acima do maximo R$' + L.CPA_MAX });
+    } else if (cpaReal && parseFloat(cpaReal) > L.CPA_META) {
+      alertas.push({ tipo: 'aviso', texto: 'CPA real R$' + cpaReal + ' acima da meta R$' + L.CPA_META });
+    }
+
+    return {
+      periodo: { since: since, until: until, label: periodo },
+      resumo: {
+        gasto: totalGasto.toFixed(2),
+        leads: totalLeads,
+        impressoes: totalImpr,
+        cliques: totalCliques,
+        cpl: cplMedio,
+        ctr: ctrMedio,
+        cpm: cpmMedio,
+        conversoes: vendas,
+        taxaConv: taxaConv,
+        cpaReal: cpaReal
+      },
+      campanhas: campanhasData,
+      alertas: alertas,
+      dharma: dharma
+    };
+  } catch (e) {
+    return { erro: 'Erro inesperado: ' + e.message };
+  }
+}

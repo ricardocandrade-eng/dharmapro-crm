@@ -1109,6 +1109,28 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // Claude Ads Bridge — atualiza o cockpit de Ads dentro do DharmaPro
+    if (payload.action === 'claude_ads_bridge_upsert') {
+      if (!payload.bridge || payload.bridge.crm_mode !== 'cockpit_ads') {
+        return ContentService
+          .createTextOutput(JSON.stringify({ erro: 'Payload de bridge inválido.' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      PropertiesService.getScriptProperties().setProperty(
+        'CLAUDE_ADS_BRIDGE_JSON',
+        JSON.stringify(payload.bridge)
+      );
+      PropertiesService.getScriptProperties().setProperty(
+        'CLAUDE_ADS_BRIDGE_UPDATED_AT',
+        new Date().toISOString()
+      );
+
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: true, modulo: 'claude_ads_bridge' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // Mapeamento de campos do BotConversa para colunas do CRM
     var sheet    = _getSheet();
     var tz       = Session.getScriptTimeZone();
@@ -2830,6 +2852,46 @@ function getVendaPorLinha(numeroLinha) {
   } catch (erro) {
     throw new Error('Erro ao buscar venda: ' + erro.message);
   }
+}
+
+/**
+ * Salva/atualiza o segredo usado pelo webhook do DharmaPro.
+ * Executar manualmente no editor Apps Script.
+ */
+function configurarWebhookSecret(secret) {
+  if (!secret) throw new Error('Informe um webhook secret valido.');
+  PropertiesService.getScriptProperties().setProperty('webhook_secret', String(secret));
+  Logger.log('webhook_secret salvo com sucesso.');
+  return { ok: true, message: 'webhook_secret salvo com sucesso.' };
+}
+
+/**
+ * Diagnostico rapido da ponte Claude Ads -> DharmaPro.
+ * Executar manualmente no editor Apps Script.
+ */
+function diagnosticarClaudeAdsBridge() {
+  var props = PropertiesService.getScriptProperties();
+  var secret = props.getProperty('webhook_secret') || '';
+  var bridgeJson = props.getProperty('CLAUDE_ADS_BRIDGE_JSON') || '';
+  var updatedAt = props.getProperty('CLAUDE_ADS_BRIDGE_UPDATED_AT') || '';
+  var bridge = null;
+
+  try {
+    bridge = bridgeJson ? JSON.parse(bridgeJson) : null;
+  } catch (error) {
+    bridge = { erro_parse: error.message };
+  }
+
+  return {
+    webhook_secret_configurado: !!secret,
+    webhook_secret_tamanho: secret ? secret.length : 0,
+    bridge_salvo: !!bridgeJson,
+    bridge_updated_at: updatedAt || null,
+    bridge_status_geral: bridge && bridge.status_geral ? bridge.status_geral : null,
+    bridge_foco_principal: bridge && bridge.resumo_do_dia ? bridge.resumo_do_dia.foco_principal : null,
+    bridge_linha_de_crescimento: bridge && bridge.resumo_do_dia ? bridge.resumo_do_dia.linha_de_crescimento : null,
+    bridge_pronto_para_producao: bridge && bridge.pronto_para_producao === true
+  };
 }
 
 function criarVendaMovelVinculada(payload) {
