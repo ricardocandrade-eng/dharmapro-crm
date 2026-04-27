@@ -263,6 +263,89 @@
   #painelAdsContainer .pa-loading-bottom { grid-template-columns:1fr; }
 }
 
+/* ── WORKFLOW BAR ────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-workflow-bar {
+  background:linear-gradient(90deg,rgba(167,139,250,.07) 0%,rgba(0,212,255,.04) 100%);
+  border:1px solid rgba(167,139,250,.18); border-radius:var(--r);
+  padding:16px 20px; margin-bottom:16px;
+}
+#painelAdsContainer .pa-workflow-steps { display:flex; align-items:center; gap:0; flex-wrap:wrap; }
+#painelAdsContainer .pa-workflow-step { display:flex; flex-direction:column; gap:5px; flex:1 1 0; min-width:80px; padding-bottom:4px; }
+#painelAdsContainer .pa-workflow-step-num { font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.04em; }
+#painelAdsContainer .pa-workflow-step-status { font-family:var(--mono); font-size:9px; letter-spacing:.04em; color:var(--dim); }
+#painelAdsContainer .pa-workflow-step.done  .pa-workflow-step-num    { color:var(--g1); }
+#painelAdsContainer .pa-workflow-step.done  .pa-workflow-step-status { color:var(--g1); }
+#painelAdsContainer .pa-workflow-step.warn  .pa-workflow-step-num    { color:var(--g4); }
+#painelAdsContainer .pa-workflow-step.warn  .pa-workflow-step-status { color:var(--g4); }
+#painelAdsContainer .pa-workflow-step.ready .pa-workflow-step-num    { color:var(--g2); }
+#painelAdsContainer .pa-workflow-step.ready .pa-workflow-step-status { color:var(--g2); }
+#painelAdsContainer .pa-workflow-step.locked .pa-workflow-step-num   { color:var(--dim); }
+#painelAdsContainer .pa-workflow-connector { flex:0 0 20px; height:2px; margin:0 4px 8px; background:var(--rim); border-radius:999px; transition:background .3s; }
+#painelAdsContainer .pa-workflow-connector.done { background:rgba(200,255,94,.4); }
+
+/* ── CALLOUT ─────────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-callout {
+  display:flex; align-items:flex-start; gap:12px;
+  padding:14px 18px; border-radius:var(--r); margin-bottom:16px;
+  font-size:13px; line-height:1.5;
+}
+#painelAdsContainer .pa-callout.warn    { background:linear-gradient(90deg,rgba(255,170,0,.1) 0%,rgba(255,143,69,.05) 100%); border:1px solid rgba(255,170,0,.28); }
+#painelAdsContainer .pa-callout.info    { background:linear-gradient(90deg,rgba(0,212,255,.08) 0%,rgba(167,139,250,.05) 100%); border:1px solid rgba(0,212,255,.22); }
+#painelAdsContainer .pa-callout.success { background:linear-gradient(90deg,rgba(200,255,94,.08) 0%,rgba(69,224,161,.05) 100%); border:1px solid rgba(200,255,94,.22); }
+#painelAdsContainer .pa-callout-icon   { font-size:18px; flex-shrink:0; margin-top:1px; }
+#painelAdsContainer .pa-callout-title  { font-weight:700; color:var(--em); margin-bottom:2px; }
+#painelAdsContainer .pa-callout-sub    { font-size:12px; color:var(--dim2); }
+
+/* ── DECISION CARDS ──────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-decision-list { display:flex; flex-direction:column; gap:12px; }
+#painelAdsContainer .pa-decision-card { background:var(--s2); border-radius:12px; padding:18px 20px; border:1px solid var(--rim); }
+#painelAdsContainer .pa-decision-card.pending  { border-color:rgba(255,170,0,.28); }
+#painelAdsContainer .pa-decision-card.approved { border-color:rgba(200,255,94,.28); }
+#painelAdsContainer .pa-decision-card.rejected { border-color:rgba(255,69,112,.18); opacity:.65; }
+#painelAdsContainer .pa-decision-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:10px; }
+#painelAdsContainer .pa-decision-title  { font-size:13px; color:var(--em); font-weight:700; }
+#painelAdsContainer .pa-decision-type   { font-family:var(--mono); font-size:9px; letter-spacing:.15em; text-transform:uppercase; color:var(--dim2); margin-top:3px; }
+#painelAdsContainer .pa-decision-rationale { font-size:12px; color:var(--dim2); line-height:1.55; margin-bottom:8px; }
+#painelAdsContainer .pa-decision-check { font-size:11px; color:var(--txt); line-height:1.5; margin-bottom:14px; padding:9px 12px; background:rgba(255,170,0,.07); border-radius:8px; border-left:2px solid rgba(255,170,0,.4); }
+#painelAdsContainer .pa-decision-actions { display:flex; gap:10px; flex-wrap:wrap; }
+#painelAdsContainer .pa-btn-approve {
+  padding:9px 20px; border-radius:10px; cursor:pointer;
+  background:linear-gradient(135deg,rgba(200,255,94,.18) 0%,rgba(69,224,161,.14) 100%);
+  border:1px solid rgba(200,255,94,.32); color:var(--g1);
+  font-size:12px; font-weight:600; font-family:var(--sans); transition:all .15s;
+}
+#painelAdsContainer .pa-btn-approve:hover { background:linear-gradient(135deg,rgba(200,255,94,.28) 0%,rgba(69,224,161,.22) 100%); border-color:rgba(200,255,94,.5); transform:translateY(-1px); }
+#painelAdsContainer .pa-btn-reject {
+  padding:9px 20px; border-radius:10px; cursor:pointer;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+  color:var(--dim2); font-size:12px; font-weight:600; font-family:var(--sans); transition:all .15s;
+}
+#painelAdsContainer .pa-btn-reject:hover { background:rgba(255,69,112,.1); border-color:rgba(255,69,112,.28); color:var(--g3); }
+#painelAdsContainer .pa-btn-sm { padding:5px 12px; font-size:11px; border-radius:8px; }
+#painelAdsContainer .pa-decision-decided  { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:8px 0; }
+#painelAdsContainer .pa-decision-executed { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:4px 0; }
+
+/* ── EXECUTE CTA ─────────────────────────────────────────────────────────────── */
+#painelAdsContainer .pa-exec-cta {
+  background:linear-gradient(135deg,rgba(0,212,255,.1) 0%,rgba(167,139,250,.08) 60%,rgba(200,255,94,.06) 100%);
+  border:1px solid rgba(0,212,255,.28); border-radius:var(--r);
+  padding:20px 22px; margin-bottom:12px;
+  display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+}
+#painelAdsContainer .pa-exec-cta-info   { flex:1; min-width:200px; }
+#painelAdsContainer .pa-exec-cta-title  { font-size:14px; font-weight:700; color:var(--em); margin-bottom:4px; }
+#painelAdsContainer .pa-exec-cta-sub    { font-size:12px; color:var(--dim2); line-height:1.5; }
+#painelAdsContainer .pa-exec-cta-list   { font-size:11px; color:var(--dim2); margin-top:8px; display:flex; flex-direction:column; gap:3px; }
+#painelAdsContainer .pa-exec-btn {
+  padding:12px 28px; border-radius:12px; cursor:pointer;
+  background:linear-gradient(135deg,rgba(0,212,255,.22) 0%,rgba(167,139,250,.18) 100%);
+  border:1px solid rgba(0,212,255,.38); color:var(--g2);
+  font-size:13px; font-weight:700; font-family:var(--sans); letter-spacing:.03em;
+  transition:all .15s; flex-shrink:0; box-shadow:0 0 20px rgba(0,212,255,.1);
+}
+#painelAdsContainer .pa-exec-btn:hover { background:linear-gradient(135deg,rgba(0,212,255,.32) 0%,rgba(167,139,250,.26) 100%); border-color:rgba(0,212,255,.52); transform:translateY(-2px); box-shadow:0 4px 24px rgba(0,212,255,.2); }
+#painelAdsContainer .pa-exec-btn:disabled { opacity:.4; cursor:default; transform:none; box-shadow:none; }
+
 @media(max-width:720px) {
   #painelAdsContainer .pa-canvas { padding:18px 14px 42px; }
   #painelAdsContainer .pa-kpi-grid,
@@ -304,7 +387,6 @@
 <div class="pa-canvas" id="paCanvas">
   <!-- Loading skeleton inicial -->
   <div id="paLoading">
-    <div id="paStatusMsg" style="font-family:monospace;font-size:11px;color:#8490b8;padding:8px 12px;background:rgba(255,255,255,.04);border-radius:6px;margin-bottom:12px;">⏳ Aguardando JS...</div>
     <div class="pa-section"><span>Visão Geral</span></div>
     <div class="pa-loading-grid">
       <div class="pa-skel"></div><div class="pa-skel"></div>
@@ -332,13 +414,6 @@
   var paCache = {};
   var paCarregando = false;
 
-  function _paStatus(msg) {
-    var el = document.getElementById('paStatusMsg');
-    if (el) el.textContent = msg;
-  }
-
-  _paStatus('✅ JS carregado. Aguardando paInit...');
-
   // ── INICIALIZAÇÃO ───────────────────────────────────────────────────────────
   window.paInit = function() {
     paCarregar('7d');
@@ -362,7 +437,6 @@
     }
 
     paCarregando = true;
-    _paStatus('🔄 paCarregar chamado. Iniciando chamada GAS...');
     var btn = document.getElementById('paBtnRefresh');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Carregando...'; }
     var elLoad = document.getElementById('paLoading');
@@ -378,12 +452,10 @@
       _paRenderizarErro('Tempo limite excedido (35s). Verifique META_ACCESS_TOKEN ou Claude Ads Bridge nas Propriedades do Script GAS.');
     }, 35000);
 
-    _paStatus('📡 google.script.run.getPainelAdsData chamado...');
     google.script.run
       .withSuccessHandler(function(dados) {
         clearTimeout(_paTimerGuard);
         paCarregando = false;
-        _paStatus('📥 Resposta recebida. Processando...');
         if (btn) { btn.disabled = false; btn.textContent = '↻ Atualizar'; }
         try {
           if (!dados) { _paRenderizarErro('Resposta vazia do servidor. Verifique os logs do Apps Script.'); return; }
@@ -827,6 +899,133 @@
     '</div>';
   }
 
+  // ── WORKFLOW BAR ──────────────────────────────────────────────────────────────
+  function _paWorkflowBar(hasOperador, pendentesDecisao, pendentesExecucao, executadas, queueLen) {
+    var steps = [
+      { num: '①', label: 'Ler resumo',
+        cls: hasOperador ? 'done' : 'locked',
+        status: hasOperador ? '✅ concluído' : '—' },
+      { num: '②', label: 'Ver ações',
+        cls: hasOperador && queueLen > 0 ? 'done' : hasOperador ? 'done' : 'locked',
+        status: hasOperador ? '✅ concluído' : '—' },
+      { num: '③', label: 'Decidir',
+        cls: pendentesDecisao > 0 ? 'warn' : (queueLen > 0 && pendentesDecisao === 0) ? 'done' : 'locked',
+        status: pendentesDecisao > 0 ? ('⚠ ' + pendentesDecisao + ' pendente' + (pendentesDecisao > 1 ? 's' : '')) : (queueLen > 0 ? '✅ concluído' : '—') },
+      { num: '④', label: 'Executar',
+        cls: pendentesExecucao > 0 ? 'ready' : executadas > 0 ? 'done' : 'locked',
+        status: pendentesExecucao > 0 ? ('🚀 ' + pendentesExecucao + ' pronta' + (pendentesExecucao > 1 ? 's' : '')) : executadas > 0 ? '✅ concluído' : '🔒 aguardando' }
+    ];
+    var html = '<div class="pa-workflow-bar"><div class="pa-workflow-steps">';
+    for (var i = 0; i < steps.length; i++) {
+      var s = steps[i];
+      html += '<div class="pa-workflow-step ' + s.cls + '">';
+      html += '<div class="pa-workflow-step-num">' + s.num + ' ' + _paEsc(s.label) + '</div>';
+      html += '<div class="pa-workflow-step-status">' + _paEsc(s.status) + '</div>';
+      html += '</div>';
+      if (i < steps.length - 1) {
+        html += '<div class="pa-workflow-connector' + (s.cls === 'done' ? ' done' : '') + '"></div>';
+      }
+    }
+    html += '</div></div>';
+    return html;
+  }
+
+  // ── CALLOUT ───────────────────────────────────────────────────────────────────
+  function _paCallout(type, icon, title, sub) {
+    return '<div class="pa-callout ' + type + '">' +
+      '<div class="pa-callout-icon">' + icon + '</div>' +
+      '<div><div class="pa-callout-title">' + _paEsc(title) + '</div>' +
+      (sub ? '<div class="pa-callout-sub">' + _paEsc(sub) + '</div>' : '') +
+      '</div></div>';
+  }
+
+  // ── DECISION CARD ─────────────────────────────────────────────────────────────
+  function _paDecisionCard(item) {
+    var actionType = item && item.action_type ? item.action_type : 'acao';
+    var campaign   = item && item.campaign_key ? item.campaign_key : 'sem campanha';
+    var rationale  = item && item.rationale    ? item.rationale    : 'Sem racional.';
+    var humanCheck = item && item.human_check  ? item.human_check  : '';
+    var actionId   = item && item.action_id    ? item.action_id    : '';
+    var approval   = item && item.approval_state ? item.approval_state : { status: 'pending' };
+    var approvalStatus   = approval.status          || 'pending';
+    var executedAt       = approval.executed_at     || '';
+    var revertedAt       = approval.reverted_at     || '';
+    var executionResult  = approval.execution_result || '';
+    var execErro = executionResult.indexOf('erro:') === 0;
+    var canRevert = executedAt && !revertedAt && !execErro &&
+                    (actionType === 'pause_campaign' || actionType === 'pause' ||
+                     actionType === 'scale_budget_guardrailed' || actionType === 'scale');
+
+    var actionLabel = actionType === 'pause_campaign'            ? 'Pausar campanha' :
+                      actionType === 'scale_budget_guardrailed'  ? 'Escalar budget (+20%)' : actionType;
+    var approveConsequence = actionType === 'pause_campaign'           ? 'campanha será pausada no Meta Ads' :
+                             actionType === 'scale_budget_guardrailed' ? 'budget sobe +20% via API' :
+                             'ação será executada';
+
+    var html = '<div class="pa-decision-card ' + approvalStatus + '">';
+    html += '<div class="pa-decision-header">';
+    html += '<div><div class="pa-decision-title">' + _paEsc(campaign) + '</div>';
+    html += '<div class="pa-decision-type">' + _paEsc(actionLabel) + '</div></div>';
+    html += '<span class="pa-badge ' + _paApprovalStatusBadge(approvalStatus) + '">' + _paEsc(_paApprovalStatusLabel(approvalStatus)) + '</span>';
+    html += '</div>';
+    html += '<div class="pa-decision-rationale">' + _paEsc(rationale) + '</div>';
+    if (humanCheck) {
+      html += '<div class="pa-decision-check">⚠️ Verifique antes de decidir: ' + _paEsc(humanCheck) + '</div>';
+    }
+    if (approvalStatus === 'pending') {
+      html += '<div class="pa-decision-actions">';
+      html += '<button class="pa-btn-approve" onclick="paRegistrarDecisaoAcao(\'' + _paEsc(actionId) + '\',\'approved\')">✅ Aprovar<span style="font-size:10px;font-weight:400;opacity:.7;margin-left:5px;">— ' + _paEsc(approveConsequence) + '</span></button>';
+      html += '<button class="pa-btn-reject"  onclick="paRegistrarDecisaoAcao(\'' + _paEsc(actionId) + '\',\'rejected\')">🚫 Rejeitar<span style="font-size:10px;font-weight:400;opacity:.7;margin-left:5px;">— manter sem alteração</span></button>';
+      html += '</div>';
+    } else {
+      html += '<div class="pa-decision-decided">';
+      html += '<span class="pa-badge ' + _paApprovalStatusBadge(approvalStatus) + '">' + _paEsc(_paApprovalStatusLabel(approvalStatus)) + '</span>';
+      if (approval.decided_by) html += '<span style="font-size:11px;color:var(--dim2);">por ' + _paEsc(approval.decided_by) + '</span>';
+      if (approval.decided_at) html += '<span style="font-size:11px;color:var(--dim);">em ' + _paEsc(new Date(approval.decided_at).toLocaleString('pt-BR')) + '</span>';
+      html += '</div>';
+      if (executedAt) {
+        html += '<div class="pa-decision-executed">';
+        if (revertedAt) {
+          html += '<span class="pa-badge dim">↩ Revertido em ' + _paEsc(new Date(revertedAt).toLocaleString('pt-BR')) + '</span>';
+        } else if (execErro) {
+          html += '<span class="pa-badge red">❌ Erro: ' + _paEsc(executionResult.replace('erro: ', '')) + '</span>';
+        } else {
+          html += '<span class="pa-badge lime">🚀 Executado em ' + _paEsc(new Date(executedAt).toLocaleString('pt-BR')) + '</span>';
+          if (canRevert) {
+            html += '<button class="pa-btn-reject pa-btn-sm" onclick="paReverterAcao(\'' + _paEsc(actionId) + '\')">↩ Reverter</button>';
+          }
+        }
+        html += '</div>';
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+
+  // ── EXECUTE CTA ───────────────────────────────────────────────────────────────
+  function _paExecuteCTA(queue) {
+    var prontas = (queue || []).filter(function(it) {
+      var as = it && it.approval_state ? it.approval_state : {};
+      return as.status === 'approved' && !as.executed_at;
+    });
+    if (!prontas.length) return '';
+    var listHtml = prontas.map(function(it) {
+      var lbl = it.action_type === 'pause_campaign'           ? '→ pausar' :
+                it.action_type === 'scale_budget_guardrailed' ? '→ escalar +20%' :
+                '→ ' + (it.action_type || 'acao');
+      return '<div>• <b>' + _paEsc(it.campaign_key || 'campanha') + '</b> ' + _paEsc(lbl) + '</div>';
+    }).join('');
+    return '<div class="pa-section"><span>④ Executar</span></div>' +
+      '<div class="pa-exec-cta">' +
+        '<div class="pa-exec-cta-info">' +
+          '<div class="pa-exec-cta-title">🚀 ' + prontas.length + ' ação' + (prontas.length > 1 ? 'ões aprovadas prontas' : ' aprovada pronta') + ' para execução</div>' +
+          '<div class="pa-exec-cta-sub">As alterações serão aplicadas imediatamente na sua conta do Meta Ads. Você poderá reverter depois se necessário.</div>' +
+          '<div class="pa-exec-cta-list">' + listHtml + '</div>' +
+        '</div>' +
+        '<button id="paBtnExecutar" class="pa-exec-btn" onclick="paExecutarAprovadas()">▶ Executar Agora</button>' +
+      '</div>';
+  }
+
   function _paMoeda(val, semPrefix) {
     var n = parseFloat(val) || 0;
     if (semPrefix) return 'R$' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1138,9 +1337,38 @@
     var html = '';
 
     if (d.modo === 'cockpit_bridge' && cockpit.operador) {
-      html += '<div class="pa-section"><span>Operacao Assistida</span></div>';
+      // Workflow state
+      var pendentesDecisao = 0, pendentesExecucao = 0, executadas = 0;
+      var filaDecisao = [];
+      for (var qi = 0; qi < queue.length; qi++) {
+        var qit = queue[qi];
+        if (!qit || !_paRequiresHumanDecision(qit)) continue;
+        var qas = qit.approval_state || { status: 'pending' };
+        if (qas.status === 'pending') { pendentesDecisao++; filaDecisao.push(qit); }
+        else if (qas.status === 'approved' && !qas.executed_at) pendentesExecucao++;
+        else if (qas.executed_at) executadas++;
+      }
+
+      // Barra de progresso
+      html += _paWorkflowBar(true, pendentesDecisao, pendentesExecucao, executadas, queue.length);
+
+      // Callout contextual
+      if (pendentesDecisao > 0) {
+        html += _paCallout('warn', '⚠️',
+          pendentesDecisao + ' ação' + (pendentesDecisao > 1 ? 'ões aguardam' : ' aguarda') + ' sua decisão',
+          'Role até "③ Fila de Decisão" e aprove ou rejeite cada item antes de executar.');
+      } else if (pendentesExecucao > 0) {
+        html += _paCallout('info', '🚀',
+          pendentesExecucao + ' ação' + (pendentesExecucao > 1 ? 'ões aprovadas prontas' : ' aprovada pronta') + ' para execução',
+          'Role até "④ Executar" e clique em Executar Agora para aplicar no Meta Ads.');
+      } else if (executadas > 0 && pendentesDecisao === 0) {
+        html += _paCallout('success', '✅', 'Todas as ações foram executadas.', 'Acompanhe os resultados nas métricas abaixo.');
+      }
+
+      // ① Resumo da IA
+      html += '<div class="pa-section"><span>① Resumo da IA</span></div>';
       html += '<div class="pa-card c-purple" style="margin-bottom:12px;">';
-      html += '<div class="pa-card-head"><span class="pa-card-title">Resumo do Operador</span><span class="pa-badge purple">Claude Ads 2.0</span></div>';
+      html += '<div class="pa-card-head"><span class="pa-card-title">Leitura do Operador</span><span class="pa-badge purple">Claude Ads 2.0</span></div>';
       html += '<div style="display:grid;grid-template-columns:1.2fr .8fr;gap:12px;">';
       html += '<div>';
       html += '<div style="font-size:13px;color:var(--em);font-weight:700;margin-bottom:8px;">' + _paEsc(operator.status_geral || 'SEM STATUS') + '</div>';
@@ -1167,17 +1395,32 @@
       html += '</div>';
       html += '</div>';
 
+      // ② Ações Prioritárias
+      html += '<div class="pa-section"><span>② Ações Prioritárias</span></div>';
       html += '<div class="pa-camp-grid" style="margin-bottom:12px;">';
       html += _paActionFocusCard('Pausar / Revisar', firstActions.pausar_ou_revisar_agora || {}, 'red', 'Cortar desperdicio antes de escalar.', _paFindQueueAction(queue, (firstActions.pausar_ou_revisar_agora || {}).campaign_key, 'pause_campaign'));
       html += _paActionFocusCard('Escalar com cuidado', firstActions.oportunidade_de_escala || {}, 'lime', 'Subir devagar e validar qualidade real.', _paFindQueueAction(queue, (firstActions.oportunidade_de_escala || {}).campaign_key, 'scale_budget_guardrailed'));
       html += _paActionFocusCard('Observar', firstActions.observacao_controlada || {}, 'amber', 'Ainda nao mexer forte no budget.', null);
       html += '</div>';
 
+      // ③ Fila de Decisão — seção dedicada
+      if (filaDecisao.length > 0) {
+        html += '<div class="pa-section"><span>③ Fila de Decisão</span></div>';
+        html += '<div class="pa-decision-list" style="margin-bottom:12px;">';
+        filaDecisao.forEach(function(it) { html += _paDecisionCard(it); });
+        html += '</div>';
+      }
+
+      // ④ Executar — CTA dedicado
+      html += _paExecuteCTA(queue);
+
+      // Autonomia Operacional
       html += '<div class="pa-section"><span>Autonomia Operacional</span></div>';
       html += '<div style="margin-bottom:12px;">';
       html += _paExecutionStatusCard(automacao);
       html += '</div>';
 
+      // Inteligência Comercial
       html += '<div class="pa-section"><span>Inteligencia Comercial</span></div>';
       html += '<div class="pa-kpi-grid" style="margin-bottom:12px;">';
       html += _paIntelligenceCard('Melhor cidade', intelligence.melhor_cidade || {}, 'c-cyan');
@@ -1277,44 +1520,6 @@
         });
         html += '</div>';
       }
-      var pendentesExecucao = queue.filter(function(it) {
-        var as = it && it.approval_state ? it.approval_state : {};
-        return as.status === 'approved' && !as.executed_at;
-      }).length;
-      html += '<div class="pa-divider-num" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">';
-      html += '<span>Fila de automacao</span>';
-      if (pendentesExecucao > 0) {
-        html += '<button id="paBtnExecutar" class="pa-help-btn" onclick="paExecutarAprovadas()" style="font-size:10px;padding:4px 10px;">▶ Executar Aprovadas (' + pendentesExecucao + ')</button>';
-      }
-      html += '</div>';
-      if ((cockpit.automacao || {}).autonomia_resumo) {
-        var autoResumo = (cockpit.automacao || {}).autonomia_resumo;
-        var approvalSummary = (cockpit.automacao || {}).approval_summary || {};
-        html += '<div style="background:var(--s2);border-radius:10px;padding:12px;margin-bottom:8px;">';
-        html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;">';
-        html += '<div style="font-size:12px;color:var(--em);font-weight:700;">Modo: ' + _paEsc(autoResumo.mode || 'manual') + '</div>';
-        html += '<span class="pa-badge purple">Guardrails</span>';
-        html += '</div>';
-        html += '<div style="font-size:11px;color:var(--dim2);line-height:1.6;">';
-        html += 'Autonomas: <b>' + _paEsc(String(((autoResumo.counts || {}).autonomous) || 0)) + '</b> &nbsp;|&nbsp; ';
-        html += 'Aprovar: <b>' + _paEsc(String(((autoResumo.counts || {}).approval_required) || 0)) + '</b> &nbsp;|&nbsp; ';
-        html += 'Assistivas: <b>' + _paEsc(String(((autoResumo.counts || {}).assistive_only) || 0)) + '</b>';
-        html += '</div>';
-        html += '<div style="font-size:11px;color:var(--dim2);line-height:1.6;margin-top:6px;">';
-        html += 'Pendentes: <b>' + _paEsc(String(approvalSummary.pending || 0)) + '</b> &nbsp;|&nbsp; ';
-        html += 'Aprovadas: <b>' + _paEsc(String(approvalSummary.approved || 0)) + '</b> &nbsp;|&nbsp; ';
-        html += 'Rejeitadas: <b>' + _paEsc(String(approvalSummary.rejected || 0)) + '</b>';
-        html += '</div>';
-        html += '</div>';
-      }
-      html += '<div style="display:flex;flex-direction:column;gap:8px;">';
-      ((cockpit.automacao || {}).fila_prioritaria || []).slice(0, 3).forEach(function(item) {
-        html += _paAutomationRow(item);
-      });
-      if (((cockpit.automacao || {}).fila_prioritaria || []).length === 0) {
-        html += '<div style="font-size:11px;color:var(--dim2);line-height:1.5;">Nenhuma acao na fila.</div>';
-      }
-      html += '</div>';
       html += '<div class="pa-divider-num"><span>Readiness</span></div>';
       html += '<div style="background:var(--s2);border-radius:10px;padding:12px;">';
       html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">';
