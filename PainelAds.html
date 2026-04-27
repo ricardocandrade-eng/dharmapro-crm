@@ -1378,15 +1378,14 @@
     }
 
     if (!document.getElementById('paBtnHelp')) {
-      var toolbar = document.querySelector('#painelAdsContainer .pa-toolbar');
       var refreshButton = document.getElementById('paBtnRefresh');
-      if (toolbar && refreshButton) {
+      if (refreshButton && refreshButton.parentNode) {
         var helpButton = document.createElement('button');
         helpButton.id = 'paBtnHelp';
         helpButton.className = 'pa-help-btn';
         helpButton.textContent = 'Guia';
         helpButton.onclick = function() { window.paAbrirGuia(); };
-        toolbar.insertBefore(helpButton, refreshButton);
+        refreshButton.parentNode.insertBefore(helpButton, refreshButton);
       }
     }
   }
