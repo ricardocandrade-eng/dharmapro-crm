@@ -732,11 +732,26 @@
     '</div>';
   }
 
+  function _paAutonomyModeLabel(mode) {
+    if (mode === 'autonomous') return 'Autonomo';
+    if (mode === 'approval_required') return 'Aprovar';
+    if (mode === 'assistive_only') return 'Assistivo';
+    return 'Indefinido';
+  }
+
+  function _paAutonomyModeBadge(mode) {
+    if (mode === 'autonomous') return 'lime';
+    if (mode === 'approval_required') return 'amber';
+    if (mode === 'assistive_only') return 'purple';
+    return 'dim';
+  }
+
   function _paAutomationRow(item) {
     var actionType = item && item.action_type ? item.action_type : 'acao';
     var campaign = item && item.campaign_key ? item.campaign_key : 'sem alvo';
-    var badge = item && item.approval_required ? 'amber' : 'lime';
-    var label = item && item.approval_required ? 'Aprovar' : 'Preparar';
+    var executionMode = item && item.autonomy && item.autonomy.execution_mode ? item.autonomy.execution_mode : (item && item.approval_required ? 'approval_required' : 'assistive_only');
+    var badge = _paAutonomyModeBadge(executionMode);
+    var label = _paAutonomyModeLabel(executionMode);
     return '<div style="background:var(--s2);border-radius:10px;padding:12px;">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;">' +
         '<div style="font-size:12px;color:var(--em);font-weight:700;">' + _paEsc(campaign) + '</div>' +
@@ -745,6 +760,31 @@
       '<div style="font-size:11px;color:var(--dim2);line-height:1.5;margin-bottom:4px;">' + _paEsc(actionType) + ' - ' + _paEsc(item && item.rationale ? item.rationale : 'Sem racional.') + '</div>' +
       '<div style="font-size:10px;color:var(--dim);line-height:1.5;">Cheque humano: ' + _paEsc(item && item.human_check ? item.human_check : 'Sem observacao.') + '</div>' +
     '</div>';
+  }
+
+  function _paExecutionStatusCard(automacao) {
+    var resumo = automacao && automacao.execucao_resumo ? automacao.execucao_resumo : {};
+    var live = automacao && automacao.execucao_live_habilitada === true;
+    var attempted = resumo.attempted_live != null ? resumo.attempted_live : 0;
+    var succeeded = resumo.succeeded != null ? resumo.succeeded : 0;
+    var failed = resumo.failed != null ? resumo.failed : 0;
+    var skipped = resumo.skipped != null ? resumo.skipped : 0;
+    var badge = live ? 'lime' : 'amber';
+    var badgeLabel = live ? 'Execucao live' : 'Simulacao protegida';
+
+    var html = '<div class="pa-card ' + (live ? 'c-lime' : 'c-amber') + '">';
+    html += '<div class="pa-card-head"><span class="pa-card-title">Autonomia da IA</span><span class="pa-badge ' + badge + '">' + badgeLabel + '</span></div>';
+    html += '<div class="pa-kpi sm">' + _paEsc(live ? 'IA autorizada a agir' : 'IA ainda em dry-run') + '</div>';
+    html += '<div class="pa-kpi-sub">Autonomas encontradas: <b>' + _paEsc(String(resumo.autonomous_found != null ? resumo.autonomous_found : 0)) + '</b></div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px;">';
+    html += '<div style="background:var(--s2);border-radius:10px;padding:10px;"><div style="font-family:var(--mono);font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-bottom:3px;">Tentadas</div><div style="font-size:14px;color:var(--em);font-weight:700;">' + _paEsc(String(attempted)) + '</div></div>';
+    html += '<div style="background:var(--s2);border-radius:10px;padding:10px;"><div style="font-family:var(--mono);font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-bottom:3px;">Sucesso</div><div style="font-size:14px;color:var(--g1);font-weight:700;">' + _paEsc(String(succeeded)) + '</div></div>';
+    html += '<div style="background:var(--s2);border-radius:10px;padding:10px;"><div style="font-family:var(--mono);font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-bottom:3px;">Falhas</div><div style="font-size:14px;color:var(--g3);font-weight:700;">' + _paEsc(String(failed)) + '</div></div>';
+    html += '<div style="background:var(--s2);border-radius:10px;padding:10px;"><div style="font-family:var(--mono);font-size:8px;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-bottom:3px;">Puladas</div><div style="font-size:14px;color:var(--g4);font-weight:700;">' + _paEsc(String(skipped)) + '</div></div>';
+    html += '</div>';
+    html += '<div class="pa-kpi-benchmark" style="margin-top:12px;">' + _paEsc(live ? 'A IA ja pode executar somente o que ficou dentro dos guardrails.' : 'A IA esta simulando e registrando tudo antes de ganhar permissao real de execucao.') + '</div>';
+    html += '</div>';
+    return html;
   }
 
   function _paRenderizar(d) {
@@ -766,6 +806,7 @@
     var operator = cockpit.operador || {};
     var firstActions = operator.o_que_fazer_primeiro || {};
     var intelligence = cockpit.inteligencia_comercial || {};
+    var automacao = cockpit.automacao || {};
 
     var maxGasto = 0;
     for (var ci = 0; ci < camps.length; ci++) {
@@ -830,6 +871,11 @@
       html += _paIntelligenceCard('Melhor oferta', intelligence.melhor_oferta || {}, 'c-lime');
       html += _paIntelligenceCard('Pior publico', intelligence.pior_publico || {}, 'c-amber');
       html += _paIntelligenceCard('Pior criativo', intelligence.pior_criativo || {}, 'c-red');
+      html += '</div>';
+
+      html += '<div class="pa-section"><span>Autonomia Operacional</span></div>';
+      html += '<div style="margin-bottom:12px;">';
+      html += _paExecutionStatusCard(automacao);
       html += '</div>';
     }
 
@@ -924,6 +970,20 @@
         html += '</div>';
       }
       html += '<div class="pa-divider-num"><span>Fila de automacao</span></div>';
+      if ((cockpit.automacao || {}).autonomia_resumo) {
+        var autoResumo = (cockpit.automacao || {}).autonomia_resumo;
+        html += '<div style="background:var(--s2);border-radius:10px;padding:12px;margin-bottom:8px;">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;">';
+        html += '<div style="font-size:12px;color:var(--em);font-weight:700;">Modo: ' + _paEsc(autoResumo.mode || 'manual') + '</div>';
+        html += '<span class="pa-badge purple">Guardrails</span>';
+        html += '</div>';
+        html += '<div style="font-size:11px;color:var(--dim2);line-height:1.6;">';
+        html += 'Autonomas: <b>' + _paEsc(String(((autoResumo.counts || {}).autonomous) || 0)) + '</b> &nbsp;|&nbsp; ';
+        html += 'Aprovar: <b>' + _paEsc(String(((autoResumo.counts || {}).approval_required) || 0)) + '</b> &nbsp;|&nbsp; ';
+        html += 'Assistivas: <b>' + _paEsc(String(((autoResumo.counts || {}).assistive_only) || 0)) + '</b>';
+        html += '</div>';
+        html += '</div>';
+      }
       html += '<div style="display:flex;flex-direction:column;gap:8px;">';
       ((cockpit.automacao || {}).fila_prioritaria || []).slice(0, 3).forEach(function(item) {
         html += _paAutomationRow(item);
@@ -985,6 +1045,8 @@
               '<div class="pa-modal-card"><h4>Observar</h4><p>Quando a campanha cai em observar, o sistema esta dizendo para nao agir por ansiedade.</p><p>Coletar mais dados costuma ser melhor do que mexer cedo demais.</p></div>' +
               '<div class="pa-modal-card"><h4>Inteligencia Comercial</h4><p>Melhor cidade e melhor oferta mostram onde investir mais.</p><p>Pior publico e pior criativo mostram o que revisar ou testar primeiro.</p></div>' +
               '<div class="pa-modal-card"><h4>Automacao da IA</h4><p>Sim, e possivel automatizar bastante. O melhor modelo e autonomia assistida: a IA prepara, monitora e sugere; a execucao sensivel continua com aprovacao humana.</p><p>O caminho seguro e automatizar alertas, relatorios, fila de acoes e testes pequenos antes de liberar pausas e escalas sem revisao.</p></div>' +
+              '<div class="pa-modal-card"><h4>Status de Autonomia</h4><p><b>Assistivo</b>: a IA organiza e recomenda.</p><p><b>Aprovar</b>: a IA sugere a acao, mas espera voce confirmar.</p><p><b>Autonomo</b>: a IA ja esta autorizada a agir dentro dos guardrails definidos.</p></div>' +
+              '<div class="pa-modal-card"><h4>Simulacao vs Execucao</h4><p>Quando o painel mostrar simulacao protegida, a IA ainda nao mexeu no Meta Ads; ela so registrou o que faria.</p><p>Quando aparecer execucao live, a IA ja pode aplicar pausas e escalas pequenas que passaram por todas as travas.</p></div>' +
             '</div>' +
           '</div>' +
         '</div>'
