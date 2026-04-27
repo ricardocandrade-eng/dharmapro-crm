@@ -304,6 +304,7 @@
 <div class="pa-canvas" id="paCanvas">
   <!-- Loading skeleton inicial -->
   <div id="paLoading">
+    <div id="paStatusMsg" style="font-family:monospace;font-size:11px;color:#8490b8;padding:8px 12px;background:rgba(255,255,255,.04);border-radius:6px;margin-bottom:12px;">⏳ Aguardando JS...</div>
     <div class="pa-section"><span>Visão Geral</span></div>
     <div class="pa-loading-grid">
       <div class="pa-skel"></div><div class="pa-skel"></div>
@@ -331,6 +332,13 @@
   var paCache = {};
   var paCarregando = false;
 
+  function _paStatus(msg) {
+    var el = document.getElementById('paStatusMsg');
+    if (el) el.textContent = msg;
+  }
+
+  _paStatus('✅ JS carregado. Aguardando paInit...');
+
   // ── INICIALIZAÇÃO ───────────────────────────────────────────────────────────
   window.paInit = function() {
     paCarregar('7d');
@@ -354,6 +362,7 @@
     }
 
     paCarregando = true;
+    _paStatus('🔄 paCarregar chamado. Iniciando chamada GAS...');
     var btn = document.getElementById('paBtnRefresh');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Carregando...'; }
     var elLoad = document.getElementById('paLoading');
@@ -369,10 +378,12 @@
       _paRenderizarErro('Tempo limite excedido (35s). Verifique META_ACCESS_TOKEN ou Claude Ads Bridge nas Propriedades do Script GAS.');
     }, 35000);
 
+    _paStatus('📡 google.script.run.getPainelAdsData chamado...');
     google.script.run
       .withSuccessHandler(function(dados) {
         clearTimeout(_paTimerGuard);
         paCarregando = false;
+        _paStatus('📥 Resposta recebida. Processando...');
         if (btn) { btn.disabled = false; btn.textContent = '↻ Atualizar'; }
         try {
           if (!dados) { _paRenderizarErro('Resposta vazia do servidor. Verifique os logs do Apps Script.'); return; }
