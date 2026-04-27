@@ -66,6 +66,8 @@
 #painelAdsContainer .pa-refresh { padding:6px 16px; border-radius:8px; background:rgba(200,255,94,.07); border:1px solid rgba(200,255,94,.18); color:var(--g1); font-size:11px; font-weight:600; cursor:pointer; font-family:var(--sans); letter-spacing:.04em; transition:all .15s; flex-shrink:0; }
 #painelAdsContainer .pa-refresh:hover { background:rgba(200,255,94,.14); border-color:rgba(200,255,94,.35); }
 #painelAdsContainer .pa-refresh:disabled { opacity:.4; cursor:default; }
+#painelAdsContainer .pa-help-btn { padding:6px 14px; border-radius:8px; background:rgba(167,139,250,.08); border:1px solid rgba(167,139,250,.2); color:var(--g5); font-size:11px; font-weight:600; cursor:pointer; font-family:var(--sans); letter-spacing:.04em; transition:all .15s; flex-shrink:0; }
+#painelAdsContainer .pa-help-btn:hover { background:rgba(167,139,250,.15); border-color:rgba(167,139,250,.35); }
 #painelAdsContainer .pa-sync { font-family:var(--mono); font-size:10px; color:var(--dim); letter-spacing:.12em; white-space:nowrap; }
 
 /* ── CANVAS ─────────────────────────────────────────────────────────────────── */
@@ -203,6 +205,21 @@
 #painelAdsContainer .pa-erro { padding:40px 28px; }
 #painelAdsContainer .pa-erro-box { background:rgba(255,69,112,.06); border:1px solid rgba(255,69,112,.2); border-radius:var(--r); padding:20px 24px; color:var(--g3); font-family:var(--mono); font-size:12px; line-height:1.7; }
 #painelAdsContainer .pa-erro-box strong { display:block; font-size:13px; margin-bottom:6px; }
+
+/* modal ajuda */
+#painelAdsContainer .pa-modal-backdrop { position:fixed; inset:0; background:rgba(4,6,12,.78); backdrop-filter:blur(6px); z-index:999; display:none; align-items:center; justify-content:center; padding:24px; }
+#painelAdsContainer .pa-modal-backdrop.aberto { display:flex; }
+#painelAdsContainer .pa-modal { width:min(920px,100%); max-height:85vh; overflow:auto; background:linear-gradient(180deg,var(--s1) 0%,var(--bg) 100%); border:1px solid var(--rim2); border-radius:18px; box-shadow:0 20px 70px rgba(0,0,0,.45); padding:22px 22px 18px; }
+#painelAdsContainer .pa-modal-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px; }
+#painelAdsContainer .pa-modal-title { font-family:var(--serif); font-size:34px; line-height:1; font-style:italic; color:var(--em); }
+#painelAdsContainer .pa-modal-close { border:1px solid var(--rim); background:var(--s2); color:var(--txt); border-radius:10px; font-family:var(--mono); font-size:10px; padding:8px 10px; cursor:pointer; }
+#painelAdsContainer .pa-modal-close:hover { border-color:var(--rim2); background:var(--s3); }
+#painelAdsContainer .pa-modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+#painelAdsContainer .pa-modal-card { background:var(--s1); border:1px solid var(--rim); border-radius:14px; padding:16px; }
+#painelAdsContainer .pa-modal-card h4 { font-family:var(--mono); font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim2); margin-bottom:10px; }
+#painelAdsContainer .pa-modal-card p { font-size:12px; color:var(--dim2); line-height:1.6; margin-bottom:8px; }
+#painelAdsContainer .pa-modal-card p:last-child { margin-bottom:0; }
+@media(max-width:920px) { #painelAdsContainer .pa-modal-grid { grid-template-columns:1fr; } }
 
 /* ── DIVIDER NUM ─────────────────────────────────────────────────────────────── */
 #painelAdsContainer .pa-divider-num { display:flex; align-items:center; gap:10px; margin:16px 0 10px; }
@@ -929,6 +946,63 @@
   }
 
   // ── AUTO-INIT ──────────────────────────────────────────────────────────────
+  var _paInitOriginal = window.paInit;
+
+  function _paMontarGuia() {
+    if (!document.getElementById('paGuiaModal')) {
+      document.body.insertAdjacentHTML('beforeend',
+        '<div class="pa-modal-backdrop" id="paGuiaModal" onclick="paFecharGuia(event)">' +
+          '<div class="pa-modal" onclick="event.stopPropagation()">' +
+            '<div class="pa-modal-head">' +
+              '<div>' +
+                '<div class="pa-brand-name" style="margin-bottom:8px;">Claude Ads Playbook</div>' +
+                '<div class="pa-modal-title">Como Operar</div>' +
+              '</div>' +
+              '<button class="pa-modal-close" onclick="paFecharGuia()">Fechar</button>' +
+            '</div>' +
+            '<div class="pa-modal-grid">' +
+              '<div class="pa-modal-card"><h4>Todo Dia</h4><p>1. Atualize o painel.</p><p>2. Veja primeiro: Pausar / Revisar, Escalar com cuidado e Observar.</p><p>3. Confira pior publico e pior criativo antes de abrir o Meta Ads.</p></div>' +
+              '<div class="pa-modal-card"><h4>Pausar / Revisar</h4><p>Use esse bloco para cortar desperdicio. Nao pause por impulso: confirme se nao houve contexto comercial especial.</p><p>Se nao houve, revise publico, cobertura, oferta e criativo.</p></div>' +
+              '<div class="pa-modal-card"><h4>Escalar com Cuidado</h4><p>Escalar nao e dobrar budget. A ideia e subir em degrau pequeno e verificar se a qualidade do lead continua boa.</p><p>Se o comercial confirmar qualidade, mantenha a escala gradual.</p></div>' +
+              '<div class="pa-modal-card"><h4>Observar</h4><p>Quando a campanha cai em observar, o sistema esta dizendo para nao agir por ansiedade.</p><p>Coletar mais dados costuma ser melhor do que mexer cedo demais.</p></div>' +
+              '<div class="pa-modal-card"><h4>Inteligencia Comercial</h4><p>Melhor cidade e melhor oferta mostram onde investir mais.</p><p>Pior publico e pior criativo mostram o que revisar ou testar primeiro.</p></div>' +
+              '<div class="pa-modal-card"><h4>Automacao da IA</h4><p>Sim, e possivel automatizar bastante. O melhor modelo e autonomia assistida: a IA prepara, monitora e sugere; a execucao sensivel continua com aprovacao humana.</p><p>O caminho seguro e automatizar alertas, relatorios, fila de acoes e testes pequenos antes de liberar pausas e escalas sem revisao.</p></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    if (!document.getElementById('paBtnHelp')) {
+      var toolbar = document.querySelector('#painelAdsContainer .pa-toolbar');
+      var refreshButton = document.getElementById('paBtnRefresh');
+      if (toolbar && refreshButton) {
+        var helpButton = document.createElement('button');
+        helpButton.id = 'paBtnHelp';
+        helpButton.className = 'pa-help-btn';
+        helpButton.textContent = 'Guia';
+        helpButton.onclick = window.paAbrirGuia;
+        toolbar.insertBefore(helpButton, refreshButton);
+      }
+    }
+  }
+
+  window.paAbrirGuia = function() {
+    var modal = document.getElementById('paGuiaModal');
+    if (modal) modal.classList.add('aberto');
+  };
+
+  window.paFecharGuia = function(event) {
+    if (event && event.stopPropagation) event.stopPropagation();
+    var modal = document.getElementById('paGuiaModal');
+    if (modal) modal.classList.remove('aberto');
+  };
+
+  window.paInit = function() {
+    _paMontarGuia();
+    if (typeof _paInitOriginal === 'function') _paInitOriginal();
+  };
+
   if (typeof google !== 'undefined' && google.script && google.script.run) {
     paInit();
   }
