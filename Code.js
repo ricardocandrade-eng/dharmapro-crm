@@ -970,12 +970,22 @@ function doGet(e) {
       .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
   }
 
-  // Página principal desktop — sem template variables (VH_OK é lido da URL pelo JS)
-  return HtmlService.createTemplateFromFile('Index')
+  // Página principal desktop
+  var desktopTmpl = HtmlService.createTemplateFromFile('Index');
+  desktopTmpl.APP_BUILD_LABEL = getAppBuildLabel();
+  return desktopTmpl
     .evaluate()
     .setTitle('CRM - Mobile Digital')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+function getAppBuildLabel() {
+  var props = PropertiesService.getScriptProperties();
+  var scriptedLabel = props.getProperty('APP_BUILD_LABEL');
+  if (scriptedLabel) return String(scriptedLabel);
+  if (typeof DEPLOY_DATE !== 'undefined' && DEPLOY_DATE) return 'build ' + String(DEPLOY_DATE);
+  return 'build indisponivel';
 }
 
 // Página HTML de captura do token VeroHub
