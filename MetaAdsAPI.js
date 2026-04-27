@@ -21,7 +21,8 @@ var CFG_META = {
     FREQUENCIA_MAX:  4.0,
     CPA_META:        60,
     CPA_MAX:         120,
-  }
+  },
+  SCALE_FACTOR: 1.20  // +20% de budget por execução de scale
 };
 
 
@@ -479,6 +480,91 @@ function _getClaudeAdsBridgeData_() {
   return null;
 }
 
+function _getClaudeAdsActionDecisions_() {
+  var props = PropertiesService.getScriptProperties();
+  var raw = props.getProperty('CLAUDE_ADS_ACTION_DECISIONS_JSON') || '{}';
+  try {
+    var parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function _saveClaudeAdsActionDecisions_(map) {
+  PropertiesService.getScriptProperties().setProperty(
+    'CLAUDE_ADS_ACTION_DECISIONS_JSON',
+    JSON.stringify(map || {})
+  );
+}
+
+function _buildClaudeAdsActionDecisionSummary_(queue) {
+  var counts = { approved: 0, rejected: 0, pending: 0 };
+  (queue || []).forEach(function(item) {
+    var status = item && item.approval_state && item.approval_state.status ? item.approval_state.status : 'pending';
+    if (status === 'approved') counts.approved += 1;
+    else if (status === 'rejected') counts.rejected += 1;
+    else counts.pending += 1;
+  });
+  return counts;
+}
+
+function _mergeClaudeAdsActionDecisions_(bridge) {
+  if (!bridge || !bridge.automacao || !bridge.automacao.fila_prioritaria) return bridge;
+
+  var decisions = _getClaudeAdsActionDecisions_();
+  var queue = bridge.automacao.fila_prioritaria.map(function(item) {
+    var actionId = item && item.action_id ? String(item.action_id) : '';
+    var saved = actionId && decisions[actionId] ? decisions[actionId] : null;
+    return Object.assign({}, item, {
+      approval_state: saved || {
+        status: 'pending',
+        decided_at: null,
+        decided_by: null,
+        note: null
+      }
+    });
+  });
+
+  bridge.automacao.fila_prioritaria = queue;
+  bridge.automacao.approval_summary = _buildClaudeAdsActionDecisionSummary_(queue);
+  return bridge;
+}
+
+function registrarClaudeAdsActionDecision(usuario, decisionPayload) {
+  var actor = String(usuario || '').trim() || 'operador';
+  var payload = decisionPayload || {};
+  var actionId = String(payload.action_id || '').trim();
+  var status = String(payload.status || '').trim().toLowerCase();
+  var allowed = { approved: true, rejected: true, pending: true };
+
+  if (!actionId) throw new Error('Informe um action_id valido.');
+  if (!allowed[status]) throw new Error('Status de aprovacao invalido.');
+
+  var decisions = _getClaudeAdsActionDecisions_();
+  decisions[actionId] = {
+    action_id: actionId,
+    status: status,
+    decided_at: new Date().toISOString(),
+    decided_by: actor,
+    note: payload.note ? String(payload.note) : '',
+    action_type: payload.action_type ? String(payload.action_type) : '',
+    campaign_key: payload.campaign_key ? String(payload.campaign_key) : '',
+    meta_campaign_id: payload.meta_campaign_id ? String(payload.meta_campaign_id) : '',
+    meta_adset_id: payload.meta_adset_id ? String(payload.meta_adset_id) : ''
+  };
+  _saveClaudeAdsActionDecisions_(decisions);
+
+  return { ok: true, action_id: actionId, status: status, decided_by: actor };
+}
+
+function listarClaudeAdsActionDecisions() {
+  return {
+    ok: true,
+    decisions: _getClaudeAdsActionDecisions_()
+  };
+}
+
 function _collectBridgeCampaigns_(bridge) {
   var all = [];
   var groups = bridge && bridge.acoes_prioritarias ? bridge.acoes_prioritarias : {};
@@ -491,6 +577,7 @@ function _collectBridgeCampaigns_(bridge) {
 }
 
 function _buildPainelAdsCockpitData_(bridge, periodo) {
+  bridge = _mergeClaudeAdsActionDecisions_(bridge);
   var campaigns = _collectBridgeCampaigns_(bridge);
   var totalGasto = 0;
   var totalLeads = 0;
@@ -713,4 +800,162 @@ function getPainelAdsData(periodo) {
   } catch (e) {
     return { erro: 'Erro inesperado: ' + e.message };
   }
+}
+
+// ── CAMADA DE EXECUÇÃO ────────────────────────────────────────────────────────
+
+/**
+ * Helper privado: faz POST de escrita na Meta Ads API.
+ * Funciona tanto para campanhas (status) quanto para adsets (daily_budget).
+ * @param {string} objectId - campaign_id ou adset_id
+ * @param {Object} params   - campos a atualizar (sem access_token)
+ */
+function _metaCampanhaUpdate_(objectId, params) {
+  var token = PropertiesService.getScriptProperties().getProperty('META_ACCESS_TOKEN') || '';
+  if (!token) throw new Error('META_ACCESS_TOKEN nao configurado em Script Properties.');
+  var base = 'https://graph.facebook.com/' + CFG_META.API_VERSION + '/' + String(objectId);
+  var payload = {};
+  for (var k in params) payload[k] = params[k];
+  payload.access_token = token;
+
+  var resp = UrlFetchApp.fetch(base, {
+    method:             'post',
+    payload:            payload,
+    muteHttpExceptions: true
+  });
+  var json = JSON.parse(resp.getContentText());
+  if (json.error) throw new Error('[Meta API] ' + json.error.message + ' (code ' + json.error.code + ')');
+  return json;
+}
+
+/**
+ * Helper privado: busca budget diário e status atual de um adset via GET.
+ * Retorna objeto com { daily_budget, status } ou null em caso de erro.
+ * @param {string} adsetId
+ */
+function _metaAdsetGetBudget_(adsetId) {
+  var token = PropertiesService.getScriptProperties().getProperty('META_ACCESS_TOKEN') || '';
+  if (!token || !adsetId) return null;
+  var url = 'https://graph.facebook.com/' + CFG_META.API_VERSION + '/' + String(adsetId)
+          + '?fields=daily_budget,status&access_token=' + encodeURIComponent(token);
+  try {
+    var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    var json = JSON.parse(resp.getContentText());
+    return json.error ? null : json;
+  } catch (e) {
+    Logger.log('_metaAdsetGetBudget_ erro: ' + e.message);
+    return null;
+  }
+}
+
+/**
+ * Executa todas as ações aprovadas que ainda não foram executadas.
+ * Exportado para google.script.run.
+ *
+ * Lógica por action_type:
+ *   pause_campaign → PATCH campaign status=PAUSED
+ *   scale_budget_guardrailed → GET budget atual do adset → PATCH +20%
+ *   review / maintain / outros → sem chamada API; registra no_action_needed
+ *
+ * Idempotente: ignora ações já com executed_at.
+ * Retorna: { executadas, erros, detalhes }
+ */
+function executarAcoesAprovadas() {
+  var decisions = _getClaudeAdsActionDecisions_();
+  var scaleFactor = CFG_META.SCALE_FACTOR || 1.20;
+  var executadas = 0;
+  var erros = [];
+  var detalhes = [];
+
+  for (var actionId in decisions) {
+    var d = decisions[actionId];
+    if (d.status !== 'approved') continue;
+    if (d.executed_at) continue; // idempotente — não re-executa
+
+    var actionType = String(d.action_type || '').toLowerCase();
+    var campaignId = String(d.meta_campaign_id || '').trim();
+    var adsetId    = String(d.meta_adset_id || '').trim();
+
+    try {
+      if (actionType === 'pause_campaign' || actionType === 'pause') {
+        // Salva status anterior para rollback (assume ACTIVE se desconhecido)
+        d.meta_status_before = 'ACTIVE';
+        _metaCampanhaUpdate_(campaignId, { status: 'PAUSED' });
+        d.execution_result = 'ok';
+
+      } else if (actionType === 'scale_budget_guardrailed' || actionType === 'scale') {
+        if (!adsetId) throw new Error('meta_adset_id nao informado para scale.');
+        var adsetInfo = _metaAdsetGetBudget_(adsetId);
+        var budgetAtual = adsetInfo && adsetInfo.daily_budget ? parseInt(adsetInfo.daily_budget) : 0;
+        if (!budgetAtual) throw new Error('Nao foi possivel obter budget atual do adset ' + adsetId + '.');
+        d.meta_budget_before = budgetAtual;
+        var novoBudget = Math.round(budgetAtual * scaleFactor);
+        _metaCampanhaUpdate_(adsetId, { daily_budget: String(novoBudget) });
+        d.execution_result = 'ok';
+
+      } else {
+        // review / maintain / assistive — registra sem chamar API
+        d.execution_result = 'no_action_needed';
+      }
+
+      d.executed_at = new Date().toISOString();
+      d.executed_by = 'operador_dharmapro';
+      executadas++;
+      detalhes.push({ action_id: actionId, status: 'ok', action_type: actionType });
+
+    } catch (e) {
+      d.executed_at      = new Date().toISOString();
+      d.executed_by      = 'operador_dharmapro';
+      d.execution_result = 'erro: ' + e.message;
+      erros.push({ action_id: actionId, erro: e.message });
+      detalhes.push({ action_id: actionId, status: 'erro', erro: e.message });
+      Logger.log('executarAcoesAprovadas erro [' + actionId + ']: ' + e.message);
+    }
+
+    decisions[actionId] = d;
+  }
+
+  _saveClaudeAdsActionDecisions_(decisions);
+  Logger.log('executarAcoesAprovadas: ' + executadas + ' executadas, ' + erros.length + ' erros.');
+  return { executadas: executadas, erros: erros, detalhes: detalhes };
+}
+
+/**
+ * Reverte uma ação já executada (desfaz pausa ou scale de budget).
+ * Exportado para google.script.run.
+ *
+ * Idempotente: lança erro se já revertida anteriormente.
+ * @param {string} actionId
+ */
+function reverterAcaoExecutada(actionId) {
+  if (!actionId) throw new Error('actionId obrigatorio.');
+  var decisions = _getClaudeAdsActionDecisions_();
+  var d = decisions[String(actionId)];
+  if (!d) throw new Error('Decisao nao encontrada: ' + actionId);
+  if (!d.executed_at) throw new Error('Acao ainda nao foi executada — nada a reverter.');
+  if (d.reverted_at) throw new Error('Acao ja foi revertida em ' + d.reverted_at + '.');
+
+  var actionType = String(d.action_type || '').toLowerCase();
+  var campaignId = String(d.meta_campaign_id || '').trim();
+  var adsetId    = String(d.meta_adset_id || '').trim();
+
+  if (actionType === 'pause_campaign' || actionType === 'pause') {
+    var statusAnterior = d.meta_status_before || 'ACTIVE';
+    _metaCampanhaUpdate_(campaignId, { status: statusAnterior });
+
+  } else if (actionType === 'scale_budget_guardrailed' || actionType === 'scale') {
+    if (!adsetId) throw new Error('meta_adset_id nao informado para reverter scale.');
+    if (!d.meta_budget_before) throw new Error('Budget original nao registrado — reversao impossivel. Ajuste manualmente no Gerenciador de Anuncios.');
+    _metaCampanhaUpdate_(adsetId, { daily_budget: String(d.meta_budget_before) });
+
+  }
+  // review / maintain — sem chamada API; apenas marca como revertido
+
+  d.reverted_at   = new Date().toISOString();
+  d.revert_result = 'ok';
+  decisions[String(actionId)] = d;
+  _saveClaudeAdsActionDecisions_(decisions);
+
+  Logger.log('reverterAcaoExecutada: ' + actionId + ' revertida com sucesso.');
+  return { ok: true, action_id: actionId };
 }

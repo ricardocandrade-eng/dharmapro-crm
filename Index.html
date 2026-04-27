@@ -2048,7 +2048,7 @@
         <span class="sidebar-tag">CRM</span>
         <h2>Dharma<span style="color:var(--accent)">Pro</span></h2>
         <p id="sidebarRelogio" style="letter-spacing:.5px;">—</p>
-        <p style="opacity:.5;letter-spacing:.4px;">v <?= DEPLOY_DATE ?></p>
+        <p style="opacity:.5;letter-spacing:.4px;"><?= typeof APP_BUILD_LABEL !== 'undefined' ? APP_BUILD_LABEL.replace(/^build\s+/,'v ') : ('v ' + DEPLOY_DATE) ?></p>
       </div>
       <div class="sidebar-user">
         <div class="user-avatar" id="userAvatar"><span class="initials">—</span></div>

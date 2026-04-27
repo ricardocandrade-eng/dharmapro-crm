@@ -983,8 +983,8 @@ function doGet(e) {
 function getAppBuildLabel() {
   var props = PropertiesService.getScriptProperties();
   var scriptedLabel = props.getProperty('APP_BUILD_LABEL');
-  if (scriptedLabel) return String(scriptedLabel);
   if (typeof DEPLOY_DATE !== 'undefined' && DEPLOY_DATE) return 'build ' + String(DEPLOY_DATE);
+  if (scriptedLabel) return String(scriptedLabel);
   return 'build indisponivel';
 }
 
@@ -1121,6 +1121,12 @@ function doPost(e) {
 
     // Claude Ads Bridge — atualiza o cockpit de Ads dentro do DharmaPro
     if (payload.action === 'claude_ads_bridge_upsert') {
+      if (payload.mode === 'list_decisions') {
+        return ContentService
+          .createTextOutput(JSON.stringify(listarClaudeAdsActionDecisions()))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
       if (!payload.bridge || payload.bridge.crm_mode !== 'cockpit_ads') {
         return ContentService
           .createTextOutput(JSON.stringify({ erro: 'Payload de bridge inválido.' }))
@@ -1138,6 +1144,20 @@ function doPost(e) {
 
       return ContentService
         .createTextOutput(JSON.stringify({ ok: true, modulo: 'claude_ads_bridge' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (payload.action === 'claude_ads_action_decision_list') {
+      return ContentService
+        .createTextOutput(JSON.stringify(listarClaudeAdsActionDecisions()))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (payload.action === 'claude_ads_action_decision_upsert') {
+      var actor = payload.actor || 'webhook';
+      var result = registrarClaudeAdsActionDecision(actor, payload.decision || {});
+      return ContentService
+        .createTextOutput(JSON.stringify(result))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -4593,7 +4613,9 @@ function getFilaPAPHtml() {
 }
 
 function getPainelAdsHtml() {
-  return HtmlService.createHtmlOutputFromFile('PainelAds').getContent();
+  var tmpl = HtmlService.createTemplateFromFile('PainelAds');
+  tmpl.PANEL_BUILD_LABEL = getAppBuildLabel();
+  return tmpl.evaluate().getContent();
 }
 
 // Retorna HTML do dashboard já com dados embutidos — apenas 1 roundtrip

@@ -1468,25 +1468,26 @@ function navegar(pagina) {
     document.getElementById('pagePainelAds').classList.add('ativa');
     document.getElementById('breadcrumbTexto').textContent = 'Painel Ads';
     var pac = document.getElementById('painelAdsContainer');
-    if (!pac.getAttribute('data-loaded')) {
-      pac.innerHTML = '<div style="padding:40px;text-align:center;color:#8490b8;font-family:monospace">Carregando Painel Ads...</div>';
-      google.script.run
-        .withSuccessHandler(function(html) {
-          pac.innerHTML = html;
-          pac.setAttribute('data-loaded', '1');
-          pac.querySelectorAll('script').forEach(function(s) {
-            var ns = document.createElement('script');
-            ns.textContent = s.textContent;
-            document.body.appendChild(ns);
-          });
-          if (typeof paInit === 'function') paInit();
-        })
-        .withFailureHandler(function(e) {
-          pac.removeAttribute('data-loaded');
-          pac.innerHTML = '<div style="padding:40px;text-align:center;color:#ff4570;font-family:monospace">Erro ao carregar Painel Ads: ' + e.message + '</div>';
-        })
-        .getPainelAdsHtml();
-    }
+    pac.removeAttribute('data-loaded');
+    pac.innerHTML = '<div style="padding:40px;text-align:center;color:#8490b8;font-family:monospace">Carregando Painel Ads...</div>';
+    google.script.run
+      .withSuccessHandler(function(html) {
+        var modalOld = document.getElementById('paGuiaModal');
+        if (modalOld && modalOld.parentNode) modalOld.parentNode.removeChild(modalOld);
+        pac.innerHTML = html;
+        pac.setAttribute('data-loaded', '1');
+        pac.querySelectorAll('script').forEach(function(s) {
+          var ns = document.createElement('script');
+          ns.textContent = s.textContent;
+          document.body.appendChild(ns);
+        });
+        if (typeof paInit === 'function') paInit();
+      })
+      .withFailureHandler(function(e) {
+        pac.removeAttribute('data-loaded');
+        pac.innerHTML = '<div style="padding:40px;text-align:center;color:#ff4570;font-family:monospace">Erro ao carregar Painel Ads: ' + e.message + '</div>';
+      })
+      .getPainelAdsHtml();
 
   } else if (pagina === 'indicacao') {
     document.getElementById('menuIndicacoes').classList.add('ativo');
@@ -6803,25 +6804,26 @@ function navegar(pagina) {
     document.getElementById('pagePainelAds').classList.add('ativa');
     document.getElementById('breadcrumbTexto').textContent = 'Painel Ads';
     var pac = document.getElementById('painelAdsContainer');
-    if (!pac.getAttribute('data-loaded')) {
-      pac.innerHTML = '<div style="padding:40px;text-align:center;color:#8490b8;font-family:monospace">Carregando Painel Ads...</div>';
-      google.script.run
-        .withSuccessHandler(function(html) {
-          pac.innerHTML = html;
-          pac.setAttribute('data-loaded', '1');
-          pac.querySelectorAll('script').forEach(function(s) {
-            var ns = document.createElement('script');
-            ns.textContent = s.textContent;
-            document.body.appendChild(ns);
-          });
-          if (typeof paInit === 'function') paInit();
-        })
-        .withFailureHandler(function(e) {
-          pac.removeAttribute('data-loaded');
-          pac.innerHTML = '<div style="padding:40px;text-align:center;color:#ff4570;font-family:monospace">Erro ao carregar Painel Ads: ' + e.message + '</div>';
-        })
-        .getPainelAdsHtml();
-    }
+    pac.removeAttribute('data-loaded');
+    pac.innerHTML = '<div style="padding:40px;text-align:center;color:#8490b8;font-family:monospace">Carregando Painel Ads...</div>';
+    google.script.run
+      .withSuccessHandler(function(html) {
+        var modalOld = document.getElementById('paGuiaModal');
+        if (modalOld && modalOld.parentNode) modalOld.parentNode.removeChild(modalOld);
+        pac.innerHTML = html;
+        pac.setAttribute('data-loaded', '1');
+        pac.querySelectorAll('script').forEach(function(s) {
+          var ns = document.createElement('script');
+          ns.textContent = s.textContent;
+          document.body.appendChild(ns);
+        });
+        if (typeof paInit === 'function') paInit();
+      })
+      .withFailureHandler(function(e) {
+        pac.removeAttribute('data-loaded');
+        pac.innerHTML = '<div style="padding:40px;text-align:center;color:#ff4570;font-family:monospace">Erro ao carregar Painel Ads: ' + e.message + '</div>';
+      })
+      .getPainelAdsHtml();
 
   } else if (pagina === 'indicacao') {
     document.getElementById('menuIndicacoes').classList.add('ativo');
