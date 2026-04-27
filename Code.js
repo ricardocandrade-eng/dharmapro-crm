@@ -4613,9 +4613,7 @@ function getFilaPAPHtml() {
 }
 
 function getPainelAdsHtml() {
-  var tmpl = HtmlService.createTemplateFromFile('PainelAds');
-  tmpl.PANEL_BUILD_LABEL = getAppBuildLabel();
-  return tmpl.evaluate().getContent();
+  return HtmlService.createHtmlOutputFromFile('PainelAds').getContent();
 }
 
 // Retorna HTML do dashboard já com dados embutidos — apenas 1 roundtrip
