@@ -349,32 +349,46 @@
     _paAtivarPeriodo(periodo);
 
     if (!forcar && paCache[periodo]) {
-      _paRenderizar(paCache[periodo]);
+      try { _paRenderizar(paCache[periodo]); } catch(ex) { _paRenderizarErro('Erro ao renderizar cache: ' + ex.message); }
       return;
     }
 
     paCarregando = true;
     var btn = document.getElementById('paBtnRefresh');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Carregando...'; }
-    document.getElementById('paLoading').style.display = 'block';
-    document.getElementById('paConteudo').style.display = 'none';
+    var elLoad = document.getElementById('paLoading');
+    var elCont = document.getElementById('paConteudo');
+    if (elLoad) elLoad.style.display = 'block';
+    if (elCont) elCont.style.display = 'none';
+
+    // Timeout de segurança: se o backend não responder em 35s, mostra erro
+    var _paTimerGuard = setTimeout(function() {
+      if (!paCarregando) return;
+      paCarregando = false;
+      if (btn) { btn.disabled = false; btn.textContent = '↻ Atualizar'; }
+      _paRenderizarErro('Tempo limite excedido (35s). Verifique META_ACCESS_TOKEN ou Claude Ads Bridge nas Propriedades do Script GAS.');
+    }, 35000);
 
     google.script.run
       .withSuccessHandler(function(dados) {
+        clearTimeout(_paTimerGuard);
         paCarregando = false;
         if (btn) { btn.disabled = false; btn.textContent = '↻ Atualizar'; }
-        if (dados && dados.erro) {
-          _paRenderizarErro(dados.erro);
-          return;
+        try {
+          if (!dados) { _paRenderizarErro('Resposta vazia do servidor. Verifique os logs do Apps Script.'); return; }
+          if (dados.erro) { _paRenderizarErro(dados.erro); return; }
+          window.paDadosAtual = dados;
+          paCache[periodo] = dados;
+          _paRenderizar(dados);
+        } catch(ex) {
+          _paRenderizarErro('Erro ao processar resposta: ' + ex.message);
         }
-        window.paDadosAtual = dados;
-        paCache[periodo] = dados;
-        _paRenderizar(dados);
       })
       .withFailureHandler(function(e) {
+        clearTimeout(_paTimerGuard);
         paCarregando = false;
         if (btn) { btn.disabled = false; btn.textContent = '↻ Atualizar'; }
-        _paRenderizarErro('Falha de comunicação com o servidor: ' + (e.message || e));
+        _paRenderizarErro('Falha de comunicação com o servidor: ' + (e && e.message ? e.message : String(e)));
       })
       .getPainelAdsData(periodo);
   };
@@ -487,10 +501,14 @@
 
   // ── RENDERIZAR ERRO ─────────────────────────────────────────────────────────
   function _paRenderizarErro(msg) {
-    document.getElementById('paLoading').style.display = 'none';
-    var c = document.getElementById('paConteudo');
-    c.style.display = 'block';
-    c.innerHTML = '<div class="pa-erro"><div class="pa-erro-box"><strong>⚠ Erro ao carregar dados</strong>' + _paEsc(msg) + '<br><br>O Painel Ads agora prefere o Claude Ads Bridge. Se ele não estiver configurado, o fallback usa <code>META_ACCESS_TOKEN</code> em <code>Extensões → Apps Script → Propriedades do projeto</code>.</div></div>';
+    try {
+      var elLoad = document.getElementById('paLoading');
+      if (elLoad) elLoad.style.display = 'none';
+      var c = document.getElementById('paConteudo');
+      if (!c) return;
+      c.style.display = 'block';
+      c.innerHTML = '<div class="pa-erro"><div class="pa-erro-box"><strong>⚠ Erro ao carregar dados</strong><br><br>' + _paEsc(String(msg || 'Erro desconhecido')) + '<br><br>Configure <code>META_ACCESS_TOKEN</code> ou <code>CLAUDE_ADS_BRIDGE_JSON</code> em <code>Extensões → Apps Script → Propriedades do projeto</code>.</div></div>';
+    } catch(ex) { /* falha silenciosa — nao vamos travar o painel por erro no erro */ }
   }
 
   // ── RENDERIZAR DASHBOARD ───────────────────────────────────────────────────
@@ -1054,8 +1072,11 @@
   }
 
   function _paRenderizar(d) {
-    document.getElementById('paLoading').style.display = 'none';
+    if (!d || typeof d !== 'object') { _paRenderizarErro('Resposta inválida do servidor (null/undefined). Verifique os logs do Apps Script.'); return; }
+    var elLoad = document.getElementById('paLoading');
+    if (elLoad) elLoad.style.display = 'none';
     var c = document.getElementById('paConteudo');
+    if (!c) return;
     c.style.display = 'block';
 
     var syncEl = document.getElementById('paSyncLabel');
