@@ -1,0 +1,1299 @@
+<style>
+  .wp-wrap { padding: 24px; max-width: 1100px; margin: 0 auto; }
+  .wp-tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--border, #2a2f3a); margin-bottom: 20px; }
+  .wp-tab { padding: 10px 18px; cursor: pointer; border: none; background: transparent; color: var(--text-muted, #8a93a3); font-weight: 500; border-bottom: 2px solid transparent; }
+  .wp-tab.ativa { color: var(--text, #e8ecf3); border-bottom-color: var(--accent, #e63e6d); }
+  .wp-panel { display: none; }
+  .wp-panel.ativa { display: block; }
+
+  .wp-card { background: rgba(255,255,255,.03); border: 1px solid var(--border, #2a2f3a); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+  .wp-status { display: flex; align-items: center; gap: 12px; }
+  .wp-status-dot { width: 12px; height: 12px; border-radius: 50%; background: #6c7280; }
+  .wp-status-dot.conectado   { background: #2ecc71; box-shadow: 0 0 8px rgba(46,204,113,.6); }
+  .wp-status-dot.conectando  { background: #f1c40f; box-shadow: 0 0 8px rgba(241,196,15,.6); }
+  .wp-status-dot.desconectado{ background: #e63e6d; }
+  .wp-status-dot.erro        { background: #e63e6d; }
+
+  .wp-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .wp-col { flex: 1; min-width: 280px; }
+  .wp-field { margin-bottom: 14px; }
+  .wp-field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--text-muted, #8a93a3); text-transform: uppercase; letter-spacing: .5px; }
+  .wp-field input, .wp-field textarea, .wp-field select { width: 100%; padding: 8px 10px; background: rgba(0,0,0,.2); border: 1px solid var(--border, #2a2f3a); border-radius: 6px; color: inherit; font-family: inherit; box-sizing: border-box; }
+  .wp-field textarea { min-height: 110px; resize: vertical; font-family: monospace; }
+  /* Força tema escuro nos <option> do dropdown aberto (browser default usa branco) */
+  .wp-field select option, .wp-admin-bar select option { background: #1a1d24; color: #e8ecf3; }
+  .wp-field select option:checked, .wp-admin-bar select option:checked { background: #2d3340; }
+
+  .wp-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .wp-chip  { background: rgba(70,130,255,.15); color: #6ea6ff; padding: 3px 8px; border-radius: 12px; font-size: 12px; cursor: pointer; border: 1px solid rgba(70,130,255,.3); }
+  .wp-chip:hover { background: rgba(70,130,255,.3); }
+
+  .wp-qr { text-align: center; padding: 12px; background: white; border-radius: 8px; max-width: 280px; margin: 16px auto; }
+  .wp-qr img { display: block; margin: 0 auto; max-width: 100%; }
+
+  .wp-tabela { width: 100%; border-collapse: collapse; }
+  .wp-tabela th, .wp-tabela td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border, #2a2f3a); font-size: 13px; }
+  .wp-tabela th { color: var(--text-muted, #8a93a3); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: .5px; }
+
+  .wp-progress { background: rgba(255,255,255,.05); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 4px; }
+  .wp-progress-bar { background: linear-gradient(90deg, #2ecc71, #6ea6ff); height: 100%; transition: width .3s; }
+
+  .wp-badge { padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .wp-badge.ativa     { background: rgba(46,204,113,.15); color: #2ecc71; }
+  .wp-badge.pausada   { background: rgba(241,196,15,.15); color: #f1c40f; }
+  .wp-badge.cancelada { background: rgba(108,114,128,.15); color: #8a93a3; }
+  .wp-badge.concluida { background: rgba(70,130,255,.15); color: #6ea6ff; }
+
+  .wp-warn { padding: 10px 12px; background: rgba(230,62,109,.1); border: 1px solid rgba(230,62,109,.3); border-radius: 6px; color: #ff6b8e; font-size: 13px; margin: 8px 0; }
+  .wp-info { padding: 10px 12px; background: rgba(70,130,255,.08); border: 1px solid rgba(70,130,255,.25); border-radius: 6px; color: #9ec0ff; font-size: 13px; margin: 8px 0; }
+
+  .wp-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .wp-admin-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(241,196,15,.08); border: 1px solid rgba(241,196,15,.3); border-radius: 6px; margin-bottom: 14px; }
+  .wp-admin-bar select { padding: 5px 8px; background: rgba(0,0,0,.3); border: 1px solid var(--border, #2a2f3a); border-radius: 4px; color: inherit; font-family: inherit; }
+  .wp-admin-bar.viewing-other { background: rgba(230,62,109,.10); border-color: rgba(230,62,109,.35); }
+
+  /* Modais — z-index alto + fixed escapando containing block via append-to-body */
+  .wp-mdl-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 999999; backdrop-filter: blur(3px); }
+  .wp-mdl-overlay.aberto { display: block; }
+  .wp-mdl-card { position: absolute; top: 5vh; left: 50%; transform: translateX(-50%); width: min(1100px, 92vw); max-height: 90vh; background: #1a1d24; border: 1px solid var(--border, #2a2f3a); border-radius: 10px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .wp-mdl-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border, #2a2f3a); }
+  .wp-mdl-body { flex: 1; overflow: auto; }
+  .wp-mdl-card.small { width: min(440px, 92vw); top: 30vh; }
+
+  /* Linha do disparo com expand */
+  .wp-disp-row { cursor: pointer; transition: background .15s; }
+  .wp-disp-row:hover { background: rgba(255,255,255,.04); }
+  .wp-disp-row td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+  .wp-disp-arrow { display: inline-block; width: 12px; transition: transform .2s; color: var(--text-muted, #8a93a3); }
+  .wp-disp-row.aberto .wp-disp-arrow { transform: rotate(90deg); }
+  .wp-disp-detail td { padding: 0 !important; border-bottom: 1px solid var(--border, #2a2f3a) !important; }
+  .wp-disp-detail-inner { padding: 12px 18px 16px; background: rgba(70,130,255,.04); display: grid; grid-template-columns: 1fr auto; gap: 16px; }
+  .wp-disp-detail-msg { font-size: 13px; line-height: 1.5; white-space: pre-wrap; color: #d4dae6; max-width: 100%; }
+  .wp-disp-detail-meta { font-size: 11px; color: var(--text-muted, #8a93a3); white-space: nowrap; min-width: 200px; }
+  .wp-disp-detail-meta div { padding: 2px 0; }
+
+  .wp-spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.15); border-top-color: var(--accent, #e63e6d); border-radius: 50%; animation: wp-spin .9s linear infinite; vertical-align: middle; }
+  @keyframes wp-spin { to { transform: rotate(360deg); } }
+
+  /* Bloco Saúde */
+  .wp-saude-kpi { background: rgba(0,0,0,.18); border-radius: 6px; padding: 10px 12px; }
+  .wp-saude-kpi-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted, #8a93a3); }
+  .wp-saude-kpi-val { font-size: 22px; font-weight: 700; margin-top: 3px; }
+  .wp-saude-kpi-delta { font-size: 11px; margin-top: 2px; color: var(--text-muted, #8a93a3); }
+  .wp-saude-kpi-delta.up { color: #2ecc71; }
+  .wp-saude-kpi-delta.down { color: #e63e6d; }
+
+  .wp-alerta { padding: 10px 14px; border-radius: 6px; font-size: 13px; line-height: 1.45; display: flex; gap: 10px; align-items: flex-start; }
+  .wp-alerta-icon { flex-shrink: 0; font-size: 16px; line-height: 1.2; }
+  .wp-alerta-body { flex: 1; }
+  .wp-alerta-msg { font-weight: 600; }
+  .wp-alerta-sug { font-size: 12px; color: var(--text-muted, #b8c0cc); margin-top: 3px; }
+  .wp-alerta.amarelo { background: rgba(241,196,15,.10); border: 1px solid rgba(241,196,15,.35); color: #ffe5a0; }
+  .wp-alerta.amarelo .wp-alerta-sug { color: #d4c389; }
+  .wp-alerta.vermelho { background: rgba(230,62,109,.12); border: 1px solid rgba(230,62,109,.4); color: #ff8ea6; }
+  .wp-alerta.vermelho .wp-alerta-sug { color: #d49aab; }
+</style>
+
+<div class="wp-wrap">
+  <div id="wpAdminBar" class="wp-admin-bar" style="display:none">
+    <span style="font-size:13px;color:var(--text-muted,#8a93a3)">👁️ Admin · Visualizando como:</span>
+    <select id="wpAlvoSelect" onchange="wpMudarAlvo()"></select>
+    <span id="wpAlvoLabel" style="font-size:12px;color:var(--text-muted,#8a93a3)"></span>
+  </div>
+
+  <div class="wp-tabs">
+    <button class="wp-tab ativa" onclick="wpMudarTab('whatsapp', this)">Meu WhatsApp</button>
+    <button class="wp-tab" onclick="wpMudarTab('nova', this)">Nova Campanha</button>
+    <button class="wp-tab" onclick="wpMudarTab('historico', this)">Histórico</button>
+    <button class="wp-tab" onclick="wpMudarTab('dashboard', this)">Dashboard</button>
+  </div>
+
+  <!-- ════════════════════════════════════ TAB 1: MEU WHATSAPP ════════════════════════════════════ -->
+  <div id="wpPanelWhatsapp" class="wp-panel ativa">
+    <div class="wp-card">
+      <div class="wp-status">
+        <span class="wp-status-dot desconectado" id="wpStatusDot"></span>
+        <div>
+          <div style="font-weight:600;font-size:16px" id="wpStatusTexto">Carregando…</div>
+          <div style="color:var(--text-muted,#8a93a3);font-size:13px" id="wpStatusDetalhe"></div>
+        </div>
+      </div>
+      <div id="wpQrArea" style="display:none">
+        <div class="wp-info">Abra o WhatsApp no celular → Menu → Aparelhos conectados → Conectar aparelho.</div>
+        <div class="wp-qr"><img id="wpQrImg" alt="QR Code"></div>
+      </div>
+      <div class="wp-actions">
+        <button class="btn btn-primary" id="wpBtnConectar" onclick="wpConectar()">Conectar</button>
+        <button class="btn btn-ghost"   id="wpBtnDesconectar" onclick="wpDesconectar()" style="display:none">Desconectar</button>
+        <button class="btn btn-ghost btn-sm" onclick="wpAtualizarStatus()">↻ Atualizar</button>
+      </div>
+      <div style="margin-top:14px;font-size:13px;color:var(--text-muted,#8a93a3)">
+        Limite diário: <strong id="wpDailyLimit">200</strong> · Enviadas hoje: <strong id="wpDailyCount">0</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ TAB 2: NOVA CAMPANHA ═══════════════════════════════════ -->
+  <div id="wpPanelNova" class="wp-panel">
+    <div class="wp-card">
+      <div class="wp-row">
+        <div class="wp-col">
+          <div class="wp-field">
+            <label>Nome da campanha</label>
+            <input type="text" id="wpNome" placeholder="Ex: Reativação base maio">
+          </div>
+
+          <div class="wp-field">
+            <label>Template da mensagem <span style="font-weight:400;color:var(--text-muted,#8a93a3);text-transform:none">— {nome}/{cidade} são opcionais</span></label>
+            <textarea id="wpTemplate" oninput="wpAtualizarPreview()" placeholder="Olá! Vi que você se interessou..."></textarea>
+            <div class="wp-chips">
+              <span class="wp-chip" onclick="wpInserirChip('{nome}')">{nome}</span>
+              <span class="wp-chip" onclick="wpInserirChip('{cidade}')">{cidade}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted,#8a93a3);margin-top:4px"><span id="wpCharCount">0</span> caracteres · use os chips só se seu mailing tiver esses campos</div>
+          </div>
+
+          <div class="wp-field">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+              <button type="button" class="btn btn-ghost btn-sm" id="wpBtnVariacoes" onclick="wpGerarVariacoes()">✨ Gerar variações</button>
+              <span id="wpVariacoesStatus" style="font-size:12px;color:var(--text-muted,#8a93a3)">
+                Reduz risco de ban: a cada disparo o n8n sorteia uma variação distinta.
+              </span>
+            </div>
+            <div id="wpVariacoesPainel" class="wp-card" style="display:none;margin:0;padding:14px;background:rgba(70,130,255,.04)">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                <div style="font-size:12px;color:var(--text-muted,#8a93a3)"><strong id="wpVarCount">0</strong> variações geradas — desmarque as que não gostou</div>
+                <div style="display:flex;gap:8px">
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="wpVarMarcarTodas(true)">Marcar todas</button>
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="wpVarMarcarTodas(false)">Desmarcar</button>
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="wpGerarVariacoes()">↻ Regenerar</button>
+                </div>
+              </div>
+              <div id="wpVariacoesLista" style="display:flex;flex-direction:column;gap:8px;max-height:340px;overflow-y:auto"></div>
+            </div>
+          </div>
+
+          <div class="wp-field">
+            <label>Imagem <span style="font-weight:400;color:var(--text-muted,#8a93a3);text-transform:none">— opcional, máx 5MB · texto vira legenda</span></label>
+            <div id="wpImagemArea" style="display:flex;align-items:flex-start;gap:12px">
+              <input type="file" id="wpImagemInput" accept="image/*" onchange="wpUploadImagem(event)" style="flex:1">
+              <div id="wpImagemBox" style="display:none;position:relative">
+                <img id="wpImagemPreview" alt="Preview" style="max-width:120px;max-height:120px;border-radius:6px;object-fit:cover">
+                <button type="button" onclick="wpRemoverImagem()" title="Remover imagem" style="position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:1px solid #e63e6d;background:#1a1d24;color:#e63e6d;cursor:pointer;font-size:14px;line-height:1;padding:0">✕</button>
+              </div>
+            </div>
+            <div id="wpImagemStatus" style="font-size:12px;color:var(--text-muted,#8a93a3);margin-top:4px"></div>
+          </div>
+
+          <div class="wp-field" style="display:flex;gap:12px">
+            <div style="flex:1">
+              <label>Delay mínimo (s)</label>
+              <input type="number" id="wpDelayMin" value="12" min="5" max="120">
+            </div>
+            <div style="flex:1">
+              <label>Delay máximo (s)</label>
+              <input type="number" id="wpDelayMax" value="35" min="5" max="120">
+            </div>
+          </div>
+        </div>
+
+        <div class="wp-col">
+          <div class="wp-field">
+            <label>Fonte de contatos</label>
+            <select id="wpFonte" onchange="wpFonteMudou()">
+              <option value="manual">Lista manual (Nome | Telefone, um por linha)</option>
+              <option value="arquivo">Importar planilha (.xlsx, .csv)</option>
+            </select>
+          </div>
+
+          <div class="wp-field" id="wpManualWrap">
+            <label>Cole a lista (Nome | Telefone, um por linha)</label>
+            <textarea id="wpManualLista" placeholder="João da Silva | 32988887777" oninput="wpRecalcManual()"></textarea>
+          </div>
+
+          <div class="wp-field" id="wpArquivoWrap" style="display:none">
+            <label>Arquivo</label>
+            <input type="file" id="wpArquivoInput" accept=".xlsx,.xls,.csv,.tsv" onchange="wpProcessarArquivo(event)">
+            <div id="wpColMapWrap" style="display:none;margin-top:10px">
+              <div style="display:flex;gap:8px">
+                <div style="flex:1">
+                  <label>Coluna telefone</label>
+                  <select id="wpColTel" onchange="wpAplicarColMap()"></select>
+                </div>
+                <div style="flex:1">
+                  <label>Coluna nome (opcional)</label>
+                  <select id="wpColNome" onchange="wpAplicarColMap()"></select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="wp-info" id="wpContatosInfo">Cole sua lista no campo acima.</div>
+        </div>
+      </div>
+      <div class="wp-actions">
+        <button class="btn btn-primary" onclick="wpCriarCampanha()">Iniciar Campanha</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ TAB 3: HISTÓRICO ═══════════════════════════════════════ -->
+  <div id="wpPanelHistorico" class="wp-panel">
+    <div class="wp-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0">Suas campanhas</h3>
+        <button class="btn btn-ghost btn-sm" onclick="wpCarregarHistorico()">↻ Atualizar</button>
+      </div>
+      <div id="wpHistoricoBody">Carregando…</div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ TAB 4: DASHBOARD ═══════════════════════════════════════ -->
+  <div id="wpPanelDashboard" class="wp-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div id="wpDashEscopoLabel" style="font-size:13px;color:var(--text-muted,#8a93a3)">Carregando…</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="wpDashTodosBtn" class="btn btn-ghost btn-sm" onclick="wpDashAlternarTodos()" style="display:none">👥 Ver todos os usuários</button>
+        <button class="btn btn-ghost btn-sm" onclick="wpCarregarDashboard()">↻ Atualizar</button>
+      </div>
+    </div>
+
+    <!-- ───── SAÚDE DA CONTA ───────────────────────────────────────────────── -->
+    <div class="wp-card" id="wpSaudeBox" style="border-left:4px solid #6c7280;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+        <span id="wpSaudeStatusDot" style="width:14px;height:14px;border-radius:50%;background:#6c7280;flex-shrink:0"></span>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:15px">Saúde da conta</div>
+          <div id="wpSaudeStatusLabel" style="font-size:12px;color:var(--text-muted,#8a93a3)">Carregando…</div>
+        </div>
+        <span id="wpSaudeBaselineLabel" style="font-size:11px;color:var(--text-muted,#8a93a3)"></span>
+      </div>
+
+      <!-- Alertas -->
+      <div id="wpSaudeAlertas" style="display:flex;flex-direction:column;gap:8px;margin:10px 0"></div>
+
+      <!-- 4 mini KPIs com delta -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:10px">
+        <div class="wp-saude-kpi">
+          <div class="wp-saude-kpi-lbl">Entrega ✓✓</div>
+          <div class="wp-saude-kpi-val" id="wpSaudeEntrega">—</div>
+          <div class="wp-saude-kpi-delta" id="wpSaudeEntregaDelta"></div>
+        </div>
+        <div class="wp-saude-kpi" title="Inclui quem respondeu sem dar visualização (read receipts são amplamente desabilitados)">
+          <div class="wp-saude-kpi-lbl">Engajamento ✓✓+↩</div>
+          <div class="wp-saude-kpi-val" id="wpSaudeLido">—</div>
+          <div class="wp-saude-kpi-delta" id="wpSaudeLidoDelta"></div>
+        </div>
+        <div class="wp-saude-kpi">
+          <div class="wp-saude-kpi-lbl">Resposta ↩</div>
+          <div class="wp-saude-kpi-val" id="wpSaudeResposta">—</div>
+          <div class="wp-saude-kpi-delta" id="wpSaudeRespostaDelta"></div>
+        </div>
+        <div class="wp-saude-kpi">
+          <div class="wp-saude-kpi-lbl">Erro</div>
+          <div class="wp-saude-kpi-val" id="wpSaudeErro">—</div>
+          <div class="wp-saude-kpi-delta" id="wpSaudeVolumeHoje"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI cards -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px">
+      <div class="wp-card" style="margin:0"><div style="font-size:12px;color:var(--text-muted,#8a93a3);text-transform:uppercase">Enviadas no mês</div><div id="wpKpiEnviado" style="font-size:28px;font-weight:700;margin-top:4px">—</div></div>
+      <div class="wp-card" style="margin:0"><div style="font-size:12px;color:var(--text-muted,#8a93a3);text-transform:uppercase">Taxa de resposta</div><div id="wpKpiTaxa" style="font-size:28px;font-weight:700;margin-top:4px">—</div></div>
+      <div class="wp-card" style="margin:0"><div style="font-size:12px;color:var(--text-muted,#8a93a3);text-transform:uppercase">Campanhas ativas</div><div id="wpKpiAtivas" style="font-size:28px;font-weight:700;margin-top:4px">—</div></div>
+      <div class="wp-card" style="margin:0"><div style="font-size:12px;color:var(--text-muted,#8a93a3);text-transform:uppercase">Blacklist</div><div id="wpKpiBlacklist" style="font-size:28px;font-weight:700;margin-top:4px">—</div></div>
+      <div class="wp-card" style="margin:0"><div style="font-size:12px;color:var(--text-muted,#8a93a3);text-transform:uppercase">Total campanhas</div><div id="wpKpiTotal" style="font-size:28px;font-weight:700;margin-top:4px">—</div></div>
+    </div>
+
+    <!-- Gráfico -->
+    <div class="wp-card">
+      <div style="font-weight:600;margin-bottom:8px">Envios e respostas — últimos 30 dias</div>
+      <canvas id="wpDashChart" height="80"></canvas>
+    </div>
+
+    <!-- Instâncias -->
+    <div class="wp-card">
+      <div style="font-weight:600;margin-bottom:10px">Instâncias <span id="wpInstCountLabel" style="color:var(--text-muted,#8a93a3);font-weight:400;font-size:13px"></span></div>
+      <div id="wpInstanciasBody">—</div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ MODAL: Ver disparos ═════════════════════════════════════ -->
+  <div id="wpModalOverlay" class="wp-mdl-overlay">
+    <div class="wp-mdl-card">
+      <div class="wp-mdl-head">
+        <div>
+          <div style="font-weight:600;font-size:15px" id="wpModalTitulo">Disparos da campanha</div>
+          <div id="wpModalKpis" style="font-size:12px;color:var(--text-muted,#8a93a3);margin-top:2px">—</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="wpFecharModal()">✕ Fechar</button>
+      </div>
+      <div id="wpModalBody" class="wp-mdl-body">Carregando…</div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ MODAL: Confirmação ══════════════════════════════════════ -->
+  <div id="wpConfirmOverlay" class="wp-mdl-overlay">
+    <div class="wp-mdl-card small">
+      <div class="wp-mdl-head">
+        <div style="font-weight:600;font-size:15px" id="wpConfirmTitulo">Confirmar</div>
+      </div>
+      <div class="wp-mdl-body" style="padding:16px 20px">
+        <div id="wpConfirmMsg" style="font-size:14px;line-height:1.5;color:#e8ecf3;margin-bottom:18px"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" onclick="_wpConfirmResolve(false)" id="wpConfirmCancelBtn">Cancelar</button>
+          <button class="btn btn-primary btn-sm" onclick="_wpConfirmResolve(true)" id="wpConfirmOkBtn">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════ MODAL: Loading ══════════════════════════════════════════ -->
+  <div id="wpLoadingOverlay" class="wp-mdl-overlay">
+    <div class="wp-mdl-card small" style="top:35vh;width:min(360px,92vw)">
+      <div class="wp-mdl-body" style="padding:24px;text-align:center">
+        <div class="wp-spinner" style="width:32px;height:32px"></div>
+        <div id="wpLoadingMsg" style="margin-top:14px;font-size:14px;color:#e8ecf3">Processando…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var _wpUser = '';     // usuário logado (sempre fixo)
+  var _wpAlvo = '';     // usuário sob visualização (= _wpUser pra non-admin; admin pode trocar)
+  var _wpIsAdmin = false;
+  var _wpContatosCache = [];
+  var _wpPollTimer = null;
+  var _wpHistTimer = null;
+
+  function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function _toast(m, t) { if (typeof mostrarToast === 'function') mostrarToast(m, t || 'info'); else console.log(m); }
+  // Helper: arg pra usuarioAlvo só passa se for diferente do logado (evita ruído).
+  function _alvoArg() { return (_wpAlvo && _wpAlvo !== _wpUser) ? _wpAlvo : null; }
+
+  window.dispPessoalInit = function() {
+    _wpUser = sessionStorage.getItem('crm_usuario') || '';
+    _wpAlvo = _wpUser;
+    if (!_wpUser) { document.querySelector('.wp-wrap').innerHTML = '<div class="wp-warn">Faça login novamente.</div>'; return; }
+    // Move modais pra <body> escapando containing block (sidebar/header do CRM tem
+    // transform/will-change que torna position:fixed relativo a wp-wrap)
+    ['wpModalOverlay', 'wpConfirmOverlay', 'wpLoadingOverlay'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el && el.parentNode !== document.body) document.body.appendChild(el);
+    });
+    // listarUsuariosWaPessoal retorna [] se não for admin — usamos isso pra detectar.
+    wpCarregarUsuariosAdmin();
+    wpAtualizarStatus();
+    wpFonteMudou(); // inicializa state da fonte (manual por padrão)
+  };
+
+  // ── MODAIS GENÉRICOS (confirm + loading) ──────────────────────────────────────
+  var _wpConfirmCallback = null;
+  window.wpConfirm = function(opts) {
+    var o = opts || {};
+    document.getElementById('wpConfirmTitulo').textContent = o.titulo || 'Confirmar';
+    document.getElementById('wpConfirmMsg').innerHTML = o.html || _esc(o.mensagem || '');
+    document.getElementById('wpConfirmOkBtn').textContent = o.okLabel || 'Confirmar';
+    document.getElementById('wpConfirmCancelBtn').textContent = o.cancelLabel || 'Cancelar';
+    document.getElementById('wpConfirmOkBtn').className = 'btn btn-sm ' + (o.tipo === 'perigo' ? 'btn-danger' : 'btn-primary');
+    _wpConfirmCallback = o.onOk || null;
+    document.getElementById('wpConfirmOverlay').classList.add('aberto');
+  };
+  window._wpConfirmResolve = function(ok) {
+    document.getElementById('wpConfirmOverlay').classList.remove('aberto');
+    var cb = _wpConfirmCallback;
+    _wpConfirmCallback = null;
+    if (ok && cb) cb();
+  };
+  window.wpLoading = function(msg) {
+    document.getElementById('wpLoadingMsg').textContent = msg || 'Processando…';
+    document.getElementById('wpLoadingOverlay').classList.add('aberto');
+  };
+  window.wpLoadingClose = function() {
+    document.getElementById('wpLoadingOverlay').classList.remove('aberto');
+  };
+
+  function wpCarregarUsuariosAdmin() {
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (!r || !r.ok || !r.data || !r.data.length) return;
+        _wpIsAdmin = true;
+        var sel = document.getElementById('wpAlvoSelect');
+        sel.innerHTML = '';
+        r.data.forEach(function(u) {
+          var opt = document.createElement('option');
+          opt.value = u.usuario;
+          opt.textContent = (u.usuario === _wpUser ? '👤 ' : '') + u.nome + ' (' + u.perfil + ')';
+          if (u.usuario === _wpUser) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        document.getElementById('wpAdminBar').style.display = '';
+        wpAtualizarLabelAlvo();
+      })
+      .withFailureHandler(function(e) { console.error('listarUsuariosWaPessoal falhou:', e); })
+      .listarUsuariosWaPessoal(_wpUser);
+  }
+
+  function wpAtualizarLabelAlvo() {
+    var bar = document.getElementById('wpAdminBar');
+    var lbl = document.getElementById('wpAlvoLabel');
+    if (_wpAlvo === _wpUser) {
+      bar.classList.remove('viewing-other');
+      lbl.textContent = '(você mesmo)';
+    } else {
+      bar.classList.add('viewing-other');
+      lbl.textContent = '— modo somente-leitura na aba "Nova Campanha"';
+    }
+  }
+
+  window.wpMudarAlvo = function() {
+    _wpAlvo = document.getElementById('wpAlvoSelect').value || _wpUser;
+    wpAtualizarLabelAlvo();
+    wpAtualizarStatus();
+    wpCarregarHistorico();
+  };
+
+  window.wpMudarTab = function(tab, el) {
+    document.querySelectorAll('.wp-tab').forEach(function(t) { t.classList.remove('ativa'); });
+    document.querySelectorAll('.wp-panel').forEach(function(p) { p.classList.remove('ativa'); });
+    el.classList.add('ativa');
+    document.getElementById('wpPanel' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('ativa');
+    if (tab === 'historico') wpCarregarHistorico();
+    if (tab === 'dashboard') wpCarregarDashboard();
+  };
+
+  // ── INSTÂNCIA ─────────────────────────────────────────────────────────────────
+  window.wpAtualizarStatus = function() {
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (!r || !r.ok) { _toast(r && r.mensagem || 'Erro ao consultar status', 'error'); return; }
+        var dot = document.getElementById('wpStatusDot');
+        dot.className = 'wp-status-dot ' + r.status;
+        var labels = { conectado: 'Conectado', conectando: 'Aguardando QR Code…', desconectado: 'Desconectado', erro: 'Erro' };
+        document.getElementById('wpStatusTexto').textContent = labels[r.status] || r.status;
+        document.getElementById('wpStatusDetalhe').textContent = r.phone || (r.status === 'conectado' ? 'Pronto para enviar' : '');
+        document.getElementById('wpDailyLimit').textContent = r.daily_limit || 200;
+        document.getElementById('wpDailyCount').textContent = r.daily_count || 0;
+        document.getElementById('wpBtnConectar').style.display = (r.status === 'conectado') ? 'none' : '';
+        document.getElementById('wpBtnDesconectar').style.display = (r.status === 'conectado') ? '' : 'none';
+        if (r.status === 'conectado' && _wpPollTimer) { clearInterval(_wpPollTimer); _wpPollTimer = null; document.getElementById('wpQrArea').style.display = 'none'; }
+      })
+      .withFailureHandler(function(e) { _toast('Erro: ' + e.message, 'error'); })
+      .getMinhaInstancia(_wpUser, _alvoArg());
+  };
+
+  window.wpConectar = function() {
+    if (_wpAlvo !== _wpUser) { _toast('Você está visualizando como ' + _wpAlvo + '. Conexão só funciona pra "você mesmo".', 'error'); return; }
+    document.getElementById('wpBtnConectar').disabled = true;
+    document.getElementById('wpBtnConectar').textContent = 'Gerando QR…';
+    google.script.run
+      .withSuccessHandler(function(r) {
+        document.getElementById('wpBtnConectar').disabled = false;
+        document.getElementById('wpBtnConectar').textContent = 'Reconectar';
+        if (!r || !r.ok) { _toast(r && r.mensagem || 'Erro ao gerar QR', 'error'); return; }
+        if (r.qrcode) {
+          document.getElementById('wpQrImg').src = r.qrcode;
+          document.getElementById('wpQrArea').style.display = '';
+        }
+        if (_wpPollTimer) clearInterval(_wpPollTimer);
+        _wpPollTimer = setInterval(wpAtualizarStatus, 5000);
+      })
+      .withFailureHandler(function(e) {
+        document.getElementById('wpBtnConectar').disabled = false;
+        _toast('Erro: ' + e.message, 'error');
+      })
+      .criarOuReconectarInstancia(_wpUser);
+  };
+
+  window.wpDesconectar = function() {
+    if (_wpAlvo !== _wpUser) { _toast('Você está visualizando como ' + _wpAlvo + '. Desconexão só funciona pra "você mesmo".', 'error'); return; }
+    wpConfirm({
+      titulo: 'Desconectar WhatsApp?',
+      mensagem: 'Você precisará escanear o QR Code novamente pra reconectar.',
+      okLabel: 'Desconectar',
+      tipo: 'perigo',
+      onOk: function() {
+        wpLoading('Desconectando…');
+        google.script.run
+          .withSuccessHandler(function(r) {
+            wpLoadingClose();
+            if (!r || !r.ok) { _toast(r && r.mensagem || 'Erro', 'error'); return; }
+            _toast('Desconectado.', 'ok');
+            wpAtualizarStatus();
+          })
+          .withFailureHandler(function(e) { wpLoadingClose(); _toast('Erro: ' + e.message, 'error'); })
+          .deletarInstancia(_wpUser);
+      }
+    });
+  };
+
+  // ── NOVA CAMPANHA ─────────────────────────────────────────────────────────────
+  window.wpAtualizarPreview = function() {
+    var t = document.getElementById('wpTemplate').value || '';
+    document.getElementById('wpCharCount').textContent = t.length;
+  };
+
+  window.wpInserirChip = function(chip) {
+    var ta = document.getElementById('wpTemplate');
+    var pos = ta.selectionStart || ta.value.length;
+    ta.value = ta.value.substring(0, pos) + chip + ta.value.substring(ta.selectionEnd || pos);
+    ta.focus();
+    wpAtualizarPreview();
+  };
+
+  window.wpFonteMudou = function() {
+    var f = document.getElementById('wpFonte').value;
+    document.getElementById('wpManualWrap').style.display  = (f === 'manual')   ? '' : 'none';
+    document.getElementById('wpArquivoWrap').style.display = (f === 'arquivo')  ? '' : 'none';
+    _wpContatosCache = [];
+    document.getElementById('wpContatosInfo').textContent =
+      (f === 'manual')  ? 'Cole sua lista no campo acima (Nome | Telefone, um por linha).'
+                        : 'Selecione um arquivo .xlsx, .xls, .csv ou .tsv.';
+  };
+
+  window.wpRecalcManual = function() {
+    _wpContatosCache = _parseManualLista();
+    document.getElementById('wpContatosInfo').textContent = _wpContatosCache.length
+      ? _wpContatosCache.length + ' contatos detectados.'
+      : 'Cole sua lista (Nome | Telefone, um por linha).';
+  };
+
+  function _parseManualLista() {
+    var raw = document.getElementById('wpManualLista').value || '';
+    var out = [];
+    var vistos = {};
+    raw.split(/\r?\n/).forEach(function(linha) {
+      linha = linha.trim();
+      if (!linha) return;
+      var parts = linha.split('|').map(function(p) { return p.trim(); });
+      var nome  = parts[0] || 'Cliente';
+      var fone  = (parts[1] || parts[0]).replace(/\D/g, '');
+      if (fone.length >= 10 && !vistos[fone]) {
+        vistos[fone] = 1;
+        out.push({ nome: nome, phone: fone });
+      }
+    });
+    return out;
+  }
+
+  // ── IMPORT DE ARQUIVO ─────────────────────────────────────────────────────────
+  var _wpArqRows = null;   // array de objetos {col0:..., col1:...} ou arrays
+  var _wpArqHeader = null; // header detectado/inferido
+
+  window.wpProcessarArquivo = function(ev) {
+    var file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    if (typeof XLSX === 'undefined') {
+      _toast('Biblioteca XLSX não carregada. Recarregue a página.', 'error');
+      return;
+    }
+    document.getElementById('wpContatosInfo').textContent = 'Lendo arquivo…';
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var data = new Uint8Array(e.target.result);
+        var wb = XLSX.read(data, { type: 'array' });
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', blankrows: false });
+        if (!rows.length) throw new Error('Planilha vazia.');
+        _wpArqRows = rows;
+        _wpArqHeader = rows[0].map(function(c) { return String(c || '').trim(); });
+        wpAutoDetectarColunas();
+      } catch (err) {
+        _toast('Falha ao ler arquivo: ' + err.message, 'error');
+        document.getElementById('wpContatosInfo').textContent = 'Erro: ' + err.message;
+      }
+    };
+    reader.onerror = function() { _toast('Erro ao ler arquivo.', 'error'); };
+    reader.readAsArrayBuffer(file);
+  };
+
+  function wpAutoDetectarColunas() {
+    var rows = _wpArqRows;
+    if (!rows || rows.length < 2) {
+      document.getElementById('wpContatosInfo').textContent = 'Arquivo sem dados úteis.';
+      return;
+    }
+    var ncols = Math.max.apply(null, rows.map(function(r) { return r.length; }));
+    var sample = rows.slice(1, Math.min(rows.length, 51)); // até 50 linhas pra heurística
+
+    // Para cada coluna, contar quantas linhas têm um phone válido (10-13 dígitos)
+    var phoneScore = [], nameScore = [];
+    for (var c = 0; c < ncols; c++) {
+      var phoneHits = 0, nameHits = 0;
+      sample.forEach(function(r) {
+        var v = String(r[c] || '');
+        var digits = v.replace(/\D/g, '');
+        if (digits.length >= 10 && digits.length <= 13) phoneHits++;
+        if (/[a-záéíóúâêôãõç]{3,}/i.test(v) && digits.length < 6) nameHits++;
+      });
+      phoneScore.push(phoneHits);
+      nameScore.push(nameHits);
+    }
+    var bestPhone = phoneScore.indexOf(Math.max.apply(null, phoneScore));
+    var bestName  = nameScore.indexOf(Math.max.apply(null, nameScore));
+    if (bestName === bestPhone) bestName = -1;
+
+    // Popula selects
+    var selTel = document.getElementById('wpColTel');
+    var selNome = document.getElementById('wpColNome');
+    selTel.innerHTML = '';
+    selNome.innerHTML = '<option value="-1">— sem coluna de nome —</option>';
+    for (var i = 0; i < ncols; i++) {
+      var lbl = (_wpArqHeader[i] || ('Col ' + (i + 1))) + ' (ex: ' + String(sample[0] && sample[0][i] || '').slice(0, 20) + ')';
+      var o1 = document.createElement('option'); o1.value = i; o1.textContent = lbl;
+      var o2 = document.createElement('option'); o2.value = i; o2.textContent = lbl;
+      if (i === bestPhone) o1.selected = true;
+      if (i === bestName)  o2.selected = true;
+      selTel.appendChild(o1); selNome.appendChild(o2);
+    }
+    document.getElementById('wpColMapWrap').style.display = '';
+    wpAplicarColMap();
+  }
+
+  window.wpAplicarColMap = function() {
+    if (!_wpArqRows) return;
+    var idxTel = parseInt(document.getElementById('wpColTel').value, 10);
+    var idxNome = parseInt(document.getElementById('wpColNome').value, 10);
+    var rows = _wpArqRows;
+    // Se header parece header (não é número), pula linha 0; senão, inclui.
+    var firstHasDigits = String(rows[0][idxTel] || '').replace(/\D/g,'').length >= 10;
+    var startAt = firstHasDigits ? 0 : 1;
+    var out = [];
+    var vistos = {};
+    for (var r = startAt; r < rows.length; r++) {
+      var row = rows[r];
+      var fone = String(row[idxTel] || '').replace(/\D/g, '');
+      if (fone.length < 10) continue;
+      if (vistos[fone]) continue;
+      vistos[fone] = 1;
+      var nome = (idxNome >= 0) ? String(row[idxNome] || '').trim() : '';
+      if (!nome) nome = 'Cliente';
+      out.push({ nome: nome, phone: fone });
+    }
+    _wpContatosCache = out;
+    document.getElementById('wpContatosInfo').textContent = out.length + ' contatos detectados (deduplicados).';
+  };
+
+  // ── IMAGEM (upload pra Drive, opcional) ───────────────────────────────────────
+  var _wpImagemUrl = '';
+
+  window.wpUploadImagem = function(ev) {
+    var file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      _toast('Imagem maior que 5MB.', 'error');
+      ev.target.value = '';
+      return;
+    }
+    if (!/^image\//.test(file.type)) {
+      _toast('Apenas imagens (jpg, png, webp etc).', 'error');
+      ev.target.value = '';
+      return;
+    }
+    document.getElementById('wpImagemStatus').textContent = 'Enviando para o Drive… (' + Math.round(file.size/1024) + ' KB)';
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var dataUrl = String(e.target.result || '');
+      var base64 = dataUrl.split(',')[1] || '';
+      // mostra preview já durante upload
+      document.getElementById('wpImagemPreview').src = dataUrl;
+      document.getElementById('wpImagemBox').style.display = '';
+      google.script.run
+        .withSuccessHandler(function(r) {
+          if (!r || !r.ok) {
+            _toast((r && r.mensagem) || 'Falha no upload', 'error');
+            document.getElementById('wpImagemStatus').textContent = '';
+            wpRemoverImagem();
+            return;
+          }
+          _wpImagemUrl = r.url;
+          document.getElementById('wpImagemStatus').innerHTML =
+            '✓ Pronta — <strong>' + Math.round(r.size/1024) + ' KB</strong> · enviada como legenda da mensagem';
+        })
+        .withFailureHandler(function(err) {
+          _toast('Erro: ' + err.message, 'error');
+          document.getElementById('wpImagemStatus').textContent = '';
+          wpRemoverImagem();
+        })
+        .uploadImagemCampanha(_wpUser, base64, file.name, file.type);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  window.wpRemoverImagem = function() {
+    _wpImagemUrl = '';
+    document.getElementById('wpImagemInput').value = '';
+    document.getElementById('wpImagemBox').style.display = 'none';
+    document.getElementById('wpImagemPreview').src = '';
+    document.getElementById('wpImagemStatus').textContent = '';
+  };
+
+  // ── VARIAÇÕES (Claude API) ────────────────────────────────────────────────────
+  var _wpVariacoes = []; // array de strings retornadas pela Claude
+
+  window.wpGerarVariacoes = function() {
+    var template = document.getElementById('wpTemplate').value.trim();
+    if (!template) { _toast('Escreva o template antes.', 'error'); return; }
+    var btn = document.getElementById('wpBtnVariacoes');
+    var statusEl = document.getElementById('wpVariacoesStatus');
+    btn.disabled = true;
+    btn.textContent = 'Gerando…';
+    statusEl.textContent = 'Chamando Claude API (~5-10s)…';
+
+    google.script.run
+      .withSuccessHandler(function(r) {
+        btn.disabled = false;
+        btn.textContent = '✨ Gerar variações';
+        if (!r || !r.ok) {
+          statusEl.textContent = '';
+          _toast((r && r.mensagem) || 'Erro ao gerar variações.', 'error');
+          return;
+        }
+        _wpVariacoes = r.variacoes || [];
+        _wpRenderVariacoes();
+        statusEl.textContent = _wpVariacoes.length + ' variações geradas. Marque as que quer usar.';
+      })
+      .withFailureHandler(function(e) {
+        btn.disabled = false;
+        btn.textContent = '✨ Gerar variações';
+        statusEl.textContent = '';
+        _toast('Erro: ' + e.message, 'error');
+      })
+      .gerarVariacoesMensagem(_wpUser, template);
+  };
+
+  function _wpRenderVariacoes() {
+    var painel = document.getElementById('wpVariacoesPainel');
+    var lista = document.getElementById('wpVariacoesLista');
+    document.getElementById('wpVarCount').textContent = _wpVariacoes.length;
+    if (!_wpVariacoes.length) { painel.style.display = 'none'; return; }
+    painel.style.display = '';
+    lista.innerHTML = _wpVariacoes.map(function(v, i) {
+      return '<label style="display:flex;gap:10px;padding:8px;background:rgba(0,0,0,.15);border-radius:6px;cursor:pointer;align-items:flex-start">' +
+             '<input type="checkbox" class="wp-var-chk" data-idx="' + i + '" checked style="margin-top:3px">' +
+             '<span style="font-size:13px;line-height:1.45;white-space:pre-wrap">' + _esc(v) + '</span>' +
+             '</label>';
+    }).join('');
+  }
+
+  window.wpVarMarcarTodas = function(marcar) {
+    document.querySelectorAll('.wp-var-chk').forEach(function(c) { c.checked = !!marcar; });
+  };
+
+  function _wpVariacoesMarcadas() {
+    var out = [];
+    document.querySelectorAll('.wp-var-chk').forEach(function(c) {
+      if (c.checked) out.push(_wpVariacoes[Number(c.getAttribute('data-idx'))]);
+    });
+    return out;
+  }
+
+  window.wpCriarCampanha = function() {
+    if (_wpAlvo !== _wpUser) { _toast('Você está visualizando como ' + _wpAlvo + '. Volte pra "você mesmo" no seletor pra criar campanhas.', 'error'); return; }
+    var nome = document.getElementById('wpNome').value.trim();
+    var template = document.getElementById('wpTemplate').value.trim();
+    var delay_min = Number(document.getElementById('wpDelayMin').value) || 12;
+    var delay_max = Number(document.getElementById('wpDelayMax').value) || 35;
+    if (!nome)     { _toast('Informe o nome da campanha.', 'error'); return; }
+    if (!template) { _toast('Escreva a mensagem.', 'error'); return; }
+    var fonte = document.getElementById('wpFonte').value;
+    var contatos = (fonte === 'manual') ? _parseManualLista() : _wpContatosCache;
+    if (!contatos.length) { _toast('Nenhum contato selecionado.', 'error'); return; }
+
+    var variacoes = _wpVariacoesMarcadas();
+    var msgVar = variacoes.length
+      ? '<div style="margin-top:8px;font-size:12px;color:var(--text-muted,#8a93a3)"><strong>' + variacoes.length + '</strong> variações ativas — n8n sorteia 1 por contato.</div>'
+      : '<div style="margin-top:8px;font-size:12px;color:#f1c40f">⚠ Sem variações — todos recebem o template original (maior risco de ban).</div>';
+    var msgImg = _wpImagemUrl
+      ? '<div style="margin-top:6px;font-size:12px;color:var(--text-muted,#8a93a3)">📎 <strong>Com imagem</strong> — texto vai como legenda.</div>'
+      : '';
+
+    wpConfirm({
+      titulo: 'Iniciar campanha?',
+      html: 'Disparar <strong>' + _esc(nome) + '</strong> para <strong>' + contatos.length + '</strong> contatos?' + msgVar + msgImg,
+      okLabel: 'Iniciar',
+      onOk: function() {
+        wpLoading('Processando — enfileirando disparos…');
+        google.script.run
+          .withSuccessHandler(function(r) {
+            wpLoadingClose();
+            if (!r || !r.ok) { _toast(r && r.mensagem || 'Erro ao criar campanha', 'error'); return; }
+            _toast('Campanha criada: ' + r.total + ' disparos enfileirados.', 'ok');
+            document.getElementById('wpNome').value = '';
+            document.getElementById('wpTemplate').value = '';
+            _wpVariacoes = [];
+            _wpRenderVariacoes();
+            document.getElementById('wpVariacoesStatus').textContent = 'Reduz risco de ban: a cada disparo o n8n sorteia uma variação distinta.';
+            wpRemoverImagem();
+            wpAtualizarPreview();
+            document.querySelectorAll('.wp-tab')[2].click();
+          })
+          .withFailureHandler(function(e) { wpLoadingClose(); _toast('Erro: ' + e.message, 'error'); })
+          .criarCampanha(_wpUser, {
+            nome: nome, template_msg: template,
+            delay_min: delay_min, delay_max: delay_max,
+            contatos: contatos, variacoes: variacoes,
+            imagem_url: _wpImagemUrl
+          });
+      }
+    });
+  };
+
+  // ── HISTÓRICO ─────────────────────────────────────────────────────────────────
+  window.wpCarregarHistorico = function() {
+    document.getElementById('wpHistoricoBody').innerHTML = 'Carregando…';
+    if (!_wpUser) {
+      document.getElementById('wpHistoricoBody').innerHTML = '<div class="wp-warn">Sem usuário no sessionStorage. Faça login de novo.</div>';
+      return;
+    }
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (!r) { document.getElementById('wpHistoricoBody').innerHTML = '<div class="wp-warn">Backend retornou vazio (null). Cheque logs do Apps Script.</div>'; return; }
+        if (!r.ok) {
+          var det = r.mensagem || JSON.stringify(r);
+          document.getElementById('wpHistoricoBody').innerHTML = '<div class="wp-warn">Erro backend: ' + _esc(det) + '</div>';
+          return;
+        }
+        wpRenderHistorico(r.data || []);
+      })
+      .withFailureHandler(function(e) {
+        var msg = (e && (e.message || e.toString())) || 'failure handler sem detalhes';
+        document.getElementById('wpHistoricoBody').innerHTML = '<div class="wp-warn">Falha google.script.run: ' + _esc(msg) + '</div>';
+      })
+      .getCampanhasUsuario(_wpUser, _alvoArg());
+  };
+
+  function wpRenderHistorico(camps) {
+    if (!camps.length) { document.getElementById('wpHistoricoBody').innerHTML = '<div style="color:var(--text-muted,#8a93a3);text-align:center;padding:24px">Nenhuma campanha ainda. Crie uma na aba "Nova Campanha".</div>'; return; }
+    var html = '<table class="wp-tabela"><thead><tr><th>Nome</th><th>Status</th><th>Total</th><th>Enviado</th><th>Respondeu</th><th>Erro</th><th>Resposta</th><th>Ações</th></tr></thead><tbody>';
+    camps.forEach(function(c) {
+      var total = Number(c.total_contatos || 0);
+      var env   = Number(c.total_enviado   || 0);
+      var resp  = Number(c.total_respondeu || 0);
+      var err   = Number(c.total_erro      || 0);
+      var pct   = total > 0 ? Math.round((env / total) * 100) : 0;
+      var taxa  = env > 0   ? Math.round((resp / env) * 100) : 0;
+      var statusBadge = '<span class="wp-badge ' + _esc(c.status) + '">' + _esc(c.status) + '</span>';
+      var btns = '';
+      btns += '<button class="btn btn-ghost btn-sm" title="Ver disparos" onclick="wpVerDisparos(\'' + _esc(c.id) + '\',\'' + _esc(c.nome) + '\')">📋</button>';
+      if (c.status === 'ativa')   btns += '<button class="btn btn-ghost btn-sm" onclick="wpAcao(\'' + _esc(c.id) + '\',\'pausar\')">Pausar</button>';
+      if (c.status === 'pausada') btns += '<button class="btn btn-ghost btn-sm" onclick="wpAcao(\'' + _esc(c.id) + '\',\'retomar\')">Retomar</button>';
+      if (c.status !== 'cancelada') btns += '<button class="btn btn-ghost btn-sm" style="color:#e63e6d" onclick="wpAcao(\'' + _esc(c.id) + '\',\'cancelar\')">Cancelar</button>';
+      if (_wpIsAdmin) btns += '<button class="btn btn-ghost btn-sm" style="color:#e63e6d" title="Excluir campanha (admin)" onclick="wpExcluirCampanha(\'' + _esc(c.id) + '\',\'' + _esc(c.nome) + '\')">🗑</button>';
+      html += '<tr>'
+            + '<td><div style="font-weight:600">' + _esc(c.nome) + '</div><div class="wp-progress"><div class="wp-progress-bar" style="width:' + pct + '%"></div></div></td>'
+            + '<td>' + statusBadge + '</td>'
+            + '<td>' + total + '</td>'
+            + '<td>' + env + '</td>'
+            + '<td>' + resp + '</td>'
+            + '<td>' + err + '</td>'
+            + '<td><strong>' + taxa + '%</strong></td>'
+            + '<td>' + btns + '</td>'
+            + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('wpHistoricoBody').innerHTML = html;
+  }
+
+  function _wpExecAcao(campanhaId, acao, fn) {
+    wpLoading(acao === 'cancelar' ? 'Cancelando…' : (acao === 'pausar' ? 'Pausando…' : 'Retomando…'));
+    google.script.run
+      .withSuccessHandler(function(r) {
+        wpLoadingClose();
+        if (!r || !r.ok) { _toast(r && r.mensagem || 'Erro', 'error'); return; }
+        _toast('Campanha ' + (acao === 'cancelar' ? 'cancelada' : (acao + 'da')) + '.', 'ok');
+        wpCarregarHistorico();
+      })
+      .withFailureHandler(function(e) { wpLoadingClose(); _toast('Erro: ' + e.message, 'error'); })
+      [fn](_wpUser, campanhaId, _alvoArg());
+  }
+  window.wpAcao = function(campanhaId, acao) {
+    var fn = ({ pausar: 'pausarCampanha', retomar: 'retomarCampanha', cancelar: 'cancelarCampanha' })[acao];
+    if (!fn) return;
+    if (acao === 'cancelar') {
+      wpConfirm({
+        titulo: 'Cancelar campanha?',
+        mensagem: 'Disparos pendentes não serão enviados. Esta ação não pode ser desfeita.',
+        okLabel: 'Cancelar campanha',
+        cancelLabel: 'Voltar',
+        tipo: 'perigo',
+        onOk: function() { _wpExecAcao(campanhaId, acao, fn); }
+      });
+      return;
+    }
+    _wpExecAcao(campanhaId, acao, fn);
+  };
+
+  window.wpExcluirCampanha = function(campanhaId, nome) {
+    if (!_wpIsAdmin) { _toast('Apenas admin pode excluir campanhas.', 'error'); return; }
+    wpConfirm({
+      titulo: 'Excluir campanha?',
+      html: 'A campanha <strong>' + _esc(nome) + '</strong> e <strong>todos os disparos relacionados</strong> serão removidos permanentemente do Sheets. Esta ação não pode ser desfeita.',
+      okLabel: 'Excluir definitivamente',
+      cancelLabel: 'Voltar',
+      tipo: 'perigo',
+      onOk: function() {
+        wpLoading('Excluindo campanha + disparos…');
+        google.script.run
+          .withSuccessHandler(function(r) {
+            wpLoadingClose();
+            if (!r || !r.ok) { _toast(r && r.mensagem || 'Erro ao excluir', 'error'); return; }
+            _toast('Campanha excluída · ' + (r.removidosDisparos || 0) + ' disparos removidos.', 'ok');
+            wpCarregarHistorico();
+          })
+          .withFailureHandler(function(e) { wpLoadingClose(); _toast('Erro: ' + e.message, 'error'); })
+          .excluirCampanha(_wpUser, campanhaId, _alvoArg());
+      }
+    });
+  };
+
+  // ── DASHBOARD ─────────────────────────────────────────────────────────────────
+  var _wpDashChart = null;
+  var _wpDashViewAll = false; // admin only
+
+  window.wpDashAlternarTodos = function() {
+    _wpDashViewAll = !_wpDashViewAll;
+    var btn = document.getElementById('wpDashTodosBtn');
+    btn.textContent = _wpDashViewAll ? '👤 Ver só ' + _wpAlvo : '👥 Ver todos os usuários';
+    wpCarregarDashboard();
+  };
+
+  window.wpCarregarDashboard = function() {
+    document.getElementById('wpDashEscopoLabel').textContent = 'Carregando…';
+    document.getElementById('wpDashTodosBtn').style.display = _wpIsAdmin ? '' : 'none';
+
+    var alvo = _wpDashViewAll ? '__all__' : _alvoArg();
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (!r || !r.ok) {
+          document.getElementById('wpDashEscopoLabel').textContent = 'Erro: ' + (r && r.mensagem || 'desconhecido');
+          return;
+        }
+        wpRenderDashboard(r);
+      })
+      .withFailureHandler(function(e) {
+        document.getElementById('wpDashEscopoLabel').textContent = 'Falha: ' + (e.message || 'desconhecido');
+      })
+      .getDashboardWaPessoal(_wpUser, alvo);
+
+    // Carrega Saúde em paralelo (não bloqueia o resto do dashboard)
+    google.script.run
+      .withSuccessHandler(function(s) {
+        if (!s || !s.ok) {
+          document.getElementById('wpSaudeStatusLabel').textContent = 'Erro ao carregar saúde: ' + (s && s.mensagem || 'desconhecido');
+          return;
+        }
+        wpRenderSaude(s);
+      })
+      .withFailureHandler(function(e) {
+        document.getElementById('wpSaudeStatusLabel').textContent = 'Falha: ' + (e.message || 'desconhecido');
+      })
+      .getSaudeWaPessoal(_wpUser, alvo);
+  };
+
+  function wpRenderSaude(s) {
+    var statusMap = {
+      verde:     { cor: '#2ecc71', borda: '#2ecc71', label: 'Saudável — sem alertas ativos' },
+      amarelo:   { cor: '#f1c40f', borda: '#f1c40f', label: 'Atenção — sinais de degradação' },
+      vermelho:  { cor: '#e63e6d', borda: '#e63e6d', label: 'Crítico — risco alto de ban, ação imediata' },
+      sem_dados: { cor: '#6c7280', borda: '#6c7280', label: 'Sem dados — nenhum disparo recente' }
+    };
+    var st = statusMap[s.status] || statusMap.sem_dados;
+    document.getElementById('wpSaudeBox').style.borderLeftColor = st.borda;
+    document.getElementById('wpSaudeStatusDot').style.background = st.cor;
+    document.getElementById('wpSaudeStatusDot').style.boxShadow = '0 0 8px ' + st.cor + '88';
+    document.getElementById('wpSaudeStatusLabel').textContent = st.label;
+    document.getElementById('wpSaudeBaselineLabel').textContent =
+      'Hoje: ' + (s.hoje.enviado || 0) + ' env  ·  Baseline 7d: ' + (s.baseline_7d.enviado || 0) + ' env';
+
+    // Alertas
+    var alertasEl = document.getElementById('wpSaudeAlertas');
+    if (!s.alertas || !s.alertas.length) {
+      if (s.status === 'verde' && (s.hoje.enviado || 0) > 0) {
+        alertasEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted,#8a93a3);padding:4px 0">Tudo certo. Continue monitorando — entrega, leitura e resposta dentro dos limites saudáveis.</div>';
+      } else if (s.status === 'sem_dados') {
+        alertasEl.innerHTML = '<div style="font-size:12px;color:var(--text-muted,#8a93a3);padding:4px 0">Crie uma campanha pra começar a coletar dados de saúde.</div>';
+      } else {
+        alertasEl.innerHTML = '';
+      }
+    } else {
+      alertasEl.innerHTML = s.alertas.map(function(a) {
+        var icone = a.nivel === 'vermelho' ? '🚨' : '⚠';
+        return '<div class="wp-alerta ' + a.nivel + '">'
+          +   '<span class="wp-alerta-icon">' + icone + '</span>'
+          +   '<div class="wp-alerta-body">'
+          +     '<div class="wp-alerta-msg">' + _esc(a.mensagem) + '</div>'
+          +     '<div class="wp-alerta-sug">' + _esc(a.sugestao) + '</div>'
+          +   '</div>'
+          + '</div>';
+      }).join('');
+    }
+
+    // KPIs com delta
+    function setKpi(elVal, elDelta, valorHoje, deltaPct, sufixo) {
+      document.getElementById(elVal).textContent =
+        (valorHoje != null ? valorHoje : 0) + (sufixo || '');
+      var de = document.getElementById(elDelta);
+      if (deltaPct == null || isNaN(deltaPct) || deltaPct === 0) {
+        de.textContent = 'vs 7d: —';
+        de.className = 'wp-saude-kpi-delta';
+      } else {
+        var sinal = deltaPct > 0 ? '+' : '';
+        de.textContent = 'vs 7d: ' + sinal + deltaPct + '%';
+        de.className = 'wp-saude-kpi-delta ' + (deltaPct > 0 ? 'up' : 'down');
+      }
+    }
+    setKpi('wpSaudeEntrega',  'wpSaudeEntregaDelta',  s.hoje.pct_entregue,      s.deltas && s.deltas.entrega,  '%');
+    setKpi('wpSaudeLido',     'wpSaudeLidoDelta',     s.hoje.pct_lido_efetivo,  s.deltas && s.deltas.lido,     '%');
+    setKpi('wpSaudeResposta', 'wpSaudeRespostaDelta', s.hoje.pct_respondeu,     s.deltas && s.deltas.resposta, '%');
+
+    // KPI de erro mostra contagem absoluta hoje + volume hoje no delta
+    document.getElementById('wpSaudeErro').textContent = (s.hoje.erro || 0);
+    var deErr = document.getElementById('wpSaudeVolumeHoje');
+    deErr.textContent = (s.hoje.enviado || 0) + ' enviados hoje';
+    deErr.className = 'wp-saude-kpi-delta';
+  }
+
+  function _wpLoadScript(src, cb) {
+    if (document.querySelector('script[src="' + src + '"]')) { if (cb) cb(); return; }
+    var s = document.createElement('script');
+    s.src = src;
+    s.onload = cb || function(){};
+    s.onerror = function() { console.warn('[wp] Falha ao carregar:', src); if (cb) cb(); };
+    document.head.appendChild(s);
+  }
+
+  function wpRenderDashboard(d) {
+    var escopo = d.escopo === '__all__' ? 'Todos os usuários' : d.escopo;
+    document.getElementById('wpDashEscopoLabel').textContent = 'Escopo: ' + escopo + '  ·  ' + (d.serie ? d.serie.length + ' dias' : '');
+
+    var k = d.kpis || {};
+    document.getElementById('wpKpiEnviado').textContent   = k.enviado_mes || 0;
+    document.getElementById('wpKpiTaxa').textContent      = (k.taxa_resposta || 0) + '%';
+    document.getElementById('wpKpiAtivas').textContent    = k.campanhas_ativas || 0;
+    document.getElementById('wpKpiBlacklist').textContent = k.blacklist_size || 0;
+    document.getElementById('wpKpiTotal').textContent     = k.total_campanhas || 0;
+
+    // Chart.js — lazy load
+    if (typeof Chart === 'undefined') {
+      _wpLoadScript('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js', function() {
+        if (typeof Chart === 'undefined') {
+          document.getElementById('wpDashChart').outerHTML = '<div class="wp-warn">Falha ao carregar Chart.js.</div>';
+        } else {
+          _wpDrawChart(d);
+        }
+      });
+    } else {
+      _wpDrawChart(d);
+    }
+
+    // Instâncias
+    var inst = d.instancias || [];
+    document.getElementById('wpInstCountLabel').textContent = '(' + inst.length + ')';
+    if (!inst.length) {
+      document.getElementById('wpInstanciasBody').innerHTML = '<div style="color:var(--text-muted,#8a93a3)">Nenhuma instância no escopo.</div>';
+    } else {
+      var html = '<table class="wp-tabela"><thead><tr><th>Usuário</th><th>Status</th><th>Telefone</th><th>Hoje</th><th>Limite</th></tr></thead><tbody>';
+      inst.forEach(function(i) {
+        var statusClass = String(i.status || 'desconectado').toLowerCase();
+        html += '<tr>'
+              + '<td><strong>' + _esc(i.usuario) + '</strong></td>'
+              + '<td><span class="wp-badge ' + _esc(statusClass) + '" style="background:rgba(110,166,255,.15);color:#9ec0ff">' + _esc(i.status || '—') + '</span></td>'
+              + '<td>' + _esc(i.phone_display || '—') + '</td>'
+              + '<td>' + Number(i.daily_count || 0) + '</td>'
+              + '<td>' + Number(i.daily_limit || 200) + '</td>'
+              + '</tr>';
+      });
+      html += '</tbody></table>';
+      document.getElementById('wpInstanciasBody').innerHTML = html;
+    }
+  }
+
+  function _wpDrawChart(d) {
+    var serie = d.serie || [];
+    var labels = serie.map(function(p) { return String(p.data).slice(5); }); // MM-DD
+    var dataEnv  = serie.map(function(p) { return p.enviado || 0; });
+    var dataResp = serie.map(function(p) { return p.respondeu || 0; });
+    var dataErr  = serie.map(function(p) { return p.erro || 0; });
+    var canvas = document.getElementById('wpDashChart');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    if (_wpDashChart) _wpDashChart.destroy();
+    _wpDashChart = new Chart(ctx, {
+      type: 'line',
+      data: { labels: labels, datasets: [
+        { label: 'Enviado',   data: dataEnv,  borderColor: '#6ea6ff', backgroundColor: 'rgba(110,166,255,.12)', tension: .3, fill: true },
+        { label: 'Respondeu', data: dataResp, borderColor: '#2ecc71', backgroundColor: 'rgba(46,204,113,.12)', tension: .3, fill: true },
+        { label: 'Erro',      data: dataErr,  borderColor: '#e63e6d', backgroundColor: 'rgba(230,62,109,.12)', tension: .3, fill: true }
+      ]},
+      options: {
+        responsive: true, maintainAspectRatio: true,
+        plugins: { legend: { position: 'bottom' } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    });
+  }
+
+  // ── MODAL: Ver disparos da campanha ───────────────────────────────────────────
+  function _fmtDate(v) {
+    if (!v) return '';
+    var d = (v instanceof Date) ? v : new Date(v);
+    if (isNaN(d.getTime())) return '';
+    var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+    return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function _fmtPhone(p) {
+    var s = String(p || '').replace(/\D/g, '');
+    if (s.length === 13) return '+' + s.slice(0,2) + ' (' + s.slice(2,4) + ') ' + s.slice(4,9) + '-' + s.slice(9);
+    if (s.length === 12) return '+' + s.slice(0,2) + ' (' + s.slice(2,4) + ') ' + s.slice(4,8) + '-' + s.slice(8);
+    return s;
+  }
+
+  window.wpFecharModal = function() {
+    document.getElementById('wpModalOverlay').style.display = 'none';
+    document.getElementById('wpModalBody').innerHTML = 'Carregando…';
+  };
+
+  window.wpVerDisparos = function(campanhaId, campanhaNome) {
+    document.getElementById('wpModalTitulo').textContent = 'Disparos — ' + campanhaNome;
+    document.getElementById('wpModalKpis').textContent = 'Carregando…';
+    document.getElementById('wpModalBody').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted,#8a93a3)">Carregando…</div>';
+    document.getElementById('wpModalOverlay').style.display = 'block';
+
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (!r || !r.ok) {
+          document.getElementById('wpModalBody').innerHTML = '<div class="wp-warn" style="margin:16px">' + _esc((r && r.mensagem) || 'Erro ao carregar') + '</div>';
+          return;
+        }
+        _wpRenderModalDisparos(r.data || []);
+      })
+      .withFailureHandler(function(e) {
+        document.getElementById('wpModalBody').innerHTML = '<div class="wp-warn" style="margin:16px">Falha: ' + _esc(e.message || e) + '</div>';
+      })
+      .getDisparosCampanha(_wpUser, campanhaId, _alvoArg());
+  };
+
+  function _wpRenderModalDisparos(disparos) {
+    var total = disparos.length;
+    var enviado = 0, entregue = 0, lido = 0, respondeu = 0, erro = 0, pendente = 0, blacklist = 0;
+    disparos.forEach(function(d) {
+      var s = String(d.status || 'pendente');
+      if (s === 'enviado' || s === 'respondeu') enviado++;
+      if (d.entregue_em) entregue++;
+      if (d.lido_em) lido++;
+      if (s === 'respondeu') respondeu++;
+      if (s === 'erro') erro++;
+      if (s === 'pendente') pendente++;
+      if (s === 'blacklist') blacklist++;
+    });
+    var pct = function(n) { return enviado > 0 ? Math.round((n / enviado) * 100) : 0; };
+
+    var kpis = total + ' disparos · '
+             + enviado + ' enviados · '
+             + entregue + ' entregues (' + pct(entregue) + '%) · '
+             + lido + ' lidos (' + pct(lido) + '%) · '
+             + respondeu + ' responderam (' + pct(respondeu) + '%)'
+             + (erro ? ' · ' + erro + ' erros' : '')
+             + (pendente ? ' · ' + pendente + ' pendentes' : '')
+             + (blacklist ? ' · ' + blacklist + ' blacklist' : '');
+    document.getElementById('wpModalKpis').textContent = kpis;
+
+    if (!total) {
+      document.getElementById('wpModalBody').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted,#8a93a3)">Sem disparos.</div>';
+      return;
+    }
+
+    // Ordena: erros primeiro, depois respondeu, depois enviados, depois pendentes
+    var ordemStatus = { erro: 0, respondeu: 1, enviado: 2, blacklist: 3, pendente: 4 };
+    disparos.sort(function(a, b) {
+      var oa = ordemStatus[a.status] !== undefined ? ordemStatus[a.status] : 9;
+      var ob = ordemStatus[b.status] !== undefined ? ordemStatus[b.status] : 9;
+      if (oa !== ob) return oa - ob;
+      var ta = a.enviado_em ? new Date(a.enviado_em).getTime() : 0;
+      var tb = b.enviado_em ? new Date(b.enviado_em).getTime() : 0;
+      return tb - ta;
+    });
+
+    var statusBadge = function(s) {
+      var cores = { enviado:'#6ea6ff', respondeu:'#2ecc71', erro:'#e63e6d', pendente:'#8a93a3', blacklist:'#f1c40f' };
+      var c = cores[s] || '#8a93a3';
+      return '<span style="background:rgba(255,255,255,.06);color:' + c + ';padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">' + _esc(s) + '</span>';
+    };
+
+    var deliveryBadge = function(d) {
+      if (d.lido_em)     return '<span title="Lido em ' + _fmtDate(d.lido_em) + '" style="color:#2ecc71">✓✓</span>';
+      if (d.entregue_em) return '<span title="Entregue em ' + _fmtDate(d.entregue_em) + '" style="color:#8a93a3">✓✓</span>';
+      if (d.enviado_em)  return '<span title="Enviado em ' + _fmtDate(d.enviado_em) + '" style="color:#8a93a3">✓</span>';
+      return '<span style="color:#5a5f6a">—</span>';
+    };
+
+    // Resumo da última atividade — pra mostrar na linha colapsada
+    var ultimaAtividade = function(d) {
+      if (d.respondeu_em) return { lbl: 'respondeu', ts: d.respondeu_em };
+      if (d.lido_em)      return { lbl: 'lido',      ts: d.lido_em };
+      if (d.entregue_em)  return { lbl: 'entregue',  ts: d.entregue_em };
+      if (d.enviado_em)   return { lbl: 'enviado',   ts: d.enviado_em };
+      if (d.erro_msg)     return { lbl: 'erro',      ts: null };
+      return { lbl: 'pendente', ts: null };
+    };
+
+    var rows = disparos.map(function(d, i) {
+      var msg = String(d.mensagem_enviada || '').trim();
+      var u = ultimaAtividade(d);
+      var ultLbl = u.lbl + (u.ts ? ' · ' + _fmtDate(u.ts) : '');
+
+      var nomeCol = '<span class="wp-disp-arrow">▶</span> '
+                  + '<strong>' + _esc(d.contato_nome || '—') + '</strong>'
+                  + ' <span style="color:var(--text-muted,#8a93a3);font-weight:400">· ' + _fmtPhone(d.contato_phone) + '</span>';
+
+      var detalheMsg = msg
+        ? '<div class="wp-disp-detail-msg">' + _esc(msg) + '</div>'
+        : '<div class="wp-disp-detail-msg" style="color:#5a5f6a;font-style:italic">(mensagem não capturada — disparo antigo, antes do v528)</div>';
+      var detalheErro = d.erro_msg
+        ? '<div style="margin-top:8px;padding:8px 10px;background:rgba(230,62,109,.1);border-left:2px solid #e63e6d;border-radius:4px;font-size:12px;color:#ff8ea6">⚠ ' + _esc(d.erro_msg) + '</div>'
+        : '';
+      var detalheMeta = ''
+        + (d.criado_em    ? '<div>criado · ' + _fmtDate(d.criado_em)    + '</div>' : '')
+        + (d.enviado_em   ? '<div>✓ enviado · '  + _fmtDate(d.enviado_em)   + '</div>' : '')
+        + (d.entregue_em  ? '<div>✓✓ entregue · '+ _fmtDate(d.entregue_em) + '</div>' : '')
+        + (d.lido_em      ? '<div style="color:#2ecc71">✓✓ lido · '+ _fmtDate(d.lido_em) + '</div>' : '')
+        + (d.respondeu_em ? '<div style="color:#2ecc71">↩ respondeu · '+ _fmtDate(d.respondeu_em) + '</div>' : '')
+        + (d.tentativas   ? '<div>tentativas · ' + d.tentativas + '</div>' : '')
+        + (d.message_id   ? '<div style="font-family:monospace;font-size:10px;color:#5a5f6a;margin-top:4px;max-width:240px;overflow:hidden;text-overflow:ellipsis">id · ' + _esc(d.message_id) + '</div>' : '');
+
+      return '<tr class="wp-disp-row" onclick="_wpToggleDisp(' + i + ')">'
+        + '<td>' + nomeCol + '</td>'
+        + '<td>' + statusBadge(d.status) + ' ' + deliveryBadge(d) + '</td>'
+        + '<td style="color:var(--text-muted,#8a93a3);font-size:12px">' + ultLbl + '</td>'
+        + '</tr>'
+        + '<tr id="wpDispDet' + i + '" class="wp-disp-detail" style="display:none">'
+        + '<td colspan="3"><div class="wp-disp-detail-inner">'
+        + '<div>' + detalheMsg + detalheErro + '</div>'
+        + '<div class="wp-disp-detail-meta">' + (detalheMeta || '<div style="color:#5a5f6a">sem timestamps</div>') + '</div>'
+        + '</div></td></tr>';
+    }).join('');
+
+    document.getElementById('wpModalBody').innerHTML =
+      '<table class="wp-tabela" style="margin:0;table-layout:fixed">'
+      + '<thead><tr>'
+        + '<th style="position:sticky;top:0;background:#1a1d24;width:42%">Contato</th>'
+        + '<th style="position:sticky;top:0;background:#1a1d24;width:28%">Status</th>'
+        + '<th style="position:sticky;top:0;background:#1a1d24">Última atividade</th>'
+      + '</tr></thead>'
+      + '<tbody>' + rows + '</tbody></table>';
+  }
+  window._wpToggleDisp = function(i) {
+    var det = document.getElementById('wpDispDet' + i);
+    if (!det) return;
+    var aberto = det.style.display !== 'none';
+    det.style.display = aberto ? 'none' : '';
+    var prev = det.previousElementSibling;
+    if (prev) prev.classList.toggle('aberto', !aberto);
+  };
+})();
+</script>

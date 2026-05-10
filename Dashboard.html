@@ -188,6 +188,18 @@
   <div class="top-right" id="d_wabaTopRight" style="display:none">
     <button class="refresh" onclick="wbLoad()">↺ Atualizar</button>
   </div>
+  <div class="top-right" id="d_adsTopRight" style="display:none;gap:10px;align-items:center">
+    <div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end">
+      <div style="display:flex;gap:4px;align-items:center">
+        <button id="adsBtn1d"  onclick="adsSetDias(1)"  style="padding:5px 9px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--dim2);font-family:var(--mono);font-size:10px;letter-spacing:.08em;cursor:pointer;border-radius:4px">1d</button>
+        <button id="adsBtn3d"  onclick="adsSetDias(3)"  style="padding:5px 9px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--dim2);font-family:var(--mono);font-size:10px;letter-spacing:.08em;cursor:pointer;border-radius:4px">3d</button>
+        <button id="adsBtn7d"  onclick="adsSetDias(7)"  style="padding:5px 9px;border:1px solid var(--g2);background:rgba(0,212,255,.12);color:var(--g2);font-family:var(--mono);font-size:10px;letter-spacing:.08em;cursor:pointer;border-radius:4px">7d</button>
+        <button id="adsBtn30d" onclick="adsSetDias(30)" style="padding:5px 9px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--dim2);font-family:var(--mono);font-size:10px;letter-spacing:.08em;cursor:pointer;border-radius:4px">30d</button>
+      </div>
+      <div id="adsDateRangeLabel" style="font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:.05em;"></div>
+    </div>
+    <button class="refresh" onclick="adsLoad()">↺ Atualizar</button>
+  </div>
 </div>
 
 <!-- ── TABS ── -->
@@ -195,6 +207,7 @@
   <button class="rn-tab active" id="rntab-mobile" onclick="rnSwitch('mobile')">Mobile Digital</button>
   <button class="rn-tab" id="rntab-renata" onclick="rnSwitch('renata')">Agente IA ✦</button>
   <button class="rn-tab" id="rntab-waba" onclick="rnSwitch('waba')">WABA Monitor</button>
+  <button class="rn-tab" id="rntab-ads" onclick="rnSwitch('ads')">Meta Ads ✦</button>
 </div>
 
 <!-- ── PAINEL MOBILE DIGITAL ── -->
@@ -231,6 +244,16 @@
 <!-- ── PAINEL WABA MONITOR ── -->
 <div id="tab-waba" style="display:none">
   <div class="canvas" id="wb-root">
+    <div style="display:flex;align-items:center;justify-content:center;height:55vh">
+      <span style="font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase">carregando...</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── PAINEL META ADS ── -->
+<div id="tab-ads" style="display:none">
+  <div style="padding:14px 28px 0;font-size:11px;color:var(--dim2);font-family:var(--mono);letter-spacing:.04em;">Histórico e tendências — evolução das métricas ao longo do tempo</div>
+  <div class="canvas" id="ads-root">
     <div style="display:flex;align-items:center;justify-content:center;height:55vh">
       <span style="font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase">carregando...</span>
     </div>
@@ -523,6 +546,7 @@ function _render(d){
 // ══════════════════════════════════════════════════════════════
 var _rnLoaded=false;
 var _wbLoaded=false;
+var _adsLoaded=false;
 var SB_URL='https://zfunugupwvktcggvicuk.supabase.co';
 var SB_REST=SB_URL+'/rest/v1';
 var SB_KEY='sb_publishable_vygMQ5j_dTi4W1HWGkDI5g_TgpqKY4R';
@@ -531,15 +555,19 @@ function rnSwitch(tab){
   document.getElementById('tab-mobile').style.display=tab==='mobile'?'':'none';
   document.getElementById('tab-renata').style.display=tab==='renata'?'':'none';
   document.getElementById('tab-waba').style.display=tab==='waba'?'':'none';
+  document.getElementById('tab-ads').style.display=tab==='ads'?'':'none';
   document.getElementById('d_mobileTopRight').style.display=tab==='mobile'?'flex':'none';
   document.getElementById('d_renataTopRight').style.display=tab==='renata'?'flex':'none';
   document.getElementById('d_wabaTopRight').style.display=tab==='waba'?'flex':'none';
+  document.getElementById('d_adsTopRight').style.display=tab==='ads'?'flex':'none';
   document.getElementById('rntab-mobile').className='rn-tab'+(tab==='mobile'?' active':'');
   document.getElementById('rntab-renata').className='rn-tab'+(tab==='renata'?' active':'');
   document.getElementById('rntab-waba').className='rn-tab'+(tab==='waba'?' active':'');
+  document.getElementById('rntab-ads').className='rn-tab'+(tab==='ads'?' active':'');
   _currentDashTab=tab;
   if(tab==='renata'&&!_rnLoaded){_rnLoaded=true;rnLoad();}
   if(tab==='waba'&&!_wbLoaded){_wbLoaded=true;wbLoad();}
+  if(tab==='ads'&&!_adsLoaded){_adsLoaded=true;adsLoad();}
 }
 window.rnSwitch=rnSwitch;
 
@@ -925,10 +953,164 @@ function wbDrawQualityChart(rows){
   });
 }
 
+// ══════════════════════════════════════════════════════════════
+// META ADS — evolução diária do diagnóstico
+// ══════════════════════════════════════════════════════════════
+var _adsMetric='gasto_7d';
+var _adsRows=[];
+var _adsDias=7;
+
+function adsSetDias(n){
+  _adsDias=n;
+  ['1d','3d','7d','30d'].forEach(function(id){
+    var dias=parseInt(id);
+    var el=document.getElementById('adsBtn'+id);
+    if(!el)return;
+    var ativo=dias===n;
+    el.style.borderColor=ativo?'var(--g2)':'rgba(255,255,255,.1)';
+    el.style.background=ativo?'rgba(0,212,255,.12)':'transparent';
+    el.style.color=ativo?'var(--g2)':'var(--dim2)';
+  });
+  adsRender();
+}
+window.adsSetDias=adsSetDias;
+
+function adsLoad(){
+  var root=document.getElementById('ads-root');
+  if(root)root.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:40vh"><span style="font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase">carregando...</span></div>';
+  google.script.run
+    .withSuccessHandler(function(r){
+      if(!r||!r.ok){adsErr((r&&r.erro)||'Falha ao carregar relatório');return;}
+      _adsRows=r.rows||[];
+      adsRender();
+    })
+    .withFailureHandler(function(err){adsErr(err&&err.message?err.message:String(err));})
+    .getRelatorioAdsHistorico(30);
+}
+window.adsLoad=adsLoad;
+
+function adsErr(msg){
+  var r=document.getElementById('ads-root');
+  if(r)r.innerHTML='<div style="padding:80px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--g3);letter-spacing:.1em;">⚠ '+e(msg)+'</div>';
+}
+
+function adsSetMetric(m){_adsMetric=m;adsRender();}
+window.adsSetMetric=adsSetMetric;
+
+function adsFmt(v,kind){
+  v=parseFloat(v||0);
+  if(kind==='money')return nR(v);
+  if(kind==='pct')  return n(v*100,1)+'%';
+  if(kind==='dec')  return n(v,2);
+  return n(v,0);
+}
+
+function adsRender(){
+  var root=document.getElementById('ads-root');
+  if(!root)return;
+  var all=_adsRows||[];
+  var rows=(_adsDias>0&&_adsDias<all.length)?all.slice(-_adsDias):all;
+  if(!rows.length){
+    root.innerHTML='<div style="padding:80px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.1em;">— sem relatórios diários gravados ainda —<br><br>Rode <code>gerarRelatorioDiarioAds_()</code> no editor Apps Script para criar o primeiro snapshot.</div>';
+    return;
+  }
+  var last=rows[rows.length-1];
+  var rangeEl=document.getElementById('adsDateRangeLabel');
+  if(rangeEl){
+    var fmtDr=function(s){var p=String(s||'').split('-');return p.length===3?p[2]+'/'+p[1]:s;};
+    var r0=rows[0].data,rN=last.data;
+    rangeEl.textContent=r0===rN?fmtDr(r0):fmtDr(r0)+' – '+fmtDr(rN);
+  }
+  var h='';
+
+  // ─ KPIs (último dia)
+  h+='<div class="section-row"><span>Estado Atual · '+e(last.data)+'</span></div>';
+  h+='<div class="rn-kpi-grid">';
+  var kpis=[
+    {lbl:'Gasto 7d',         val:nR(last.gasto_7d),               c:'var(--g4)',big:true},
+    {lbl:'Leads Meta 7d',    val:n(last.leads_meta_7d,0),          c:'var(--g2)'},
+    {lbl:'Leads CRM total',  val:n(last.leads_crm_total,0),        c:'var(--g5)'},
+    {lbl:'CPL médio',        val:nR(last.cpl_medio),               c:last.cpl_medio>30?'var(--g3)':last.cpl_medio>0?'var(--g1)':'var(--dim2)'},
+    {lbl:'CPA real',         val:last.cpa_real>0?nR(last.cpa_real):'—', c:last.cpa_real>120?'var(--g3)':last.cpa_real>80?'var(--g4)':last.cpa_real>0?'var(--g1)':'var(--dim2)'},
+    {lbl:'Conversões CRM',   val:n(last.conversoes_crm,0),         c:'var(--g1)'},
+    {lbl:'Taxa Conversão',   val:nP(last.taxa_conversao*100),      c:'var(--g2)'},
+    {lbl:'CTR médio',        val:nP(last.ctr_medio),               c:last.ctr_medio<0.5?'var(--g3)':'var(--g2)'}
+  ];
+  kpis.forEach(function(k,i){
+    h+='<div class="card" style="animation-delay:'+(i*0.05)+'s">';
+    h+='<div class="card-title" style="font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);margin-bottom:12px">'+k.lbl+'</div>';
+    h+='<div style="font-family:var(--serif);font-size:'+(k.big?'40px':'30px')+';line-height:1;font-style:italic;color:'+k.c+'">'+k.val+'</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+
+  // ─ Gráfico de evolução (CSS bars, padrão Conversas por Dia)
+  h+='<div class="section-row" style="margin-top:8px"><span>Evolução · '+rows.length+' dias</span></div>';
+  h+='<div class="card">';
+  h+='<div class="card-head"><span class="card-title">Histórico</span><span class="card-badge badge-cyan">snapshot 7d rolling</span></div>';
+  h+='<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">';
+  var metricas=[
+    {k:'gasto_7d',       lbl:'Gasto'},
+    {k:'leads_meta_7d',  lbl:'Leads Meta'},
+    {k:'leads_crm_total',lbl:'Leads CRM'},
+    {k:'cpl_medio',      lbl:'CPL'},
+    {k:'cpa_real',       lbl:'CPA'},
+    {k:'conversoes_crm', lbl:'Conversões'}
+  ];
+  metricas.forEach(function(m){
+    var ativo=_adsMetric===m.k;
+    h+='<button onclick="adsSetMetric(\''+m.k+'\')" style="padding:6px 12px;border:1px solid '+(ativo?'var(--g2)':'rgba(255,255,255,.1)')+';background:'+(ativo?'rgba(0,212,255,.12)':'transparent')+';color:'+(ativo?'var(--g2)':'var(--dim2)')+';font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;border-radius:4px">'+e(m.lbl)+'</button>';
+  });
+  h+='</div>';
+
+  var vals=rows.map(function(r){return parseFloat(r[_adsMetric]||0);});
+  var maxV=Math.max(1,Math.max.apply(null,vals));
+  var moneyMetrics={gasto_7d:1,cpl_medio:1,cpa_real:1};
+  var isMoney=!!moneyMetrics[_adsMetric];
+  h+='<div style="display:flex;align-items:flex-end;gap:3px;height:140px;padding-top:4px">';
+  rows.forEach(function(r){
+    var v=parseFloat(r[_adsMetric]||0);
+    var pct=Math.round((v/maxV)*120);
+    var dt=new Date(r.data+'T12:00:00');
+    var lbl=('0'+(dt.getMonth()+1)).slice(-2)+'/'+('0'+dt.getDate()).slice(-2);
+    var tipVal=isMoney?nR(v):(_adsMetric==='cpl_medio'||_adsMetric==='cpa_real'?nR(v):n(v,_adsMetric.indexOf('medio')>=0?2:0));
+    h+='<div title="'+e(r.data)+' — '+e(tipVal)+'" style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0">';
+    h+='<div style="width:100%;height:'+pct+'px;min-height:2px;border-radius:2px 2px 0 0;background:linear-gradient(0deg,var(--g2) 0%,var(--g4) 100%)"></div>';
+    h+='<span style="font-family:var(--mono);font-size:7px;color:var(--dim);white-space:nowrap;overflow:hidden;max-width:100%">'+lbl+'</span>';
+    h+='</div>';
+  });
+  h+='</div>';
+  h+='<div style="margin-top:10px;display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--dim2)"><span>min: '+(isMoney?nR(Math.min.apply(null,vals)):n(Math.min.apply(null,vals),2))+'</span><span>max: '+(isMoney?nR(maxV):n(maxV,2))+'</span></div>';
+  h+='</div>';
+
+  // ─ Lista cronológica de resumos (mais recente primeiro)
+  h+='<div class="section-row" style="margin-top:8px"><span>Resumos Diários</span></div>';
+  h+='<div class="card">';
+  var ordenado=rows.slice().reverse();
+  ordenado.forEach(function(r,i){
+    var dt=new Date(r.data+'T12:00:00');
+    var diaSem=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][dt.getDay()];
+    var lbl=diaSem+' '+('0'+dt.getDate()).slice(-2)+'/'+('0'+(dt.getMonth()+1)).slice(-2);
+    var resumo=String(r.resumo_curto||'').trim();
+    var border=i<ordenado.length-1?'border-bottom:1px solid rgba(255,255,255,.05);':'';
+    h+='<div style="padding:14px 0;'+border+'">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">';
+    h+='<span style="font-family:var(--mono);font-size:11px;color:var(--g2);letter-spacing:.1em">'+e(lbl)+'</span>';
+    h+='<span style="font-family:var(--mono);font-size:9px;color:var(--dim)">CPL '+nR(r.cpl_medio)+' · '+n(r.leads_meta_7d,0)+' leads · '+n(r.conversoes_crm,0)+' conv</span>';
+    h+='</div>';
+    h+='<div style="font-family:var(--serif);font-size:13px;line-height:1.55;color:var(--ink);font-style:italic">'+(resumo?e(resumo):'<span style="color:var(--dim)">— sem resumo —</span>')+'</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+
+  root.innerHTML=h;
+}
+
 setInterval(function(){
   if(_currentDashTab==='mobile'){ _force=true; d_load(); }
   else if(_currentDashTab==='renata'&&_rnLoaded){ rnLoad(); }
   else if(_currentDashTab==='waba'&&_wbLoaded){ wbLoad(); }
+  else if(_currentDashTab==='ads'&&_adsLoaded){ adsLoad(); }
 }, 5 * 60 * 1000);
 d_load();
 })();

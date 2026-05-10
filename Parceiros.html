@@ -520,6 +520,82 @@
       font-size: 10px; color: var(--border2); font-family: 'DM Mono', monospace;
       text-transform: uppercase; letter-spacing: 1px; margin-top: 28px;
     }
+
+    /* ── action card extra ── */
+    .card-c2 { border-color: rgba(79,158,255,.25); }
+    .card-c2:active { border-color: var(--blue); }
+    .card-c2 .card-icon { background: rgba(79,158,255,.10); }
+
+    /* ── DASHBOARD MINHAS VENDAS ── */
+    .dash-summary { display:flex; gap:12px; margin-bottom:18px; }
+    .dash-kpi { flex:1; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:14px 12px; text-align:center; }
+    .dash-kpi-val { font-size:26px; font-weight:700; color:var(--accent); line-height:1; }
+    .dash-kpi-lbl { font-size:11px; color:var(--muted); margin-top:4px; }
+    .dash-tabs { display:flex; gap:8px; margin-bottom:16px; }
+    .dash-tab { flex:1; padding:9px 0; border-radius:10px; font-size:13px; font-weight:600; background:var(--surface2); border:1px solid var(--border); color:var(--muted); cursor:pointer; transition:all .2s; }
+    .dash-tab.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .dash-list { display:flex; flex-direction:column; gap:10px; }
+    .dash-card { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; }
+    .dash-card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+    .dash-card-nome { font-size:14px; font-weight:600; color:var(--text); flex:1; }
+    .dash-card-plano { font-size:12px; color:var(--muted); margin-top:3px; }
+    .dash-card-date  { font-size:11px; color:var(--muted); margin-top:8px; }
+    .badge { display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap; }
+    .badge-pendente  { background:rgba(247,162,59,.18);  color:var(--yellow); }
+    .badge-aprovado  { background:rgba(34,217,138,.18);  color:var(--green);  }
+    .badge-rejeitado { background:rgba(230,62,109,.18);  color:var(--accent); }
+    .badge-ativando  { background:rgba(79,158,255,.18);  color:var(--blue);   }
+    .badge-instalado { background:rgba(34,217,138,.18);  color:var(--green);  }
+    .empty-state { text-align:center; padding:40px 20px; color:var(--muted); font-size:13px; }
+    .empty-state .empty-icon { font-size:36px; margin-bottom:10px; }
+    /* ── PONTOS & PRÊMIOS ── */
+    .pontos-hero { background:linear-gradient(135deg,#1c1438 0%,#141720 100%); border:1px solid rgba(167,139,250,.3); border-radius:var(--radius); padding:24px 20px; text-align:center; margin-bottom:20px; }
+    .pontos-hero-val { font-size:52px; font-weight:800; color:var(--purple); line-height:1; letter-spacing:-2px; }
+    .pontos-hero-sub { font-size:13px; color:var(--muted); margin-top:4px; }
+    .pontos-hero-info { display:flex; justify-content:center; gap:24px; margin-top:16px; }
+    .pontos-hero-item { text-align:center; }
+    .pontos-hero-item-val { font-size:18px; font-weight:700; color:var(--text); }
+    .pontos-hero-item-lbl { font-size:11px; color:var(--muted); }
+    .premios-grid { display:flex; flex-direction:column; gap:12px; }
+    .premio-card { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:16px; display:flex; align-items:center; gap:14px; }
+    .premio-icon { width:48px; height:48px; border-radius:12px; background:var(--surface); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0; }
+    .premio-info { flex:1; min-width:0; }
+    .premio-nome { font-size:14px; font-weight:600; color:var(--text); }
+    .premio-desc { font-size:12px; color:var(--muted); margin-top:2px; }
+    .premio-custo { display:flex; align-items:center; gap:5px; margin-top:6px; color:var(--purple); font-weight:700; font-size:13px; }
+    .btn-resgatar { padding:8px 14px; border-radius:10px; font-size:12px; font-weight:700; background:var(--purple); color:#fff; border:none; cursor:pointer; white-space:nowrap; flex-shrink:0; transition:opacity .2s; }
+    .btn-resgatar:disabled { opacity:.4; cursor:not-allowed; }
+    .btn-resgatar.sem-saldo { background:var(--surface); color:var(--muted); border:1px solid var(--border); }
+    .resgates-list { display:flex; flex-direction:column; gap:10px; }
+    .resgate-card { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; }
+    .resgate-card-top { display:flex; justify-content:space-between; align-items:center; }
+    .resgate-nome { font-size:13px; font-weight:600; color:var(--text); }
+    .resgate-pontos { font-size:12px; color:var(--purple); font-weight:700; }
+    .resgate-date  { font-size:11px; color:var(--muted); margin-top:4px; }
+    .badge-res-pendente  { background:rgba(247,162,59,.18);  color:var(--yellow); }
+    .badge-res-entregue  { background:rgba(34,217,138,.18);  color:var(--green);  }
+    .badge-res-cancelado { background:rgba(120,120,140,.18); color:var(--muted);  }
+    /* ── CARD-C2 (Azul — Minhas Vendas) ── */
+    .card-c2 { border-color: rgba(79,158,255,.25); }
+    .card-c2:active { border-color: var(--blue); }
+    .card-c2 .card-icon { background: rgba(79,158,255,.10); }
+    /* ── FILTRO DE MÊS ── */
+    .mes-bar { display:flex; gap:8px; overflow-x:auto; padding-bottom:12px; margin-bottom:8px; }
+    .mes-bar::-webkit-scrollbar { display:none; }
+    .mes-chip { padding:5px 12px; border-radius:20px; font-size:11px; font-family:'DM Mono',monospace; white-space:nowrap; cursor:pointer; border:1px solid var(--border2); background:var(--surface2); color:var(--muted); transition:all .15s; flex-shrink:0; }
+    .mes-chip.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+    /* ── PAGAMENTOS A RECEBER ── */
+    .pag-hero { background:linear-gradient(135deg,#0f1a10 0%,#141720 100%); border:1px solid rgba(34,217,138,.25); border-radius:var(--radius); padding:18px 16px; text-align:center; margin-bottom:16px; }
+    .pag-hero-val { font-size:36px; font-weight:800; color:var(--green); line-height:1; }
+    .pag-hero-sub { font-size:12px; color:var(--muted); margin-top:6px; }
+    .pag-list { display:flex; flex-direction:column; gap:10px; }
+    .pag-card { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; }
+    .pag-card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+    .pag-card-nome { font-size:14px; font-weight:600; color:var(--text); flex:1; }
+    .pag-card-sub { font-size:12px; color:var(--muted); margin-top:2px; }
+    .pag-card-val { font-size:16px; font-weight:800; color:var(--green); white-space:nowrap; }
+    .pag-card-date { font-size:11px; color:var(--muted); margin-top:8px; }
+    .pag-sem-config { text-align:center; padding:32px 20px; color:var(--muted); font-size:13px; line-height:1.8; }
   </style>
 </head>
 <body>
@@ -608,6 +684,24 @@
         <div class="card-text">
           <div class="card-title">Pré-Venda</div>
           <div class="card-desc">Plano · pagamento · dados finais</div>
+        </div>
+        <div class="card-arrow">›</div>
+      </button>
+
+      <button class="action-card card-c2" onclick="abrirMinhasVendas()">
+        <div class="card-icon">📊</div>
+        <div class="card-text">
+          <div class="card-title">Minhas Vendas</div>
+          <div class="card-desc">Pré-vendas · Status · Comissões</div>
+        </div>
+        <div class="card-arrow">›</div>
+      </button>
+
+      <button class="action-card card-c1" onclick="abrirPontos()">
+        <div class="card-icon">⭐</div>
+        <div class="card-text">
+          <div class="card-title">Pontos & Prêmios</div>
+          <div class="card-desc" id="card-pontos-desc">Troque pontos por recompensas</div>
         </div>
         <div class="card-arrow">›</div>
       </button>
@@ -801,7 +895,7 @@
                maxlength="16" inputmode="tel" oninput="maskWPP(this)">
       </div>
       <div class="f-group">
-        <label>E-mail</label>
+        <label>E-mail <span class="req">*</span></label>
         <input type="email" id="pv-email" placeholder="cliente@email.com" inputmode="email">
       </div>
     </div>
@@ -822,7 +916,7 @@
 
       <div class="f-row" style="margin-top:10px">
         <div class="f-group" style="flex:2">
-          <label>Logradouro</label>
+          <label>Logradouro <span class="req">*</span></label>
           <input type="text" id="pv-rua" placeholder="Preenchido pelo CEP" readonly>
         </div>
         <div class="f-group" style="flex:1">
@@ -836,7 +930,7 @@
           <input type="text" id="pv-complemento" placeholder="Apto, bloco...">
         </div>
         <div class="f-group" style="flex:1">
-          <label>Bairro</label>
+          <label>Bairro <span class="req">*</span></label>
           <input type="text" id="pv-bairro" placeholder="Preenchido pelo CEP" readonly>
         </div>
       </div>
@@ -1436,6 +1530,9 @@ async function submitPreVenda() {
   if (!required('pv-wpp'))  { toast('Informe o WhatsApp do cliente', 'err'); return; }
   if (!required('pv-cep'))  { toast('Informe o CEP do cliente', 'err'); return; }
   if (!required('pv-num'))  { toast('Informe o número do endereço', 'err'); return; }
+  if (!required('pv-rua'))   { toast('Logradouro não carregado. Verifique o CEP.', 'err'); return; }
+  if (!required('pv-bairro')){ toast('Bairro não carregado. Verifique o CEP.', 'err'); return; }
+  if (!required('pv-email')) { toast('Informe o e-mail do cliente', 'err'); return; }
   if (!required('pv-plano')) { toast('Selecione um plano', 'err'); return; }
 
   if (!_movel) { toast('Informe se tem plano móvel', 'warn'); return; }
@@ -1592,12 +1689,325 @@ const API = {
     return API._post({ action: 'buscarCEP', cep, produto: 'Fibra Alone' });
   },
 
+  /* ── Dashboard + Pontos & Prêmios ───────────────────── */
+  getMinhaDashboard:    async (cpf)           => API._post({ action: 'getMinhaDashboard', cpf }),
+  getCatalogoPremios:   async ()              => API._post({ action: 'getCatalogoPremios' }),
+  resgatarPremio:       async (cpf, premioId) => API._post({ action: 'resgatarPremio', cpf, premioId }),
+  getExtratoPontos:     async (cpf)           => API._post({ action: 'getExtratoPontos', cpf }),
+  getMeusPagamentosPAP: async (cpf)           => API._post({ action: 'getMeusPagamentosPAP', cpf }),
+
 };
 
 /* helpers */
 const delay = ms => new Promise(r => setTimeout(r, ms));
 const genId = () => Date.now().toString(36).toUpperCase().slice(-6);
+
+/* ── MINHAS VENDAS ── */
+let _dashData = null, _mesAtual = null, _tabVendasAtual = 'pv';
+
+async function abrirMinhasVendas() {
+  openSheet('sheet-vendas');
+  if (!_dashData) await carregarDashboard();
+}
+
+async function carregarDashboard() {
+  setLoading(true, 'Carregando suas vendas...');
+  try {
+    const res = await API.getMinhaDashboard(SELLER_CPF);
+    setLoading(false);
+    if (!res.ok) { toast('Erro: ' + (res.error||''), 'err'); return; }
+    _dashData = res;
+    const desc = document.getElementById('card-pontos-desc');
+    if (desc) desc.textContent = (res.pontos?.saldo ?? 0) + ' pontos disponíveis';
+    const pv = res.preVendas||[], av = res.vendasAtivas||[];
+    document.getElementById('kpi-prevendas').textContent  = pv.length;
+    document.getElementById('kpi-ativas').textContent     = av.length;
+    document.getElementById('kpi-instaladas').textContent = res.pontos?.instaladas ?? 0;
+    _renderMeses(pv, av);
+    _renderListaPV(pv);
+    _renderListaAV(av);
+    carregarPagamentosPAP(); // assíncrono, não bloqueia UI
+  } catch(e) { setLoading(false); toast('Erro de conexão.', 'err'); }
+}
+
+function _renderMeses(pv, av) {
+  const meses = new Set();
+  const toMesKey = ts => {
+    if (!ts) return null;
+    const d = new Date(ts); if (isNaN(d)) return null;
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  };
+  pv.forEach(p => { const k = toMesKey(p.ts);          if (k) meses.add(k); });
+  av.forEach(v => { const k = toMesKey(v.dataInstal);  if (k) meses.add(k); });
+  const sorted = [...meses].sort().reverse();
+  const bar = document.getElementById('mes-bar');
+  if (!bar) return;
+  if (!sorted.length) { bar.innerHTML = ''; return; }
+  const nomeMes = k => {
+    const [y,m] = k.split('-');
+    return ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][+m-1] + '/' + y.slice(2);
+  };
+  bar.innerHTML = `<div class="mes-chip active" onclick="switchMes(null,this)">Todos</div>` +
+    sorted.map(k => `<div class="mes-chip" onclick="switchMes('${k}',this)">${nomeMes(k)}</div>`).join('');
+}
+
+function switchMes(mes, el) {
+  _mesAtual = mes;
+  document.querySelectorAll('.mes-chip').forEach(c => c.classList.remove('active'));
+  if (el) el.classList.add('active');
+  if (!_dashData) return;
+  _renderListaPV(_dashData.preVendas||[]);
+  _renderListaAV(_dashData.vendasAtivas||[]);
+}
+
+function _filtrarMes(items, campo) {
+  if (!_mesAtual) return items;
+  return items.filter(it => {
+    const d = new Date(it[campo]||''); if (isNaN(d)) return false;
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` === _mesAtual;
+  });
+}
+
+function _renderListaPV(pvAll) {
+  const pv = _filtrarMes(pvAll, 'ts');
+  document.getElementById('lista-pv').innerHTML = pv.length ? pv.map(p => `
+    <div class="dash-card">
+      <div class="dash-card-top">
+        <div><div class="dash-card-nome">${esc(p.nomeCliente)||'Cliente'}</div>
+             <div class="dash-card-plano">${esc(p.plano)}${p.movel==='SIM'?' · Combo':''}</div></div>
+        <span class="badge ${badgePV(p.status)}">${esc(p.status)}</span>
+      </div>
+      <div class="dash-card-date">${fmtDate(p.ts)} · #${esc(p.id)}</div>
+    </div>`).join('') : '<div class="empty-state"><div class="empty-icon">📋</div>Nenhuma pré-venda encontrada.</div>';
+}
+
+function _renderListaAV(avAll) {
+  const av = _filtrarMes(avAll, 'dataInstal');
+  document.getElementById('lista-av').innerHTML = av.length ? av.map(v => `
+    <div class="dash-card">
+      <div class="dash-card-top">
+        <div><div class="dash-card-nome">${esc(v.cliente)||'Cliente'}</div>
+             <div class="dash-card-plano">${esc(v.plano)} · ${esc(v.produto)}</div></div>
+        <span class="badge ${badgeVenda(v.status)}">${esc(v.status.replace(/^\d+\s*-\s*/,''))}</span>
+      </div>
+      ${v.statusPAP?`<div class="dash-card-date">Pagamento: ${esc(v.statusPAP)}</div>`:''}
+    </div>`).join('') : '<div class="empty-state"><div class="empty-icon">📦</div>Nenhuma venda encontrada.</div>';
+}
+
+function switchVendasTab(tab) {
+  _tabVendasAtual = tab;
+  ['pv','av','receber'].forEach(t => {
+    document.getElementById('tab-' + t)?.classList.toggle('active', t === tab);
+  });
+  document.getElementById('lista-pv').style.display      = tab==='pv'      ? 'flex'  : 'none';
+  document.getElementById('lista-av').style.display      = tab==='av'      ? 'flex'  : 'none';
+  document.getElementById('lista-receber').style.display = tab==='receber' ? 'flex'  : 'none';
+  const mesBar = document.getElementById('mes-bar');
+  if (mesBar) mesBar.style.display = tab === 'receber' ? 'none' : '';
+}
+
+function badgePV(s) {
+  s = (s||'').toLowerCase();
+  if (s.includes('pendente'))  return 'badge badge-pendente';
+  if (s.includes('aprovado'))  return 'badge badge-aprovado';
+  if (s.includes('rejeitado')) return 'badge badge-rejeitado';
+  return 'badge badge-pendente';
+}
+function badgeVenda(s) {
+  s = (s||'').toLowerCase();
+  if (s.includes('instalad')||s.includes('ativo')) return 'badge badge-instalado';
+  if (s.includes('agendad'))   return 'badge badge-ativando';
+  if (s.includes('aguardand')) return 'badge badge-pendente';
+  return 'badge badge-ativando';
+}
+
+/* ── PAGAMENTOS A RECEBER ── */
+let _pagamentosData = null;
+
+async function carregarPagamentosPAP() {
+  try {
+    const res = await API.getMeusPagamentosPAP(SELLER_CPF);
+    _pagamentosData = res;
+    const lista = document.getElementById('lista-receber');
+    if (!lista) return;
+    if (!res.ok) {
+      lista.innerHTML = '<div class="pag-sem-config">Erro ao carregar pagamentos.</div>';
+      return;
+    }
+    if (res.semConfig) {
+      lista.innerHTML = '<div class="pag-sem-config">⚙️ Forma de pagamento ainda não configurada.<br>Fale com o backoffice.</div>';
+      return;
+    }
+    const itens = res.itens||[];
+    const fmtR = v => 'R$ ' + Number(v).toFixed(2).replace('.',',');
+    lista.innerHTML =
+      `<div class="pag-hero">
+        <div class="pag-hero-val">${fmtR(res.totalComissao)}</div>
+        <div class="pag-hero-sub">${res.qtd} instalação${res.qtd!==1?'ões':''} · ${esc(res.formaPgto)}${res.periodicidade?' · '+esc(res.periodicidade):''}</div>
+      </div>` +
+      (itens.length ? itens.map(it => `
+      <div class="pag-card">
+        <div class="pag-card-top">
+          <div>
+            <div class="pag-card-nome">${esc(it.cliente)||'Cliente'}</div>
+            <div class="pag-card-sub">${esc(it.plano)}</div>
+          </div>
+          <div class="pag-card-val">${fmtR(it.comissao)}</div>
+        </div>
+        <div class="pag-card-date">${it.dataInstal?'📅 '+fmtDate(it.dataInstal):''}${it.valor?' · Plano: '+fmtR(it.valor):''}</div>
+      </div>`).join('')
+      : '<div class="empty-state"><div class="empty-icon">✅</div>Nenhum valor pendente.</div>');
+  } catch(e) {
+    const lista = document.getElementById('lista-receber');
+    if (lista) lista.innerHTML = '<div class="pag-sem-config">Erro de conexão.</div>';
+  }
+}
+
+/* ── PONTOS & PRÊMIOS ── */
+let _extratoPontos = null, _premiosData = null;
+
+async function abrirPontos() {
+  openSheet('sheet-pontos');
+  await Promise.all([carregarExtratoPontos(), carregarCatalogo()]);
+}
+async function carregarExtratoPontos() {
+  try {
+    const res = await API.getExtratoPontos(SELLER_CPF);
+    if (!res.ok) return;
+    _extratoPontos = res;
+    document.getElementById('pontos-saldo').textContent      = res.saldo      ?? 0;
+    document.getElementById('pontos-instaladas').textContent = res.instaladas  ?? 0;
+    document.getElementById('pontos-brutos').textContent     = res.pontosBrutos?? 0;
+    document.getElementById('pontos-gastos').textContent     = res.pontosGastos?? 0;
+    const resgates = res.resgates||[];
+    document.getElementById('lista-resgates').innerHTML = resgates.length
+      ? resgates.map(r => `
+        <div class="resgate-card">
+          <div class="resgate-card-top">
+            <span class="resgate-nome">${esc(r.premioNome)}</span>
+            <span class="badge ${badgeResgate(r.status)}">${esc(r.status)}</span>
+          </div>
+          <div class="resgate-pontos">−${r.pontos} pts</div>
+          <div class="resgate-date">${fmtDate(r.ts)}</div>
+        </div>`).join('')
+      : '<div class="empty-state"><div class="empty-icon">📦</div>Nenhum resgate ainda.</div>';
+  } catch(e) {}
+}
+async function carregarCatalogo() {
+  try {
+    const res = await API.getCatalogoPremios();
+    if (!res.ok) return;
+    _premiosData = res.premios||[];
+    const saldo  = _extratoPontos?.saldo ?? 0;
+    const emojis = ['🎁','👕','🎫','🎧','⌚','🎮','📱','💰','🛒','🏆'];
+    document.getElementById('lista-premios').innerHTML = _premiosData.length
+      ? _premiosData.map((p,i) => {
+          const pode = saldo >= p.pontos, esgotado = p.estoque !== null && p.estoque <= 0;
+          return `<div class="premio-card">
+            <div class="premio-icon">${emojis[i%emojis.length]}</div>
+            <div class="premio-info">
+              <div class="premio-nome">${esc(p.nome)}</div>
+              <div class="premio-desc">${esc(p.descricao)}</div>
+              <div class="premio-custo">⭐ ${p.pontos} pontos${p.estoque!==null?' · '+p.estoque+' disponíveis':''}</div>
+            </div>
+            <button class="btn-resgatar${!pode?' sem-saldo':''}" ${esgotado?'disabled':''
+              } onclick="confirmarResgate('${esc(p.id)}','${esc(p.nome)}',${p.pontos})"
+            >${esgotado?'Esgotado':(pode?'Resgatar':p.pontos+' pts')}</button>
+          </div>`;
+        }).join('')
+      : '<div class="empty-state"><div class="empty-icon">🎁</div>Catálogo em breve!</div>';
+  } catch(e) {}
+}
+async function confirmarResgate(premioId, premioNome, pontos) {
+  const saldo = _extratoPontos?.saldo ?? 0;
+  if (saldo < pontos) { toast(`Você precisa de ${pontos} pts. Você tem ${saldo} pts.`, 'warn'); return; }
+  if (!confirm(`Resgatar "${premioNome}" por ${pontos} pontos?\n\nSaldo atual: ${saldo} pts\nSaldo após: ${saldo-pontos} pts`)) return;
+  setLoading(true, 'Processando resgate...');
+  try {
+    const res = await API.resgatarPremio(SELLER_CPF, premioId);
+    setLoading(false);
+    if (res.ok) {
+      toast(`✓ Resgate solicitado! Saldo: ${res.pontosSaldo} pts`, 'ok');
+      _extratoPontos = null; _premiosData = null;
+      await Promise.all([carregarExtratoPontos(), carregarCatalogo()]);
+      switchPontosTab('resgates');
+    } else { toast(res.error||'Erro ao resgatar.', 'err'); }
+  } catch(e) { setLoading(false); toast('Erro de conexão.', 'err'); }
+}
+function switchPontosTab(tab) {
+  document.getElementById('tab-catalogo').classList.toggle('active', tab==='catalogo');
+  document.getElementById('tab-resgates').classList.toggle('active', tab==='resgates');
+  document.getElementById('lista-premios').style.display  = tab==='catalogo' ? 'flex' : 'none';
+  document.getElementById('lista-resgates').style.display = tab==='resgates' ? 'flex' : 'none';
+}
+function badgeResgate(s) {
+  s = (s||'').toLowerCase();
+  if (s.includes('entregue'))  return 'badge badge-res-entregue';
+  if (s.includes('cancelado')) return 'badge badge-res-cancelado';
+  return 'badge badge-res-pendente';
+}
+
+/* ── helpers ── */
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(ts) {
+  if (!ts) return '';
+  try { const d=new Date(ts); return isNaN(d)?String(ts).slice(0,10):d.toLocaleDateString('pt-BR'); }
+  catch { return String(ts).slice(0,10); }
+}
 </script>
+
+<!-- SHEET · MINHAS VENDAS -->
+<div class="sheet" id="sheet-vendas">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div><div class="sheet-tag">Histórico</div><div class="sheet-title">Minhas Vendas</div></div>
+    <button class="sheet-close" onclick="closeSheets()">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="dash-summary">
+      <div class="dash-kpi"><div class="dash-kpi-val" id="kpi-prevendas">—</div><div class="dash-kpi-lbl">Pré-vendas</div></div>
+      <div class="dash-kpi"><div class="dash-kpi-val" id="kpi-ativas">—</div><div class="dash-kpi-lbl">Vendas ativas</div></div>
+      <div class="dash-kpi"><div class="dash-kpi-val" id="kpi-instaladas">—</div><div class="dash-kpi-lbl">Instaladas</div></div>
+    </div>
+    <div class="dash-tabs">
+      <button class="dash-tab active" id="tab-pv"      onclick="switchVendasTab('pv')">Pré-Vendas</button>
+      <button class="dash-tab"        id="tab-av"      onclick="switchVendasTab('av')">Vendas Ativas</button>
+      <button class="dash-tab"        id="tab-receber" onclick="switchVendasTab('receber')">💰 A Receber</button>
+    </div>
+    <div class="mes-bar" id="mes-bar"></div>
+    <div class="dash-list" id="lista-pv"></div>
+    <div class="dash-list" id="lista-av"      style="display:none"></div>
+    <div class="pag-list"  id="lista-receber" style="display:none"></div>
+  </div>
+</div>
+
+<!-- SHEET · PONTOS & PRÊMIOS -->
+<div class="sheet" id="sheet-pontos">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div><div class="sheet-tag">Programa de Pontos</div><div class="sheet-title">Pontos & Prêmios</div></div>
+    <button class="sheet-close" onclick="closeSheets()">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="pontos-hero">
+      <div class="pontos-hero-val" id="pontos-saldo">—</div>
+      <div class="pontos-hero-sub">pontos disponíveis</div>
+      <div class="pontos-hero-info">
+        <div class="pontos-hero-item"><div class="pontos-hero-item-val" id="pontos-instaladas">—</div><div class="pontos-hero-item-lbl">Instalações</div></div>
+        <div class="pontos-hero-item"><div class="pontos-hero-item-val" id="pontos-brutos">—</div><div class="pontos-hero-item-lbl">Pts ganhos</div></div>
+        <div class="pontos-hero-item"><div class="pontos-hero-item-val" id="pontos-gastos">—</div><div class="pontos-hero-item-lbl">Pts usados</div></div>
+      </div>
+    </div>
+    <div class="dash-tabs">
+      <button class="dash-tab active" id="tab-catalogo" onclick="switchPontosTab('catalogo')">🎁 Catálogo</button>
+      <button class="dash-tab"        id="tab-resgates" onclick="switchPontosTab('resgates')">📦 Meus Resgates</button>
+    </div>
+    <div class="premios-grid"  id="lista-premios"></div>
+    <div class="resgates-list" id="lista-resgates" style="display:none"></div>
+  </div>
+</div>
 
 </body>
 </html>

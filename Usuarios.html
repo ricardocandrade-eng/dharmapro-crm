@@ -300,8 +300,9 @@
     'novaVenda':  'Ação: Nova Venda',
     'extrato':    'Extrato',
     'config':     'Configurações',
-    'disparos':   'Disparos em Massa',
-    'usuarios':   'Gerenciar Usuários'
+    'disparos':   'Disparos Waba',
+    'usuarios':   'Gerenciar Usuários',
+    'waPessoal':  'WhatsApp Pessoal'
   };
 
   // Menus exibidos nas permissões por perfil (novaVenda é interno, vinculado a formulario)
@@ -309,7 +310,7 @@
     'dash','formulario','lista','funil','leads',
     'pap','filaPAP','metaads','painelads','indicacao',
     'docs','cruzamento','tickets','extrato',
-    'config','disparos','usuarios'
+    'config','disparos','usuarios','waPessoal'
   ];
 
   function usuariosInit() {
@@ -435,10 +436,15 @@
     var perfis = ['admin', 'supervisor', 'backoffice'];
     var resultado = {};
     perfis.forEach(function(p) {
-      resultado[p] = US_TODOS_MENUS.filter(function(mid) {
+      var menus = US_TODOS_MENUS.filter(function(mid) {
         var el = document.getElementById('perm_' + p + '_' + mid);
         return el && el.checked;
       });
+      // novaVenda é interno e não aparece na UI, mas deve sempre acompanhar formulario
+      if (menus.indexOf('formulario') > -1 && menus.indexOf('novaVenda') === -1) {
+        menus.push('novaVenda');
+      }
+      resultado[p] = menus;
     });
     btn.disabled = true;
     btn.textContent = 'Salvando...';

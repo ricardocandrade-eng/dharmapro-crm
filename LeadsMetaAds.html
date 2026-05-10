@@ -13,11 +13,11 @@
 }
 #pageLeadsMetaAds.ativa .lma-body {
   flex: 1;
-  overflow-y: auto;
+  overflow: auto;
   background: var(--bg);
   min-height: 0;
 }
-#pageLeadsMetaAds.ativa .lma-body::-webkit-scrollbar { width: 4px; }
+#pageLeadsMetaAds.ativa .lma-body::-webkit-scrollbar { width: 4px; height: 6px; }
 #pageLeadsMetaAds.ativa .lma-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
 /* ── TOOLBAR ── */
@@ -96,7 +96,8 @@
 /* ── TABELA ── */
 .lma-scroll { padding: 0 0 40px; }
 .lma-table {
-  width: 100%; border-collapse: collapse;
+  width: 100%; min-width: 1280px;
+  border-collapse: collapse;
   font-size: 12px;
 }
 .lma-table thead {
@@ -114,6 +115,17 @@
   vertical-align: middle;
 }
 .lma-table tbody tr:hover { background: var(--surface); }
+.lma-table tbody tr:hover td.lma-acao-cell { background: var(--surface); }
+/* Coluna Ação fica fixa à direita (sticky) — botão 🗑 sempre visível */
+.lma-table th:last-child,
+.lma-table td.lma-acao-cell {
+  position: sticky; right: 0; z-index: 4;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+}
+.lma-table thead th:last-child {
+  background: var(--surface2); z-index: 6;
+}
 
 .lma-nome     { font-weight: 700; font-size: 12px; }
 .lma-sub      { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
@@ -134,22 +146,56 @@
 .lma-badge.pendente     { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
 
 /* Ações inline */
-.lma-acao-wrap { display: flex; align-items: center; gap: 5px; }
+.lma-table td.lma-acao-cell { min-width: 230px; }
+.lma-acao-wrap {
+  display: flex; flex-direction: column; gap: 5px;
+  width: 220px;
+}
+.lma-acao-row {
+  display: flex; align-items: center; gap: 5px;
+}
 .lma-acao-sel {
+  flex: 1; min-width: 0;
   padding: 4px 7px; font-size: 11px; font-family: 'DM Mono', monospace;
   background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 6px; color: var(--text); cursor: pointer; max-width: 140px;
+  border-radius: 6px; color: var(--text); cursor: pointer;
 }
 .lma-acao-sel:focus { outline: none; border-color: var(--accent); }
+.lma-acao-motivo {
+  width: 100%; box-sizing: border-box;
+  padding: 4px 7px; font-size: 11px; font-family: 'DM Mono', monospace;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text); cursor: pointer;
+}
+.lma-acao-motivo:focus { outline: none; border-color: var(--accent); }
 .lma-acao-btn {
+  flex-shrink: 0;
   padding: 4px 9px; font-size: 11px; font-weight: 700;
   border-radius: 6px; border: none; cursor: pointer;
   background: var(--accent); color: #fff; font-family: 'Sora', sans-serif;
-  transition: opacity .15s; white-space: nowrap;
+  transition: opacity .15s, background .15s; white-space: nowrap;
 }
-.lma-acao-btn:hover { opacity: .8; }
+.lma-acao-btn:hover { opacity: .85; }
 .lma-acao-btn:disabled { opacity: .4; cursor: default; }
 .lma-acao-btn.salvando { opacity: .5; }
+.lma-acao-btn-del {
+  background: var(--surface2); color: #c04040;
+  border: 1px solid rgba(230,62,62,.4);
+}
+.lma-acao-btn-del:hover { background: rgba(230,62,62,.15); opacity: 1; }
+
+.lma-btn-primary {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.lma-btn-primary:hover { background: var(--accent); opacity: .85; }
+
+.lma-form-label {
+  display: block; font-size: 10px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;
+}
+.lma-form-row { display: flex; flex-direction: column; gap: 14px; }
+#mlStatus { margin: 10px 0 0; font-size: 11px; font-family: 'DM Mono', monospace;
+  text-align: center; min-height: 16px; color: var(--muted); }
 </style>
 
 <!-- ══ PÁGINA ══ -->
@@ -159,6 +205,7 @@
   <div class="lma-toolbar">
     <h2>📣 Leads Meta Ads</h2>
     <button class="lma-btn" onclick="carregarLeadsMetaAds()">↺ Atualizar</button>
+    <button class="lma-btn lma-btn-primary" onclick="abrirModalManual()">+ Registrar manualmente</button>
   </div>
 
   <!-- Cards de resumo -->
@@ -227,32 +274,128 @@
       </table>
     </div>
   </div>
+
+  <!-- Modal: Registro Manual de Lead Meta Ads -->
+  <div id="modalManual" class="modal-overlay" onclick="fecharModalManual()">
+    <div class="modal-box" style="max-width:440px" onclick="event.stopPropagation()">
+
+      <div class="modal-head">
+        <h3>Registrar lead manualmente</h3>
+        <button class="modal-close" onclick="fecharModalManual()">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <p style="font-size:11px; color:var(--muted); margin:0 0 16px;">
+          Use para leads que chegaram sem rastreamento automático (ex: criativo A1).
+        </p>
+        <div class="lma-form-row">
+          <div>
+            <label class="lma-form-label">Nome *</label>
+            <input id="mlNome" type="text" placeholder="Nome do lead" class="lma-input-busca" style="width:100%; box-sizing:border-box;">
+          </div>
+          <div>
+            <label class="lma-form-label">Telefone *</label>
+            <input id="mlTelefone" type="text" placeholder="55319XXXXXXXX" class="lma-input-busca" style="width:100%; box-sizing:border-box;">
+          </div>
+          <div>
+            <label class="lma-form-label">Cidade</label>
+            <input id="mlCidade" type="text" placeholder="Juiz de Fora" class="lma-input-busca" style="width:100%; box-sizing:border-box;">
+          </div>
+          <div>
+            <label class="lma-form-label">Campanha *</label>
+            <select id="mlCampanha" class="lma-select" style="width:100%;" onchange="atualizarOpcoesCriativo()">
+              <option value="">Selecione...</option>
+              <option value="A - JF Principal">A — JF Principal</option>
+              <option value="B - Órbita JF">B — Órbita JF</option>
+              <option value="C - BH Metro">C — BH Metro</option>
+              <option value="VENDAS - Teste Engajamento">VENDAS — Teste Engajamento</option>
+              <option value="Orgânico / Indicação">Orgânico / Indicação</option>
+            </select>
+          </div>
+          <div>
+            <label class="lma-form-label">Criativo / Conjunto</label>
+            <select id="mlCriativo" class="lma-select" style="width:100%;">
+              <option value="">Selecione a campanha primeiro</option>
+            </select>
+          </div>
+        </div>
+        <p id="mlStatus"></p>
+      </div>
+
+      <div class="modal-foot">
+        <button class="lma-btn" onclick="fecharModalManual()">Cancelar</button>
+        <button id="btnSalvarManual" class="lma-btn lma-btn-primary" onclick="salvarLeadManual()">Registrar lead</button>
+      </div>
+
+    </div>
+  </div>
+
 </div>
 
 <script>
 var _lmaDados = [];
 
+var MOTIVOS_DESQ = [
+  'Preço alto',
+  'Sem cobertura',
+  'Já tem internet',
+  'Base Vero',
+  'Sem interesse',
+  'Não atendeu',
+  'Outro'
+];
+
+function _lmaMotivoSelect(linha, atual) {
+  var opts = '<option value="">— motivo —</option>';
+  var encontrado = false;
+  MOTIVOS_DESQ.forEach(function(m) {
+    var sel = (m === atual) ? ' selected' : '';
+    if (sel) encontrado = true;
+    opts += '<option value="' + _esc(m) + '"' + sel + '>' + _esc(m) + '</option>';
+  });
+  if (atual && !encontrado) {
+    opts += '<option value="' + _esc(atual) + '" selected>' + _esc(atual) + ' (legado)</option>';
+  }
+  return '<select class="lma-acao-motivo" id="lmaAcaoMotivo_' + linha + '">' + opts + '</select>';
+}
+
 function carregarLeadsMetaAds() {
-  document.getElementById('lmaTbody').innerHTML =
+  var tbody = document.getElementById('lmaTbody');
+  if (!tbody) {
+    if (typeof mostrarToast === 'function') mostrarToast('Erro interno: elemento lmaTbody não encontrado. Recarregue a página.', 'error');
+    return;
+  }
+
+  tbody.innerHTML =
     '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">⏳ Carregando…</td></tr>';
 
-  google.script.run
-    .withSuccessHandler(function(res) {
-      if (!res || res.erro) {
-        document.getElementById('lmaTbody').innerHTML =
-          '<tr><td colspan="9" style="text-align:center;padding:40px;color:#c04040">Erro: ' + (res && res.erro ? res.erro : 'resposta inválida') + '</td></tr>';
-        return;
-      }
-      _lmaDados = res.leads || [];
-      _lmaAtualizarResumo(res.resumo || {});
-      _lmaPopularFiltrosCampanha();
-      _lmaFiltrar();
-    })
-    .withFailureHandler(function(err) {
-      document.getElementById('lmaTbody').innerHTML =
-        '<tr><td colspan="9" style="text-align:center;padding:40px;color:#c04040">Erro ao carregar: ' + err.message + '</td></tr>';
-    })
-    .getLeadsMetaAds();
+  try {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        try {
+          if (!res || res.erro) {
+            tbody.innerHTML =
+              '<tr><td colspan="9" style="text-align:center;padding:40px;color:#c04040">Erro: ' + (res && res.erro ? res.erro : 'resposta inválida') + '</td></tr>';
+            return;
+          }
+          _lmaDados = res.leads || [];
+          _lmaAtualizarResumo(res.resumo || {});
+          _lmaPopularFiltrosCampanha();
+          _lmaFiltrar();
+        } catch(e) {
+          tbody.innerHTML =
+            '<tr><td colspan="9" style="text-align:center;padding:40px;color:#c04040">Erro ao renderizar: ' + e.message + '</td></tr>';
+        }
+      })
+      .withFailureHandler(function(err) {
+        tbody.innerHTML =
+          '<tr><td colspan="9" style="text-align:center;padding:40px;color:#c04040">Erro ao carregar: ' + (err && err.message ? err.message : String(err)) + '</td></tr>';
+      })
+      .getLeadsMetaAds();
+  } catch(e) {
+    tbody.innerHTML =
+      '<tr><td colspan="9" style="text-align:center;padding:40px;color:#c04040">Erro: ' + e.message + '</td></tr>';
+  }
 }
 
 function _lmaAtualizarResumo(r) {
@@ -304,15 +447,22 @@ function _lmaRenderizarTabela(lista) {
     var badge = _lmaBadge(l.status_final);
     var dataEntrada = l.data_entrada ? _lmaFmtData(l.data_entrada) : '—';
     var dataStatus  = l.data_status  ? _lmaFmtData(l.data_status)  : '—';
+    var isDesq = l.status_final === 'Desqualificado';
     var acaoHtml = '<div class="lma-acao-wrap">' +
-      '<select class="lma-acao-sel" id="lmaAcaoSel_' + l.linha + '">' +
-        '<option value="">— status —</option>' +
-        '<option value="Converteu"' +      (l.status_final === 'Converteu'      ? ' selected' : '') + '>✅ Converteu</option>' +
-        '<option value="Em negociação"' +  (l.status_final === 'Em negociação'  ? ' selected' : '') + '>🔄 Em negociação</option>' +
-        '<option value="Sem contato"' +    (l.status_final === 'Sem contato'    ? ' selected' : '') + '>📵 Sem contato</option>' +
-        '<option value="Desqualificado"' + (l.status_final === 'Desqualificado' ? ' selected' : '') + '>❌ Desqualificado</option>' +
-      '</select>' +
-      '<button class="lma-acao-btn" id="lmaAcaoBtn_' + l.linha + '" onclick="_lmaSalvarAcao(' + l.linha + ')">✓</button>' +
+      '<div class="lma-acao-row">' +
+        '<select class="lma-acao-sel" id="lmaAcaoSel_' + l.linha + '" onchange="_lmaOnStatusChange(' + l.linha + ')">' +
+          '<option value="">— status —</option>' +
+          '<option value="Converteu"' +      (l.status_final === 'Converteu'      ? ' selected' : '') + '>✅ Converteu</option>' +
+          '<option value="Em negociação"' +  (l.status_final === 'Em negociação'  ? ' selected' : '') + '>🔄 Em negociação</option>' +
+          '<option value="Sem contato"' +    (l.status_final === 'Sem contato'    ? ' selected' : '') + '>📵 Sem contato</option>' +
+          '<option value="Desqualificado"' + (isDesq ? ' selected' : '') + '>❌ Desqualificado</option>' +
+        '</select>' +
+        '<button class="lma-acao-btn" id="lmaAcaoBtn_' + l.linha + '" title="Salvar status" onclick="_lmaSalvarAcao(' + l.linha + ')">✓</button>' +
+        '<button class="lma-acao-btn lma-acao-btn-del" title="Excluir lead" onclick="_lmaExcluir(' + l.linha + ')">🗑</button>' +
+      '</div>' +
+      '<div class="lma-acao-row" id="lmaAcaoMotivoRow_' + l.linha + '"' + (isDesq ? '' : ' style="display:none"') + '>' +
+        _lmaMotivoSelect(l.linha, l.motivo_desq) +
+      '</div>' +
     '</div>';
     return '<tr>' +
       '<td><span class="lma-mono">' + _esc(dataEntrada) + '</span></td>' +
@@ -326,7 +476,7 @@ function _lmaRenderizarTabela(lista) {
       '<td>' + badge + '</td>' +
       '<td class="lma-mono">' + _esc(l.motivo_desq || '—') + '</td>' +
       '<td><span class="lma-mono">' + _esc(dataStatus) + '</span></td>' +
-      '<td>' + acaoHtml + '</td>' +
+      '<td class="lma-acao-cell">' + acaoHtml + '</td>' +
     '</tr>';
   }).join('');
 
@@ -357,47 +507,161 @@ function _lmaFmtData(val) {
   } catch(e) { return String(val); }
 }
 
-function _lmaSalvarAcao(linha) {
+function _lmaOnStatusChange(linha) {
   var sel = document.getElementById('lmaAcaoSel_' + linha);
-  var btn = document.getElementById('lmaAcaoBtn_' + linha);
-  if (!sel) return;
+  var row = document.getElementById('lmaAcaoMotivoRow_' + linha);
+  if (!sel || !row) return;
+  row.style.display = sel.value === 'Desqualificado' ? '' : 'none';
+}
+
+function _lmaExcluir(linha) {
+  var lead = _lmaDados.find(function(l) { return l.linha === linha; });
+  var nome = lead ? (lead.nome || lead.telefone || ('linha ' + linha)) : ('linha ' + linha);
+  if (!confirm('Excluir o lead "' + nome + '"?\nEssa ação remove a linha da planilha e não pode ser desfeita.')) return;
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.ok) {
+        mostrarToast('Lead excluído.', 'success');
+        _lmaDados = _lmaDados.filter(function(l) { return l.linha !== linha; });
+        _lmaDados.forEach(function(l) { if (l.linha > linha) l.linha -= 1; });
+        var pendentes = _lmaDados.filter(function(l) { return !l.status_final; }).length;
+        if (typeof _lmaAtualizarBadge === 'function') _lmaAtualizarBadge(pendentes);
+        _lmaFiltrar();
+      } else {
+        mostrarToast('Erro ao excluir.', 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      mostrarToast('Erro ao excluir: ' + (e && e.message ? e.message : String(e)), 'error');
+    })
+    .excluirLeadMetaAds(linha);
+}
+
+function _lmaSalvarAcao(linha) {
+  var sel    = document.getElementById('lmaAcaoSel_'    + linha);
+  var btn    = document.getElementById('lmaAcaoBtn_'    + linha);
+  var mInput = document.getElementById('lmaAcaoMotivo_' + linha);
+  if (!sel || !btn) return;
   var novoStatus = sel.value;
   if (!novoStatus) { mostrarToast('Selecione um status antes de salvar.', 'warning'); return; }
 
+  var motivo = (mInput && novoStatus === 'Desqualificado') ? (mInput.value || '') : '';
+
   btn.disabled = true;
   btn.textContent = '⏳';
-
-  var motivo = novoStatus === 'Desqualificado'
-    ? (prompt('Motivo da desqualificação (opcional):') || '')
-    : '';
 
   google.script.run
     .withSuccessHandler(function(res) {
       btn.disabled = false;
       btn.textContent = '✓';
       mostrarToast('Status atualizado: ' + novoStatus, 'success');
-      // Atualiza badge na linha sem recarregar tudo
       var row = btn.closest('tr');
       if (row) {
         var badgeCell = row.cells[5];
         if (badgeCell) badgeCell.innerHTML = _lmaBadge(novoStatus);
+        var motivoCell = row.cells[6];
+        if (motivoCell) motivoCell.textContent = motivo || '—';
       }
-      // Atualiza dados locais
       var lead = _lmaDados.find(function(l) { return l.linha === linha; });
       if (lead) { lead.status_final = novoStatus; lead.motivo_desq = motivo; }
-      // Reconta pendentes e atualiza badge do menu
       var pendentes = _lmaDados.filter(function(l) { return !l.status_final; }).length;
       if (typeof _lmaAtualizarBadge === 'function') _lmaAtualizarBadge(pendentes);
     })
     .withFailureHandler(function(e) {
       btn.disabled = false;
       btn.textContent = '✓';
-      mostrarToast('Erro ao salvar: ' + e.message, 'error');
+      mostrarToast('Erro ao salvar: ' + (e && e.message ? e.message : String(e)), 'error');
     })
     .atualizarStatusLeadMetaAds(linha, novoStatus, motivo);
 }
 
 function _esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Registro Manual de Lead ───────────────────────────────────────────────
+
+var CRIATIVOS_POR_CAMPANHA = {
+  'A - JF Principal':           ['A1 — Vídeo Rafa (Lookalike)', 'A2 — Card Vero Mais 550MB (Interesses)', 'A3 — Card Mundo Fibra 750MB (Amplo)'],
+  'B - Órbita JF':              ['B1 — Card Oferta Verão 800MB'],
+  'C - BH Metro':               ['C1 — Card Vero Mais 550MB'],
+  'VENDAS - Teste Engajamento': ['Cel Certo — engajamento geral'],
+  'Orgânico / Indicação':       ['Orgânico', 'Indicação de cliente', 'Outro']
+};
+
+function abrirModalManual() {
+  document.getElementById('modalManual').classList.add('ativo');
+  document.getElementById('mlNome').focus();
+}
+
+function fecharModalManual() {
+  document.getElementById('modalManual').classList.remove('ativo');
+  document.getElementById('mlStatus').textContent = '';
+  ['mlNome','mlTelefone','mlCidade'].forEach(function(id) {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('mlCampanha').value = '';
+  atualizarOpcoesCriativo();
+}
+
+function atualizarOpcoesCriativo() {
+  var campanha = document.getElementById('mlCampanha').value;
+  var select   = document.getElementById('mlCriativo');
+  var opcoes   = CRIATIVOS_POR_CAMPANHA[campanha] || [];
+  select.innerHTML = opcoes.length
+    ? opcoes.map(function(c) { return '<option value="' + c + '">' + c + '</option>'; }).join('')
+    : '<option value="">Selecione a campanha primeiro</option>';
+}
+
+function salvarLeadManual() {
+  var nome     = document.getElementById('mlNome').value.trim();
+  var telefone = document.getElementById('mlTelefone').value.trim();
+  var campanha = document.getElementById('mlCampanha').value;
+
+  if (!nome || !telefone || !campanha) {
+    document.getElementById('mlStatus').textContent = '⚠️ Preencha nome, telefone e campanha.';
+    document.getElementById('mlStatus').style.color = '#e53';
+    return;
+  }
+
+  var btn = document.getElementById('btnSalvarManual');
+  btn.disabled = true;
+  btn.textContent = 'Salvando…';
+  document.getElementById('mlStatus').textContent = '';
+
+  var dados = {
+    nome:         nome,
+    telefone:     telefone,
+    cidade:       document.getElementById('mlCidade').value.trim() || 'Não informada',
+    utm_source:   'meta_ads',
+    utm_campaign: campanha,
+    utm_medium:   'cpc',
+    utm_ad:       document.getElementById('mlCriativo').value || ''
+  };
+
+  google.script.run
+    .withSuccessHandler(function(resp) {
+      btn.disabled = false;
+      btn.textContent = 'Registrar lead';
+      if (resp && resp.ok) {
+        document.getElementById('mlStatus').textContent = '✅ Lead registrado na linha ' + resp.linha;
+        document.getElementById('mlStatus').style.color = '#2a7';
+        setTimeout(function() {
+          fecharModalManual();
+          if (typeof carregarLeadsMetaAds === 'function') carregarLeadsMetaAds();
+        }, 1800);
+      } else {
+        document.getElementById('mlStatus').textContent = '❌ Erro: ' + (resp && resp.erro ? resp.erro : 'tente novamente');
+        document.getElementById('mlStatus').style.color = '#e53';
+      }
+    })
+    .withFailureHandler(function(err) {
+      btn.disabled = false;
+      btn.textContent = 'Registrar lead';
+      document.getElementById('mlStatus').textContent = '❌ Falha na chamada: ' + err.message;
+      document.getElementById('mlStatus').style.color = '#e53';
+    })
+    .registrarLeadManual(dados);
 }
 </script>

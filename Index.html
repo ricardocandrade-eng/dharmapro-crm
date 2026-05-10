@@ -403,6 +403,7 @@
     .vi-prod-xx { background: var(--surface2);       border: 1px solid var(--border2);        color: var(--muted);  }
     .vi-plano-val { font-size: 11px; color: var(--muted); font-weight: 600;
                     white-space: nowrap; }
+    .vi-vero-status { cursor: help; vertical-align: middle; }
 
     /* BotConversa: etiquetas e status de atendimento */
     .vi-bc-status { border-radius: 3px; padding: 1px 5px; font-size: 9px; font-weight: 700;
@@ -585,17 +586,23 @@
     .painel-conteudo.ativo { display: flex; }
 
     .painel-topo {
-      padding: 14px 16px 12px;
+      padding: 11px 14px 10px;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
-    .painel-nome { font-size: 15px; font-weight: 800; margin-bottom: 4px; line-height: 1.2; text-transform: uppercase; color: #fff; }
-    .painel-cpf  { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 8px; }
+    .painel-nome { font-size: 14px; font-weight: 800; margin-bottom: 3px; line-height: 1.2; text-transform: uppercase; color: #fff; }
+    .painel-cpf  { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 6px; }
     .painel-status-wrap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .painel-status-wrap:empty { display: none; }
+    #pMeta {
+      margin-top: 6px;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+      line-height: 1.4;
+    }
 
     /* Scroll interno do painel */
     .painel-scroll {
-      flex: 1; overflow-y: auto; padding: 12px 16px;
+      flex: 1; overflow-y: auto; padding: 10px 12px;
     }
     .painel-scroll::-webkit-scrollbar { width: 3px; }
     .painel-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
@@ -605,16 +612,16 @@
     .painel-secao {
       background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.02));
       border: 1px solid rgba(255,255,255,.06);
-      border-radius: 12px;
-      margin-bottom: 9px;
+      border-radius: 10px;
+      margin-bottom: 6px;
       overflow: hidden;
       box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
     }
     .painel-secao-titulo {
-      font-size: 9px; font-weight: 700; color: rgba(255,255,255,.58);
-      text-transform: uppercase; letter-spacing: 1.35px;
+      font-size: 9px; font-weight: 700; color: rgba(255,255,255,.55);
+      text-transform: uppercase; letter-spacing: 1.2px;
       font-family: 'DM Mono', monospace;
-      padding: 8px 11px 7px; display: flex; align-items: center; gap: 5px;
+      padding: 5px 10px 5px; display: flex; align-items: center; gap: 5px;
       border-bottom: 1px solid rgba(255,255,255,.05);
       background: rgba(255,255,255,.02);
     }
@@ -622,26 +629,26 @@
     .painel-campos {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 7px;
-      padding: 8px 10px 10px;
+      gap: 5px;
+      padding: 6px 8px 7px;
     }
     .painel-campo {
-      padding: 7px 8px 6px;
+      padding: 5px 7px 4px;
       background: rgba(0,0,0,.12);
       border: 1px solid rgba(255,255,255,.05);
-      border-radius: 9px;
+      border-radius: 7px;
       min-width: 0;
     }
     .painel-campo.full { grid-column: 1 / -1; }
     .painel-lbl {
       font-size: 8px;
-      color: rgba(255,255,255,.45);
+      color: rgba(255,255,255,.42);
       text-transform: uppercase;
-      letter-spacing: .75px;
+      letter-spacing: .7px;
       font-family: 'DM Mono', monospace;
       display: block;
-      margin-bottom: 4px;
-      line-height: 1.15;
+      margin-bottom: 2px;
+      line-height: 1.1;
     }
     .painel-val {
       font-size: 11px;
@@ -649,7 +656,7 @@
       font-weight: 600;
       word-break: break-word;
       display: block;
-      line-height: 1.35;
+      line-height: 1.25;
     }
     /* Linha interativa (agenda, turno, PAP) — full width inline, sem borda */
     .painel-linha {
@@ -657,12 +664,12 @@
       justify-content: space-between;
       align-items: center;
       gap: 10px;
-      margin: 0 10px 8px;
-      padding: 8px 10px;
+      margin: 0 8px 6px;
+      padding: 6px 8px;
       font-size: 12px;
       background: rgba(0,0,0,.12);
       border: 1px solid rgba(255,255,255,.05);
-      border-radius: 9px;
+      border-radius: 7px;
     }
     .painel-linha .painel-lbl {
       display: inline;
@@ -2069,7 +2076,8 @@
         <div class="nav-label">Tráfego</div>
         <div class="nav-item" id="menuPainelAds"    onclick="navegar('painelads')"><span class="icon">▲</span> Painel Ads</div>
         <div class="nav-item" id="menuLeadsMetaAds" onclick="navegar('metaads')">  <span class="icon">◈</span> Leads Meta Ads <span class="nav-badge" id="badgeLeadsMetaAds"></span></div>
-        <div class="nav-item" id="menuDisparos"     onclick="navegar('disparos')"> <span class="icon">📨</span> Disparos em Massa</div>
+        <div class="nav-item" id="menuDisparos"     onclick="navegar('disparos')"> <span class="icon">✉</span> Disparos Waba</div>
+        <div class="nav-item" id="menuWaPessoal"    onclick="navegar('waPessoal')"><span class="icon">☏</span> WhatsApp Pessoal</div>
 
         <div class="nav-label">Financeiro</div>
         <div class="nav-item" id="menuExtrato" onclick="navegar('extrato')"><span class="icon">⊛</span> Extrato</div>
@@ -2082,7 +2090,7 @@
         <div class="nav-item" id="menuCruzamento"  onclick="navegar('cruzamento')"> <span class="icon">☷</span> Cruzamento Vero</div>
 
         <div class="nav-label">Sistema</div>
-        <div class="nav-item" id="menuUsuarios" onclick="navegar('usuarios')"><span class="icon">👥</span> Gerenciar Usuários</div>
+        <div class="nav-item" id="menuUsuarios" onclick="navegar('usuarios')"><span class="icon">◐</span> Gerenciar Usuários</div>
         <div class="nav-item" id="menuConfig" onclick="navegar('config')"><span class="icon">⚙</span> Configurações</div>
         <div class="nav-item" onclick="abrirModalSenha()"><span class="icon">◌</span> Alterar senha</div>
       </div>
@@ -2286,6 +2294,7 @@
               <div class="card-header"><div class="card-icon">📦</div><h3>Plano e Faturamento</h3></div>
               <div class="form-grid">
                 <div class="form-group" id="grp_sistema"><label>Sistema <span class="req">*</span></label><input type="text" id="f_sistema" readonly style="background:var(--surface);color:var(--muted);cursor:default;"><span class="err-msg">Sistema é obrigatório.</span></div>
+                <input type="hidden" id="f_segmentacao">
                 <div class="form-group opcional" id="grp_produto">
                   <label>Produto</label>
                   <select id="f_produto" onchange="onProdutoChange()">
@@ -2448,6 +2457,7 @@
                 <button onclick="fecharPainel()" style="background:none;border:1px solid var(--border);color:var(--muted);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">✕</button>
               </div>
               <div class="painel-status-wrap" id="pStatusWrap"></div>
+              <div id="pMeta"></div>
             </div>
             <div class="painel-scroll" id="painelScroll"></div>
 
@@ -2592,11 +2602,7 @@
                 <div class="pif-grid" style="margin-top:8px;">
                   <div class="pif-group">
                     <label>Sistema</label>
-                    <select id="pif-sistema">
-                      <option value="">—</option>
-                      <option value="NG">NG</option>
-                      <option value="Adapter">Adapter</option>
-                    </select>
+                    <input type="text" id="pif-sistema" placeholder="Ex: NG, Adapter">
                   </div>
                   <div class="pif-group">
                     <label>Segmentação</label>
@@ -3051,22 +3057,29 @@
           <button class="btn btn-ghost btn-sm" onclick="carregarPAP()" style="font-size:11px;">↺ Atualizar</button>
         </div>
 
-        <!-- Resumo por vendedor -->
         <div class="pap-resumo" id="papResumo">
           <div class="pap-empty" style="padding:16px;">⏳ Carregando...</div>
         </div>
-
-        <!-- Filtro -->
         <div class="pap-filtro-wrap">
           <label>Vendedor:</label>
           <select class="pap-filtro-select" id="papFiltroVendedor" onchange="_filtrarPAP()">
             <option value="">Todos</option>
           </select>
+          <label>Forma:</label>
+          <select class="pap-filtro-select" id="papFiltroForma" onchange="_filtrarPAP()">
+            <option value="">Todas</option>
+            <option value="plano">Plano</option>
+            <option value="fixo">Fixo</option>
+          </select>
+          <label>Periodicidade:</label>
+          <select class="pap-filtro-select" id="papFiltroPerio" onchange="_filtrarPAP()">
+            <option value="">Todas</option>
+            <option value="diario">Diário</option>
+            <option value="mensal">Mensal (20)</option>
+          </select>
           <span class="pap-count" id="papCount">—</span>
         </div>
-
-        <!-- Tabela -->
-        <div class="pap-scroll">
+        <div class="pap-scroll" style="padding-bottom:60px;">
           <table class="pap-table">
             <thead>
               <tr>
@@ -3075,13 +3088,15 @@
                 <th>Vendedor</th>
                 <th>Contrato</th>
                 <th>Produto / Plano</th>
+                <th>Forma</th>
+                <th>Periodicidade</th>
                 <th>Comissão</th>
                 <th>Chave PIX</th>
                 <th>Ações</th>
               </tr>
             </thead>
             <tbody id="papTbody">
-              <tr><td colspan="8" class="pap-empty">⏳ Carregando...</td></tr>
+              <tr><td colspan="10" class="pap-empty">⏳ Carregando...</td></tr>
             </tbody>
           </table>
         </div>
@@ -3091,7 +3106,7 @@
       <div class="modal-overlay" id="modalConfirmPAP">
         <div class="modal-box" style="max-width:440px;">
           <div class="modal-head">
-            <h3>💰 Confirmar Pagamento</h3>
+            <h3 id="modalPAPTitulo">💰 Confirmar Pagamento</h3>
             <button class="modal-close" onclick="_fecharModalPAP()">✕</button>
           </div>
           <div class="modal-body" style="padding:20px;">
@@ -3116,6 +3131,11 @@
       <!-- ── DISPAROS EM MASSA ── -->
       <div id="pageDisparos" class="page page-full">
         <div id="disparosContainer" style="width:100%;height:100%;overflow-y:auto;"></div>
+      </div>
+
+      <!-- ── WHATSAPP PESSOAL ── -->
+      <div id="pageWaPessoal" class="page page-full">
+        <div id="waPessoalContainer" style="width:100%;height:100%;overflow-y:auto;"></div>
       </div>
 
       <!-- ── GERENCIAR USUÁRIOS ── -->
@@ -3329,7 +3349,7 @@
             </select>
           </div>
           <div class="mvh-field mvh-full">
-            <label class="mvh-label">ID Contrato Móvel <span style="color:var(--accent)">*</span></label>
+            <label class="mvh-label">ID Contrato Móvel <span style="font-size:10px;color:var(--muted);font-weight:400;">(opcional)</span></label>
             <input type="text" id="mmc-contrato" class="mvh-input" placeholder="Ex: 123456">
           </div>
           <div class="mvh-field">

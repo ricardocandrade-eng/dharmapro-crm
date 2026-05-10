@@ -297,6 +297,14 @@
     .modal-btn-confirm:active { transform: scale(0.97); }
     .modal-btn-confirm.aprovar { background: var(--green); color: #0d0f14; }
     .modal-btn-confirm.rejeitar { background: var(--accent); color: #fff; }
+    .copy-btn {
+      background: none; border: none; cursor: pointer;
+      font-size: 13px; padding: 0 4px; opacity: 0.45;
+      transition: opacity .15s; flex-shrink: 0; line-height: 1;
+    }
+    .copy-btn:hover { opacity: 1; }
+    .copy-btn.copiado { opacity: 1; }
+    .item-row { display: flex; align-items: center; }
     .modal-btn-cancel {
       flex: 1; padding: 14px; border-radius: 12px;
       background: var(--surface2); border: 1px solid var(--border2);
@@ -442,6 +450,13 @@
     <div class="modal-title" id="modal-title">Confirmar ação</div>
     <div class="modal-sub" id="modal-sub">—</div>
     <div class="modal-id" id="modal-id"></div>
+    <textarea id="modal-motivo" rows="3"
+      placeholder="Descreva o motivo da rejeição..."
+      style="display:none;width:100%;margin-top:16px;padding:10px;
+             border-radius:10px;border:1px solid var(--border2);
+             background:var(--bg);color:var(--text);
+             font-size:13px;resize:vertical;box-sizing:border-box;
+             font-family:'DM Mono',monospace"></textarea>
     <div class="modal-btns">
       <button class="modal-btn-cancel" onclick="fecharModal()">Cancelar</button>
       <button class="modal-btn-confirm" id="modal-btn-confirm" onclick="confirmarAcao()">Confirmar</button>
@@ -716,6 +731,7 @@ function renderPreVendas() {
           <div class="item-row">
             <span class="item-label">ID</span>
             <span class="item-val mono">${_esc(item.id)}</span>
+            <button class="copy-btn" data-copy="${_esc(item.id)}" onclick="copiarCampo(this)">📋</button>
           </div>
           <div class="item-row">
             <span class="item-label">Data</span>
@@ -724,26 +740,41 @@ function renderPreVendas() {
           <div class="item-row">
             <span class="item-label">Parceiro</span>
             <span class="item-val">${_esc(item.parceiro)}</span>
+            <button class="copy-btn" data-copy="${_esc(item.parceiro)}" onclick="copiarCampo(this)">📋</button>
           </div>
           ${item.nomeCliente ? `<div class="item-row">
             <span class="item-label">Cliente</span>
             <span class="item-val">${_esc(item.nomeCliente)}</span>
+            <button class="copy-btn" data-copy="${_esc(item.nomeCliente)}" onclick="copiarCampo(this)">📋</button>
           </div>` : ''}
           ${item.cpfCliente ? `<div class="item-row">
             <span class="item-label">CPF</span>
             <span class="item-val mono">${_esc(item.cpfCliente)}</span>
+            <button class="copy-btn" data-copy="${_esc(item.cpfCliente)}" onclick="copiarCampo(this)">📋</button>
           </div>` : ''}
           ${item.whatsapp ? `<div class="item-row">
             <span class="item-label">WhatsApp</span>
             <span class="item-val mono">${_esc(item.whatsapp)}</span>
+            <button class="copy-btn" data-copy="${_esc(item.whatsapp)}" onclick="copiarCampo(this)">📋</button>
+          </div>` : ''}
+          ${item.email ? `<div class="item-row">
+            <span class="item-label">E-mail</span>
+            <span class="item-val">${_esc(item.email)}</span>
+            <button class="copy-btn" data-copy="${_esc(item.email)}" onclick="copiarCampo(this)">📋</button>
           </div>` : ''}
           ${item.plano ? `<div class="item-row">
             <span class="item-label">Plano</span>
             <span class="item-val">${_esc(item.plano)}</span>
+            <button class="copy-btn" data-copy="${_esc(item.plano)}" onclick="copiarCampo(this)">📋</button>
+          </div>` : ''}
+          ${item.valor ? `<div class="item-row">
+            <span class="item-label">Valor</span>
+            <span class="item-val mono">R$ ${_esc(item.valor)}</span>
+            <button class="copy-btn" data-copy="${_esc(item.valor)}" onclick="copiarCampo(this)">📋</button>
           </div>` : ''}
           ${item.movel ? `<div class="item-row">
             <span class="item-label">Móvel</span>
-            <span class="item-val">${_esc(item.movel)}</span>
+            <span class="item-val">${_esc(item.movel)}${item.tipoMovel ? ' · ' + _esc(item.tipoMovel) : ''}</span>
           </div>` : ''}
           ${item.vencimento ? `<div class="item-row">
             <span class="item-label">Vencimento</span>
@@ -753,13 +784,35 @@ function renderPreVendas() {
             <span class="item-label">Pagamento</span>
             <span class="item-val">${_esc(item.pagamento)}</span>
           </div>` : ''}
-          ${item.enderecoRef ? `<div class="item-row">
-            <span class="item-label">Endereço</span>
-            <span class="item-val mono" style="font-size:11px;word-break:break-word">${_esc(item.enderecoRef)}</span>
+          ${item.cep ? `<div class="item-row">
+            <span class="item-label">CEP</span>
+            <span class="item-val mono">${_esc(item.cep)}</span>
+            <button class="copy-btn" data-copy="${_esc(item.cep)}" onclick="copiarCampo(this)">📋</button>
+          </div>` : ''}
+          ${item.rua ? `<div class="item-row">
+            <span class="item-label">Logradouro</span>
+            <span class="item-val mono" style="word-break:break-word">${_esc(item.rua)}${item.num ? ', ' + _esc(item.num) : ''}</span>
+            <button class="copy-btn" data-copy="${_esc(item.rua + (item.num ? ', ' + item.num : ''))}" onclick="copiarCampo(this)">📋</button>
+          </div>` : ''}
+          ${item.complemento ? `<div class="item-row">
+            <span class="item-label">Complemento</span>
+            <span class="item-val">${_esc(item.complemento)}</span>
+            <button class="copy-btn" data-copy="${_esc(item.complemento)}" onclick="copiarCampo(this)">📋</button>
+          </div>` : ''}
+          ${item.bairro ? `<div class="item-row">
+            <span class="item-label">Bairro</span>
+            <span class="item-val">${_esc(item.bairro)}</span>
+            <button class="copy-btn" data-copy="${_esc(item.bairro)}" onclick="copiarCampo(this)">📋</button>
+          </div>` : ''}
+          ${item.cidade ? `<div class="item-row">
+            <span class="item-label">Cidade/UF</span>
+            <span class="item-val">${_esc(item.cidade)}${item.uf ? '/' + _esc(item.uf) : ''}</span>
+            <button class="copy-btn" data-copy="${_esc(item.cidade + (item.uf ? '/' + item.uf : ''))}" onclick="copiarCampo(this)">📋</button>
           </div>` : ''}
           ${item.protocoloRef ? `<div class="item-row">
             <span class="item-label">Consulta</span>
             <span class="item-val mono">${_esc(item.protocoloRef)}</span>
+            <button class="copy-btn" data-copy="${_esc(item.protocoloRef)}" onclick="copiarCampo(this)">📋</button>
           </div>` : ''}
         </div>
 
@@ -796,7 +849,7 @@ function abrirModal(tipo, id, nomeCliente) {
     isAprovar
       ? 'Esta pré-venda será aprovada e o cliente entrará na lista de vendas do CRM.'
       : isRejeitar
-        ? 'Esta pré-venda será marcada como rejeitada. O vendedor não será notificado automaticamente.'
+        ? 'Informe o motivo abaixo. O vendedor receberá uma notificação via WhatsApp com a explicação.'
         : isApagarConsulta
           ? 'Esta consulta será removida da fila PAP permanentemente.'
           : 'Esta pré-venda será removida da fila PAP permanentemente.';
@@ -809,21 +862,42 @@ function abrirModal(tipo, id, nomeCliente) {
     'Apagar definitivamente';
   btnConfirm.className   = 'modal-btn-confirm ' + (isAprovar ? 'aprovar' : 'rejeitar');
 
+  const motivoEl = document.getElementById('modal-motivo');
+  motivoEl.style.display = isRejeitar ? 'block' : 'none';
+  motivoEl.value = '';
+  motivoEl.style.border = '1px solid var(--border2)';
+
   document.getElementById('modal-overlay').classList.add('show');
 }
 
 function fecharModal() {
   document.getElementById('modal-overlay').classList.remove('show');
+  const motivoEl = document.getElementById('modal-motivo');
+  motivoEl.value = '';
+  motivoEl.style.display = 'none';
   _acaoPendente = null;
 }
 
 function confirmarAcao() {
   if (!_acaoPendente) return;
   const { tipo, id } = _acaoPendente;
+
+  if (tipo === 'rejeitar') {
+    const motivoEl = document.getElementById('modal-motivo');
+    const motivo = motivoEl.value.trim();
+    if (!motivo) {
+      motivoEl.style.border = '1px solid var(--accent)';
+      motivoEl.focus();
+      return;
+    }
+    fecharModal();
+    rejeitarPreVenda(id, motivo);
+    return;
+  }
+
   fecharModal();
   const fn =
     tipo === 'aprovar' ? aprovarPreVenda :
-    tipo === 'rejeitar' ? rejeitarPreVenda :
     tipo === 'apagarConsulta' ? apagarConsulta :
     apagarPreVenda;
   fn(id);
@@ -862,7 +936,7 @@ function aprovarPreVenda(id) {
     .aprovarPreVenda(id, '');
 }
 
-function rejeitarPreVenda(id) {
+function rejeitarPreVenda(id, motivo) {
   const card = document.getElementById('card-' + id);
   if (card) {
     const btns = card.querySelector('.item-actions');
@@ -874,7 +948,7 @@ function rejeitarPreVenda(id) {
     .withSuccessHandler(res => {
       setLoading(false);
       if (res?.ok) {
-        toast('Pr��-venda rejeitada.', '');
+        toast('Pré-venda rejeitada.', '');
         recarregar();
       } else {
         toast('Erro: ' + (res?.error || 'falha ao rejeitar'), 'err');
@@ -886,7 +960,7 @@ function rejeitarPreVenda(id) {
       toast('Erro ao rejeitar: ' + (err?.message || err), 'err');
       recarregar();
     })
-    .rejeitarPreVenda(id, '');
+    .rejeitarPreVenda(id, '', motivo || '');
 }
 
 function apagarConsulta(id) {
@@ -1027,6 +1101,15 @@ function _iniciarPolling() {
 ───────────────────────────────────────────────────── */
 function _esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function copiarCampo(btn) {
+  const texto = btn.dataset.copy || '';
+  navigator.clipboard.writeText(texto).then(() => {
+    btn.textContent = '✓';
+    btn.classList.add('copiado');
+    setTimeout(() => { btn.textContent = '📋'; btn.classList.remove('copiado'); }, 1500);
+  }).catch(() => {});
 }
 function _horaAgora() {
   return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });

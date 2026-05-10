@@ -66,6 +66,25 @@ function registrarLeadMetaAds(payload) {
   return ultimaLinha;
 }
 
+function registrarLeadManual(dados) {
+  try {
+    var payload = {
+      nome:         dados.nome         || '',
+      telefone:     dados.telefone     || '',
+      cidade:       dados.cidade       || '',
+      utm_source:   dados.utm_source   || 'meta_ads',
+      utm_campaign: dados.utm_campaign || '',
+      utm_medium:   dados.utm_medium   || 'cpc',
+      utm_ad:       dados.utm_ad       || '',
+      origem:       'manual'
+    };
+    var linha = registrarLeadMetaAds(payload);
+    return { ok: true, linha: linha };
+  } catch (e) {
+    return { ok: false, erro: e.message };
+  }
+}
+
 
 /**
  * Trigger onEdit — grava timestamp automático quando
@@ -231,18 +250,30 @@ function vincularVendaLeadMetaAds(telefone) {
   var lastRow = aba.getLastRow();
   if (lastRow < 2) return null;
 
+  var JANELA_DIAS = 30;
+  var agora = new Date();
+
   var dados = aba.getRange(2, 1, lastRow - 1, 12).getValues();
   for (var i = 0; i < dados.length; i++) {
     var leadTel = String(dados[i][2] || '').replace(/\D/g, '');
     if (leadTel.length > 11) leadTel = leadTel.slice(-11);
-    // Só atualiza se o telefone bate E ainda não tem status_final
-    if (leadTel === tel && !dados[i][8]) {
-      var linha = i + 2;
-      aba.getRange(linha, 9).setValue('Converteu');  // col I: status_final
-      aba.getRange(linha, 11).setValue(new Date());  // col K: data_status
-      Logger.log('vincularVendaLeadMetaAds: tel ' + tel + ' → linha ' + linha + ' = Converteu (auto)');
-      return linha;
+    if (leadTel !== tel) continue;
+    if (dados[i][8]) continue; // já tem status_final
+
+    // Só vincula se o lead entrou nos últimos 30 dias
+    var dataEntrada = dados[i][0];
+    if (!(dataEntrada instanceof Date)) continue;
+    var diasDesdeEntrada = (agora - dataEntrada) / (1000 * 60 * 60 * 24);
+    if (diasDesdeEntrada > JANELA_DIAS) {
+      Logger.log('vincularVendaLeadMetaAds: tel ' + tel + ' ignorado — lead com ' + diasDesdeEntrada.toFixed(0) + ' dias (limite: ' + JANELA_DIAS + ')');
+      continue;
     }
+
+    var linha = i + 2;
+    aba.getRange(linha, 9).setValue('Converteu');  // col I: status_final
+    aba.getRange(linha, 11).setValue(new Date());  // col K: data_status
+    Logger.log('vincularVendaLeadMetaAds: tel ' + tel + ' → linha ' + linha + ' = Converteu (auto, ' + diasDesdeEntrada.toFixed(0) + ' dias)');
+    return linha;
   }
   return null;
 }
@@ -281,12 +312,49 @@ function atualizarStatusLeadMetaAds(linha, status, motivo) {
   if (!aba) throw new Error('Aba "' + CFG_META.ABA_LEADS_META + '" não encontrada.');
   if (!linha || linha < 2) throw new Error('Linha inválida: ' + linha);
 
+  // Frontend é a fonte de verdade — remove qualquer validação herdada (idempotente).
+  aba.getRange(linha, 9, 1, 3).clearDataValidations();
+
   aba.getRange(linha, 9).setValue(status  || ''); // col I: status_final
   aba.getRange(linha, 10).setValue(motivo || ''); // col J: motivo_desq
   aba.getRange(linha, 11).setValue(new Date());   // col K: data_status
 
   Logger.log('atualizarStatusLeadMetaAds: linha ' + linha + ' → ' + (status || 'limpo'));
   return { ok: true, linha: linha, status: status };
+}
+
+
+/**
+ * Remove TODAS as regras de validação de dados da aba "Leads Meta Ads".
+ * O frontend (LeadsMetaAds.html) é a fonte única de verdade para opções.
+ * Idempotente.
+ */
+function removerValidacoesLeadsMetaAds() {
+  var ss  = _getSpreadsheet_();
+  var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+  if (!aba) throw new Error('Aba "' + CFG_META.ABA_LEADS_META + '" não encontrada.');
+  aba.getRange(1, 1, aba.getMaxRows(), aba.getMaxColumns()).clearDataValidations();
+  Logger.log('removerValidacoesLeadsMetaAds: validações limpas na aba inteira.');
+  return { ok: true };
+}
+
+
+/**
+ * Exclui um lead da aba "Leads Meta Ads".
+ * Chamado pelo botão 🗑 da tela Leads Meta Ads.
+ *
+ * @param {number} linha  Linha na planilha (>= 2)
+ */
+function excluirLeadMetaAds(linha) {
+  var ss  = _getSpreadsheet_();
+  var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+  if (!aba) throw new Error('Aba "' + CFG_META.ABA_LEADS_META + '" não encontrada.');
+  if (!linha || linha < 2) throw new Error('Linha inválida: ' + linha);
+  if (linha > aba.getLastRow()) throw new Error('Linha ' + linha + ' não existe.');
+
+  aba.deleteRow(linha);
+  Logger.log('excluirLeadMetaAds: linha ' + linha + ' removida.');
+  return { ok: true, linha: linha };
 }
 
 
@@ -518,18 +586,26 @@ function getPainelAdsData(periodo) {
     return { erro: 'Nem Claude Ads Bridge nem META_ACCESS_TOKEN estao configurados.' };
   }
 
-  periodo = periodo || '7d';
+  periodo = periodo || '3d';
   var tz = Session.getScriptTimeZone();
   var hoje = new Date();
-  var until = Utilities.formatDate(hoje, tz, 'yyyy-MM-dd');
-  var since;
+  var since, until;
 
   if (periodo === 'hoje') {
+    until = Utilities.formatDate(hoje, tz, 'yyyy-MM-dd');
     since = until;
+  } else if (periodo === '3d') {
+    // Alinhado com workflow_relatorio_07h: since = hoje-3, until = ontem
+    var ontem3d = new Date(hoje); ontem3d.setDate(ontem3d.getDate() - 1);
+    until = Utilities.formatDate(ontem3d, tz, 'yyyy-MM-dd');
+    var d3 = new Date(hoje); d3.setDate(d3.getDate() - 3);
+    since = Utilities.formatDate(d3, tz, 'yyyy-MM-dd');
   } else if (periodo === '7d') {
+    until = Utilities.formatDate(hoje, tz, 'yyyy-MM-dd');
     var d7 = new Date(hoje); d7.setDate(d7.getDate() - 6);
     since = Utilities.formatDate(d7, tz, 'yyyy-MM-dd');
   } else {
+    until = Utilities.formatDate(hoje, tz, 'yyyy-MM-dd');
     var d30 = new Date(hoje); d30.setDate(d30.getDate() - 29);
     since = Utilities.formatDate(d30, tz, 'yyyy-MM-dd');
   }
@@ -627,7 +703,46 @@ function getPainelAdsData(periodo) {
       alertas.push({ tipo: 'aviso', texto: 'CPA real R$' + cpaReal + ' acima da meta R$' + L.CPA_META });
     }
 
+    // Gera fila de decisão a partir das campanhas com alertas de pausa
+    var filaPrioritaria = [];
+    var decisoesExistentes = _getClaudeAdsActionDecisions_();
+
+    for (var fi = 0; fi < campanhasData.length; fi++) {
+      var camp = campanhasData[fi];
+      var acaoId = 'pause_' + camp.id;
+      var rationale, humanCheck;
+
+      if (camp.cpl && camp.cpl > L.CPL_MAX && camp.gasto > 100) {
+        rationale = 'CPL de R$' + camp.cpl.toFixed(2) + ' está acima do limite de R$' + L.CPL_MAX + ' com R$' + camp.gasto.toFixed(2) + ' gastos. Custo por lead inviável.';
+        humanCheck = 'Verifique se houve queda de qualidade no público ou no criativo nos últimos dias antes de pausar.';
+      } else if (camp.ctr < L.CTR_MIN && camp.gasto > 20) {
+        rationale = 'CTR de ' + camp.ctr.toFixed(2) + '% abaixo do mínimo de ' + L.CTR_MIN + '% com R$' + camp.gasto.toFixed(2) + ' gastos. O anúncio não está sendo clicado.';
+        humanCheck = 'Verifique se o criativo está saturado ou se o público alvo está muito amplo.';
+      } else if (camp.frequencia > L.FREQUENCIA_MAX) {
+        rationale = 'Frequência de ' + camp.frequencia.toFixed(1) + 'x indica saturação de público (limite: ' + L.FREQUENCIA_MAX + 'x). A mesma pessoa já viu o anúncio muitas vezes.';
+        humanCheck = 'Considere pausar e renovar o criativo antes que o CPL suba por saturação.';
+      } else {
+        continue;
+      }
+
+      var decSalva = decisoesExistentes[acaoId] || null;
+      filaPrioritaria.push({
+        action_id:        acaoId,
+        action_type:      'pause_campaign',
+        campaign_key:     camp.nome,
+        meta_campaign_id: camp.id,
+        rationale:        rationale,
+        human_check:      humanCheck,
+        execution_mode:   'approval_required',
+        approval_state:   decSalva || { status: 'pending', decided_at: null, decided_by: null, note: null }
+      });
+    }
+
+    var temErro = alertas.some(function(a) { return a.tipo === 'erro'; });
+    var statusGeral = alertas.length === 0 ? 'OPERAÇÃO NORMAL' : (temErro ? 'ATENÇÃO CRÍTICA' : 'MONITORAMENTO');
+
     return {
+      modo: 'cockpit_bridge',
       periodo: { since: since, until: until, label: periodo },
       resumo: {
         gasto: totalGasto.toFixed(2),
@@ -643,7 +758,22 @@ function getPainelAdsData(periodo) {
       },
       campanhas: campanhasData,
       alertas: alertas,
-      dharma: dharma
+      dharma: dharma,
+      cockpit: {
+        operador: {
+          status_geral: statusGeral,
+          leitura_rapida: alertas.map(function(a) { return a.texto; }),
+          o_que_fazer_primeiro: {}
+        },
+        automacao: {
+          total_acoes:      filaPrioritaria.length,
+          dry_run_default:  true,
+          fila_prioritaria: filaPrioritaria,
+          approval_summary: _buildClaudeAdsActionDecisionSummary_(filaPrioritaria)
+        },
+        inteligencia_comercial: {},
+        experimentos: { total: 0, prioritarios: [] }
+      }
     };
   } catch (e) {
     return { erro: 'Erro inesperado: ' + e.message };
@@ -806,4 +936,546 @@ function reverterAcaoExecutada(actionId) {
 
   Logger.log('reverterAcaoExecutada: ' + actionId + ' revertida com sucesso.');
   return { ok: true, action_id: actionId };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SETUP — executar uma vez para registrar a chave da Claude API
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Execute UMA VEZ no editor Apps Script para salvar a chave da Claude API.
+ * Após executar, pode apagar a chave do código — ela fica salva nas Properties.
+ *
+ * Como executar: Extensões → Apps Script → selecione esta função → ▶ Executar
+ */
+function configurarClaudeApiKey() {
+  var CHAVE = 'COLE_SUA_CHAVE_AQUI'; // substitua antes de executar
+
+  if (!CHAVE || CHAVE === 'COLE_SUA_CHAVE_AQUI') {
+    Logger.log('ERRO: Substitua COLE_SUA_CHAVE_AQUI pela chave real antes de executar.');
+    return;
+  }
+
+  PropertiesService.getScriptProperties().setProperty('CLAUDE_API_KEY', CHAVE);
+  Logger.log('CLAUDE_API_KEY salva com sucesso. Pode apagar a chave do código agora.');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIAGNÓSTICO AO VIVO — Meta + CRM + Claude API
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Busca métricas reais da Meta + leads do CRM, envia à Claude API e
+ * retorna um diagnóstico em texto corrido escrito como gestor de tráfego.
+ * Exportado para google.script.run.diagnosticarAgora()
+ */
+function diagnosticarAgora() {
+  try {
+    var props     = PropertiesService.getScriptProperties();
+    var token     = props.getProperty('META_ACCESS_TOKEN');
+    var claudeKey = props.getProperty('CLAUDE_API_KEY');
+
+    if (!claudeKey) return { ok: false, erro: 'CLAUDE_API_KEY não configurada. Vá em Extensões → Apps Script → Propriedades do projeto e adicione a chave.' };
+    if (!token)     return { ok: false, erro: 'META_ACCESS_TOKEN não configurado em Propriedades do projeto.' };
+
+    var insights  = _fetchMetaInsightsParaDiag_(token);
+    var leadsData = _fetchLeadsCrmParaDiag_();
+    var prompt    = _buildDiagnosisPrompt_(insights, leadsData);
+    var texto     = _callClaudeApiDiag_(claudeKey, prompt);
+
+    return {
+      ok: true,
+      diagnostico_texto: texto,
+      metricas_raw: insights,
+      gerado_em: new Date().toISOString()
+    };
+  } catch (e) {
+    Logger.log('diagnosticarAgora erro: ' + e.message);
+    return { ok: false, erro: e.message };
+  }
+}
+
+function _fetchMetaInsightsParaDiag_(token) {
+  var tz    = Session.getScriptTimeZone();
+  var hoje  = new Date();
+  var until = Utilities.formatDate(hoje, tz, 'yyyy-MM-dd');
+  var d7    = new Date(hoje); d7.setDate(d7.getDate() - 6);
+  var since = Utilities.formatDate(d7, tz, 'yyyy-MM-dd');
+
+  var base   = 'https://graph.facebook.com/' + CFG_META.API_VERSION + '/' + CFG_META.AD_ACCOUNT_ID + '/insights';
+  var params = {
+    access_token: token,
+    fields: 'campaign_id,campaign_name,impressions,clicks,ctr,cpm,cpc,spend,actions,frequency',
+    time_range: JSON.stringify({ since: since, until: until }),
+    level: 'campaign',
+    limit: '50'
+  };
+
+  var qs = Object.keys(params).map(function(k) {
+    return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+  }).join('&');
+
+  var resp = UrlFetchApp.fetch(base + '?' + qs, { muteHttpExceptions: true });
+  var json = JSON.parse(resp.getContentText());
+  if (json.error) throw new Error('Meta API: ' + json.error.message);
+
+  var resultado = [];
+  var data = json.data || [];
+
+  for (var i = 0; i < data.length; i++) {
+    var row     = data[i];
+    var gasto   = parseFloat(row.spend || 0);
+    var impr    = parseInt(row.impressions || 0, 10);
+    var cliques = parseInt(row.clicks || 0, 10);
+    var ctr     = parseFloat(row.ctr || 0);
+    var cpm     = parseFloat(row.cpm || 0);
+    var freq    = parseFloat(row.frequency || 0);
+
+    var leadsAct = (row.actions || []).filter(function(a) {
+      return a.action_type === 'lead' || a.action_type === 'onsite_conversion.messaging_conversation_started_7d';
+    });
+    var leads = leadsAct.length > 0 ? parseFloat(leadsAct[0].value || 0) : 0;
+    var cpl   = leads > 0 ? gasto / leads : null;
+
+    resultado.push({
+      campaign_id:   row.campaign_id,
+      campaign_name: row.campaign_name,
+      gasto:         gasto,
+      impressoes:    impr,
+      cliques:       cliques,
+      leads:         leads,
+      ctr:           ctr,
+      cpm:           cpm,
+      freq:          freq,
+      cpl:           cpl
+    });
+  }
+
+  return { desde: since, ate: until, campanhas: resultado };
+}
+
+function _fetchLeadsCrmParaDiag_() {
+  var ss  = _getSpreadsheet_();
+  var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+  if (!aba || aba.getLastRow() < 2) return { por_campanha: {} };
+
+  var raw = aba.getRange(2, 1, aba.getLastRow() - 1, 12).getValues();
+  var por_campanha = {};
+
+  for (var i = 0; i < raw.length; i++) {
+    var r        = raw[i];
+    if (!r[0]) continue;
+    var campanha = String(r[5] || 'sem_campanha').trim(); // col F: utm_campaign
+    var status   = String(r[8] || '').trim();             // col I: status_final
+    var motivo   = String(r[9] || '').trim();             // col J: motivo_desq
+
+    if (!por_campanha[campanha]) {
+      por_campanha[campanha] = { total: 0, convertidos: 0, desqualificados: 0, pendentes: 0, motivos: {} };
+    }
+    por_campanha[campanha].total++;
+    if (status === 'Converteu') {
+      por_campanha[campanha].convertidos++;
+    } else if (status === 'Desqualificado') {
+      por_campanha[campanha].desqualificados++;
+      if (motivo) {
+        por_campanha[campanha].motivos[motivo] = (por_campanha[campanha].motivos[motivo] || 0) + 1;
+      }
+    } else {
+      por_campanha[campanha].pendentes++;
+    }
+  }
+
+  return { por_campanha: por_campanha };
+}
+
+function _buildDiagnosisPrompt_(insights, leadsData) {
+  var ctx = [
+    'Você é Claude Ads, um gestor de tráfego pago sênior especializado em provedores de internet/fibra óptica.',
+    'Analise os dados abaixo e escreva um diagnóstico real da operação de Meta Ads da Mobile Digital,',
+    'uma revenda oficial Vero Internet com base em Juiz de Fora (MG).',
+    '',
+    'CONTEXTO DO NEGÓCIO:',
+    '- Ticket médio de venda (franquia): R$313/venda instalada',
+    '- CPA máximo aceitável: R$120. CPA meta de excelência: R$80.',
+    '- CPL máximo: R$30 — pausar se ultrapassar com mais de R$100 gastos',
+    '- CTR mínimo: 0,5% — pausar se abaixo com mais de R$20 gastos',
+    '- Frequência máxima: 4,0× — indica saturação de público',
+    '- Regra de escala: +20% por semana quando CPA < R$80 por 5 dias consecutivos',
+    '- Abril é estruturalmente o mês de menor volume do ano — não é problema, é sazonalidade',
+    '- Campanhas mapeadas: A — JF Principal (60% do budget), B — Órbita JF (15%), C — BH Metro (15%)',
+    '- Plano prioritário: Oferta Verão 800MB + Globoplay + Max + Chip 60GB por R$149,90/mês',
+    '- Benchmarks saudáveis do setor: CPL R$12–18, CTR 1,0–1,5%, CPA R$60–80',
+    ''
+  ].join('\n');
+
+  var metaTxt = 'DADOS REAIS DA META (últimos 7 dias — ' + insights.desde + ' a ' + insights.ate + '):\n';
+  var camps   = insights.campanhas || [];
+  if (camps.length === 0) {
+    metaTxt += '(Nenhuma campanha com dados no período)\n';
+  } else {
+    for (var i = 0; i < camps.length; i++) {
+      var c = camps[i];
+      metaTxt += '\n' + c.campaign_name + ':\n';
+      metaTxt += '  Gasto: R$' + c.gasto.toFixed(2);
+      metaTxt += ' | Impressões: ' + c.impressoes;
+      metaTxt += ' | Cliques: ' + c.cliques;
+      metaTxt += ' | CTR: ' + c.ctr.toFixed(2) + '%';
+      metaTxt += ' | CPM: R$' + c.cpm.toFixed(2);
+      metaTxt += ' | Frequência: ' + c.freq.toFixed(1) + 'x\n';
+      metaTxt += '  Leads (Meta): ' + c.leads;
+      metaTxt += ' | CPL: ' + (c.cpl !== null ? 'R$' + c.cpl.toFixed(2) : 'N/A (sem leads)') + '\n';
+    }
+  }
+
+  var crmTxt = '\nDADOS DO CRM — Leads Meta Ads (aba "Leads Meta Ads", acumulado):\n';
+  var pCamp  = leadsData.por_campanha || {};
+  var keys   = Object.keys(pCamp);
+  if (keys.length === 0) {
+    crmTxt += '(Nenhum lead registrado no CRM ainda)\n';
+  } else {
+    for (var j = 0; j < keys.length; j++) {
+      var camp  = keys[j];
+      var d     = pCamp[camp];
+      var taxaC = d.total > 0 ? ((d.convertidos / d.total) * 100).toFixed(1) : '0';
+      var taxaD = d.total > 0 ? ((d.desqualificados / d.total) * 100).toFixed(1) : '0';
+      crmTxt += '\nCampanha "' + camp + '":\n';
+      crmTxt += '  Total: ' + d.total;
+      crmTxt += ' | Convertidos: ' + d.convertidos + ' (' + taxaC + '%)';
+      crmTxt += ' | Desqualificados: ' + d.desqualificados + ' (' + taxaD + '%)';
+      crmTxt += ' | Pendentes: ' + d.pendentes + '\n';
+      var mKeys = Object.keys(d.motivos);
+      if (mKeys.length > 0) {
+        mKeys.sort(function(a, b) { return d.motivos[b] - d.motivos[a]; });
+        var top3 = mKeys.slice(0, 3).map(function(m) { return m + ' (' + d.motivos[m] + ')'; });
+        crmTxt += '  Top motivos desq: ' + top3.join(', ') + '\n';
+      }
+    }
+  }
+
+  var instrucao = [
+    '\n---',
+    'Escreva um diagnóstico direto, sem markdown, sem títulos com hashtag, sem listas com traço.',
+    'Use parágrafos separados por linha em branco. Tom direto de gestor de tráfego sênior que está',
+    'olhando para esses números agora. Inclua: o que está funcionando e por quê; o que está com',
+    'problema e qual a causa provável; o que fazer concretamente nos próximos 7 dias campanha por campanha.',
+    'Se o contexto de abril/sazonalidade for relevante, mencione. Máximo 700 palavras. Em português.'
+  ].join('\n');
+
+  return ctx + metaTxt + crmTxt + instrucao;
+}
+
+function _callClaudeApiDiag_(key, prompt, maxTokens) {
+  var url     = 'https://api.anthropic.com/v1/messages';
+  var bodyObj = {
+    model: 'claude-sonnet-4-6',
+    max_tokens: parseInt(maxTokens, 10) > 0 ? parseInt(maxTokens, 10) : 1500,
+    messages: [{ role: 'user', content: prompt }]
+  };
+  var options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01'
+    },
+    payload: JSON.stringify(bodyObj),
+    muteHttpExceptions: true
+  };
+
+  var resp = UrlFetchApp.fetch(url, options);
+  var code = resp.getResponseCode();
+  var json = JSON.parse(resp.getContentText());
+
+  if (code !== 200) {
+    var errMsg = json && json.error ? json.error.message : 'HTTP ' + code;
+    throw new Error('Claude API: ' + errMsg);
+  }
+  if (!json.content || !json.content[0] || !json.content[0].text) {
+    throw new Error('Claude API retornou resposta inesperada.');
+  }
+
+  return json.content[0].text;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RELATÓRIO DIÁRIO DO DIAGNÓSTICO ADS
+// Snapshot rolling de 7 dias gravado todo dia às 07h em "Diagnostico Ads Diario"
+// ═══════════════════════════════════════════════════════════════════════════
+
+var ABA_RELATORIO_ADS = 'Diagnostico Ads Diario';
+
+/**
+ * Entrypoint do trigger diário e da chamada manual no editor.
+ * Reusa o pipeline do botão Diagnosticar (Meta + CRM) e gera um resumo curto
+ * (~500 chars) via Claude API, persistindo na aba "Diagnostico Ads Diario".
+ */
+function gerarRelatorioDiarioAds() {
+  try {
+    var props     = PropertiesService.getScriptProperties();
+    var token     = props.getProperty('META_ACCESS_TOKEN');
+    var claudeKey = props.getProperty('CLAUDE_API_KEY');
+    if (!token)     throw new Error('META_ACCESS_TOKEN não configurado.');
+    if (!claudeKey) throw new Error('CLAUDE_API_KEY não configurada.');
+
+    var insights  = _fetchMetaInsightsParaDiag_(token);
+    var leadsData = _fetchLeadsCrmParaDiag_();
+    var prompt    = _buildDiagnosisPromptResumo_(insights, leadsData);
+    var resumo    = _callClaudeApiDiag_(claudeKey, prompt, 350);
+    var agg       = _calcularAgregadosDiarios_(insights, leadsData);
+
+    var tz   = Session.getScriptTimeZone();
+    var hoje = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+
+    _gravarRelatorioDiarioAds_(hoje, agg, resumo, insights.campanhas || []);
+    Logger.log('gerarRelatorioDiarioAds ok — ' + hoje);
+    return { ok: true, data: hoje };
+  } catch (e) {
+    Logger.log('gerarRelatorioDiarioAds erro: ' + e.message);
+    return { ok: false, erro: e.message };
+  }
+}
+
+
+/**
+ * Variante curta do _buildDiagnosisPrompt_: pede um parágrafo único de até
+ * ~500 caracteres em português, sem markdown.
+ */
+function _buildDiagnosisPromptResumo_(insights, leadsData) {
+  var ctx = [
+    'Você é Claude Ads, gestor de tráfego sênior da Mobile Digital (revenda Vero Internet em Juiz de Fora/MG).',
+    '',
+    'CONTEXTO:',
+    '- Ticket médio: R$313/venda. CPA máximo: R$120. CPA meta: R$80.',
+    '- CPL máximo: R$30. CTR mínimo: 0,5%. Frequência máxima: 4,0×.',
+    '- Abril é mês estruturalmente fraco — sazonalidade.',
+    '- Campanhas: A — JF Principal (60%), B — Órbita JF (15%), C — BH Metro (15%).',
+    ''
+  ].join('\n');
+
+  var metaTxt = 'META (últimos 7 dias — ' + insights.desde + ' a ' + insights.ate + '):\n';
+  var camps   = (insights.campanhas || []).filter(function(c) { return parseFloat(c.gasto || 0) > 0; });
+  if (camps.length === 0) {
+    metaTxt += '(sem campanhas ativas no período)\n';
+  } else {
+    for (var i = 0; i < camps.length; i++) {
+      var c = camps[i];
+      metaTxt += c.campaign_name + ': R$' + c.gasto.toFixed(2) +
+                 ' | ' + c.leads + ' leads | CPL ' +
+                 (c.cpl !== null ? 'R$' + c.cpl.toFixed(2) : 'N/A') +
+                 ' | CTR ' + c.ctr.toFixed(2) + '% | freq ' + c.freq.toFixed(1) + 'x\n';
+    }
+  }
+
+  var crmTxt = '\nCRM (acumulado por campanha):\n';
+  var pCamp  = leadsData.por_campanha || {};
+  var keys   = Object.keys(pCamp);
+  if (keys.length === 0) {
+    crmTxt += '(sem leads registrados)\n';
+  } else {
+    for (var j = 0; j < keys.length; j++) {
+      var k = keys[j], d = pCamp[k];
+      var taxa = d.total > 0 ? ((d.convertidos / d.total) * 100).toFixed(1) : '0';
+      crmTxt += k + ': ' + d.total + ' leads, ' + d.convertidos + ' conv (' + taxa + '%), ' +
+                d.desqualificados + ' desq, ' + d.pendentes + ' pend\n';
+    }
+  }
+
+  var instrucao = [
+    '\n---',
+    'Escreva UM parágrafo único, em português, MÁXIMO 500 CARACTERES,',
+    'sem markdown, sem hashtags, sem listas. Foque em: estado atual,',
+    'principal alavanca de melhoria e alerta urgente (se houver).'
+  ].join('\n');
+
+  return ctx + metaTxt + crmTxt + instrucao;
+}
+
+
+/**
+ * Helper puro: agrega totais sobre insights.campanhas + leadsData.por_campanha.
+ * Sem I/O — fácil de testar.
+ */
+function _calcularAgregadosDiarios_(insights, leadsData) {
+  var camps = (insights && insights.campanhas) || [];
+  var gasto = 0, leadsMeta = 0, impr = 0, cliques = 0;
+  var ctrPond = 0, cpmPond = 0;
+
+  for (var i = 0; i < camps.length; i++) {
+    var c = camps[i];
+    gasto     += parseFloat(c.gasto     || 0);
+    leadsMeta += parseFloat(c.leads     || 0);
+    impr      += parseInt  (c.impressoes|| 0, 10);
+    cliques   += parseInt  (c.cliques   || 0, 10);
+    ctrPond   += parseFloat(c.ctr || 0) * parseInt(c.impressoes || 0, 10);
+    cpmPond   += parseFloat(c.cpm || 0) * parseInt(c.impressoes || 0, 10);
+  }
+
+  var ctrMedio = impr > 0 ? ctrPond / impr : 0;
+  var cpmMedio = impr > 0 ? cpmPond / impr : 0;
+  var cplMedio = leadsMeta > 0 ? gasto / leadsMeta : 0;
+
+  var pCamp = (leadsData && leadsData.por_campanha) || {};
+  var leadsCrm = 0, conv = 0;
+  Object.keys(pCamp).forEach(function(k) {
+    leadsCrm += parseInt(pCamp[k].total       || 0, 10);
+    conv     += parseInt(pCamp[k].convertidos || 0, 10);
+  });
+
+  var cpaReal       = conv > 0 ? gasto / conv : 0;
+  var taxaConversao = leadsCrm > 0 ? conv / leadsCrm : 0;
+
+  return {
+    gasto_7d:        gasto,
+    leads_meta_7d:   leadsMeta,
+    leads_crm_total: leadsCrm,
+    cpl_medio:       cplMedio,
+    ctr_medio:       ctrMedio,
+    cpm_medio:       cpmMedio,
+    impressoes_7d:   impr,
+    cliques_7d:      cliques,
+    conversoes_crm:  conv,
+    cpa_real:        cpaReal,
+    taxa_conversao:  taxaConversao
+  };
+}
+
+
+/**
+ * Persiste a linha do dia em "Diagnostico Ads Diario".
+ * Idempotente: se já existir linha com data == dataHoje, atualiza em vez de duplicar.
+ * Cria a aba com cabeçalhos na primeira execução.
+ */
+function _gravarRelatorioDiarioAds_(dataHoje, agg, resumo, campanhas) {
+  var ss  = _getSpreadsheet_();
+  var aba = ss.getSheetByName(ABA_RELATORIO_ADS);
+  if (!aba) {
+    aba = ss.insertSheet(ABA_RELATORIO_ADS);
+    aba.getRange(1, 1, 1, 15).setValues([[
+      'data', 'gasto_7d', 'leads_meta_7d', 'leads_crm_total', 'cpl_medio',
+      'ctr_medio', 'cpm_medio', 'impressoes_7d', 'cliques_7d', 'conversoes_crm',
+      'cpa_real', 'taxa_conversao', 'resumo_curto', 'campanhas_json', 'gerado_em'
+    ]]);
+    aba.getRange(1, 1, 1, 15).setFontWeight('bold');
+    aba.setFrozenRows(1);
+  }
+
+  var resumoTrunc = String(resumo || '').substring(0, 500);
+  var campJson    = JSON.stringify(campanhas || []);
+  var geradoEm    = new Date().toISOString();
+
+  var linha = [
+    dataHoje,
+    agg.gasto_7d, agg.leads_meta_7d, agg.leads_crm_total, agg.cpl_medio,
+    agg.ctr_medio, agg.cpm_medio, agg.impressoes_7d, agg.cliques_7d, agg.conversoes_crm,
+    agg.cpa_real, agg.taxa_conversao, resumoTrunc, campJson, geradoEm
+  ];
+
+  var ult = aba.getLastRow();
+  if (ult >= 2) {
+    var datas = aba.getRange(2, 1, ult - 1, 1).getValues();
+    for (var i = 0; i < datas.length; i++) {
+      var existente = datas[i][0];
+      var asStr;
+      if (existente instanceof Date) {
+        asStr = Utilities.formatDate(existente, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else {
+        asStr = String(existente || '').trim();
+      }
+      if (asStr === dataHoje) {
+        aba.getRange(i + 2, 1, 1, 15).setValues([linha]);
+        return;
+      }
+    }
+  }
+  aba.appendRow(linha);
+}
+
+
+/**
+ * Lê as últimas N linhas da aba "Diagnostico Ads Diario" e retorna como JSON
+ * para o Dashboard. Padrão idêntico a getIndicacoes().
+ */
+function getRelatorioAdsHistorico(dias) {
+  try {
+    var n = parseInt(dias, 10);
+    if (!n || n < 1) n = 30;
+    if (n > 365) n = 365;
+
+    var ss  = _getSpreadsheet_();
+    var aba = ss.getSheetByName(ABA_RELATORIO_ADS);
+    if (!aba || aba.getLastRow() < 2) return { ok: true, rows: [] };
+
+    var ult   = aba.getLastRow();
+    var total = ult - 1;
+    var take  = Math.min(total, n);
+    var raw   = aba.getRange(ult - take + 1, 1, take, 15).getValues();
+
+    var tz = Session.getScriptTimeZone();
+    var rows = [];
+    for (var i = 0; i < raw.length; i++) {
+      var r = raw[i];
+      if (!r[0]) continue;
+      var dataStr;
+      if (r[0] instanceof Date) {
+        dataStr = Utilities.formatDate(r[0], tz, 'yyyy-MM-dd');
+      } else {
+        dataStr = String(r[0]).trim();
+      }
+      rows.push({
+        data:            dataStr,
+        gasto_7d:        parseFloat(r[1])  || 0,
+        leads_meta_7d:   parseFloat(r[2])  || 0,
+        leads_crm_total: parseFloat(r[3])  || 0,
+        cpl_medio:       parseFloat(r[4])  || 0,
+        ctr_medio:       parseFloat(r[5])  || 0,
+        cpm_medio:       parseFloat(r[6])  || 0,
+        impressoes_7d:   parseInt  (r[7], 10) || 0,
+        cliques_7d:      parseInt  (r[8], 10) || 0,
+        conversoes_crm:  parseInt  (r[9], 10) || 0,
+        cpa_real:        parseFloat(r[10]) || 0,
+        taxa_conversao:  parseFloat(r[11]) || 0,
+        resumo_curto:    String(r[12] || ''),
+        gerado_em:       String(r[14] || '')
+      });
+    }
+    return { ok: true, rows: rows };
+  } catch (e) {
+    Logger.log('getRelatorioAdsHistorico erro: ' + e.message);
+    return { ok: false, erro: e.message, rows: [] };
+  }
+}
+
+
+/**
+ * Setup manual do trigger diário (07h00). Rodar uma vez no editor Apps Script.
+ * Espelha configurarTriggerWarmup() em Code.js.
+ */
+function configurarTriggerRelatorioDiarioAds() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'gerarRelatorioDiarioAds') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger('gerarRelatorioDiarioAds')
+    .timeBased()
+    .atHour(7)
+    .everyDays(1)
+    .create();
+  Logger.log('Trigger diário criado: gerarRelatorioDiarioAds @ 07h');
+}
+
+function removerTriggerRelatorioDiarioAds() {
+  var triggers = ScriptApp.getProjectTriggers();
+  var n = 0;
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'gerarRelatorioDiarioAds') {
+      ScriptApp.deleteTrigger(triggers[i]);
+      n++;
+    }
+  }
+  Logger.log('Triggers removidos: ' + n);
 }

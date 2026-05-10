@@ -222,7 +222,16 @@ Observacoes importantes:
 
 - `MetaAdsAPI.js` registra leads na aba `Leads Meta Ads`;
 - esta aba e parte operacional do rastreio de origem e conversao;
-- usada como ponte para analise posterior de desempenho real.
+- usada como ponte para analise posterior de desempenho real;
+- a partir de 30/04/2026 inclui o **relatorio diario do diagnostico** (`gerarRelatorioDiarioAds_`)
+  que roda via trigger time-based as 07h e grava na aba `Diagnostico Ads Diario`
+  um snapshot de KPIs + resumo curto (~500 chars) gerado pela Claude API;
+- o setup do trigger e MANUAL: rodar `configurarTriggerRelatorioDiarioAds()` UMA VEZ
+  no editor Apps Script. A funcao e idempotente — pode ser re-executada com seguranca;
+- `getRelatorioAdsHistorico(dias)` e a funcao publica chamada via `google.script.run`
+  pela 4a aba `Meta Ads ✦` do Dashboard;
+- a aba `Diagnostico Ads Diario` e auto-criada na primeira execucao;
+- gravacao por data e idempotente: re-execucao no mesmo dia sobrescreve a linha.
 
 ### Parceiros PAP
 

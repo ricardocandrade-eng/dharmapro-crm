@@ -909,6 +909,109 @@ function _confirmarStatus3() {
     .salvarVenda(dados);
 }
 
+// Converte qualquer formato de data para DD/MM/AAAA
+function _fmtData(val) {
+  if (!val) return '';
+  var s = String(val).trim();
+  // Já está em DD/MM/AAAA
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+  // Formato yyyy-MM-dd
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    var p = s.substring(0,10).split('-');
+    return p[2] + '/' + p[1] + '/' + p[0];
+  }
+  // Tenta via Date
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return String(d.getDate()).padStart(2,'0') + '/' +
+           String(d.getMonth()+1).padStart(2,'0') + '/' +
+           d.getFullYear();
+  }
+  return s;
+}
+
+// ─── UI ───────────────────────────────────��────────────────────────────────
+function mostrarLoading(v) {
+  document.getElementById('loading').classList.toggle('ativo', v);
+}
+
+function _iniciais(nome) {
+  var partes = String(nome || '').trim().split(/[\s.]+/).filter(Boolean);
+  if (partes.length >= 2) return (partes[0][0] + partes[1][0]).toUpperCase();
+  return partes[0] ? partes[0].slice(0, 2).toUpperCase() : '??';
+}
+
+function mostrarToast(msg, tipo) {
+  tipo = tipo || 'success';
+  var t = document.createElement('div');
+  t.className = 'toast ' + tipo;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function () {
+    t.style.opacity = '0';
+    t.style.transform = 'translateX(110%)';
+    t.style.transition = 'all 0.3s';
+    setTimeout(function () { if (t.parentNode) t.remove(); }, 320);
+  }, 3200);
+}
+
+function setFieldError(id, msg) {
+  var g = document.getElementById('grp_' + id);
+  if (!g) return;
+  g.classList.add('error');
+  var e = g.querySelector('.err-msg');
+  if (e && msg) e.textContent = msg;
+}
+function clearFieldError(id) {
+  var g = document.getElementById('grp_' + id);
+  if (g) g.classList.remove('error');
+}
+
+// ─── SINCRONIZAÇÃO AO LOGAR ──────────────────���─────────────────────────────
+var _syncTimer = null;
+
+function _syncProgresso(pct, etapa) {
+  var bar  = document.getElementById('syncBar');
+  var pctEl= document.getElementById('syncPct');
+  var etEl = document.getElementById('syncEtapa');
+  if (bar)  bar.style.width  = pct + '%';
+  if (pctEl) pctEl.textContent = pct + '%';
+  if (etEl && etapa) etEl.textContent = etapa;
+}
+
+function _sincronizarAoLogar(nomeUsuario) {
+  // Entra no sistema IMEDIATAMENTE — sem tela de carregamento bloqueante
+  document.getElementById('loginContainer').style.display = 'none';
+  document.getElementById('sistema').style.display = 'flex';
+  document.getElementById('rodapeSistema').style.display = 'flex';
+  mostrarToast('Bem-vindo, ' + nomeUsuario + '!', 'success');
+  navegar('dash');
+  setTimeout(_verificarTravaPosLogin, 1000);
+
+  // Prefetch silencioso em background — popula _dadosListaCache sem bloquear
+  // Quando o usuário navegar para a Lista, os dados já estão prontos (0ms)
+  google.script.run
+    .withSuccessHandler(function(res) {
+      try {
+        if (!res) return;
+        if (res.contratos) _dadosSincronizados = res.contratos;
+        if (res.vendas && res.vendas.dados && res.vendas.dados.length > 0) {
+          _dadosListaCache    = res.vendas.dados;
+          _dadosListaTotal    = res.vendas.dados.length;
+          _dadosTotalServidor = res.vendas.totalGeral || res.vendas.dados.length;
+        }
+      } catch(e) {}
+    })
+    .withFailureHandler(function() { /* silencioso — sem impacto no usuário */ })
+    .getSincronizacaoInicial();
+
+  // Polling de alertas PAP — atualiza badge do menu a cada 60s
+  _pollPendentes();
+  setInterval(_pollPendentes, 60000);
+
+  // Sino de alertas internos — inicializa para todos os usuários
+  inicializarSino();
+}
 
 var PAP_ALERT_KEYS = {
   alerted: 'dharmapro_pap_last_alerted_id',
@@ -1028,6 +1131,134 @@ function abrirFilaPAPAlert() {
   }, 450);
 }
 
+function _pollPendentes() {
+  google.script.run
+    .withSuccessHandler(function(res) {
+      try {
+        _papAtualizarMenuFila(res);
+
+        var latest = res && res.ultimaPreVenda;
+        var latestId = latest && latest.id ? String(latest.id) : '';
+        if (!_papAlertBootstrapped) {
+          if (latestId) {
+            _papLsSet(PAP_ALERT_KEYS.alerted, latestId);
+            if (!_papLsGet(PAP_ALERT_KEYS.seen)) _papLsSet(PAP_ALERT_KEYS.seen, latestId);
+          }
+          _papAtualizarMenuFila(res);
+          _papAlertBootstrapped = true;
+          return;
+        }
+
+        var alertedId = _papLsGet(PAP_ALERT_KEYS.alerted);
+        if (latestId && latestId !== alertedId) {
+          _papLsSet(PAP_ALERT_KEYS.alerted, latestId);
+          _papMostrarAlertaPreVenda(latest);
+        }
+      } catch(e) {}
+    })
+    .withFailureHandler(function() { /* silencioso */ })
+    .listarPendentes();
+}
+
+// ─── AUTH ──────────────────────────────────────────────────────────────────
+function fazerLogin() {
+  var usuario  = document.getElementById('loginUsuario').value.trim();
+  var senha    = document.getElementById('loginSenha').value;
+  var errDiv   = document.getElementById('loginError');
+  var btnLogin = document.getElementById('btnLogin');
+  errDiv.style.display = 'none';
+  if (!usuario || !senha) {
+    errDiv.textContent = 'Preencha usuário e senha.';
+    errDiv.style.display = 'block';
+    return;
+  }
+  mostrarLoading(true);
+  btnLogin.disabled = true;
+  google.script.run
+    .withSuccessHandler(function (res) {
+      mostrarLoading(false);
+      btnLogin.disabled = false;
+      if (res.autorizado) {
+        AppState.set('nomeUsuario', res.nome || usuario);
+        document.getElementById('nomeUsuario').textContent = res.nome || usuario;
+
+        // Avatar: foto do usuário ou iniciais como fallback
+        var avatarEl = document.getElementById('userAvatar');
+        if (avatarEl) {
+          if (res.foto) {
+            var img = document.createElement('img');
+            img.src = res.foto;
+            img.alt = res.nome || usuario;
+            img.onerror = function() {
+              // Se foto falhar, exibe iniciais
+              avatarEl.innerHTML = '<span class="initials">' + _iniciais(res.nome || usuario) + '</span>';
+            };
+            avatarEl.innerHTML = '';
+            avatarEl.appendChild(img);
+          } else {
+            avatarEl.innerHTML = '<span class="initials">' + _iniciais(res.nome || usuario) + '</span>';
+          }
+        }
+
+        AppState.set('perfil', res.perfil || 'backoffice');
+        var roleEl = document.getElementById('userRole');
+        if (roleEl) {
+          var _rl = { admin: 'Admin', supervisor: 'Supervisor', backoffice: 'Backoffice' };
+          roleEl.textContent = _rl[res.perfil] || (res.perfil || 'Operador');
+        }
+        _aplicarMenus(res.menus || []);
+        _carregarResponsaveis();
+        // Badge pendentes Leads Meta Ads
+        google.script.run
+          .withSuccessHandler(function(n) { _lmaAtualizarBadge(n); })
+          .withFailureHandler(function() {})
+          .contarLeadsMetaAdsPendentes();
+
+        // ─── Salva sessão para auto-login no F5 (nunca armazena a senha) ──
+        try {
+          sessionStorage.setItem('crm_usuario', usuario);
+          sessionStorage.setItem('crm_nome', res.nome || usuario);
+        } catch(e) {}
+
+        _sincronizarAoLogar(res.nome || usuario);
+
+        // Detectar retorno do bookmarklet (?vh=ok) → ir direto para Configurações
+        try {
+          if (typeof VH_OK !== 'undefined' && VH_OK === 'true') {
+            setTimeout(function() {
+              navegar('config');
+              mostrarToast('✅ VeroHub conectado com sucesso!', 'success');
+            }, 800);
+          }
+        } catch(e) {}
+
+      } else {
+        errDiv.textContent = res.mensagem || 'Credenciais inválidas.';
+        errDiv.style.display = 'block';
+        document.getElementById('loginSenha').value = '';
+        document.getElementById('loginSenha').focus();
+      }
+    })
+    .withFailureHandler(function () {
+      mostrarLoading(false);
+      btnLogin.disabled = false;
+      errDiv.textContent = 'Erro de conexão.';
+      errDiv.style.display = 'block';
+    })
+    .validarLogin(usuario, senha);
+}
+
+function sair() {
+  if (confirm('Deseja realmente sair?')) {
+    try {
+      sessionStorage.removeItem('crm_usuario');
+      sessionStorage.removeItem('crm_nome');
+    } catch(e) {}
+    location.reload();
+  }
+}
+
+// ─── ALTERAR SENHA ──────────────────────────────────────────────────────────
 function abrirModalSenha() {
   document.getElementById('senhaAtual').value      = '';
   document.getElementById('senhaNova').value       = '';
@@ -1106,6 +1337,847 @@ function confirmarAlteracaoSenha() {
     .alterarSenha(usuario, atual, nova);
 }
 
+// ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios']; // default: tudo
+
+var _menuMap = {
+  'dash':        'menuDash',
+  'formulario':  'menuNovo',
+  'lista':       'menuLista',
+  'funil':       'menuFunil',
+  'leads':       'menuLeads',
+  'pap':         'menuPAP',
+  'filaPAP':     'menuFilaPAP',
+  'metaads':     'menuLeadsMetaAds',
+  'indicacao':   'menuIndicacoes',
+  'docs':        'menuDocs',
+  'cruzamento':  'menuCruzamento',
+  'tickets':     'menuTickets',
+  'extrato':     'menuExtrato',
+  'config':      'menuConfig',
+  'disparos':    'menuDisparos',
+  'usuarios':    'menuUsuarios'
+};
+
+function _aplicarMenus(menus) {
+  _menusPermitidos = menus && menus.length ? menus : Object.keys(_menuMap);
+  Object.keys(_menuMap).forEach(function(pagina) {
+    var el = document.getElementById(_menuMap[pagina]);
+    if (!el) return;
+    el.style.display = _menusPermitidos.indexOf(pagina) > -1 ? '' : 'none';
+  });
+}
+
+function _podeAcessar(pagina) {
+  return _menusPermitidos.indexOf(pagina) > -1;
+}
+
+// ─── NAVEGAÇÃO ─────────────────────────────────────────────────────────────
+function navegar(pagina) {
+  // Bloqueia acesso a páginas não permitidas para o perfil
+  if (!_podeAcessar(pagina)) {
+    mostrarToast('⛔ Você não tem permissão para acessar esta página.', 'error');
+    return;
+  }
+  document.querySelectorAll('.nav-item').forEach(function (m) { m.classList.remove('ativo'); });
+  document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('ativa'); });
+
+  if (pagina === 'dash') {
+    document.getElementById('menuDash').classList.add('ativo');
+    document.getElementById('pageDash').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Dashboard';
+    var container = document.getElementById('dashContainer');
+    if (!container.getAttribute('data-loaded')) {
+      container.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          if (!html) {
+            container.innerHTML = '<div style="padding:60px;text-align:center;color:#ff4570;font-family:monospace">Erro: HTML vazio</div>';
+            return;
+          }
+          // Dashboard.html já vem sem html/head/body e com CSS escopado em #dashContainer
+          container.innerHTML = html;
+          // Executa o script inline do dashboard
+          container.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+        })
+        .withFailureHandler(function(err) {
+          container.innerHTML = '<div style="padding:60px;text-align:center;color:#ff4570;font-family:monospace">Erro: ' + err.message + '</div>';
+        })
+        .getDashboardHtml();
+    }
+
+  } else if (pagina === 'formulario') {
+    var menuNovoEl = document.getElementById('menuNovo');
+    if (menuNovoEl) menuNovoEl.classList.add('ativo');
+    document.getElementById('pageFormulario').classList.add('ativa');
+    if (typeof wizInit === 'function') wizInit();
+    var ed = AppState.get('modoEdicao');
+    document.getElementById('breadcrumbTexto').textContent = ed ? 'Editando Venda' : 'Nova Venda';
+    document.getElementById('formTitulo').textContent      = ed ? 'Editar Cadastro' : 'Novo Cadastro';
+    document.getElementById('formSubtitulo').textContent   = ed ? 'Atualize os dados e salve' : 'Preencha os dados do cliente e do plano';
+    if (!ed) limparFormulario();
+    else {
+      _atualizarBloqueioStatusForm(true);
+      _carregarResponsaveis(); // Atualiza lista de vendedores ao abrir edição
+    }
+
+  } else if (pagina === 'lista') {
+    document.getElementById('menuLista').classList.add('ativo');
+    document.getElementById('pageLista').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Lista de Vendas';
+    carregarVendas(1, '');
+    // Sincroniza etiquetas BotConversa em background (gate de 30 min no servidor)
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (res && res.sucesso && res.atualizados > 0) {
+          // Invalida cache local do JS para forçar busca fresca do servidor
+          _dadosListaCache = null;
+          _dadosListaTotal = 0;
+          carregarVendas(1, '');
+        }
+      })
+      .sincronizarTagsBotConversa(false);
+
+  } else if (pagina === 'funil') {
+    document.getElementById('menuFunil').classList.add('ativo');
+    document.getElementById('pageFunil').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Funil de Instalações';
+    carregarFunil();
+
+  } else if (pagina === 'leads') {
+    document.getElementById('menuLeads').classList.add('ativo');
+    document.getElementById('pageLeads').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Tratamento de Leads';
+    carregarLeads();
+
+  } else if (pagina === 'pap') {
+    document.getElementById('menuPAP').classList.add('ativo');
+    document.getElementById('pagePAP').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Pagamentos PAP';
+    carregarPAP();
+
+  } else if (pagina === 'metaads') {
+    document.getElementById('menuLeadsMetaAds').classList.add('ativo');
+    document.getElementById('pageLeadsMetaAds').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Leads Meta Ads';
+    carregarLeadsMetaAds();
+
+  } else if (pagina === 'painelads') {
+    document.getElementById('menuPainelAds').classList.add('ativo');
+    document.getElementById('pagePainelAds').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Painel Ads';
+    var pac = document.getElementById('painelAdsContainer');
+    pac.removeAttribute('data-loaded');
+    pac.innerHTML = '<div style="padding:40px;text-align:center;color:#8490b8;font-family:monospace">Carregando Painel Ads...</div>';
+    google.script.run
+      .withSuccessHandler(function(html) {
+        var modalOld = document.getElementById('paGuiaModal');
+        if (modalOld && modalOld.parentNode) modalOld.parentNode.removeChild(modalOld);
+        pac.innerHTML = html;
+        pac.setAttribute('data-loaded', '1');
+        pac.querySelectorAll('script').forEach(function(s) {
+          var ns = document.createElement('script');
+          ns.textContent = s.textContent;
+          document.body.appendChild(ns);
+        });
+        if (typeof paInit === 'function') paInit();
+      })
+      .withFailureHandler(function(e) {
+        pac.removeAttribute('data-loaded');
+        pac.innerHTML = '<div style="padding:40px;text-align:center;color:#ff4570;font-family:monospace">Erro ao carregar Painel Ads: ' + e.message + '</div>';
+      })
+      .getPainelAdsHtml();
+
+  } else if (pagina === 'indicacao') {
+    document.getElementById('menuIndicacoes').classList.add('ativo');
+    document.getElementById('pageIndicacoes').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Indicações';
+    carregarIndicacoes();
+
+  } else if (pagina === 'cruzamento') {
+    document.getElementById('menuCruzamento').classList.add('ativo');
+    document.getElementById('pageCruzamento').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Cruzamento Vero';
+
+  } else if (pagina === 'docs') {
+    document.getElementById('menuDocs').classList.add('ativo');
+    document.getElementById('pageDocs').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Documentos';
+    var dc = document.getElementById('docsContainer');
+    if (!dc.getAttribute('data-loaded')) {
+      dc.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          dc.innerHTML = html;
+          dc.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+        })
+        .withFailureHandler(function(e) {
+          dc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro: ' + e.message + '</div>';
+        })
+        .getDocsHtml();
+    }
+
+  } else if (pagina === 'config') {
+    document.getElementById('menuConfig').classList.add('ativo');
+    document.getElementById('pageConfig').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Configurações';
+    _carregarStatusVeroHub();
+    _verificarAdapterConfig();
+    _verificarNGConfig();
+
+  } else if (pagina === 'novaVenda') {
+    document.getElementById('breadcrumbTexto').textContent = 'Nova Venda';
+    var pageNV = document.getElementById('pageNovaVenda');
+    pageNV.classList.add('ativa');
+    if (!pageNV.getAttribute('data-loaded')) {
+      pageNV.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          var container = document.getElementById('novaVendaContainer');
+          container.innerHTML = html;
+          container.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+          // nvInit inicializa o wizard mas NÃO pode chamar google.script.run
+          // Responsáveis são carregados daqui, no escopo do Index (onde google.script.run funciona)
+          setTimeout(function() {
+            if (typeof nvAtualizarProgress === 'function') nvAtualizarProgress();
+            _nvCarregarResponsaveis();
+          }, 300);
+        })
+        .withFailureHandler(function(e) {
+          document.getElementById('novaVendaContainer').innerHTML =
+            '<div style="padding:40px;text-align:center;color:var(--accent);font-family:monospace;">Erro ao carregar: ' + e.message + '</div>';
+        })
+        .getNovaVendaHtml();
+    } else {
+      // Já carregado — reseta campos e wizard, recarrega responsáveis
+      _nvResetar();
+    }
+
+  } else if (pagina === 'tickets') {
+    document.getElementById('menuTickets').classList.add('ativo');
+    document.getElementById('pageTickets').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Tickets';
+    if (typeof carregarTickets === 'function') carregarTickets();
+
+  } else if (pagina === 'extrato') {
+    document.getElementById('menuExtrato').classList.add('ativo');
+    document.getElementById('pageExtrato').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Extrato Mensal';
+    var ec = document.getElementById('extratoContainer');
+    if (!ec.getAttribute('data-loaded')) {
+      ec.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          ec.innerHTML = html;
+          ec.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+        })
+        .withFailureHandler(function(e) {
+          ec.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Extrato: ' + e.message + '</div>';
+        })
+        .getExtratoHtml();
+    }
+
+  } else if (pagina === 'filaPAP') {
+    document.getElementById('menuFilaPAP').classList.add('ativo');
+    document.getElementById('pageFilaPAP').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Fila PAP';
+    var fpc = document.getElementById('filaPAPContainer');
+    if (!fpc.getAttribute('data-loaded')) {
+      fpc.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          fpc.innerHTML = html;
+          fpc.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+        })
+        .withFailureHandler(function(e) {
+          fpc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Fila PAP: ' + e.message + '</div>';
+        })
+        .getFilaPAPHtml();
+    } else {
+      // Já carregado — recarrega a lista ao voltar para a página
+      if (typeof fpRecarregar === 'function') fpRecarregar();
+    }
+
+  } else if (pagina === 'disparos') {
+    document.getElementById('menuDisparos').classList.add('ativo');
+    document.getElementById('pageDisparos').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Disparos em Massa';
+    var dpc = document.getElementById('disparosContainer');
+    if (!dpc.getAttribute('data-loaded')) {
+      dpc.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          dpc.innerHTML = html;
+          dpc.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+          if (typeof disparosInit === 'function') disparosInit();
+        })
+        .withFailureHandler(function(e) {
+          dpc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Disparos: ' + e.message + '</div>';
+        })
+        .getDisparosHtml();
+    }
+
+  } else if (pagina === 'usuarios') {
+    document.getElementById('menuUsuarios').classList.add('ativo');
+    document.getElementById('pageUsuarios').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Gerenciar Usuários';
+    var uc = document.getElementById('usuariosContainer');
+    if (!uc.getAttribute('data-loaded')) {
+      uc.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          uc.innerHTML = html;
+          uc.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+          if (typeof usuariosInit === 'function') usuariosInit();
+        })
+        .withFailureHandler(function(e) {
+          uc.removeAttribute('data-loaded');
+          uc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Usuários: ' + e.message + '</div>';
+        })
+        .getUsuariosHtml();
+    }
+  }
+}
+
+// Salva Status Pagamento PAP direto do painel lateral
+function _salvarStatusPAP(linha, selectEl) {
+  var novoStatus = selectEl.value;
+  var original   = selectEl.dataset.original || selectEl.value;
+  selectEl.dataset.original = selectEl.value;
+  selectEl.disabled = true;
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      selectEl.disabled = false;
+      if (res && res.sucesso) {
+        // Atualiza dado em memória na lista de vendas
+        var venda = AppState.get('vendaSelecionada');
+        if (venda) venda.statusPAP = novoStatus;
+        mostrarToast('✅ Status PAP atualizado: ' + (novoStatus || '—'), 'success');
+        // Invalida cache para que Pagamentos PAP recarregue corretamente
+      } else {
+        selectEl.value    = original;
+        selectEl.disabled = false;
+        mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
+      }
+    })
+    .withFailureHandler(function(err) {
+      selectEl.value    = original;
+      selectEl.disabled = false;
+      mostrarToast('❌ Falha: ' + err.message, 'error');
+    })
+    .salvarStatusPAP(linha, novoStatus);
+}
+
+
+function _carregarResponsaveis() {
+  google.script.run
+    .withSuccessHandler(function(res) {
+      var sel = document.getElementById('f_resp');
+      if (!sel) return;
+      var valorAtual = sel.value; // preserva valor se estiver editando
+      sel.innerHTML = '<option value="">Selecione...</option>';
+      if (res && !res.erro && res.lista) {
+        res.lista.forEach(function(nome) {
+          var opt = document.createElement('option');
+          opt.value = nome;
+          opt.textContent = nome;
+          sel.appendChild(opt);
+        });
+      } else {
+        // Fallback: campo livre se der erro
+        sel.innerHTML = '<option value="">Não foi possível carregar</option>';
+        Logger.log && Logger.log('Responsáveis: ' + (res ? res.mensagem : 'erro'));
+      }
+      if (valorAtual) sel.value = valorAtual;
+    })
+    .withFailureHandler(function() {
+      var sel = document.getElementById('f_resp');
+      if (sel) sel.innerHTML = '<option value="">Erro ao carregar</option>';
+    })
+    .getResponsaveis();
+}
+
+// ─── FORMULÁRIO ────────────────────────────────────────────────────────────
+function limparFormulario() {
+  document.getElementById('formVendas').reset();
+  document.getElementById('f_linha').value = '';
+  document.getElementById('cepHint').textContent = '';
+  AppState.set('modoEdicao', false);
+  CAMPOS_FORM.forEach(function (c) { clearFieldError(c); });
+  // Campos fixos no novo cadastro
+  var elStatus = document.getElementById('f_status');
+  if (elStatus) elStatus.value = '1- Conferencia/Ativação';
+  var elPAP = document.getElementById('f_statusPAP');
+  if (elPAP) elPAP.value = 'Em Aberto';
+  _atualizarBloqueioStatusForm(false);
+  if (typeof _wizResetar === 'function') _wizResetar();
+}
+
+function _atualizarBloqueioStatusForm(modoEdicao) {
+  var elStatus = document.getElementById('f_status');
+  var elPAP    = document.getElementById('f_statusPAP');
+  if (elStatus) {
+    elStatus.disabled       = !modoEdicao;
+    elStatus.style.opacity  = modoEdicao ? '' : '0.6';
+    elStatus.style.cursor   = modoEdicao ? '' : 'not-allowed';
+    elStatus.title          = modoEdicao ? '' : 'Status fixo em novo cadastro: 1- Conferencia/Ativação';
+  }
+  if (elPAP) {
+    elPAP.disabled      = !modoEdicao;
+    elPAP.style.opacity = modoEdicao ? '' : '0.6';
+    elPAP.style.cursor  = modoEdicao ? '' : 'not-allowed';
+    elPAP.title         = modoEdicao ? '' : 'Fixado como Em Aberto no novo cadastro';
+  }
+}
+
+function preencherFormulario(v) {
+  CAMPOS_FORM.forEach(function (campo) {
+    var el = document.getElementById('f_' + campo);
+    if (!el) return;
+    if (campo === 'resp') {
+      var existe = Array.from(el.options).some(function(o) { return o.value === (v[campo] || ''); });
+      if (!existe && v[campo]) {
+        var opt = document.createElement('option');
+        opt.value = v[campo]; opt.textContent = v[campo] + ' (atual)';
+        el.appendChild(opt);
+      }
+      el.value = v[campo] || '';
+    } else if (campo === 'venc') {
+      // Normaliza com zero à esquerda (planilha pode retornar "1" em vez de "01")
+      var vencVal = String(v[campo] || '').trim();
+      if (vencVal && vencVal.length === 1) vencVal = '0' + vencVal;
+      el.value = vencVal;
+    } else {
+      el.value = v[campo] || '';
+    }
+  });
+  if (!v.turno) document.getElementById('f_turno').value = 'Manhã (08h às 12h)';
+
+  // Recarrega planos se cidade e produto já estiverem preenchidos
+  if (v.cidade && v.produto) {
+    var selPlano = document.getElementById('f_plano');
+    var planoSalvo = v.plano || '';
+    if (selPlano) {
+      selPlano.disabled = true;
+      selPlano.innerHTML = '<option>⏳ Carregando...</option>';
+    }
+    google.script.run
+      .withSuccessHandler(function(d) {
+        if (!selPlano) return;
+        selPlano.disabled = false;
+        if (!d || d.erro || !d.planos || d.planos.length === 0) {
+          // Sem planos — insere o valor salvo como opção manual
+          selPlano.innerHTML = '<option value="">— Selecione o plano —</option>';
+          if (planoSalvo) {
+            var opt = document.createElement('option');
+            opt.value = planoSalvo; opt.textContent = planoSalvo + ' (atual)';
+            selPlano.appendChild(opt);
+            selPlano.value = planoSalvo;
+          }
+          return;
+        }
+        selPlano.innerHTML = '<option value="">— Selecione o plano —</option>';
+        d.planos.forEach(function(item) {
+          var opt = document.createElement('option');
+          if (item.indexOf('▶️') === 0) {
+            opt.value = ''; opt.disabled = true; opt.textContent = item;
+            opt.style.fontWeight = '700'; opt.style.color = '#a78bfa';
+          } else {
+            opt.value = item; opt.textContent = item;
+          }
+          selPlano.appendChild(opt);
+        });
+        // Reseleciona o plano salvo
+        if (planoSalvo) {
+          selPlano.value = planoSalvo;
+          // Se não encontrou exato, adiciona como opção manual
+          if (!selPlano.value) {
+            var opt = document.createElement('option');
+            opt.value = planoSalvo; opt.textContent = planoSalvo + ' (atual)';
+            selPlano.appendChild(opt);
+            selPlano.value = planoSalvo;
+          }
+        }
+      })
+      .withFailureHandler(function() {
+        if (!selPlano) return;
+        selPlano.disabled = false;
+        selPlano.innerHTML = '<option value="">— Erro ao carregar —</option>';
+        if (planoSalvo) {
+          var opt = document.createElement('option');
+          opt.value = planoSalvo; opt.textContent = planoSalvo + ' (atual)';
+          selPlano.appendChild(opt);
+          selPlano.value = planoSalvo;
+        }
+      })
+      .getPlanosPorCidadeProduto(v.cidade, v.produto);
+  }
+
+  var _bs = document.getElementById('wizBtnSave'); if (_bs) _bs.textContent = '🔄 Atualizar';
+  document.getElementById('formTitulo').textContent = 'Editar Cadastro';
+  AppState.set('modoEdicao', true);
+  _atualizarBloqueioStatusForm(true);
+  var elStatus = document.getElementById('f_status');
+  if (elStatus) {
+    elStatus.setAttribute('data-status-anterior', elStatus.value || '1- Conferencia/Ativação');
+    elStatus.removeEventListener('change', _onStatusChangeEdicao);
+    elStatus.addEventListener('change', _onStatusChangeEdicao);
+  }
+  AppState.set('vendaSelecionada', v);
+}
+
+// ─── CAMPOS OBRIGATÓRIOS — Aguardando Instalação ───────────────────────────
+var _CAMPOS_AG_INST = [
+  { fld: 'dataAtiv',  id: 'f_dataAtiv',  lbl: 'Data Ativação'          },
+  { fld: 'produto',   id: 'f_produto',   lbl: 'Produto'                 },
+  { fld: 'plano',     id: 'f_plano',     lbl: 'Plano'                   },
+  { fld: 'valor',     id: 'f_valor',     lbl: 'Valor'                   },
+  { fld: 'venc',      id: 'f_venc',      lbl: 'Vencimento'              },
+  { fld: 'fat',       id: 'f_fat',       lbl: 'Pagamento'               },
+  { fld: 'agenda',    id: 'f_agenda',    lbl: 'Data Agendamento'        },
+  { fld: 'turno',     id: 'f_turno',     lbl: 'Turno'                   },
+  { fld: 'contrato',  id: 'f_contrato',  lbl: 'ID Contrato / ID Móvel'  }
+];
+
+function _validarCamposAguardandoInstalacao() {
+  var faltando = [];
+  var venda = AppState.get('vendaSelecionada') || {};
+  _CAMPOS_AG_INST.forEach(function(c) {
+    var el = document.getElementById(c.id);
+    var valDom = el ? (el.value || '').trim() : '';
+    // Fallback: se o campo estiver oculto/vazio no DOM, verifica no AppState
+    var valState = String(venda[c.fld] || '').trim();
+    if (!valDom && !valState) faltando.push(c.lbl);
+  });
+  return faltando;
+}
+
+function _onStatusChangeEdicao() {
+  var elStatus = document.getElementById('f_status');
+  var val = this.value;
+  var vendaAtual = AppState.get('vendaSelecionada') || {};
+  if (val === '2- Aguardando Instalação') {
+    _fecharModalPendencias();
+    _abrirModalPendencias(vendaAtual);
+  } else if (val === '3 - Finalizada/Instalada') {
+    var faltando = _validarCamposAguardandoInstalacao();
+    if (faltando.length > 0) {
+      if (elStatus) elStatus.value = '2- Aguardando Instalação';
+      mostrarToast('⚠️ Preencha os campos de Aguardando Instalação antes de avançar.', 'warning');
+      _fecharModalPendencias();
+      _abrirModalPendencias(vendaAtual);
+      return;
+    }
+    if (elStatus) elStatus.setAttribute('data-status-anterior', val);
+    _fecharModalInstalacao();
+    _abrirModalInstalacao();
+  } else {
+    if (elStatus) elStatus.setAttribute('data-status-anterior', val);
+  }
+}
+
+// ─── MODAL INSTALAÇÃO (3 - Finalizada/Instalada) ──────────────────────────
+function _abrirModalInstalacao() {
+  if (document.getElementById('modalInstalacao')) return;
+  var overlay = document.createElement('div');
+  overlay.id = 'modalInstalacao';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:8000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML =
+    '<div style="background:var(--surface);border:1.5px solid var(--border2);border-radius:14px;width:100%;max-width:400px;box-shadow:0 24px 60px rgba(0,0,0,.5);">' +
+      '<div style="padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">' +
+        '<div><h3 style="font-size:15px;font-weight:700;color:var(--text);">📅 Data de Instalação</h3>' +
+        '<p style="font-size:12px;color:var(--muted);margin-top:3px;">Obrigatória para <span style="color:var(--green);font-weight:600;">3 - Finalizada/Instalada</span></p></div>' +
+        '<button onclick="_fecharModalInstalacao()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;padding:4px;">✕</button>' +
+      '</div>' +
+      '<div style="padding:20px 24px;">' +
+        '<div style="display:flex;flex-direction:column;gap:4px;">' +
+          '<label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;">Data Instalação <span style="color:var(--accent);">*</span></label>' +
+          '<input type="date" id="mp_instal" style="width:100%;padding:8px 10px;background:var(--surface2);border:1.5px solid var(--border);border-radius:7px;font-size:13px;color:var(--text);font-family:Sora,sans-serif;">' +
+          '<span id="mp_instal_err" style="font-size:11px;color:var(--accent);display:none;">Data de instalação é obrigatória.</span>' +
+        '</div>' +
+      '</div>' +
+      '<div style="padding:16px 24px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;">' +
+        '<button onclick="_fecharModalInstalacao()" style="padding:9px 18px;background:transparent;border:1.5px solid var(--border2);border-radius:8px;color:var(--muted);font-size:13px;font-family:Sora,sans-serif;cursor:pointer;">Cancelar</button>' +
+        '<button onclick="_confirmarModalInstalacao()" style="padding:9px 18px;background:var(--green);border:none;border-radius:8px;color:#0d0f14;font-size:13px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">✓ Confirmar</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+}
+function _fecharModalInstalacao() { var m = document.getElementById('modalInstalacao'); if (m) m.remove(); }
+function _confirmarModalInstalacao() {
+  var src = document.getElementById('mp_instal');
+  var err = document.getElementById('mp_instal_err');
+  if (!src || !src.value) { if (err) err.style.display = 'block'; if (src) { src.style.borderColor = 'var(--accent)'; src.focus(); } return; }
+  var dest = document.getElementById('f_instal');
+  if (dest) dest.value = src.value;
+  _fecharModalInstalacao();
+  mostrarToast('✅ Data de Instalação preenchida! Salvando...', 'success');
+  setTimeout(function() { salvar(); }, 300);
+}
+
+// ─── MODAL PENDÊNCIAS (2- Aguardando Instalação) ──────────────────────────
+function _abrirModalPendencias(v) {
+  if (document.getElementById('modalPendencias')) return;
+  var cidade = (document.getElementById('f_cidade') || {}).value || v.cidade || '';
+  var inputStyle = 'width:100%;padding:8px 10px;background:var(--surface2);border:1.5px solid var(--border);border-radius:7px;font-size:13px;color:var(--text);font-family:Sora,sans-serif;';
+  function _fldHtml(id, lbl, inputHtml) {
+    return '<div style="display:flex;flex-direction:column;gap:4px;">' +
+      '<label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;">' + lbl + ' <span style="color:var(--accent);">*</span></label>' +
+      inputHtml + '<span id="' + id + '_err" style="font-size:11px;color:var(--accent);display:none;">Campo obrigatório.</span></div>';
+  }
+  function _sel(id, opts, cur) {
+    return '<select id="' + id + '" style="' + inputStyle + '"><option value="">Selecione...</option>' +
+      opts.map(function(o){ return '<option value="'+esc(o)+'"'+(cur===o?' selected':'')+'>'+esc(o)+'</option>'; }).join('') + '</select>';
+  }
+  function _inp(id, tipo, cur, ph) {
+    return '<input type="'+tipo+'" id="'+id+'" value="'+esc(cur||'')+'"'+(ph?' placeholder="'+ph+'"':'')+' style="'+inputStyle+'">';
+  }
+  var fieldsHtml =
+    _fldHtml('mp_dataAtiv','Data Ativação', _inp('mp_dataAtiv','date',v.dataAtiv)) +
+    '<div style="display:flex;flex-direction:column;gap:4px;">' +
+      '<label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;">Produto <span style="color:var(--accent);">*</span></label>' +
+      '<select id="mp_produto" onchange="_mpOnProdutoChange()" style="'+inputStyle+'">' +
+        '<option value="">Selecione o produto...</option>' +
+        ['Fibra Alone','Fibra Combo','Móvel Combo','Móvel Alone'].map(function(o){ return '<option value="'+o+'"'+(v.produto===o?' selected':'')+'>'+o+'</option>'; }).join('') +
+      '</select>' +
+      '<span id="mp_produto_hint" style="font-size:10px;color:var(--muted);margin-top:3px;font-family:DM Mono,monospace;display:none;"></span>' +
+      '<span id="mp_produto_err" style="font-size:11px;color:var(--accent);display:none;">Campo obrigatório.</span></div>' +
+    '<div style="display:flex;flex-direction:column;gap:4px;">' +
+      '<label style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;">Plano <span style="color:var(--accent);">*</span></label>' +
+      '<select id="mp_plano" onchange="_mpOnPlanoChange()" style="'+inputStyle+'"><option value="">— Escolha o Produto primeiro —</option></select>' +
+      '<span id="mp_plano_err" style="font-size:11px;color:var(--accent);display:none;">Campo obrigatório.</span></div>' +
+    _fldHtml('mp_valor','Valor', _inp('mp_valor','text',v.valor,'R$ 0,00')) +
+    _fldHtml('mp_venc','Vencimento', _sel('mp_venc',['01','05','08','10','12','15','20','25'],v.venc)) +
+    _fldHtml('mp_fat','Pagamento', _sel('mp_fat',['Boleto Bancário','Cartão de Crédito','Pix Automático','Débito em Conta'],v.fat)) +
+    _fldHtml('mp_agenda','Data Agendamento', _inp('mp_agenda','date',v.agenda)) +
+    _fldHtml('mp_turno','Turno', _sel('mp_turno',['Manhã (08h às 12h)','Tarde (13h às 17h)'],v.turno)) +
+    _fldHtml('mp_contrato','ID Contrato / ID Móvel', _inp('mp_contrato','text',v.contrato,'Gerado no sistema'));
+  var overlay = document.createElement('div');
+  overlay.id = 'modalPendencias';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:8000;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML =
+    '<div style="background:var(--surface);border:1.5px solid var(--border2);border-radius:14px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.5);">' +
+      '<div style="padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">' +
+        '<div><h3 style="font-size:15px;font-weight:700;color:var(--text);">📋 Campos Pendentes</h3>' +
+        '<p style="font-size:12px;color:var(--muted);margin-top:3px;">Preencha os campos obrigatórios para <span style="color:var(--blue);font-weight:600;">2- Aguardando Instalação</span>' +
+        '</p></div>' +
+        '<button onclick="_fecharModalPendencias()" style="background:transparent;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1;padding:4px;">✕</button>' +
+      '</div>' +
+      '<div style="padding:20px 24px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">' + fieldsHtml + '</div>' +
+      '<div style="padding:16px 24px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;">' +
+        '<button onclick="_cancelarModalPendencias()" style="padding:9px 18px;background:transparent;border:1.5px solid var(--border2);border-radius:8px;color:var(--muted);font-size:13px;font-family:Sora,sans-serif;cursor:pointer;">Cancelar</button>' +
+        '<button onclick="_confirmarModalPendencias()" style="padding:9px 18px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;font-family:Sora,sans-serif;cursor:pointer;">✓ Confirmar e Preencher</button>' +
+      '</div></div>';
+  document.body.appendChild(overlay);
+  if (v.produto) setTimeout(function(){ _mpOnProdutoChange(v.plano); }, 200);
+}
+
+function _fecharModalPendencias() { var m = document.getElementById('modalPendencias'); if (m) m.remove(); }
+
+function _cancelarModalPendencias() {
+  _fecharModalPendencias();
+  var elStatus = document.getElementById('f_status');
+  if (elStatus) {
+    var anterior = elStatus.getAttribute('data-status-anterior') || '1- Conferencia/Ativação';
+    elStatus.value = anterior;
+  }
+  navegar('lista');
+}
+
+function _confirmarModalPendencias() {
+  var mapa = { mp_dataAtiv:'f_dataAtiv', mp_produto:'f_produto', mp_plano:'f_plano',
+    mp_valor:'f_valor', mp_venc:'f_venc', mp_fat:'f_fat',
+    mp_agenda:'f_agenda', mp_turno:'f_turno', mp_contrato:'f_contrato' };
+  var ok = true;
+  Object.keys(mapa).forEach(function(mpId) {
+    var el = document.getElementById(mpId); var err = document.getElementById(mpId+'_err');
+    if (!el) return;
+    if (!el.value || !el.value.trim()) {
+      ok = false; if (err) err.style.display = 'block'; el.style.borderColor = 'var(--accent)';
+      el.addEventListener('input', function(){ if(this.value.trim()){ this.style.borderColor=''; if(err) err.style.display='none'; } }, { once: true });
+    } else { if (err) err.style.display='none'; el.style.borderColor=''; }
+  });
+  if (!ok) { mostrarToast('⚠️ Preencha todos os campos obrigatórios.', 'warning'); return; }
+  Object.keys(mapa).forEach(function(mpId) {
+    var src = document.getElementById(mpId); var dest = document.getElementById(mapa[mpId]);
+    if (src && dest && src.value) dest.value = src.value;
+  });
+  _fecharModalPendencias();
+  // Salva imediatamente após preencher os campos
+  mostrarToast('✅ Campos preenchidos! Salvando...', 'success');
+  setTimeout(function() { salvar(); }, 300);
+}
+
+function _mpOnProdutoChange(planoAtual) {
+  var selProduto = document.getElementById('mp_produto');
+  var selPlano   = document.getElementById('mp_plano');
+  var hint       = document.getElementById('mp_produto_hint');
+  if (!selProduto || !selPlano) return;
+  var produto = selProduto.value;
+  var cidade  = (document.getElementById('f_cidade') || {}).value || '';
+  selPlano.innerHTML = '<option value="">— Escolha o Produto primeiro —</option>';
+  if (hint) { hint.style.display='none'; hint.textContent=''; }
+  if (!produto) return;
+  if (!cidade) { if (hint) { hint.textContent='⚠️ Cidade não encontrada.'; hint.style.color='var(--yellow)'; hint.style.display='block'; } return; }
+  if (hint) { hint.textContent='⏳ Carregando planos para '+produto+' em '+cidade+'...'; hint.style.color='var(--muted)'; hint.style.display='block'; }
+  selPlano.disabled=true; selPlano.innerHTML='<option>⏳ Carregando...</option>';
+  google.script.run
+    .withSuccessHandler(function(d) {
+      selPlano.disabled=false;
+      if (!d || d.erro || !d.planos || d.planos.length===0) {
+        selPlano.innerHTML='<option value="">— Nenhum plano encontrado —</option>';
+        if (hint) { hint.textContent='⚠️ Nenhum plano para '+produto+' em '+cidade; hint.style.color='var(--yellow)'; hint.style.display='block'; } return;
+      }
+      selPlano.innerHTML='<option value="">— Selecione o plano —</option>';
+      d.planos.forEach(function(item) {
+        var opt=document.createElement('option');
+        if (item.indexOf('▶️')===0) { opt.value=''; opt.disabled=true; opt.textContent=item; opt.style.fontWeight='700'; opt.style.color='#a78bfa'; }
+        else { opt.value=item; opt.textContent=item; }
+        selPlano.appendChild(opt);
+      });
+      if (planoAtual) selPlano.value=planoAtual;
+      var reais=d.planos.filter(function(p){ return p.indexOf('▶️')!==0; });
+      if (reais.length===1) { selPlano.value=reais[0]; _mpOnPlanoChange(); }
+      var qtd=reais.length;
+      if (hint) { hint.textContent='✅ '+qtd+' plano'+(qtd!==1?'s':'')+' em '+d.cidade; hint.style.color='var(--green)'; hint.style.display='block'; }
+    })
+    .withFailureHandler(function(err) {
+      selPlano.disabled=false; selPlano.innerHTML='<option value="">— Erro ao carregar —</option>';
+      if (hint) { hint.textContent='❌ '+(err&&err.message?err.message:'Erro'); hint.style.color='var(--accent)'; hint.style.display='block'; }
+    })
+    .getPlanosPorCidadeProduto(cidade, produto);
+}
+
+function _mpOnPlanoChange() {
+  var selPlano=document.getElementById('mp_plano'); var inpValor=document.getElementById('mp_valor');
+  if (!selPlano||!inpValor) return;
+  var texto=selPlano.value; if (!texto) return;
+  var partes=texto.split('|');
+  if (partes.length>=2) { var num=parseFloat(partes[partes.length-1].trim().replace(',','.')); if (!isNaN(num)) inpValor.value='R$ '+num.toFixed(2).replace('.',','); }
+}
+
+function coletarDados() {
+  var dados = { linhaReferencia: document.getElementById('f_linha').value };
+  CAMPOS_FORM.forEach(function (campo) {
+    if (campo === 'linha') return;
+    var el = document.getElementById('f_' + campo);
+    dados[campo] = el ? el.value.trim() : '';
+  });
+  if (dados.uf) dados.uf = dados.uf.toUpperCase();
+  // PAP sempre Em Aberto quando não definido
+  if (!dados.statusPAP) dados.statusPAP = 'Em Aberto';
+  return dados;
+}
+
+function validarFormulario(dados) {
+  var ok = true;
+  var camposBase = ['cliente','status','preStatus','cpf','canal','whats','resp',
+                    'cep','cidade','bairro','rua','num','uf','sistema','statusPAP'];
+  camposBase.forEach(function (f) { clearFieldError(f); });
+  if (!dados.cliente)   { setFieldError('cliente',   'Nome é obrigatório.');           ok = false; }
+  if (!dados.status)    { setFieldError('status',    'Selecione um status.');           ok = false; }
+  if (!dados.preStatus) { setFieldError('preStatus', 'Selecione o pré-status.');       ok = false; }
+  if (!dados.canal)     { setFieldError('canal',     'Selecione um canal.');            ok = false; }
+  if (!dados.whats)     { setFieldError('whats',     'WhatsApp é obrigatório.');        ok = false; }
+  if (!dados.resp)      { setFieldError('resp',      'Responsável é obrigatório.');     ok = false; }
+  if (!dados.cep)       { setFieldError('cep',       'CEP é obrigatório.');             ok = false; }
+  if (!dados.cidade)    { setFieldError('cidade',    'Cidade é obrigatória.');          ok = false; }
+  if (!dados.bairro)    { setFieldError('bairro',    'Bairro é obrigatório.');          ok = false; }
+  if (!dados.rua)       { setFieldError('rua',       'Rua é obrigatória.');             ok = false; }
+  if (!dados.num)       { setFieldError('num',       'Número é obrigatório.');          ok = false; }
+  if (!dados.uf)        { setFieldError('uf',        'UF é obrigatória.');              ok = false; }
+  if (!dados.sistema)   { setFieldError('sistema',   'Sistema é obrigatório.');         ok = false; }
+  if (!dados.cpf) {
+    setFieldError('cpf', 'CPF / CNPJ é obrigatório.'); ok = false;
+  } else {
+    var l = dados.cpf.replace(/\D/g, '');
+    if (l.length !== 11 && l.length !== 14) { setFieldError('cpf', 'CPF 11 dígitos ou CNPJ 14.'); ok = false; }
+  }
+  if (dados.status === '2- Aguardando Instalação' || dados.status === '3 - Finalizada/Instalada') {
+    var faltandoAg = _validarCamposAguardandoInstalacao();
+    if (faltandoAg.length > 0) {
+      ok = false;
+      mostrarToast('⚠️ Campos obrigatórios vazios: ' + faltandoAg.join(', '), 'warning');
+      _CAMPOS_AG_INST.forEach(function(c) {
+        var el = document.getElementById(c.id);
+        if (!el || !el.value || !el.value.trim()) setFieldError(c.fld, c.lbl + ' é obrigatório.');
+      });
+    }
+  }
+  if (dados.status === '3 - Finalizada/Instalada') {
+    clearFieldError('instal');
+    if (!dados.instal) { setFieldError('instal', 'Data de Instalação é obrigatória para este status.'); ok = false; }
+  }
+  var _errWizContrato = _validarContratoFormato(dados.contrato, dados.sistema);
+  if (_errWizContrato) { mostrarToast(_errWizContrato, 'warning'); ok = false; }
+  return ok;
+}
+
+function salvar() {
+  var dados = coletarDados();
+  if (!validarFormulario(dados)) return;
+  var btnSave = document.getElementById('wizBtnSave');
+  mostrarLoading(true);
+  if (btnSave) { btnSave.disabled = true; btnSave.textContent = '⏳ Salvando...'; }
+  google.script.run
+    .withSuccessHandler(function (res) {
+      mostrarLoading(false);
+      if (btnSave) { btnSave.disabled = false; btnSave.textContent = '💾 Salvar'; }
+      mostrarToast(res.mensagem, res.sucesso ? 'success' : 'error');
+      if (res.sucesso) {
+        if (dados.status === '2- Aguardando Instalação') dispararConfete();
+        if (dados.status === '3 - Finalizada/Instalada') dispararChovaDinheiro();
+        AppState.set('modoEdicao', false);
+        limparFormulario();
+        if (res.linha) {
+          setTimeout(function() { _abrirVendaNoLista(res.linha); }, 400);
+        } else {
+          setTimeout(function() { navegar('lista'); }, 400);
+        }
+      } else {
+        // Se erro de validação, volta ao step com problema
+        if (res.mensagem && res.mensagem.indexOf('status') > -1) wizMostrarErroStep(0, res.mensagem);
+        else if (res.mensagem && res.mensagem.indexOf('nome') > -1) wizMostrarErroStep(1, res.mensagem);
+      }
+    })
+    .withFailureHandler(function (erro) {
+      mostrarLoading(false);
+      if (btnSave) { btnSave.disabled = false; btnSave.textContent = '💾 Salvar'; }
+      mostrarToast('Erro: ' + erro.message, 'error');
+    })
+    .salvarVenda(dados);
+}
+
+// ─── LISTA ─────────────────────────────────────────────────────────────────
 var LISTA_FILTROS_CONFIG = {
   status: {
     label: 'Status da Venda',
@@ -1311,6 +2383,776 @@ document.addEventListener('click', function(ev) {
   if (!ev.target.closest || !ev.target.closest('.filtro-multi')) _closeFiltroMenus();
 });
 
+function _coletarOpcoesFiltro() {
+  try {
+    _ensureFiltrosListaUI();
+    var elVeroHub   = document.getElementById('filtroVeroHub');
+    var status    = (_listaFiltrosSelecionados.status || []).slice();
+    var preStatus = (_listaFiltrosSelecionados.preStatus || []).slice();
+    var produto   = (_listaFiltrosSelecionados.produto || []).slice();
+    var canal     = (_listaFiltrosSelecionados.canal || []).slice();
+    var resp      = (_listaFiltrosSelecionados.resp || []).slice();
+    var verohub   = elVeroHub   ? (elVeroHub.checked || false) : false;
+    var toggleLabel = document.getElementById('filtroVeroHub');
+    if (toggleLabel && toggleLabel.closest) toggleLabel.closest('label') && toggleLabel.closest('label').classList.toggle('ativo', verohub);
+    return { status: status, preStatus: preStatus, produto: produto, canal: canal, resp: resp, verohub: verohub };
+  } catch(e) {
+    return {};
+  }
+}
+
+function buscaListaInstantanea(valor) {
+  // Chamada pelo oninput do campoBusca — instantâneo se cache disponível
+  AppState.set('filtroAtual', (valor || '').trim());
+  AppState.set('paginaAtual', 1);
+  if (_dadosListaCache && _dadosListaCache.length > 0) {
+    var opcoes = _coletarOpcoesFiltro();
+    var dadosFiltrados = _filtrarLocalmente(_dadosListaCache, valor, opcoes);
+    var total = dadosFiltrados.length;
+    _renderizarLista({ dados: dadosFiltrados.slice(0, CONFIG_JS.MAX_RESULTS), total: total, pagina: 1, temMais: CONFIG_JS.MAX_RESULTS < total });
+    return;
+  }
+  carregarVendas(1, (valor || '').trim());
+}
+
+function recarregarLista() {
+  // Limpa o cache local e busca dados frescos da planilha (bypass cache servidor)
+  _dadosListaCache    = null;
+  _dadosListaTotal    = 0;
+  _dadosTotalServidor = 0;
+  // Limpa filtros ativos
+  _listaFiltrosSelecionados = { status: [], preStatus: [], produto: [], canal: [], resp: [] };
+  _atualizarResumoFiltros();
+  var busca = document.getElementById('campoBusca'); if (busca) busca.value = '';
+  AppState.set('filtroAtual', '');
+  AppState.set('paginaAtual', 1);
+  // Mostra spinner
+  document.getElementById('listaVendas').innerHTML =
+    '<div class="empty"><div class="empty-icon" style="font-size:20px;animation:spin 1s linear infinite;display:inline-block;">⏳</div>' +
+    '<p style="margin-top:10px;font-size:12px;">Buscando novos registros...</p></div>';
+  // Limpa cache do servidor ANTES de recarregar
+  google.script.run
+    .withSuccessHandler(function() { carregarVendas(1, ''); })
+    .withFailureHandler(function()  { carregarVendas(1, ''); })
+    .limparCacheCompleto();
+}
+
+function aplicarFiltros() {
+  var termo = document.getElementById('campoBusca') ? document.getElementById('campoBusca').value.trim() : '';
+  AppState.set('filtroAtual', termo);
+  AppState.set('paginaAtual', 1);
+  if (_dadosListaCache && _dadosListaCache.length > 0) {
+    var opcoes = _coletarOpcoesFiltro();
+    var dadosFiltrados = _filtrarLocalmente(_dadosListaCache, termo, opcoes);
+    var total = dadosFiltrados.length;
+    _renderizarLista({ dados: dadosFiltrados.slice(0, CONFIG_JS.MAX_RESULTS), total: total, pagina: 1, temMais: CONFIG_JS.MAX_RESULTS < total });
+    return;
+  }
+  carregarVendas(1, termo);
+}
+
+function limparFiltros() {
+  _listaFiltrosSelecionados = { status: [], preStatus: [], produto: [], canal: [], resp: [] };
+  _atualizarResumoFiltros();
+  var cb = document.getElementById('filtroVeroHub'); if(cb) cb.checked = false;
+  var tgl = cb ? cb.closest('label') : null; if(tgl) tgl.classList.remove('ativo');
+  document.getElementById('campoBusca').value = '';
+  AppState.set('filtroAtual', '');
+  carregarVendas(1, '');
+}
+
+
+
+
+
+
+function carregarVendas(pagina, filtro) {
+  pagina = (pagina !== undefined) ? pagina : AppState.get('paginaAtual');
+  filtro = (filtro !== undefined) ? filtro : AppState.get('filtroAtual');
+  AppState.set('paginaAtual', pagina);
+  AppState.set('filtroAtual', filtro);
+
+  document.getElementById('listaVendas').innerHTML =
+    '<div class="empty"><div class="empty-icon" style="font-size:20px;animation:spin 1s linear infinite;display:inline-block;">⏳</div>' +
+    '<p style="margin-top:10px;font-size:12px;">Carregando vendas...</p></div>';
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res) {
+        document.getElementById('listaVendas').innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><h3>Erro</h3><p>Resposta vazia do servidor.</p></div>';
+        return;
+      }
+      if (res.erro) {
+        document.getElementById('listaVendas').innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><h3>Erro ao carregar</h3><p style="font-family:monospace;font-size:11px;color:#ff4570">' + esc(res.erro) + '</p></div>';
+        return;
+      }
+      _renderizarLista(res);
+    })
+    .withFailureHandler(function (erro) {
+      var msg = erro && erro.message ? erro.message : String(erro);
+      document.getElementById('listaVendas').innerHTML =
+        '<div class="empty"><div class="empty-icon">⚠️</div>' +
+        '<h3>Erro ao carregar</h3><p style="font-family:monospace;font-size:11px;color:#ff4570">' + esc(msg) + '</p></div>';
+    })
+    .getVendasPaginadas(pagina, filtro, JSON.stringify(_coletarOpcoesFiltro()));
+}
+
+
+function _renderizarLista(res) {
+  // Guarda dados da página para o painel lateral
+  _paginaAtual = res.dados || [];
+
+  var container = document.getElementById('listaVendas');
+
+  // Atualiza contador
+  document.getElementById('totalRegistros').textContent =
+    res.total + ' registro' + (res.total !== 1 ? 's' : '');
+
+  // Sem dados
+  if (!_paginaAtual.length) {
+    container.innerHTML =
+      '<div class="empty"><div class="empty-icon">🔍</div>' +
+      '<h3>Nenhuma venda encontrada</h3><p>Tente outro filtro.</p></div>';
+    document.getElementById('paginacao').style.display = 'none';
+    fecharPainel();
+    return;
+  }
+
+  // Renderiza itens
+  var html = '';
+  for (var i = 0; i < _paginaAtual.length; i++) {
+    html += _criarItemVenda(_paginaAtual[i], i);
+  }
+  container.innerHTML = html;
+
+  // Paginação
+  var temPag = res.total > CONFIG_JS.MAX_RESULTS || res.pagina > 1;
+  document.getElementById('paginacao').style.display  = temPag ? 'flex' : 'none';
+  document.getElementById('infoPagina').textContent   = 'Pág. ' + res.pagina;
+  document.getElementById('btnAnterior').disabled     = res.pagina === 1;
+  document.getElementById('btnProximo').disabled      = !res.temMais;
+}
+
+// Configurações do lado cliente
+var CONFIG_JS = { MAX_RESULTS: 50 };
+
+// ─── PAINEL LATERAL ────────────────────────────────────────────────────────
+
+
+// ─── VEROHUB ───────────────────────────────────────────────────────────────
+function _veroHubVencido(verohub) {
+  if (!verohub) return false;
+  var s = String(verohub).trim();
+  var d;
+  if (s.indexOf('/') > -1) {
+    var p = s.split('/');
+    d = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
+  } else {
+    d = new Date(s);
+  }
+  if (isNaN(d.getTime())) return false;
+  var hoje = new Date(); hoje.setHours(0,0,0,0);
+  return d < hoje;
+}
+
+function _veroHubToInputDate(verohub) {
+  if (!verohub) return '';
+  var s = String(verohub).trim();
+  if (s.indexOf('/') > -1) {
+    var p = s.split('/');
+    return p[2] + '-' + ('0'+p[1]).slice(-2) + '-' + ('0'+p[0]).slice(-2);
+  }
+  return s.substring(0,10);
+}
+
+function _veroHubHtml(v, index) {
+  var vencido   = _veroHubVencido(v.verohub);
+  var semData   = !v.verohub;
+  var inputDate = _veroHubToInputDate(v.verohub);
+  // Pisca se vencido OU se sem data
+  var piscar = vencido || semData;
+  var tit = vencido ? 'Analise vencida! Reblindar no VeroHub.' : (semData ? 'Sem data — preencha a blindagem' : 'Blindagem OK');
+  var dot = piscar ? '<span class="verohub-dot"></span>' : '';
+  var ok  = (!semData && !vencido) ? '<span class="verohub-ok">✓</span>' : '';
+  return '<div class="verohub-wrap" onclick="event.stopPropagation()">' +
+    dot +
+    '<span class="verohub-label">VeroHub:</span>' +
+    '<input type="date" class="verohub-input" value="' + inputDate + '" title="' + tit + '" onchange="_salvarVeroHub(' + v.linha + ',this,' + index + ')">' +
+    ok +
+  '</div>';
+}
+
+function _salvarVeroHub(linha, inputEl, index) {
+  var val = inputEl.value;
+  var dataSalvar = '';
+  if (val) {
+    var p = val.split('-');
+    dataSalvar = p[2] + '/' + p[1] + '/' + p[0];
+  }
+  inputEl.style.opacity = '.5';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      inputEl.style.opacity = '1';
+      var ok = !res || res.sucesso !== false;
+      if (ok) {
+        // Atualiza dado em memória
+        if (_paginaAtual[index]) _paginaAtual[index].verohub = dataSalvar;
+        // Atualiza bolinha em tempo real — sem recarregar
+        var wrap = inputEl.closest('.verohub-wrap');
+        if (wrap) {
+          var dot = wrap.querySelector('.verohub-dot');
+          var vencido = dataSalvar ? _veroHubVencido(dataSalvar) : true; // sem data = pisca
+          if (vencido || !dataSalvar) {
+            if (!dot) {
+              dot = document.createElement('span');
+              dot.className = 'verohub-dot';
+              wrap.insertBefore(dot, wrap.firstChild);
+            }
+          } else {
+            if (dot) dot.remove();
+          }
+          // Atualiza ok
+          var okEl = wrap.querySelector('.verohub-ok');
+          if (!dataSalvar || vencido) {
+            if (okEl) okEl.remove();
+          } else {
+            if (!okEl) {
+              okEl = document.createElement('span');
+              okEl.className = 'verohub-ok';
+              okEl.textContent = '✓';
+              wrap.appendChild(okEl);
+            }
+          }
+        }
+        mostrarToast(dataSalvar ? '✅ VeroHub: ' + dataSalvar : 'VeroHub removido', 'success');
+      } else {
+        mostrarToast('Erro ao salvar VeroHub: ' + (res && res.mensagem ? res.mensagem : ''), 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      inputEl.style.opacity = '1';
+      mostrarToast('Erro: ' + (e && e.message ? e.message : 'desconhecido'), 'error');
+    })
+    .salvarVeroHub(linha, dataSalvar);
+}
+
+// ─── AGENDAMENTO INLINE ───────────────────────────────────────────────────
+function _agendaToInputDate(agenda) {
+  if (!agenda) return '';
+  var s = String(agenda).trim();
+  if (s.indexOf('/') > -1) {
+    var p = s.split('/');
+    return p[2] + '-' + ('0'+p[1]).slice(-2) + '-' + ('0'+p[0]).slice(-2);
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,10);
+  return '';
+}
+
+function _agendaHtml(v, index) {
+  var inputDate = _agendaToInputDate(v.agenda);
+  return '<span class="vi-ditem" onclick="event.stopPropagation()">' +
+    '<span class="vi-dlbl">Ag.</span>' +
+    '<input type="date" class="agenda-input" value="' + inputDate + '" ' +
+    'title="Data do agendamento" ' +
+    'onchange="_salvarAgendamento(' + v.linha + ',this,' + index + ')">' +
+  '</span>';
+}
+
+function _salvarAgendamento(linha, inputEl, index) {
+  var val = inputEl.value;
+  var dataSalvar = '';
+  if (val) {
+    var p = val.split('-');
+    dataSalvar = p[2] + '/' + p[1] + '/' + p[0];
+  }
+  inputEl.style.opacity = '.5';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      inputEl.style.opacity = '1';
+      var ok = !res || res.sucesso !== false;
+      if (ok) {
+        if (_paginaAtual[index]) _paginaAtual[index].agenda = dataSalvar;
+        var reag = (res && typeof res.reagendamentos === 'number') ? res.reagendamentos : 0;
+        var msgReag = reag > 0 ? ' (🔄 ' + reag + 'x reagendado)' : '';
+        mostrarToast(dataSalvar ? '✅ Agendamento: ' + dataSalvar + msgReag : 'Agendamento removido', 'success');
+        var vSel = AppState.get('vendaSelecionada');
+        if (vSel && vSel.linha === linha) {
+          vSel.agenda = dataSalvar;
+          if (reag > 0) vSel.reagendamentos = reag;
+          AppState.set('vendaSelecionada', vSel);
+          var pEl = document.getElementById('painel-agenda-input');
+          if (pEl) pEl.value = _agendaToInputDate(dataSalvar);
+          // Atualiza badge reagendamento no painel
+          var badgeContainer = pEl ? pEl.parentElement : null;
+          if (badgeContainer) {
+            var oldBadge = badgeContainer.querySelector('.painel-reag-badge');
+            if (oldBadge) oldBadge.remove();
+            if (reag > 0) {
+              var badge = document.createElement('span');
+              badge.className = 'painel-reag-badge';
+              badge.title = 'Reagendado ' + reag + ' vez(es)';
+              badge.textContent = '🔄 ' + reag;
+              badgeContainer.appendChild(badge);
+            }
+          }
+        }
+      } else {
+        mostrarToast('Erro ao salvar agendamento: ' + (res && res.mensagem ? res.mensagem : ''), 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      inputEl.style.opacity = '1';
+      mostrarToast('Erro: ' + (e && e.message ? e.message : 'desconhecido'), 'error');
+    })
+    .salvarAgendamento(linha, dataSalvar);
+}
+
+function _salvarTurno(linha, selectEl) {
+  var val = selectEl.value;
+  selectEl.style.opacity = '.5';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      selectEl.style.opacity = '1';
+      if (!res || res.sucesso !== false) {
+        var vSel = AppState.get('vendaSelecionada');
+        if (vSel && vSel.linha === linha) {
+          vSel.turno = val;
+          AppState.set('vendaSelecionada', vSel);
+        }
+        mostrarToast(val ? '✅ Turno: ' + val : 'Turno removido', 'success');
+      } else {
+        mostrarToast('Erro ao salvar turno: ' + (res && res.mensagem ? res.mensagem : ''), 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      selectEl.style.opacity = '1';
+      mostrarToast('Erro: ' + (e && e.message ? e.message : 'desconhecido'), 'error');
+    })
+    .salvarTurno(linha, val);
+}
+
+// ─── VEROHUB PEDIDO — edição manual de data ───────────────────────────────
+function _vhPedidoDtToInputDate(dtHora) {
+  if (!dtHora) return '';
+  var s = String(dtHora).trim();
+  var dataPart = s.split(' ')[0] || '';
+  if (dataPart.indexOf('/') > -1) {
+    var p = dataPart.split('/');
+    return p[2] + '-' + ('0'+p[1]).slice(-2) + '-' + ('0'+p[0]).slice(-2);
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(dataPart)) return dataPart.substring(0,10);
+  return '';
+}
+
+function _salvarVeroHubPedidoManual(linha, inputEl, index) {
+  var val = inputEl.value;
+  var dataSalvar = '';
+  if (val) {
+    var p = val.split('-');
+    dataSalvar = p[2] + '/' + p[1] + '/' + p[0];
+  }
+  inputEl.style.opacity = '.5';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      inputEl.style.opacity = '1';
+      var ok = !res || res.sucesso !== false;
+      if (ok) {
+        // Atualiza verohub (col AP) em memória
+        if (_paginaAtual[index]) _paginaAtual[index].verohub = dataSalvar;
+        var wrap = inputEl.closest('.vi-row-vhub-pedido-wrap');
+        if (wrap) {
+          var dot = wrap.querySelector('.verohub-dot');
+          var vencido = dataSalvar ? _veroHubVencido(dataSalvar) : true;
+          if (!dataSalvar || vencido) {
+            if (!dot) { dot = document.createElement('span'); dot.className = 'verohub-dot'; wrap.insertBefore(dot, wrap.firstChild); }
+          } else {
+            if (dot) dot.remove();
+          }
+          var horaEl = wrap.querySelector('.vhub-edit-hora');
+          if (horaEl && res.horaEdit) {
+            horaEl.textContent = res.horaEdit;
+          }
+        }
+        mostrarToast(dataSalvar ? '✅ VeroHub: ' + dataSalvar : 'Data removida', 'success');
+      } else {
+        mostrarToast('Erro ao salvar: ' + (res && res.mensagem ? res.mensagem : ''), 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      inputEl.style.opacity = '1';
+      mostrarToast('Erro: ' + (e && e.message ? e.message : 'desconhecido'), 'error');
+    })
+    .salvarVeroHubPedidoManual(linha, dataSalvar);
+}
+
+// ─── CONFIGURAÇÕES — VeroHub Token ────────────────────────────────────────────
+
+function _carregarStatusVeroHub() {
+  var statusEl  = document.getElementById('cfg-vero-status');
+  var tokenInfo = document.getElementById('cfg-vero-token-info');
+  if (!statusEl) return;
+  statusEl.textContent = '⏳ Verificando...';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.configurado) {
+        statusEl.innerHTML = '<span style="color:#22d98a">✅ Conectado</span>';
+        tokenInfo.textContent = 'Token: ' + res.token;
+      } else {
+        statusEl.innerHTML = '<span style="color:#f7a23b">⚠️ Não configurado</span>';
+        tokenInfo.textContent = 'Clique em "Conectar VeroHub" para configurar.';
+      }
+    })
+    .withFailureHandler(function() {
+      statusEl.innerHTML = '<span style="color:#e63e6d">❌ Erro ao verificar</span>';
+    })
+    .getStatusTokenVeroHub();
+}
+
+function _conectarVeroHub() {
+  // Obter URL do DharmaPro para montar o bookmarklet
+  google.script.run
+    .withSuccessHandler(function(url) {
+      _mostrarInstrucoesBookmarklet(url);
+    })
+    .withFailureHandler(function() {
+      _mostrarInstrucoesBookmarklet('');
+    })
+    .getScriptUrl();
+}
+
+function _mostrarInstrucoesBookmarklet(dasUrl) {
+  var wrap = document.getElementById('cfg-token-input-wrap');
+  var bkWrap = document.getElementById('cfg-bookmarklet-wrap');
+
+  // Montar o código do bookmarklet
+  // Quando clicado no VeroHub, pega o token e abre o DharmaPro com ?vhtoken=...
+  var bkCode = [
+    '(function(){',
+      // Sempre buscar via XHR síncrono — mais confiável que getElementById
+      'var token="";',
+      'try{',
+        'var x=new XMLHttpRequest();',
+        'x.open("GET","/sales/new",false);',
+        'x.withCredentials=true;',
+        'x.send();',
+        'var m=x.responseText.match(/id="csrf_token"[^>]*value="([^"]+)"/);',
+        'if(m&&m[1])token=m[1];',
+      '}catch(e){}',
+      // Fallback: tentar getElementById
+      'if(!token){var el=document.getElementById("csrf_token");if(el&&el.value)token=el.value;}',
+      'if(token&&token.length>10){',
+        'window.open("' + dasUrl + '?vhtoken="+encodeURIComponent(token),"_blank");',
+      '}else{',
+        'alert("Token nao encontrado. Verifique se esta logado no VeroHub.");',
+      '}',
+    '})()'
+  ].join('');
+
+  var bkHref = 'javascript:' + bkCode;
+
+  if (bkWrap) {
+    bkWrap.innerHTML =
+      '<div style="background:rgba(34,217,138,0.06);border:1px solid rgba(34,217,138,0.2);border-radius:8px;padding:16px;margin-bottom:14px;">' +
+        '<div style="font-size:11px;font-weight:700;color:#22d98a;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;">📌 Configure uma vez, use sempre</div>' +
+        '<ol style="font-size:12px;color:var(--muted);line-height:2;padding-left:18px;font-family:monospace;">' +
+          '<li>Arraste o botão abaixo para a barra de favoritos do Chrome</li>' +
+          '<li>Quando precisar conectar, abra o VeroHub</li>' +
+          '<li>Clique no favorito <strong style="color:var(--text)">🟠 DharmaPro</strong></li>' +
+          '<li>O DharmaPro abre e conecta automaticamente!</li>' +
+        '</ol>' +
+        '<div style="margin-top:14px;text-align:center;">' +
+          '<a href="' + bkHref.replace(/"/g, '&quot;') + '" ' +
+            'onclick="event.preventDefault();mostrarToast(\"Arraste este botão para os favoritos!\",\"\");" ' +
+            'style="display:inline-block;padding:10px 20px;background:var(--accent);color:#fff;' +
+            'border-radius:8px;font-family:sans-serif;font-size:13px;font-weight:700;' +
+            'text-decoration:none;cursor:grab;" ' +
+            'title="Arraste para a barra de favoritos">🟠 DharmaPro — Conectar VeroHub</a>' +
+        '</div>' +
+        '<div style="font-size:10px;color:var(--muted);margin-top:10px;text-align:center;font-family:monospace;">Arraste o botão acima para os favoritos do Chrome</div>' +
+      '</div>';
+    bkWrap.style.display = 'block';
+  }
+}
+
+
+function _mostrarCampoToken() {
+  var wrap = document.getElementById('cfg-token-wrap');
+  if (wrap) wrap.style.display = 'block';
+  var inp = document.getElementById('cfg-token-campo');
+  if (inp) { inp.value = ''; inp.focus(); }
+  mostrarToast('🔑 Cole o token copiado no campo abaixo.', '');
+}
+
+function _salvarTokenCampo() {
+  var inp = document.getElementById('cfg-token-campo');
+  var token = inp ? inp.value.trim() : '';
+  if (!token || token.length < 10) {
+    mostrarToast('⚠️ Token inválido. Copie novamente.', 'warning');
+    return;
+  }
+  var btn = document.querySelector('#cfg-token-wrap button');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando...'; }
+  _salvarTokenVeroHub(token, btn);
+}
+
+
+function _salvarTokenVeroHub(token, btn) {
+  mostrarToast('🟠 Salvando token...', '');
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (btn) { btn.disabled = false; btn.textContent = '🔑 Reconectar VeroHub'; }
+      if (res && res.sucesso) {
+        mostrarToast('✅ VeroHub conectado com sucesso!', 'success');
+        _carregarStatusVeroHub();
+      } else {
+        mostrarToast('❌ Erro ao salvar: ' + (res && res.mensagem ? res.mensagem : ''), 'error');
+      }
+    })
+    .withFailureHandler(function(e) {
+      if (btn) { btn.disabled = false; btn.textContent = '🔑 Reconectar VeroHub'; }
+      mostrarToast('❌ Erro: ' + (e && e.message ? e.message : ''), 'error');
+    })
+    .salvarTokenVeroHub(token);
+}
+
+// ─── VEROHUB — exibe número e data do pedido na lista ──────────────────────
+function _veroHubPedidoVelho(dtHora) {
+  if (!dtHora) return false;
+  try {
+    var p = dtHora.split(' '), d = p[0].split('/'), t = (p[1]||'00:00').split(':');
+    var dt = new Date(parseInt(d[2]), parseInt(d[1])-1, parseInt(d[0]), parseInt(t[0]), parseInt(t[1]));
+    return (Date.now() - dt.getTime()) > 86400000;
+  } catch(e) { return false; }
+}
+
+function _veroHubPedidoHtml(v, index) {
+  var temPedido = !!v.verohubPedido;
+  var vencido   = _veroHubVencido(v.verohub);
+  var semData   = !v.verohub;
+  var piscar    = vencido || semData;
+
+  var inputDate = _veroHubToInputDate(v.verohub);
+
+  return '<div class="vi-row-vhub-pedido-wrap" id="vhub-wrap-' + index + '" ' +
+    'onclick="event.stopPropagation()" ' +
+    'title="Data do pedido no VeroHub">' +
+    (piscar ? '<span class="verohub-dot"></span>' : '') +
+    '<span class="verohub-label">VEROHUB</span>' +
+    '<input type="date" class="agenda-input" value="' + inputDate + '" ' +
+    'title="Data VeroHub (col AP)" ' +
+    'onchange="_salvarVeroHubPedidoManual(' + v.linha + ',this,' + index + ')">' +
+    '<span class="vhub-edit-hora"></span>' +
+    (temPedido
+      ? '<a class="vhub-ped-num" href="https://hub.veronet.com.br/sales/' + esc(v.verohubPedido) +
+          '" target="_blank" onclick="event.stopPropagation()">#' + esc(v.verohubPedido) + '</a>'
+      : '') +
+  '</div>';
+}
+
+
+// ─── VEROHUB — cria novo pedido via API ────────────────────────────────────
+// ─── VEROHUB — índice da venda atual no modal ──────────────────────────────
+var _vhModalIndex = null;
+
+function _novoPedidoVeroHub(index) {
+  var v = _paginaAtual[index];
+  if (!v) return;
+
+  if (v.verohubPedido) {
+    if (!confirm('Pedido #' + v.verohubPedido + ' já existe. Recriar?')) return;
+    v.verohubPedido = ''; v.verohubPedidoDt = '';
+  }
+
+  var nome  = String(v.cliente || '').trim();
+  var phone = String(v.whats || v.tel || '').replace(/\D/g, '');
+  if (!nome || !phone) {
+    mostrarToast('⚠️ Cliente sem nome ou telefone.', 'warning'); return;
+  }
+
+  // Guarda o index e abre o modal
+  _vhModalIndex = index;
+
+  // Preenche info do cliente no topo do modal
+  var info = document.getElementById('mvh-cliente-info');
+  if (info) {
+    info.textContent = nome + ' · ' + phone +
+      (v.cpf ? ' · CPF: ' + v.cpf : '') +
+      (v.plano ? ' · ' + v.plano : '');
+  }
+
+  // Limpa campos e erros
+  ['mvh-email','mvh-birthday','mvh-mother','mvh-rg','mvh-plano-busca'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) { el.value = ''; el.classList.remove('mvh-erro'); }
+  });
+  ['mvh-gender','mvh-due-date'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) { el.value = ''; el.classList.remove('mvh-erro'); }
+  });
+  var erroEl = document.getElementById('mvh-erro');
+  if (erroEl) erroEl.style.display = 'none';
+
+  var btn = document.getElementById('mvh-btn-confirmar');
+  if (btn) { btn.disabled = false; btn.textContent = '🟠 Criar Pedido'; }
+
+  document.getElementById('modalVeroHub').classList.add('ativo');
+}
+
+function _fecharModalVeroHub() {
+  document.getElementById('modalVeroHub').classList.remove('ativo');
+  _vhModalIndex = null;
+}
+
+function _confirmarModalVeroHub() {
+  var index = _vhModalIndex;
+  if (index === null) return;
+  var v = _paginaAtual[index];
+  if (!v) return;
+
+  // Validação
+  var email      = (document.getElementById('mvh-email').value       || '').trim();
+  var birthday   = (document.getElementById('mvh-birthday').value    || '').trim();
+  var gender     = (document.getElementById('mvh-gender').value      || '').trim();
+  var mother     = (document.getElementById('mvh-mother').value      || '').trim();
+  var rg         = (document.getElementById('mvh-rg').value          || '').trim();
+  var dueDate    = (document.getElementById('mvh-due-date').value    || '').trim();
+  var planoBusca = (document.getElementById('mvh-plano-busca').value || '').trim();
+
+  var erros = [];
+  var campos = {
+    'mvh-email':       { val: (email && email.indexOf('@') !== -1 ? email : ''), msg: 'Informe o e-mail completo do cliente (com @).' },
+    'mvh-birthday':    { val: birthday,   msg: 'Informe a data de nascimento.' },
+    'mvh-gender':      { val: gender,     msg: 'Selecione o gênero.' },
+    'mvh-mother':      { val: mother,     msg: 'Informe o nome da mãe.' },
+    'mvh-rg':          { val: rg,         msg: 'Informe o RG.' },
+    'mvh-due-date':    { val: dueDate,    msg: 'Selecione o vencimento.' },
+    'mvh-plano-busca': { val: planoBusca, msg: 'Digite o nome ou parte do plano VeroHub.' }
+  };
+
+  Object.keys(campos).forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!campos[id].val) {
+      erros.push(campos[id].msg);
+      if (el) el.classList.add('mvh-erro');
+    } else {
+      if (el) el.classList.remove('mvh-erro');
+    }
+  });
+
+  if (erros.length) {
+    var erroEl = document.getElementById('mvh-erro');
+    erroEl.textContent = erros[0];
+    erroEl.style.display = 'block';
+    return;
+  }
+
+  // Trava botão e busca registro completo (endereço não está em _paginaAtual por performance)
+  var btn = document.getElementById('mvh-btn-confirmar');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Buscando dados...'; }
+
+  google.script.run
+    .withSuccessHandler(function(vFull) {
+      if (!vFull) {
+        if (btn) { btn.disabled = false; btn.textContent = '🟠 Criar Pedido'; }
+        mostrarToast('❌ Não foi possível carregar os dados do cliente.', 'error');
+        return;
+      }
+
+      _fecharModalVeroHub();
+
+      // Piscar na lista
+      var wrap = document.getElementById('vhub-wrap-' + index);
+      if (wrap) wrap.style.opacity = '.5';
+
+      // Ouvir resposta da extensão
+      var _handler = function(e) {
+        if (!e.data) return;
+        // Erro enviado pela extensão (ex: e-mail recusado pelo VeroHub)
+        if (e.data.type === 'dhp_pedido_erro' && String(e.data.linha) === String(v.linha)) {
+          window.removeEventListener('message', _handler);
+          clearTimeout(_timeout);
+          if (wrap) wrap.style.opacity = '1';
+          var msgErro = e.data.titulo || 'Erro no VeroHub';
+          if (e.data.detalhe) msgErro += ': ' + e.data.detalhe;
+          mostrarToast('⚠️ ' + msgErro + ' — refaça o pedido.', 'error');
+          return;
+        }
+        if (e.data.type !== 'dhp_pedido_criado') return;
+        if (String(e.data.linha) !== String(v.linha)) return;
+        window.removeEventListener('message', _handler);
+        clearTimeout(_timeout);
+        var novoId = e.data.id;
+        if (!novoId) {
+          if (wrap) wrap.style.opacity = '1';
+          mostrarToast('❌ Erro ao criar pedido.', 'error');
+          return;
+        }
+        var _n = new Date();
+        var _dt = ('0'+_n.getDate()).slice(-2)+'/'+('0'+(_n.getMonth()+1)).slice(-2)+'/'+_n.getFullYear()+' '+('0'+_n.getHours()).slice(-2)+':'+('0'+_n.getMinutes()).slice(-2);
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (wrap) wrap.style.opacity = '1';
+            if (!res || !res.sucesso) {
+              mostrarToast('❌ Erro ao salvar: ' + (res && res.mensagem ? res.mensagem : ''), 'error');
+              return;
+            }
+            v.verohubPedido   = String(novoId);
+            v.verohubPedidoDt = _dt;
+            var w = document.getElementById('vhub-wrap-' + index);
+            if (w) {
+              var novo = document.createElement('div');
+              novo.innerHTML = _veroHubPedidoHtml(v, index);
+              w.parentNode.replaceChild(novo.firstChild, w);
+            }
+            mostrarToast('✅ Pedido #' + novoId + ' criado!', 'success');
+          })
+          .withFailureHandler(function(err) {
+            if (wrap) wrap.style.opacity = '1';
+            mostrarToast('❌ Erro: ' + (err && err.message ? err.message : ''), 'error');
+          })
+          .salvarPedidoVeroHub(v.linha, String(novoId), _dt);
+      };
+      window.addEventListener('message', _handler);
+      var _timeout = setTimeout(function() {
+        window.removeEventListener('message', _handler);
+        if (wrap) wrap.style.opacity = '1';
+        mostrarToast('⏱️ Tempo esgotado. Extensão instalada?', 'warning');
+      }, 120000);
+
+      // Monta os params com dados completos vindos do backend (vFull tem endereço)
+      var nome  = String(vFull.cliente || '').trim();
+      var phone = String(vFull.whats || vFull.tel || '').replace(/\D/g, '');
+      var cep   = String(vFull.cep || '').replace(/\D/g, '');
+
+      var params =
+        'dhp_nome='         + encodeURIComponent(nome)                              +
+        '&dhp_fone='        + encodeURIComponent(phone)                             +
+        '&dhp_email='       + encodeURIComponent(email)                             +
+        '&dhp_cpf='         + encodeURIComponent((vFull.cpf||'').replace(/\D/g,'')) +
+        '&dhp_rg='          + encodeURIComponent(rg)                                +
+        '&dhp_nasc='        + encodeURIComponent(birthday)                          +
+        '&dhp_mae='         + encodeURIComponent(mother)                            +
+        '&dhp_genero='      + encodeURIComponent(gender)                            +
+        '&dhp_cep='         + encodeURIComponent(cep)                               +
+        '&dhp_rua='         + encodeURIComponent(vFull.rua         || '')           +
+        '&dhp_num='         + encodeURIComponent(vFull.num         || '')           +
+        '&dhp_compl='       + encodeURIComponent(vFull.complemento || '')           +
+        '&dhp_bairro='      + encodeURIComponent(vFull.bairro      || '')           +
+        '&dhp_cidade='      + encodeURIComponent(vFull.cidade      || '')           +
+        '&dhp_uf='          + encodeURIComponent(vFull.uf          || '')           +
+        '&dhp_plano_busca=' + encodeURIComponent(planoBusca)                        +
+        '&dhp_venc='        + encodeURIComponent(dueDate)                           +
+        '&dhp_linha='       + encodeURIComponent(vFull.linha       || '');
+
+      window.open('https://hub.veronet.com.br/sales/new?' + params, '_blank');
+      mostrarToast('🟠 Criando pedido...', '');
+    })
+    .withFailureHandler(function(err) {
+      if (btn) { btn.disabled = false; btn.textContent = '🟠 Criar Pedido'; }
+      mostrarToast('❌ Erro ao buscar dados: ' + (err && err.message ? err.message : ''), 'error');
+    })
+    .getVendaPorLinha(v.linha);
+}
 
 
 
@@ -1857,6 +3699,912 @@ function _verificarAdapterConfig() {
     })
     .getCredenciaisAdapter();
 }
+
+// ─── TRAVA VEROHUB ─────────────────────────────────────────────────────────
+
+var _vhTravaTimer = null;
+var _supPollTimer = null;
+
+// Chamada logo após login bem-sucedido
+function _verificarTravaPosLogin() {
+  var perfil = AppState.get('perfil') || '';
+  if (perfil === 'backoffice') {
+    // TRAVA VEROHUB PAUSADA TEMPORARIAMENTE
+    // _acionarTravaSeNecessario();
+    // _verificarTravaVeroHub();
+  } else if (perfil === 'supervisor' || perfil === 'admin') {
+    _verificarPedidoPosLogin();
+  }
+}
+
+// Polling a cada 30s — só para perfil backoffice
+function _verificarTravaVeroHub() {
+  if (_vhTravaTimer) clearInterval(_vhTravaTimer);
+  var perfil = AppState.get('perfil') || '';
+  if (perfil !== 'backoffice') return;
+  _vhTravaTimer = setInterval(function() {
+    _acionarTravaSeNecessario();
+  }, 30000);
+}
+
+// Consulta vendas vencidas e exibe overlay se houver pendências
+function _acionarTravaSeNecessario() {
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res || !res.dados || res.dados.length === 0) return;
+      _exibirTravaVeroHub(res.dados);
+    })
+    .withFailureHandler(function() {})
+    .getVendasVeroHubVencidas();
+}
+
+// Renderiza o overlay de bloqueio
+function _exibirTravaVeroHub(vendas) {
+  var existente = document.getElementById('dhp-trava-overlay');
+  if (existente) return; // já exibido
+
+  var lista = vendas.slice(0, 5).map(function(v) {
+    return '<li style="margin:4px 0;font-size:12px;font-family:\'DM Mono\',monospace;color:var(--muted);">' +
+           esc(v.cliente) + ' — CPF: ' + esc(v.cpf) + ' — VeroHub: ' + esc(v.verohub) + '</li>';
+  }).join('');
+  var extra = vendas.length > 5
+    ? '<li style="margin:4px 0;font-size:12px;color:var(--muted);">...e mais ' + (vendas.length - 5) + ' cliente(s)</li>'
+    : '';
+
+  var overlay = document.createElement('div');
+  overlay.id = 'dhp-trava-overlay';
+  overlay.style.cssText = [
+    'position:fixed','inset:0','z-index:99999',
+    'background:rgba(13,15,20,0.97)',
+    'display:flex','align-items:center','justify-content:center',
+    'flex-direction:column','gap:16px','font-family:Sora,sans-serif','padding:24px'
+  ].join(';');
+  overlay.innerHTML =
+    '<div style="max-width:480px;width:100%;background:var(--surface);border:1px solid var(--accent);border-radius:16px;padding:28px;">' +
+      '<div style="font-size:22px;font-weight:800;color:var(--accent);margin-bottom:8px;">🔒 Acesso Bloqueado</div>' +
+      '<div style="font-size:13px;color:var(--text);margin-bottom:16px;">Existem clientes com a blindagem VeroHub vencida ou sem data registrada. Solicite o desbloqueio ao supervisor.</div>' +
+      '<ul style="list-style:none;padding:0;margin:0 0 20px 0;">' + lista + extra + '</ul>' +
+      '<div id="dhp-trava-msg" style="display:none;margin-bottom:12px;font-size:12px;color:var(--muted);text-align:center;">Aguardando aprovação do supervisor...</div>' +
+      '<button onclick="_solicitarDesbloqueio()" id="dhp-trava-btn" style="width:100%;padding:12px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:Sora,sans-serif;">Solicitar Desbloqueio</button>' +
+    '</div>';
+  document.body.appendChild(overlay);
+}
+
+// Backoffice solicita desbloqueio ao supervisor
+function _solicitarDesbloqueio() {
+  var btn = document.getElementById('dhp-trava-btn');
+  var msg = document.getElementById('dhp-trava-msg');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Solicitando...'; }
+  var nome = AppState.get('nomeUsuario') || AppState.get('usuario') || 'Backoffice';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res || !res.sucesso) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Solicitar Desbloqueio'; }
+        mostrarToast('❌ Erro ao solicitar desbloqueio.', 'error');
+        return;
+      }
+      if (btn) btn.style.display = 'none';
+      if (msg) msg.style.display = 'block';
+      // Polling: verifica aprovação a cada 5s
+      var _poll = setInterval(function() {
+        google.script.run
+          .withSuccessHandler(function(st) {
+            if (st && st.status === 'aprovado') {
+              clearInterval(_poll);
+              _desbloqueadoPeloSupervisor();
+            }
+          })
+          .withFailureHandler(function() {})
+          .getStatusDesbloqueio();
+      }, 5000);
+    })
+    .withFailureHandler(function() {
+      if (btn) { btn.disabled = false; btn.textContent = 'Solicitar Desbloqueio'; }
+      mostrarToast('❌ Falha na conexão.', 'error');
+    })
+    .solicitarDesbloqueioBo(nome);
+}
+
+// Remove o overlay após aprovação do supervisor
+function _desbloqueadoPeloSupervisor() {
+  var overlay = document.getElementById('dhp-trava-overlay');
+  if (overlay) overlay.remove();
+  google.script.run.withSuccessHandler(function() {}).limparPedidoDesbloqueio();
+  mostrarToast('✅ Desbloqueio aprovado! Acesso liberado.', 'success');
+  if (_vhTravaTimer) clearInterval(_vhTravaTimer);
+}
+
+// ── SUPERVISOR/ADMIN — polling de pedidos de desbloqueio ───────────────────────
+
+function _verificarPedidoPosLogin() {
+  if (_supPollTimer) clearInterval(_supPollTimer);
+  _checarPedidoPendente();
+  _supPollTimer = setInterval(_checarPedidoPendente, 10000);
+}
+
+function _checarPedidoPendente() {
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.status === 'pendente') {
+        _exibirCardAprovacao(res);
+      } else {
+        var card = document.getElementById('dhp-sup-card');
+        if (card) card.remove();
+      }
+    })
+    .withFailureHandler(function() {})
+    .getStatusDesbloqueio();
+}
+
+function _exibirCardAprovacao(data) {
+  if (document.getElementById('dhp-sup-card')) return;
+  var solicitante = data.solicitante || 'Backoffice';
+  var ts   = data.ts ? new Date(data.ts) : new Date();
+  var hora = ts.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  var card = document.createElement('div');
+  card.id = 'dhp-sup-card';
+  card.style.cssText = [
+    'position:fixed','bottom:24px','right:24px','z-index:99998',
+    'background:var(--surface)','border:1px solid rgba(230,62,109,.4)',
+    'border-radius:14px','padding:18px 20px',
+    'width:calc(100% - 48px)','max-width:320px',
+    'box-shadow:0 8px 32px rgba(0,0,0,.5)',
+    'font-family:Sora,sans-serif',
+    'animation:dhp-card-in .3s cubic-bezier(0.34,1.56,0.64,1)'
+  ].join(';');
+  card.innerHTML =
+    '<div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">🔓 Pedido de Desbloqueio</div>' +
+    '<div style="font-size:12px;color:var(--text);margin-bottom:2px;"><b>' + esc(solicitante) + '</b> solicitou desbloqueio</div>' +
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:14px;font-family:DM Mono,monospace;">às ' + esc(hora) + '</div>' +
+    '<div style="display:flex;gap:8px;">' +
+      '<button onclick="_aprovarDesbloqueio()" style="flex:1;padding:9px;background:var(--green);border:none;border-radius:8px;color:#0d0f14;font-size:12px;font-weight:700;cursor:pointer;font-family:Sora,sans-serif;">✅ Aprovar</button>' +
+      '<button onclick="_ignorarDesbloqueio()" style="flex:1;padding:9px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--muted);font-size:12px;font-weight:700;cursor:pointer;font-family:Sora,sans-serif;">Ignorar</button>' +
+    '</div>';
+  document.body.appendChild(card);
+}
+
+function _aprovarDesbloqueio() {
+  var card = document.getElementById('dhp-sup-card');
+  if (card) card.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+  google.script.run
+    .withSuccessHandler(function() {
+      var c = document.getElementById('dhp-sup-card');
+      if (c) c.remove();
+      mostrarToast('✅ Desbloqueio aprovado!', 'success');
+    })
+    .withFailureHandler(function() {
+      mostrarToast('❌ Erro ao aprovar. Tente novamente.', 'error');
+      var c = document.getElementById('dhp-sup-card');
+      if (c) c.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
+    })
+    .aprovarDesbloqueioBO();
+}
+
+function _ignorarDesbloqueio() {
+  var card = document.getElementById('dhp-sup-card');
+  if (card) card.remove();
+}
+
+
+
+
+// ─── CRIAR ITEM DA LISTA ───────────────────────────────────────────────────
+function _criarItemVenda(v, index) {
+  var cores      = STATUS_CORES[v.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
+  var topColor   = cores.border || cores.text || '#555';
+  var badgeStyle = 'background:' + cores.bg + ';color:' + cores.text + ';border:1.5px solid ' + (cores.border || cores.text) + ';';
+
+  // Classe da caixa produto (largura fixa)
+  var prodMap = { 'Fibra Alone': 'vi-prod-fa', 'Fibra Combo': 'vi-prod-fc', 'Móvel Combo': 'vi-prod-mc', 'Móvel Alone': 'vi-prod-ma' };
+  var prodCls = prodMap[v.produto] || 'vi-prod-xx';
+
+  // Plano + valor inline
+  var planoVal = [v.plano, v.valor].filter(Boolean).join(' · ');
+  var comboBadge = v.comboMovelPendente
+    ? '<span class="vi-prestatus-badge" style="background:rgba(247,162,59,.14);color:var(--yellow);border-color:rgba(247,162,59,.35);">⚠ Combo sem móvel</span>'
+    : '';
+
+  // Responsável: avatar com iniciais colorido
+  var comboBadge = v.comboMovelPendente
+    ? '<span class="vi-prestatus-badge" style="background:rgba(247,162,59,.14);color:var(--yellow);border-color:rgba(247,162,59,.35);">⚠ Combo sem móvel</span>'
+    : '';
+  var comboBadge = v.comboMovelPendente
+    ? '<span class="vi-prestatus-badge" style="background:rgba(247,162,59,.14);color:var(--yellow);border-color:rgba(247,162,59,.35);">⚠ Combo sem móvel</span>'
+    : '';
+  var respHtml = '';
+  if (v.resp) {
+    var ini = _iniciais(v.resp);
+    var respColors = ['rgba(34,217,138,.15)/var(--green)', 'rgba(167,139,250,.15)/var(--purple)',
+                      'rgba(79,158,255,.15)/var(--blue)',  'rgba(247,162,59,.15)/var(--yellow)'];
+    var rc = respColors[(ini.charCodeAt(0) || 0) % respColors.length].split('/');
+    respHtml = '<div class="vi-av" style="background:' + rc[0] + ';color:' + rc[1] + '">' + esc(ini) + '</div>' +
+               '<span class="vi-resp-nm">' + esc(v.resp) + '</span>';
+  }
+  if (v.canal) {
+    respHtml += '<span class="vi-canal-sm">' + esc(v.canal) + '</span>';
+  }
+
+  // Linha de datas: Ativ. / Pré-Status / Ag. / Inst.
+  var datasHtml = '';
+  var dataAtivFormatada = _fmtData(v.dataAtiv);
+  var ehDataReal = /^\d{2}\/\d{2}\/\d{4}$/.test(dataAtivFormatada);
+  if (ehDataReal) {
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ativ.</span><span class="vi-dval ok">' + esc(dataAtivFormatada.substring(0,5)) + '</span></span>';
+  }
+
+  if (v.agenda) {
+    var agCls = v.instal ? ' ok' : ' pend';
+    var _tAbrev = v.turno ? (v.turno.toUpperCase().indexOf('TARDE') > -1 ? ' T' : ' M') : '';
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ag.</span><span class="vi-dval' + agCls + '">' + esc(_fmtData(v.agenda).substring(0,5)) + _tAbrev + '</span></span>';
+  }
+  if (v.instal) {
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
+  }
+  if (v.criadoEm && v.criadoEm.length >= 16) {
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl" style="opacity:.55">Lanç.</span><span class="vi-dval" style="opacity:.55">' + esc(v.criadoEm.substring(0,5) + ' ' + v.criadoEm.substring(11,16)) + '</span></span>';
+  }
+
+  return '<div class="venda-item" id="item_' + index + '" onclick="selecionarVenda(' + index + ',this)" style="border-top:2px solid ' + topColor + '">' +
+    '<div class="vi-body">' +
+
+      // ZONA 1 — nome + status
+      '<div class="vi-top">' +
+        '<div class="vi-nome-bloco">' +
+          '<span class="vi-nome" style="color:' + cores.text + ' !important;">' + esc(v.cliente || 'Sem nome') + '</span>' +
+          '<div class="vi-ids">' +
+            (v.cpf      ? '<span class="vi-id">'                                          + esc(v.cpf)      + '</span>' : '') +
+            (v.contrato ? '<span class="vi-id-sep">·</span><span class="vi-id">ID Contrato ' + esc(v.contrato) + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">' +
+          '<div style="display:flex;align-items:center;gap:6px;">' +
+            (v.preStatus && v.status === '1- Conferencia/Ativação' ? '<span class="vi-prestatus-badge">' + esc(v.preStatus) + '</span>' : '') +
+            '<span class="vi-status" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
+          '</div>' +
+          (respHtml ? '<div class="vi-row-resp" style="justify-content:flex-end">' + respHtml + '</div>' : '') +
+        '</div>' +
+      '</div>' +
+
+      '<div class="vi-divider"></div>' +
+
+      // ZONA 2 — rodapé
+      '<div class="vi-bot">' +
+
+        // Esquerda: produto + plano/valor + etiquetas BotConversa
+        '<div class="vi-bot-left">' +
+          (v.produto ? '<span class="vi-produto ' + prodCls + '">' + esc(_produtoComEmoji(v.produto)) + '</span>' : '') +
+          comboBadge +
+          ((planoVal || v.veroStatus) ? '<span class="vi-plano-val">' +
+            (v.veroStatus ? '<span class="vi-vero-status" title="' + (v.veroStatus.substring(0,2) === '🟢' ? 'Encontrado: aba ' + (v.veroStatus.substring(3) || 'Vero') : 'Não encontrado no relatório Vero') + '">' + v.veroStatus.substring(0,2) + '</span> ' : '') +
+            (planoVal ? esc(planoVal) : '') +
+          '</span>' : '') +
+          (v.bcTags || v.bcStatus ? '<span class="vi-bc-tags">' +
+            (v.bcStatus ? '<span class="vi-bc-status vi-bc-status--' + (v.bcStatus === 'Aberto' ? 'aberto' : 'ok') + '">' + esc(v.bcStatus) + '</span>' : '') +
+            (v.bcTags   ? esc(v.bcTags) : '') +
+          '</span>' : '') +
+        '</div>' +
+
+        '<div class="vi-vsep"></div>' +
+
+        // Direita: vhub (só conf) / viabilidade / datas
+        '<div class="vi-bot-right">' +
+          (v.status === '1- Conferencia/Ativação' ? _veroHubPedidoHtml(v, index) : '') +
+          (v.viabilidade ? '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>' : '<div id="viab-badge-' + index + '"></div>') +
+          (datasHtml ? '<div class="vi-row-dates">'  + datasHtml + '</div>' : '') +
+        '</div>' +
+
+        // Botões
+        '<div class="vi-actions">' +
+          (v.cpf ? '<button class="btn-popup" title="Consultar CPF Assertiva" onclick="event.stopPropagation();abrirModalAssertiva(\'' + esc(v.cpf.replace(/\D/g,'')) + '\')">👤</button>' : '') +
+          '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
+          (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">🔍</button>' : '') +
+          (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
+          (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
+          '<span class="venda-arrow">›</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function selecionarVenda(index, el) {
+  document.querySelectorAll('.venda-item').forEach(function (i) { i.classList.remove('selecionado'); });
+  el.classList.add('selecionado');
+  var v = _paginaAtual[index];
+  if (!v) return;
+  AppState.set('vendaSelecionada', v);
+  mostrarPainel(v);
+}
+
+function mostrarPainel(v) {
+  var cores      = STATUS_CORES[v.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
+  var badgeStyle = 'background:' + cores.bg + ';color:' + cores.text + ';border:1.5px solid ' + (cores.border || cores.text) + ';';
+
+  _dhpPopularHeaderPainel(v, cores.text, v.comboMovelPendente);
+
+  // Endereço completo para Google Maps
+  var endCompleto = [v.rua, v.num, v.complemento, v.bairro, v.cidade, v.uf].filter(Boolean).join(', ');
+  var mapsUrl = endCompleto ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(endCompleto) : '';
+
+  var _c = function(lbl, val, full) {
+    return '<div class="painel-campo' + (full ? ' full' : '') + '"><span class="painel-lbl">' + esc(lbl) + '</span><span class="painel-val">' + esc(val || '—') + '</span></div>';
+  };
+
+  var html =
+    // ── 2. ENDEREÇO ─────────────────────────────────────────────────────────
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📍 Endereço & Sistema</div>' +
+      '<div class="painel-campos">' +
+        (v.rua ? _c('Logradouro', (v.rua||'') + (v.num?', '+v.num:'') + (v.complemento?' — '+v.complemento:''), true) : '') +
+        _c('Bairro',        v.bairro) +
+        _c('Cidade / UF',   (v.cidade||'') + (v.uf ? ' / '+v.uf : '') || '') +
+        _c('CEP',           v.cep) +
+        _c('Sistema',       v.sistema) +
+        _c('Segmentação',   v.segmentacao, true) +
+        _c('Viabilidade',   v.viabilidade, true) +
+        (mapsUrl ? '<div class="painel-campo full"><span class="painel-lbl">Maps</span><span class="painel-val"><a href="' + mapsUrl + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">Abrir no Google Maps ↗</a></span></div>' : '') +
+      '</div>' +
+    '</div>' +
+
+    // ── 3. STATUS ───────────────────────────────────────────────────────────
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📌 Status</div>' +
+      '<div class="painel-campos">' +
+        _c('Status',     v.status, true) +
+        _c('Pré-Status', v.status === '1- Conferencia/Ativação' ? v.preStatus : '') +
+        _c('Responsável',v.resp) +
+        _c('Canal',      v.canal) +
+      '</div>' +
+    '</div>' +
+
+    // ── 4. PLANO & PRODUTO ──────────────────────────────────────────────────
+    (function() {
+      var _ehMovel = (v.produto||'').toUpperCase().indexOf('MÓVEL') > -1 || (v.produto||'').toUpperCase().indexOf('MOVEL') > -1;
+      return '<div class="painel-secao">' +
+        '<div class="painel-secao-titulo">📦 Plano & Produto</div>' +
+        '<div class="painel-campos">' +
+          _c('Produto',    v.produto) +
+          _c('Plano',      v.plano, true) +
+          _c('Valor',      v.valor) +
+          _c('Vencimento', v.venc) +
+          _c('Pagamento',  v.fat) +
+          (_ehMovel ? _c('Linha Móvel',   v.linhaMovel) : '') +
+          (_ehMovel ? _c('Portabilidade', v.portabilidade) : '') +
+        '</div>' +
+      '</div>';
+    })() +
+
+    // ── 5. DATAS ────────────────────────────────────────────────────────────
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📅 Datas</div>' +
+      '<div class="painel-campos">' +
+        (function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? _c('Ativação', d) : ''; })() +
+        (v.instal ? _c('Instalação', _fmtData(v.instal)) : '') +
+        (v.criadoEm ? _c('Lançamento', v.criadoEm) : '') +
+      '</div>' +
+      _linhaPainelHtml('Agendamento',
+        '<div class="painel-agenda-wrap">' +
+          '<input type="date" class="agenda-input" id="painel-agenda-input" value="' + _agendaToInputDate(v.agenda) + '" onchange="_salvarAgendamento(' + v.linha + ',this,-1)">' +
+          (v.reagendamentos ? '<span class="painel-reag-badge painel-reag-tooltip-wrap">🔄 ' + v.reagendamentos + '<span class="painel-reag-tooltip">Reagendada <b>' + v.reagendamentos + '</b> vez' + (v.reagendamentos > 1 ? 'es' : '') + '.</span></span>' : '') +
+        '</div>') +
+      _linhaPainelHtml('Turno',
+        '<select class="painel-turno-select" id="painel-turno-select" onchange="_salvarTurno(' + v.linha + ',this)">' +
+          '<option value=""' + (!v.turno ? ' selected' : '') + '>—</option>' +
+          '<option value="Manhã (08h às 12h)"' + (v.turno === 'Manhã (08h às 12h)' ? ' selected' : '') + '>☀️ Manhã</option>' +
+          '<option value="Tarde (13h às 17h)"' + (v.turno === 'Tarde (13h às 17h)' ? ' selected' : '') + '>🌤️ Tarde</option>' +
+        '</select>') +
+    '</div>' +
+
+    // ── 6. BOTCONVERSA ──────────────────────────────────────────────────────
+    (v.bcTags || v.bcStatus ?
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">💬 BotConversa</div>' +
+      '<div class="painel-campos">' +
+        _c('Status BC',  v.bcStatus) +
+        _c('Tags BC',    v.bcTags, true) +
+      '</div>' +
+    '</div>' : '') +
+
+    // ── 7. VEROHUB ──────────────────────────────────────────────────────────
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">🔒 VeroHub</div>' +
+      '<div style="padding:8px 12px;">' + _veroHubHtml(v, -1) + '</div>' +
+    '</div>' +
+
+    // ── 8. OBSERVAÇÃO ───────────────────────────────────────────────────────
+    (v.observacao ? '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">📝 Observação</div>' +
+      '<div class="painel-campos"><div class="painel-campo full"><span class="painel-val" style="color:var(--muted);font-weight:400;line-height:1.6;white-space:pre-wrap;">' + esc(v.observacao) + '</span></div></div>' +
+    '</div>' : '') +
+
+    // ── 9. STATUS PAP ───────────────────────────────────────────────────────
+    '<div class="painel-secao">' +
+      '<div class="painel-secao-titulo">💰 Pagamento PAP</div>' +
+      _linhaPainelHtml('Status',
+        '<select onchange="_salvarStatusPAP(' + v.linha + ', this)" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 8px;font-size:12px;font-family:\'Sora\',sans-serif;cursor:pointer;">' +
+          '<option value=""'           + (!v.statusPAP || v.statusPAP === '' ? ' selected' : '') + '>—</option>' +
+          '<option value="Em Aberto"'  + (v.statusPAP === 'Em Aberto'        ? ' selected' : '') + '>🔴 Em Aberto</option>' +
+          '<option value="Pago"'       + (v.statusPAP === 'Pago'             ? ' selected' : '') + '>✅ Pago</option>' +
+        '</select>') +
+    '</div>' +
+    _secaoPainel('Dados Complementares', [
+      ['Telefone', v.tel],
+      ['RG', v.rg],
+      ['Nome da Mãe', v.nomeMae, true],
+      ['Dt. Nascimento', v.dtNasc]
+    ]);
+
+  document.getElementById('painelScroll').innerHTML = html;
+
+  var whatsBtn = document.getElementById('pBtnWhats');
+  whatsBtn.style.display = v.whats ? 'flex' : 'none';
+  var btnDuplicarMovel = document.getElementById('pBtnDuplicarMovel');
+  if (btnDuplicarMovel) btnDuplicarMovel.style.display = v.comboMovelPendente ? 'flex' : 'none';
+
+  document.getElementById('painelVazio').style.display = 'none';
+  document.getElementById('painelConteudo').classList.add('ativo');
+  var listaCol = document.getElementById('listaCol');
+  if (listaCol) listaCol.classList.add('painel-aberto');
+
+  // Reset inline DEPOIS do painel estar visível — garante que botão Editar funciona
+  _pifModoEdicao = false;
+  var _scroll    = document.getElementById('painelScroll');
+  var _form      = document.getElementById('painelInlineForm');
+  var _acoesNorm = document.getElementById('painelAcoesNormal');
+  var _acoesInl  = document.getElementById('painelAcoesInline');
+  var _btnEdit   = document.getElementById('pBtnEditar');
+  if (_scroll)    _scroll.style.display = '';
+  if (_form)      _form.classList.remove('ativo');
+  if (_acoesNorm) _acoesNorm.style.display = '';
+  if (_acoesInl)  _acoesInl.classList.remove('ativo');
+  if (_btnEdit)   _btnEdit.textContent = '✏️ Editar';
+}
+
+function _secaoPainel(titulo, linhas) {
+  var campos = '';
+  for (var i = 0; i < linhas.length; i++) {
+    if (!linhas[i]) continue;
+    var lbl  = linhas[i][0];
+    var val  = linhas[i][1];
+    var full = linhas[i][2] || false;
+    if (!val || String(val).trim() === '') continue;
+    campos += '<div class="painel-campo' + (full ? ' full' : '') + '">' +
+      '<span class="painel-lbl">' + esc(lbl) + '</span>' +
+      '<span class="painel-val">' + esc(String(val)) + '</span>' +
+    '</div>';
+  }
+  if (!campos) return '';
+  return '<div class="painel-secao">' +
+    '<div class="painel-secao-titulo">' + titulo + '</div>' +
+    '<div class="painel-campos">' + campos + '</div>' +
+  '</div>';
+}
+
+function _linhaPainelHtml(lbl, htmlVal) {
+  return '<div class="painel-linha">' +
+    '<span class="painel-lbl">' + esc(lbl) + '</span>' +
+    '<span class="painel-val">' + htmlVal + '</span>' +
+  '</div>';
+}
+
+function fecharPainel() {
+  var listaCol = document.getElementById('listaCol');
+  if (listaCol) listaCol.classList.remove('painel-aberto');
+  document.getElementById('painelVazio').style.display = 'flex';
+  document.getElementById('painelConteudo').classList.remove('ativo');
+  AppState.set('vendaSelecionada', null);
+  document.querySelectorAll('.venda-item').forEach(function (i) { i.classList.remove('selecionado'); });
+}
+
+// ─── AÇÕES DO PAINEL ───────────────────────────────────────────────────────
+// Abre uma venda na Lista pelo número da linha
+function _abrirVendaNoLista(linha) {
+  mostrarLoading(true);
+  google.script.run
+    .withSuccessHandler(function(v) {
+      mostrarLoading(false);
+      if (!v) { mostrarToast('Venda não encontrada.', 'error'); return; }
+      navegar('lista');
+      setTimeout(function() {
+        AppState.set('vendaSelecionada', v);
+        mostrarPainel(v);
+      }, 300);
+    })
+    .withFailureHandler(function(e) {
+      mostrarLoading(false);
+      mostrarToast('Erro: ' + e.message, 'error');
+    })
+    .getVendaPorLinha(linha);
+}
+
+function excluirVendaPanel() {
+  var v = AppState.get('vendaSelecionada');
+  if (!v || !v.linha) return;
+  // Preenche e abre o modal de confirmação
+  document.getElementById('modalExcluirNome').textContent = v.cliente || 'Sem nome';
+  document.getElementById('modalExcluirInfo').textContent =
+    (v.cpf ? 'CPF: ' + v.cpf + ' · ' : '') +
+    (v.contrato ? 'ID Contrato: ' + v.contrato + ' · ' : '') +
+    'Linha ' + v.linha;
+  document.getElementById('modalConfirmExcluir').classList.add('ativo');
+}
+
+function _fecharModalExcluir() {
+  document.getElementById('modalConfirmExcluir').classList.remove('ativo');
+}
+
+function _confirmarExclusao() {
+  var v = AppState.get('vendaSelecionada');
+  if (!v || !v.linha) return;
+  var btnConf = document.getElementById('modalExcluirConfirmar');
+  if (btnConf) { btnConf.disabled = true; btnConf.textContent = '⏳ Excluindo...'; }
+  mostrarLoading(true);
+  google.script.run
+    .withSuccessHandler(function(res) {
+      mostrarLoading(false);
+      if (btnConf) { btnConf.disabled = false; btnConf.textContent = '🗑️ Confirmar Exclusão'; }
+      _fecharModalExcluir();
+      if (res.sucesso) {
+        mostrarToast('✅ Venda excluída com sucesso.', 'success');
+        AppState.set('vendaSelecionada', null);
+        fecharPainel();
+        carregarVendas(1, '');
+      } else {
+        mostrarToast('❌ ' + (res.mensagem || 'Erro ao excluir.'), 'error');
+      }
+    })
+    .withFailureHandler(function(erro) {
+      mostrarLoading(false);
+      if (btnConf) { btnConf.disabled = false; btnConf.textContent = '🗑️ Confirmar Exclusão'; }
+      _fecharModalExcluir();
+      mostrarToast('Erro: ' + erro.message, 'error');
+    })
+    .excluirVenda(v.linha);
+}
+
+function editarDoPanel() {
+  var v = AppState.get('vendaSelecionada');
+  if (!v) return;
+  mostrarLoading(true);
+  google.script.run
+    .withSuccessHandler(function (dados) {
+      mostrarLoading(false);
+      preencherFormulario(dados);
+      navegar('formulario');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    })
+    .withFailureHandler(function (erro) {
+      mostrarLoading(false);
+      mostrarToast('Erro: ' + erro.message, 'error');
+    })
+    .getVendaPorLinha(v.linha);
+}
+
+function abrirWhatsPanel() {
+  var v = AppState.get('vendaSelecionada');
+  if (!v || !v.whats) return;
+  var num = String(v.whats).replace(/\D/g, '');
+  if (num) window.open('https://wa.me/55' + num, '_blank');
+}
+
+function copiarDadosPanel() {
+  var v = AppState.get('vendaSelecionada');
+  if (!v) { mostrarToast('Nenhuma venda selecionada.', 'warning'); return; }
+  _copiarTextoVenda(v);
+}
+
+function copiarVenda(index) {
+  // Seleciona a venda no painel E copia
+  var el = document.getElementById('item_' + index);
+  if (el) selecionarVenda(index, el);
+  var v = _paginaAtual[index];
+  if (v) _copiarTextoVenda(v);
+}
+
+function _copiarTextoVenda(v) {
+  var texto =
+    '📄 Contrato: '     + (v.contrato  || '-') + '\n' +
+    '🙍 Cliente: '      + (v.cliente   || '-') + '\n' +
+    '📱 WhatsApp: '     + (v.whats     || '-') + '\n' +
+    '🆔 CPF: '          + (v.cpf       || '-') + '\n' +
+    '📌 Status: '       + (v.status    || '-') + '\n' +
+    '👨‍💼 Responsável: ' + (v.resp      || '-') + '   |   🏷️ Canal: ' + (v.canal || '-') + '\n' +
+    '🏙️ Cidade: '       + (v.cidade    || '-') + (v.uf ? ' / ' + v.uf : '') + '\n' +
+    '⚡ Ativação: '     + (_fmtData(v.dataAtiv)  || '-') + '\n' +
+    '📅 Agendamento: '  + (_fmtData(v.agenda)    || '-') + '\n' +
+    '✅ Instalação: '   + (_fmtData(v.instal)    || '-') + '\n' +
+    '📦 Produto: '      + (v.produto   || '-') + '\n' +
+    '🗂 Plano: '        + (v.plano     || '-') + '\n' +
+    '💰 Valor: '        + (v.valor     || '-');
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(texto)
+      .then(function () { mostrarToast('✅ Resumo copiado!', 'success'); })
+      .catch(function () { _copiarFallback(texto); });
+  } else {
+    _copiarFallback(texto);
+  }
+}
+
+function _copiarFallback(texto) {
+  var ta = document.createElement('textarea');
+  ta.value = texto;
+  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    mostrarToast('✅ Resumo copiado!', 'success');
+  } catch (e) {
+    mostrarToast('Não foi possível copiar.', 'error');
+  }
+  document.body.removeChild(ta);
+}
+
+// ─── BUSCA E PAGINAÇÃO ─────────────────────────────────────────────────────
+function buscar() {
+  carregarVendas(1, document.getElementById('campoBusca').value.trim());
+}
+
+function limparBusca() {
+  document.getElementById('campoBusca').value = '';
+  carregarVendas(1, '');
+}
+// buscaListaInstantanea já existente — preservada
+
+function mudarPagina(dir) {
+  fecharPainel();
+  carregarVendas(AppState.get('paginaAtual') + dir, AppState.get('filtroAtual'));
+}
+
+function editar(linha) {
+  mostrarLoading(true);
+  google.script.run
+    .withSuccessHandler(function (v) {
+      mostrarLoading(false);
+      preencherFormulario(v);
+      navegar('formulario');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    })
+    .withFailureHandler(function (erro) {
+      mostrarLoading(false);
+      mostrarToast('Erro: ' + erro.message, 'error');
+    })
+    .getVendaPorLinha(linha);
+}
+
+// ─── CEP ───────────────────────────────────────────────────────────────────
+function _atualizarLinkMaps() {
+  var rua    = (document.getElementById('f_rua')    || {}).value || '';
+  var num    = (document.getElementById('f_num')    || {}).value || '';
+  var cidade = (document.getElementById('f_cidade') || {}).value || '';
+  var uf     = (document.getElementById('f_uf')     || {}).value || '';
+  var wrap   = document.getElementById('mapsLinkWrap');
+  var anchor = document.getElementById('mapsLinkAnchor');
+  var texto  = document.getElementById('mapsLinkTexto');
+  if (!wrap) return;
+  if (!rua || !cidade) { wrap.style.display = 'none'; return; }
+  var endereco = [rua.trim(), num.trim(), cidade.trim(), uf.trim()].filter(Boolean).join(', ');
+  var url = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(endereco);
+  anchor.href = url;
+  texto.textContent = endereco;
+  wrap.style.display = 'block';
+}
+
+function buscarCEP(cep) {
+  var limpo = cep.replace(/\D/g, '');
+  if (limpo.length !== 8) return;
+
+  var hint = document.getElementById('cepHint');
+  hint.textContent = '⏳ Buscando endereço...';
+  hint.style.color = 'var(--muted)';
+
+  // CEP via browser (fetch direto — não depende de autorização do backend)
+  fetch('https://brasilapi.com.br/api/cep/v1/' + limpo)
+    .then(function(r) {
+      if (!r.ok) throw new Error('BrasilAPI HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(j) {
+      if (!j.city) throw new Error('CEP sem cidade na BrasilAPI');
+      _preencherEndereco({
+        logradouro: (j.street        || '').toUpperCase(),
+        bairro:     (j.neighborhood  || '').toUpperCase(),
+        cidade:     (j.city          || '').toUpperCase(),
+        uf:         (j.state         || '').toUpperCase()
+      });
+      _aoEnderecoPreenchido(hint);
+    })
+    .catch(function() {
+      // Fallback: ViaCEP
+      fetch('https://viacep.com.br/ws/' + limpo + '/json/')
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+          if (j.erro) throw new Error('CEP inválido');
+          _preencherEndereco({
+            logradouro: (j.logradouro || '').toUpperCase(),
+            bairro:     (j.bairro     || '').toUpperCase(),
+            cidade:     (j.localidade || '').toUpperCase(),
+            uf:         (j.uf         || '').toUpperCase()
+          });
+          _aoEnderecoPreenchido(hint);
+        })
+        .catch(function() {
+          hint.textContent = '❌ CEP não encontrado.';
+          hint.style.color = 'var(--accent)';
+        });
+    });
+}
+
+// Chamado após endereço preenchido com sucesso
+function _aoEnderecoPreenchido(hint) {
+  hint.textContent = '✅ Endereço preenchido · Selecione o Produto para ver os planos';
+  hint.style.color = 'var(--green)';
+  document.getElementById('f_num').focus();
+  // Se produto já estava selecionado (ex: edição), carrega planos imediatamente
+  var produto = document.getElementById('f_produto').value;
+  if (produto) onProdutoChange();
+}
+
+// Disparado ao selecionar/trocar o Produto
+// Usa a cidade já preenchida pelo CEP — não precisa mais de UrlFetchApp
+function onProdutoChange() {
+  var cidade  = (document.getElementById('f_cidade').value || '').trim();
+  var produto = document.getElementById('f_produto').value;
+  var hint    = document.getElementById('produtoHint');
+
+  // Limpa planos anteriores
+  _preencherPlanos([]);
+
+  if (!produto) return;
+
+  if (!cidade) {
+    hint.textContent   = '⚠️ Preencha o CEP primeiro para ver os planos.';
+    hint.style.color   = 'var(--yellow)';
+    hint.style.display = 'block';
+    setTimeout(function() { hint.style.display = 'none'; }, 3000);
+    return;
+  }
+
+  hint.textContent   = '⏳ Carregando planos para ' + produto + '...';
+  hint.style.color   = 'var(--muted)';
+  hint.style.display = 'block';
+
+  var selPlano = document.getElementById('f_plano');
+  selPlano.disabled  = true;
+  selPlano.innerHTML = '<option>⏳ Carregando...</option>';
+
+  // Passa cidade (já preenchida pelo browser) + produto — sem UrlFetchApp
+  google.script.run
+    .withSuccessHandler(function(d) {
+      selPlano.disabled = false;
+      if (d.erro) {
+        hint.textContent = '⚠️ ' + d.mensagem;
+        hint.style.color = 'var(--yellow)';
+        _preencherPlanos([]);
+        return;
+      }
+      if (d.planos && d.planos.length > 0) {
+        _preencherPlanos(d.planos);
+        var qtd = _contarPlanos(d.planos);
+        hint.textContent = '✅ ' + qtd + ' plano' + (qtd !== 1 ? 's' : '') + ' disponível' + (qtd !== 1 ? 'is' : '') + ' em ' + d.cidade;
+        hint.style.color = 'var(--green)';
+        mostrarToast('📦 ' + qtd + ' planos carregados para ' + d.cidade, 'info');
+      } else {
+        _preencherPlanos([]);
+        hint.textContent = '⚠️ Nenhum plano encontrado para ' + produto + ' em ' + cidade + (d.mensagem ? ' (' + d.mensagem + ')' : '');
+        hint.style.color = 'var(--yellow)';
+      }
+    })
+    .withFailureHandler(function(err) {
+      selPlano.disabled = false;
+      _preencherPlanos([]);
+      hint.textContent = '❌ Erro: ' + (err && err.message ? err.message : 'tente novamente');
+      hint.style.color = 'var(--accent)';
+    })
+    .getPlanosPorCidadeProduto(cidade, produto);
+}
+
+// ─── Helpers CEP/Planos ────────────────────────────────────────────────────
+
+function _preencherEndereco(d) {
+  document.getElementById('f_rua').value    = d.logradouro || '';
+  document.getElementById('f_bairro').value = d.bairro     || '';
+  document.getElementById('f_cidade').value = d.cidade     || '';
+  document.getElementById('f_uf').value     = d.uf         || '';
+  _atualizarLinkMaps();
+  if (d.sistema) {
+    document.getElementById('f_sistema').value = d.sistema;
+  } else if (d.cidade) {
+    // Busca sistema na aba CIDADES via backend (leitura leve, sem UrlFetchApp)
+    google.script.run
+      .withSuccessHandler(function(s) {
+        if (s) document.getElementById('f_sistema').value = s;
+      })
+      .getSistemaPorCidade(d.cidade);
+  }
+  if (d.segmentacao) {
+    var _elSeg = document.getElementById('f_segmentacao');
+    if (_elSeg) _elSeg.value = d.segmentacao;
+  } else if (d.cidade) {
+    google.script.run
+      .withSuccessHandler(function(s) {
+        if (s) { var _e = document.getElementById('f_segmentacao'); if (_e) _e.value = s; }
+      })
+      .getSegmentacaoPorCidade(d.cidade);
+  }
+}
+
+function _preencherPlanos(planos, produto) {
+  var sel = document.getElementById('f_plano');
+  sel.innerHTML = '';
+
+  if (!planos || planos.length === 0) {
+    sel.innerHTML = '<option value="">— Nenhum plano encontrado para esta cidade —</option>';
+    return;
+  }
+
+  // Primeiro option vazio de instrução
+  var optDefault = document.createElement('option');
+  optDefault.value = '';
+  optDefault.textContent = '— Selecione o plano —';
+  sel.appendChild(optDefault);
+
+  planos.forEach(function (item) {
+    var opt = document.createElement('option');
+    if (item.indexOf('▶️') === 0) {
+      // Linha de cabeçalho de categoria — desabilitada, estilizada
+      opt.value    = '';
+      opt.disabled = true;
+      opt.textContent = item;
+      opt.style.fontWeight = '700';
+      opt.style.color      = '#a78bfa';
+    } else {
+      opt.value       = item;
+      opt.textContent = item;
+    }
+    sel.appendChild(opt);
+  });
+
+  // Se só há 1 plano real, seleciona automaticamente e extrai o valor
+  var reais = planos.filter(function (p) { return p.indexOf('▶️') !== 0; });
+  if (reais.length === 1) {
+    sel.value = reais[0];
+    _extrairValorPlano(reais[0]);
+  }
+}
+
+// Quando o usuário escolhe um plano, extrai e preenche o campo Valor
+function _extrairValorPlano(texto) {
+  if (!texto) return;
+  var partes = texto.split('|');
+  if (partes.length >= 2) {
+    var val = partes[partes.length - 1].trim().replace(',', '.');
+    var num = parseFloat(val);
+    if (!isNaN(num)) {
+      document.getElementById('f_valor').value = 'R$ ' + num.toFixed(2).replace('.', ',');
+      document.getElementById('f_plano').setAttribute('data-valor', num.toFixed(2));
+    }
+  }
+}
+
+function _contarPlanos(planos) {
+  if (!planos) return 0;
+  return planos.filter(function (p) { return p.indexOf('▶️') !== 0; }).length;
+}
+
+// Listener: ao escolher plano, extrai o valor automaticamente
+document.addEventListener('DOMContentLoaded', function () {
+  var selPlano = document.getElementById('f_plano');
+  if (selPlano) {
+    selPlano.addEventListener('change', function () {
+      _extrairValorPlano(this.value);
+    });
+  }
+});
+
+
+
 
 'use strict';
 'use strict';
@@ -4030,7 +6778,7 @@ function _resetarTimerInatividade() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -4048,8 +6796,7 @@ var _menuMap = {
   'extrato':     'menuExtrato',
   'config':      'menuConfig',
   'disparos':    'menuDisparos',
-  'usuarios':    'menuUsuarios',
-  'waPessoal':   'menuWaPessoal'
+  'usuarios':    'menuUsuarios'
 };
 
 function _aplicarMenus(menus) {
@@ -4314,7 +7061,7 @@ function navegar(pagina) {
   } else if (pagina === 'disparos') {
     document.getElementById('menuDisparos').classList.add('ativo');
     document.getElementById('pageDisparos').classList.add('ativa');
-    document.getElementById('breadcrumbTexto').textContent = 'Disparos Waba';
+    document.getElementById('breadcrumbTexto').textContent = 'Disparos em Massa';
     var dpc = document.getElementById('disparosContainer');
     if (!dpc.getAttribute('data-loaded')) {
       dpc.setAttribute('data-loaded', '1');
@@ -4356,30 +7103,6 @@ function navegar(pagina) {
           uc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Usuários: ' + e.message + '</div>';
         })
         .getUsuariosHtml();
-    }
-
-  } else if (pagina === 'waPessoal') {
-    document.getElementById('menuWaPessoal').classList.add('ativo');
-    document.getElementById('pageWaPessoal').classList.add('ativa');
-    document.getElementById('breadcrumbTexto').textContent = 'WhatsApp Pessoal';
-    var wpc = document.getElementById('waPessoalContainer');
-    if (!wpc.getAttribute('data-loaded')) {
-      wpc.setAttribute('data-loaded', '1');
-      google.script.run
-        .withSuccessHandler(function(html) {
-          wpc.innerHTML = html;
-          wpc.querySelectorAll('script').forEach(function(s) {
-            var ns = document.createElement('script');
-            ns.textContent = s.textContent;
-            document.body.appendChild(ns);
-          });
-          if (typeof dispPessoalInit === 'function') dispPessoalInit();
-        })
-        .withFailureHandler(function(e) {
-          wpc.removeAttribute('data-loaded');
-          wpc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar WhatsApp Pessoal: ' + e.message + '</div>';
-        })
-        .getDispPessoalHtml();
     }
   }
 }

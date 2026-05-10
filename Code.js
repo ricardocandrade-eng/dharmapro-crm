@@ -25,7 +25,8 @@ var CONFIG = {
   CACHE_TTL:       300, // 5 min — era 60s; invalidado corretamente por _limparCache() após escritas
   CACHE_PREFIX:    'crm_v3_',   // prefixo v3 — invalida cache após reorganização de colunas
   MAX_RESULTS:     50,
-  TOTAL_COLUNAS:   42,          // A (0) até AP (41) — sem buracos
+  TOTAL_COLUNAS:   44,          // A (0) até AR (43) — sem buracos
+  TABELA_JSON_FILE_ID: '1wB9jncB_eBhGnBE-OpiZZ5UfVnvmv-ro',  // _getTabela() lê deste JSON no Drive (substitui aba TABELA)
   COLUNAS: {
     // ── Bloco 1: Venda (A–G) ────────────────────────────────────────
     CANAL:              0,  // A  - Canal de venda (PAP, META ADS, INDICAÇÃO, ATIVO, GOOGLE ADS)
@@ -74,7 +75,9 @@ var CONFIG = {
     STATUS_PAP:        38,  // AM - Status Pagamento PAP
     BC_TAGS:           39,  // AN - BotConversa etiquetas (separadas por ' | ')
     BC_STATUS:         40,  // AO - BotConversa status atendimento (Aberto/Concluído)
-    VIABILIDADE:       41   // AP - Resultado da consulta de viabilidade VeroHub
+    VIABILIDADE:       41,  // AP - Resultado da consulta de viabilidade VeroHub
+    CRIADO_EM:         42,  // AQ - Data/hora do lançamento da venda (imutável após criação)
+    VERO_STATUS:       43   // AR - Resultado do cruzamento Vero: 🟢 (match) | 🟡 (só CRM)
   }
 };
 
@@ -758,6 +761,37 @@ function getSincronizacaoInicial() {
       vendas.push(_mapearLinhaLista(raw[idxRaw], linhasParaMapear[v], tz));
     }
 
+    // ── Decora com vínculos (necessário para agrupamento combo no frontend) ──
+    try {
+      var vinculosMapS = _getVinculosVendasMap_();
+      // Mapa linha → row para as 500 linhas mapeadas
+      var mapaLinhasS = {};
+      for (var vl = 0; vl < linhasParaMapear.length; vl++) {
+        mapaLinhasS[linhasParaMapear[vl]] = raw[linhasParaMapear[vl] - 3];
+      }
+      // Adiciona linhas filha (Móvel) que talvez não estejam entre as 500
+      for (var vl2 = 0; vl2 < linhasParaMapear.length; vl2++) {
+        var filhosS = vinculosMapS.filhasPorMae[linhasParaMapear[vl2]] || [];
+        for (var fs = 0; fs < filhosS.length; fs++) {
+          var flinha = filhosS[fs].vendaFilhaLinha;
+          var fidx   = flinha - 3;
+          if (fidx >= 0 && fidx < raw.length && !mapaLinhasS[flinha]) {
+            mapaLinhasS[flinha] = raw[fidx];
+          }
+        }
+      }
+      // Resumos para todas as linhas conhecidas
+      var mapaResumoS = {};
+      var linhasS = Object.keys(mapaLinhasS);
+      for (var lr = 0; lr < linhasS.length; lr++) {
+        var lNum = parseInt(linhasS[lr], 10);
+        if (!isNaN(lNum)) mapaResumoS[lNum] = _resumirVendaVinculada_(_mapearLinhaLista(mapaLinhasS[lNum], lNum, tz));
+      }
+      for (var vd = 0; vd < vendas.length; vd++) {
+        vendas[vd] = _decorarVendaComVinculos_(vendas[vd], vinculosMapS, mapaResumoS);
+      }
+    } catch(ve) { Logger.log('getSincronizacaoInicial vinculos erro: ' + ve); }
+
     // Aquece o cache do servidor — próxima abertura da Lista já é instantânea
     try { _cachePutChunked(CONFIG.CACHE_PREFIX + 'lista_v3', { dados: vendas, totalGeral: totalGeral, temMais: temMaisSync }, 300); } catch(ce) {}
 
@@ -856,6 +890,27 @@ function getContratosParaCruzamento() {
   } catch(e) {
     Logger.log('getContratosParaCruzamento ERRO: ' + e.message + ' | Stack: ' + e.stack);
     return { dados: [], erro: e.message };
+  }
+}
+
+function salvarResultadoCruzamento(resultados) {
+  if (!resultados || !resultados.length) return { sucesso: true, atualizados: 0 };
+  var sheet = _getSheet();
+  var col = CONFIG.COLUNAS.VERO_STATUS + 1;
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(10000); } catch(e) { return { sucesso: false, mensagem: 'Sistema ocupado' }; }
+  try {
+    resultados.forEach(function(r) {
+      if (!r || !r.linha || r.linha < 3) return;
+      sheet.getRange(r.linha, col).setValue(r.veroStatus || '');
+    });
+    SpreadsheetApp.flush();
+    _limparCache();
+    return { sucesso: true, atualizados: resultados.length };
+  } catch(e) {
+    return { sucesso: false, mensagem: e.message };
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -1097,15 +1152,57 @@ function doPost(e) {
     var payload = {};
     try { payload = JSON.parse(e.postData.contents); } catch(pe) {}
 
+    // ── WA Pessoal: validação por secret próprio (independente do webhook_secret global) ──
+    if (payload.action === 'wa_pessoal_update') {
+      if (payload.secret !== CFG_WA_PESSOAL.WA_PESSOAL_SECRET) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ erro: 'wa_pessoal: secret inválido' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var resultWa = _handleWaPessoalUpdate_(payload);
+      return ContentService
+        .createTextOutput(JSON.stringify(resultWa))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (payload.action === 'wa_pessoal_next_pending') {
+      if (payload.secret !== CFG_WA_PESSOAL.WA_PESSOAL_SECRET) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ erro: 'wa_pessoal: secret inválido' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var resultNext = _handleWaPessoalNextPending_(payload);
+      return ContentService
+        .createTextOutput(JSON.stringify(resultNext))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (payload.action === 'wa_pessoal_mark_respondeu') {
+      if (payload.secret !== CFG_WA_PESSOAL.WA_PESSOAL_SECRET) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ erro: 'wa_pessoal: secret inválido' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var resultResp = _handleWaPessoalMarkRespondeu_(payload);
+      return ContentService
+        .createTextOutput(JSON.stringify(resultResp))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // ── Roteador PAP: ações do mini site Parceiros.html ──────────────────────
     // Payloads PAP têm campo 'action' e NÃO têm 'webhook_secret' (não são BotConversa)
     if (payload.action && payload.secret === undefined) {
       return _routePAP(payload);
     }
 
-    // ── Roteador Meta Ads: leads enviados pela Renata via n8n ────────────────
-    // Identificados por utm_source ou utm_campaign (sem 'action', sem 'secret')
-    if ((payload.utm_source || payload.utm_campaign) && payload.secret === undefined) {
+    // ── Roteador Meta Ads: leads do Botconversa (com secret) ou Renata/n8n (sem secret) ──
+    // Identificados por utm_source ou utm_campaign. Botconversa envia secret + utm_campaign.
+    if (payload.utm_source || payload.utm_campaign) {
+      if (SECRET && payload.secret && payload.secret !== SECRET) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ erro: 'Não autorizado.' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
       var linhaMetaAds = registrarLeadMetaAds(payload);
       return ContentService
         .createTextOutput(JSON.stringify({ ok: true, modulo: 'meta_ads', linha: linhaMetaAds }))
@@ -1168,7 +1265,7 @@ function doPost(e) {
     var dataAtiv = Utilities.formatDate(agora, tz, 'dd/MM/yyyy');
 
     var linha = new Array(CONFIG.TOTAL_COLUNAS).fill('');
-    linha[CONFIG.COLUNAS.CANAL]    = 'LEAD';
+    linha[CONFIG.COLUNAS.CANAL]    = String(payload.canal || 'META ADS').trim();
     linha[CONFIG.COLUNAS.PRODUTO]  = String(payload.produto  || '').trim();
     linha[CONFIG.COLUNAS.STATUS]   = '1- Conferencia/Ativação';
     linha[CONFIG.COLUNAS.DATA_ATIV]= dataAtiv;
@@ -1180,12 +1277,26 @@ function doPost(e) {
     linha[CONFIG.COLUNAS.OBSERVACAO] = String(payload.obs    || '').trim();
     linha[CONFIG.COLUNAS.PRE_STATUS] = 'EM NEGOCIACAO';
 
-    // Insere na próxima linha disponível
+    // Insere na próxima linha com dados reais (ignora linhas em branco formatadas)
     var lock = LockService.getScriptLock();
     lock.waitLock(10000);
     try {
-      var ultima     = sheet.getLastRow();
-      var novaLinha  = Math.max(3, ultima + 1);
+      var ultimaSheet = sheet.getLastRow();
+      var novaLinha;
+      if (ultimaSheet < 3) {
+        novaLinha = 3;
+      } else {
+        var colStatus = sheet.getRange(3, CONFIG.COLUNAS.STATUS + 1, ultimaSheet - 2, 1).getValues();
+        var ultimaReal = 0;
+        for (var r = colStatus.length - 1; r >= 0; r--) {
+          if (colStatus[r][0] !== '' && colStatus[r][0] !== null && colStatus[r][0] !== undefined) {
+            ultimaReal = r;
+            break;
+          }
+        }
+        novaLinha = ultimaReal + 3 + 1;
+      }
+      Logger.log('doPost webhook: nova linha = ' + novaLinha + ' (lastRow=' + ultimaSheet + ')');
       sheet.getRange(novaLinha, 1, 1, linha.length).setValues([linha]);
       _limparCache();
     } finally {
@@ -1520,33 +1631,6 @@ function getResponsaveis() {
 // Autenticação: header 'api-key'
 // Limite: 600 RPM
 
-// Configura a chave de API (executar UMA VEZ no editor Apps Script)
-function configurarBotConversa() {
-  PropertiesService.getScriptProperties()
-    .setProperty('botconversa_api_key', '12f06fd2-c949-4923-8c2c-2a30dec207a5');
-  Logger.log('Chave BotConversa configurada.');
-}
-
-// Configura os IDs dos fluxos BotConversa para notificações PAP.
-// Executar UMA VEZ no editor Apps Script após criar os 5 fluxos no BotConversa.
-// pvRecebida  : ID do fluxo "PAP - Pré-Venda Recebida"
-// pvAprovada  : ID do fluxo "PAP - Pré-Venda Aprovada"
-// pvRejeitada : ID do fluxo "PAP - Pré-Venda Rejeitada"
-// aguardando  : ID do fluxo "PAP - Aguardando Instalação"
-// instalada   : ID do fluxo "PAP - Instalada"
-// Suspeita: configuracao manual. Nao ha chamada pela UI atual.
-function configurarFluxosPAP(pvRecebida, pvAprovada, pvRejeitada, aguardando, instalada) {
-  PropertiesService.getScriptProperties().setProperties({
-    'bc_flow_pap_pv_recebida'          : String(pvRecebida  || ''),
-    'bc_flow_pap_pv_aprovada'          : String(pvAprovada  || ''),
-    'bc_flow_pap_pv_rejeitada'         : String(pvRejeitada || ''),
-    'bc_flow_pap_aguardando_instalacao': String(aguardando  || ''),
-    'bc_flow_pap_instalada'            : String(instalada   || '')
-  });
-  Logger.log('Fluxos PAP configurados: recebida=' + pvRecebida + ' aprovada=' + pvAprovada +
-             ' rejeitada=' + pvRejeitada + ' aguardando=' + aguardando + ' instalada=' + instalada);
-}
-
 // Lista os fluxos disponíveis na conta (cache 5 min)
 function getBotConversaFlows() {
   try {
@@ -1821,26 +1905,47 @@ function sincronizarTagsBotConversa(forcar) {
 // ─── PAGAMENTOS PAP ────────────────────────────────────────────────────────
 // Coluna AM (CONFIG.COLUNAS.STATUS_PAP, 1-based = 39) = Status Pagamento PAP ("Em Aberto" / "Pago")
 // Filtros: Produto=FIBRA ALONE/COMBO, Canal=PAP, Status=3 - Finalizada/Instalada, PAP=Em Aberto
+//
+// Configuração por vendedor (aba "3 - PAP"):
+//   col AA (idx 8 no range S–AB) = Forma de Pagamento  → "Valor do Plano" | "Valor Fixo"
+//   col AB (idx 9 no range S–AB) = Periodicidade       → "Diário" | "Mensal (20)"
+// Vendedor sem Forma definida ou com valor desconhecido → omitido da lista.
 function getPagamentosPAP() {
   try {
   var ss      = _getSpreadsheet_();
     var sheet   = _getSheet();
     var shPAP   = ss.getSheetByName('3 - PAP');
     var ultimaLinha = sheet.getLastRow();
-    if (ultimaLinha < 3) return { dados: [], total: 0 };
+    if (ultimaLinha < 3) {
+      return {
+        dados: [], total: 0, totalValor: 0, resumo: [],
+        diario: { dados: [], totalValor: 0, resumo: [] },
+        mensal: { dados: [], totalValor: 0, resumo: [] }
+      };
+    }
 
-    // Lê aba 3 - PAP: colunas S-Z (19-26) para montar mapa vendedor→chave pix
-    var mapaPAP = {}; // nome vendedor → { chavePix, whatsapp }
+    // Lê aba 3 - PAP: colunas S-AB (19-28) para montar mapa vendedor→config
+    var mapaPAP = {}; // nome vendedor → { chavePix, whatsapp, formaPgto, periodicidade }
     if (shPAP) {
       var ultimaPAP = shPAP.getLastRow();
       if (ultimaPAP >= 2) {
-        // Col S=19(vendedor) T=20(idbot) U=21(whatsapp) V=22(dataCad) W=23(cpf) X=24(chavePix)
-        var rawPAP = shPAP.getRange(2, 19, ultimaPAP - 1, 8).getValues();
+        // Col S=19(vendedor) T=20(idbot) U=21(whatsapp) V=22(dataCad) W=23(cpf)
+        // X=24(chavePix) Y=25 Z=26 AA=27(formaPgto) AB=28(periodicidade)
+        var rawPAP = shPAP.getRange(2, 19, ultimaPAP - 1, 10).getValues();
         rawPAP.forEach(function(r) {
-          var vendedor  = String(r[0] || '').trim();
-          var whatsapp  = String(r[2] || '').trim();
-          var chavePix  = String(r[5] || '').trim(); // col X = índice 5 dentro do range
-          if (vendedor) mapaPAP[vendedor.toUpperCase()] = { chavePix: chavePix, whatsapp: whatsapp };
+          var vendedor      = String(r[0] || '').trim();
+          var whatsapp      = String(r[2] || '').trim();
+          var chavePix      = String(r[5] || '').trim();
+          var formaPgto     = String(r[8] || '').trim();
+          var periodicidade = String(r[9] || '').trim();
+          if (vendedor) {
+            mapaPAP[vendedor.toUpperCase()] = {
+              chavePix: chavePix,
+              whatsapp: whatsapp,
+              formaPgto: formaPgto,
+              periodicidade: periodicidade
+            };
+          }
         });
       }
     }
@@ -1852,7 +1957,8 @@ function getPagamentosPAP() {
 
     var resultado = [];
     var totalValor = 0;
-    var porVendedor = {};
+    var porVendedor = {};   // chave: secao + '|' + nome
+    var stripDiacritics = function(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, ''); };
 
     for (var i = 0; i < raw.length; i++) {
       var row      = raw[i];
@@ -1864,10 +1970,10 @@ function getPagamentosPAP() {
 
       // Filtros
       if (canal !== 'PAP') continue;
-      var prodNorm = produto.normalize('NFD').replace(/[̀-ͯ]/g,'');
+      var prodNorm = stripDiacritics(produto);
       if (prodNorm !== 'FIBRA ALONE' && prodNorm !== 'FIBRA COMBO') continue;
       if (status !== '3 - Finalizada/Instalada') continue;
-      if (statusPAP.normalize('NFD').replace(/[\u0300-\u036f]/g,'') !== 'EM ABERTO') continue;
+      if (stripDiacritics(statusPAP) !== 'EM ABERTO') continue;
 
       var cliente  = String(row[c2.CLIENTE]  || '').trim();
       var resp     = String(row[c2.RESP]     || '').trim();
@@ -1879,51 +1985,89 @@ function getPagamentosPAP() {
       var dataInstalStr = (dInstal instanceof Date && !isNaN(dInstal))
         ? Utilities.formatDate(dInstal, tz, 'dd/MM/yyyy') : String(dInstal || '');
 
-      // Busca chave pix pelo nome do responsável
-      var respKey   = resp.toUpperCase();
-      var infoPAP   = mapaPAP[respKey] || { chavePix: '', whatsapp: '' };
+      // Busca config do vendedor; sem cadastro em 3 - PAP → omitir
+      var respKey = resp.toUpperCase();
+      var infoPAP = mapaPAP[respKey];
+      if (!infoPAP) continue;
 
-      // Comissão fixa R$100 (conforme planilha)
-      var comissao = 100;
+      // Calcula comissão a partir da Forma de Pagamento
+      var fNorm = stripDiacritics(infoPAP.formaPgto.toUpperCase());
+      var comissao;
+      if (fNorm === 'VALOR DO PLANO')      comissao = valor;
+      else if (fNorm === 'VALOR FIXO')     comissao = 100;
+      else continue; // forma vazia/desconhecida → não exibir até configurar
+
+      // Determina seção a partir da Periodicidade
+      var pNorm = stripDiacritics(infoPAP.periodicidade.toUpperCase());
+      var secao;
+      if (pNorm === 'DIARIO')                  secao = 'diario';
+      else if (pNorm.indexOf('MENSAL') === 0)  secao = 'mensal';
+      else continue; // periodicidade desconhecida → não exibir
 
       totalValor += comissao;
-      if (!porVendedor[resp]) porVendedor[resp] = { nome: resp, total: 0, qtd: 0, chavePix: infoPAP.chavePix };
-      porVendedor[resp].total += comissao;
-      porVendedor[resp].qtd++;
+      var chaveResumo = secao + '|' + resp;
+      if (!porVendedor[chaveResumo]) {
+        porVendedor[chaveResumo] = {
+          nome: resp, total: 0, qtd: 0,
+          chavePix: infoPAP.chavePix,
+          secao: secao,
+          formaPgto: infoPAP.formaPgto,
+          periodicidade: infoPAP.periodicidade
+        };
+      }
+      porVendedor[chaveResumo].total += comissao;
+      porVendedor[chaveResumo].qtd++;
 
       resultado.push({
-        linha:       i + 3,
-        cliente:     cliente,
-        resp:        resp,
-        contrato:    contrato,
-        produto:     produto,
-        plano:       plano,
-        valor:       valor,
-        comissao:    comissao,
-        dataInstal:  dataInstalStr,
-        chavePix:    infoPAP.chavePix,
-        whatsapp:    infoPAP.whatsapp,
-        statusPAP:   statusPAP
+        linha:         i + 3,
+        cliente:       cliente,
+        resp:          resp,
+        contrato:      contrato,
+        produto:       produto,
+        plano:         plano,
+        valor:         valor,
+        comissao:      comissao,
+        dataInstal:    dataInstalStr,
+        chavePix:      infoPAP.chavePix,
+        whatsapp:      infoPAP.whatsapp,
+        statusPAP:     statusPAP,
+        formaPgto:     infoPAP.formaPgto,
+        periodicidade: infoPAP.periodicidade,
+        secao:         secao
       });
     }
 
     // Ordena por vendedor depois por data
     resultado.sort(function(a,b) { return a.resp.localeCompare(b.resp, 'pt-BR'); });
 
-    // Converte porVendedor para array ordenado por total desc
-    var resumo = Object.values ? Object.values(porVendedor) : Object.keys(porVendedor).map(function(k){ return porVendedor[k]; });
-    resumo.sort(function(a,b) { return b.total - a.total; });
+    // Resumo flat (compat retro: alguns clientes podem ler `resumo` direto)
+    var resumoFlat = Object.keys(porVendedor).map(function(k){ return porVendedor[k]; });
+    resumoFlat.sort(function(a,b) { return b.total - a.total; });
+
+    // Quebra em diário / mensal
+    var bySecao = function(sec) {
+      var dados      = resultado.filter(function(r){ return r.secao === sec; });
+      var totalSec   = dados.reduce(function(s,r){ return s + r.comissao; }, 0);
+      var resumoSec  = resumoFlat.filter(function(r){ return r.secao === sec; });
+      return { dados: dados, totalValor: totalSec, resumo: resumoSec };
+    };
 
     Logger.log('getPagamentosPAP: ' + resultado.length + ' pagamentos, total R$' + totalValor);
     return {
       dados:       resultado,
       total:       resultado.length,
       totalValor:  totalValor,
-      resumo:      resumo
+      resumo:      resumoFlat,
+      diario:      bySecao('diario'),
+      mensal:      bySecao('mensal')
     };
   } catch(e) {
     Logger.log('Erro getPagamentosPAP: ' + e);
-    return { dados: [], total: 0, totalValor: 0, resumo: [], erro: e.message };
+    return {
+      dados: [], total: 0, totalValor: 0, resumo: [], erro: e.message,
+      diario: { dados: [], totalValor: 0, resumo: [] },
+      mensal: { dados: [], totalValor: 0, resumo: [] }
+    };
   }
 }
 
@@ -2239,12 +2383,6 @@ function moverLeadAguardando(payload) {
   }
 
   return resultado;
-}
-
-// Limpa cache do kanban de leads
-function limparCacheLeads() {
-  CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'leads_v1');
-  Logger.log('Cache leads removido.');
 }
 
 // ─── CONSULTA DE OFERTAS (BOTÃO FLUTUANTE DO CRM) ─────────────────────────
@@ -2717,13 +2855,64 @@ function _getTabela() {
     var hit = cache.get(key);
     if (hit) return JSON.parse(hit);
   } catch(e) {}
-  var rows = _getSpreadsheet_()
-               .getSheetByName('TABELA').getDataRange().getValues();
+  var file = DriveApp.getFileById(CONFIG.TABELA_JSON_FILE_ID);
+  var rows = JSON.parse(file.getBlob().getDataAsString());
   try {
     var json = JSON.stringify(rows);
     if (json.length < 95000) cache.put(key, json, 600);
   } catch(e) {}
   return rows;
+}
+
+
+function _atualizarPlanosVeroJsonRev2() {
+  var dados = [
+    ["Última atualização: 08/05/2026 23:15","","NG / ADAPTER","NG / ADAPTER","NG / ADAPTER","NG / ADAPTER","LANDING PAGE","",""],
+    ["Valores para pagamento via boleto","TIPO","ESPECIAIS","OURO","PRATA","PADRÃO","NOME_LP","FEATURES","PUBLICAR"],
+    ["VERO MAIS 550MB + MÓVEL 20GB","VERO MAIS",112.9,112.9,112.9,112.9,"Vero Mais","20GB Celular | Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",true],
+    ["VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB","VERO MAIS",149.9,149.9,149.9,149.9,"Vero Mais","Globo Play Premium | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true],
+    ["VERO MAIS 800MB + HBO MAX + MÓVEL 20GB","VERO MAIS",149.9,149.9,149.9,149.9,"Vero Mais","HBO Max | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true],
+    ["OFERTA VERÃO 800MB + GLP PREMIUM + HBO MAX + MÓVEL 60GB","VERO MAIS",159.9,159.9,159.9,159.9,"Vero Mais","Globo Play Premium | HBO Max | 60GB Celular | Wi-Fi 6 | Instalação Grátis",true],
+    ["VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB","VERO MAIS",144.9,144.9,144.9,144.9,"Vero Mais","Disney Padrão | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true],
+    ["VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB","VERO MAIS",149.9,149.9,149.9,149.9,"Vero Mais","Disney Premium | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true],
+    ["VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB","VERO MAIS",189.9,189.9,189.9,189.9,"Vero Mais","Vero Video Diversão | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true],
+    ["VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB","VERO MAIS",154.9,154.9,154.9,154.9,"Vero Mais","Globoplay Premium | Assistência Residencial | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true],
+    ["VERO MAIS 1GB + GLP PREMIUM + EXITLAG + MÓVEL 60GB","VERO MAIS","209,9 (Bauru)","","","","Vero Mais","Globoplay Premium | Assistência Residencial | Wi-Fi 6 | Kiddle | Instalação Grátis",true],
+    ["VERO MAIS 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB","VERO MAIS",159.9,159.9,159.9,159.9,"Vero Mais","Disney com Ads | HBO Max com Ads | 30GB Celular | Wi-Fi 6 | Instalação Grátis",true],
+    ["VERO MAIS 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB","VERO MAIS",159.9,159.9,159.9,159.9,"Vero Mais","Prime Video | Apple TV | 30GB Celular | Wi-Fi 6 | Instalação Grátis",true],
+    ["VERO MAIS 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB","VERO MAIS",209.9,209.9,209.9,209.9,"Vero Mais","Prime Video | Apple TV | HBO Max | Globoplay Premium | 60GB Celular | Wi-Fi 6 | Instalação Grátis",true],
+    ["550MB MUNDO FIBRA","MUNDO FIBRA",107.9,107.9,107.9,107.9,"Mundo Fibra","Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",true],
+    ["550MB ASSISTÊNCIA RESIDENCIAL","MUNDO FIBRA",117.9,120.9,128.9,130.9,"Mundo Fibra","Assistência Residencial | Wi-Fi 6 | Instalação Grátis",true],
+    ["750MB MUNDO FIBRA","MUNDO FIBRA",127.9,127.9,127.9,127.9,"Mundo Fibra","Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",true],
+    ["600MB GLOBOPLAY PADRÃO COM ANÚNCIOS","ENTRETENIMENTO",137.9,137.9,137.9,137.9,"Mundo Entrenimento","Globo Play | Wi-Fi 6 | Kiddle | Instalação Grátis",true],
+    ["800MB YOUTUBE PREMIUM | HBO MAX | TELECINE","ENTRETENIMENTO",144.9,144.9,144.9,144.9,"Mundo Entrenimento","Youtube Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",true],
+    ["800MB DISNEY+ PADRÃO","ENTRETENIMENTO",144.9,144.9,144.9,144.9,"Mundo Entrenimento","Disney | Wi-Fi 6 | Kiddle | Instalação Grátis",true],
+    ["800MB DISNEY+ PREMIUM","ENTRETENIMENTO",165,165,165,165,"Mundo Entrenimento","Disney Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",true],
+    ["800MB GLOBOPLAY PREMIUM","ENTRETENIMENTO",144.9,144.9,144.9,144.9,"Mundo Entrenimento","Globoplay Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",true],
+    ["800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL","ENTRETENIMENTO",149.9,149.9,149.9,149.9,"Mundo Entrenimento","Globoplay Premium | Assistência Residencial | Wi-Fi 6 | Kiddle | Instalação Grátis",true],
+    ["800MB PREMIERE","ENTRETENIMENTO",160,160,160,160,"Mundo Entrenimento","Premiere | Wi-Fi 6 | Kiddle | Instalação Grátis",true],
+    ["850MB FILMES","COMPLETO",170,170,170,170,"Mundo Completo","Vero Video + Filmes | Wi-Fi 6 | Kiddle | Instalação Grátis",true],
+    ["850MB ESPORTES","COMPLETO",185,185,185,185,"Mundo Completo","Vero Video + Esportes | Wi-Fi 6 | Kiddle | Instalação Grátis",true],
+    ["1GB DIVERSÃO","COMPLETO",210,210,210,210,"Mundo Completo","Vero Video + Diversão | Wi-Fi 6 | Kiddle | Instalação Grátis",true],
+    ["800MB GAMER","GAMER",160,160,160,160,"Mundo Gamer","Exitlag | Oneplay | Wi-Fi 6 | Kiddle | Instalação Grátis",true],
+    ["VERO CONTROLE 10GB","MÓVEL",30,30,30,30,"","",false],
+    ["VERO CONTROLE 20GB","MÓVEL",40,40,40,40,"","",false],
+    ["VERO CONTROLE 30GB","MÓVEL",50,50,50,50,"","",false],
+    ["VERO CONTROLE 60GB","MÓVEL",80,80,80,80,"","",false],
+    ["VERO CONTROLE + CHIPS 20GB","MÓVEL",40,40,40,40,"","",false],
+    ["ASSINATURA + CHIPS 20GB","MÓVEL",12,12,12,12,"","",false],
+    ["VERO CONTROLE + CHIPS 30GB","MÓVEL",50,50,50,50,"","",false],
+    ["ASSINATURA + CHIPS 30GB","MÓVEL",12,12,12,12,"","",false],
+    ["VERO CONTROLE + CHIPS 60GB","MÓVEL",80,80,80,80,"","",false],
+    ["ASSINATURA + CHIPS 60GB","MÓVEL",12,12,12,12,"","",false],
+    ["10GB | MAIS CONECTADO | COMBO","MÓVEL COMBO",30,30,30,30,"","",false],
+    ["20GB | MAIS CONECTADO | COMBO","MÓVEL COMBO",40,40,40,40,"","",false],
+    ["60GB | MAIS CONECTADO | COMBO","MÓVEL COMBO",50,50,50,50,"","",false]
+  ];
+  var conteudo = JSON.stringify(dados, null, 2);
+  DriveApp.getFileById(CONFIG.TABELA_JSON_FILE_ID).setContent(conteudo);
+  CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'tabela_v1');
+  Logger.log('OK rev2 — ' + dados.length + ' linhas, ' + conteudo.length + ' bytes. Cache invalidado.');
 }
 
 // ─── LEITURA ───────────────────────────────────────────────────────────────
@@ -2884,46 +3073,6 @@ function getVendaPorLinha(numeroLinha) {
   }
 }
 
-/**
- * Salva/atualiza o segredo usado pelo webhook do DharmaPro.
- * Executar manualmente no editor Apps Script.
- */
-function configurarWebhookSecret(secret) {
-  if (!secret) throw new Error('Informe um webhook secret valido.');
-  PropertiesService.getScriptProperties().setProperty('webhook_secret', String(secret));
-  Logger.log('webhook_secret salvo com sucesso.');
-  return { ok: true, message: 'webhook_secret salvo com sucesso.' };
-}
-
-/**
- * Diagnostico rapido da ponte Claude Ads -> DharmaPro.
- * Executar manualmente no editor Apps Script.
- */
-function diagnosticarClaudeAdsBridge() {
-  var props = PropertiesService.getScriptProperties();
-  var secret = props.getProperty('webhook_secret') || '';
-  var bridgeJson = props.getProperty('CLAUDE_ADS_BRIDGE_JSON') || '';
-  var updatedAt = props.getProperty('CLAUDE_ADS_BRIDGE_UPDATED_AT') || '';
-  var bridge = null;
-
-  try {
-    bridge = bridgeJson ? JSON.parse(bridgeJson) : null;
-  } catch (error) {
-    bridge = { erro_parse: error.message };
-  }
-
-  return {
-    webhook_secret_configurado: !!secret,
-    webhook_secret_tamanho: secret ? secret.length : 0,
-    bridge_salvo: !!bridgeJson,
-    bridge_updated_at: updatedAt || null,
-    bridge_status_geral: bridge && bridge.status_geral ? bridge.status_geral : null,
-    bridge_foco_principal: bridge && bridge.resumo_do_dia ? bridge.resumo_do_dia.foco_principal : null,
-    bridge_linha_de_crescimento: bridge && bridge.resumo_do_dia ? bridge.resumo_do_dia.linha_de_crescimento : null,
-    bridge_pronto_para_producao: bridge && bridge.pronto_para_producao === true
-  };
-}
-
 function criarVendaMovelVinculada(payload) {
   payload = payload || {};
   var linhaOrigem = parseInt(payload.linhaOrigem || payload.linhaMae || payload.linha || '', 10);
@@ -2941,7 +3090,6 @@ function criarVendaMovelVinculada(payload) {
   if (!produtoMovel) throw new Error('Produto móvel é obrigatório.');
   if (_normalizarTexto(produtoMovel).indexOf('MOVEL') === -1) throw new Error('Produto inválido para duplicação móvel.');
   if (!plano) throw new Error('Plano móvel é obrigatório.');
-  if (!contrato) throw new Error('ID Contrato móvel é obrigatório.');
   if (!portabilidade) throw new Error('Portabilidade é obrigatória.');
 
   var lock = LockService.getScriptLock();
@@ -2958,8 +3106,15 @@ function criarVendaMovelVinculada(payload) {
     }
 
     var vinculos = _getVinculosVendasMap_();
-    if ((vinculos.filhasPorMae[linhaOrigem] || []).length > 0) {
-      throw new Error('Esta venda já possui um móvel vinculado.');
+    var filhasExistentes = vinculos.filhasPorMae[linhaOrigem] || [];
+    if (filhasExistentes.length > 0) {
+      var ultimaLinha = sheet.getLastRow();
+      var temMovelReal = filhasExistentes.some(function(f) {
+        if (!f.vendaFilhaLinha || f.vendaFilhaLinha < 3 || f.vendaFilhaLinha > ultimaLinha) return false;
+        var prod = String(sheet.getRange(f.vendaFilhaLinha, CONFIG.COLUNAS.PRODUTO + 1, 1, 1).getValues()[0][0] || '');
+        return _normalizarTexto(prod).indexOf('MOVEL') !== -1;
+      });
+      if (temMovelReal) throw new Error('Esta venda já possui um móvel vinculado.');
     }
 
     if (!valor) valor = _extrairValorDoPlano_(plano);
@@ -2971,7 +3126,7 @@ function criarVendaMovelVinculada(payload) {
       produto:         produtoMovel,
       status:          '2- Aguardando Entrega',
       preStatus:       vendaOrigem.preStatus || '',
-      dataAtiv:        '',
+      dataAtiv:        new Date(),
       contrato:        contrato,
       codCli:          '',
       resp:            vendaOrigem.resp || '',
@@ -3146,12 +3301,6 @@ function salvarVenda(dados) {
 
 // ─── DADOS DO FUNIL DE INSTALAÇÕES ────────────────────────────────────────
 // Retorna TODAS as vendas dos 3 status do funil (sem paginação)
-
-// Limpa cache do funil (rode no editor para forçar recarga)
-function limparCacheFunil() {
-  CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'funil_v2_meta');
-  Logger.log('Cache do funil removido.');
-}
 
 function getVendasFunil() {
   try {
@@ -3575,49 +3724,6 @@ function _limparCacheListaV3() {
 }
 
 
-// ── REPARO: preenche Sistema (col Z) e Segmentação (col AA) vazios ────────────
-// Executa UMA vez manualmente no editor Apps Script.
-// Lê a cidade de cada linha e busca sistema/segmentação na aba CIDADES.
-// Só sobrescreve células VAZIAS — não toca em valores já preenchidos.
-function repararSistemaSegmentacao() {
-  var sheet    = _getSheet();
-  var ultLinha = sheet.getLastRow();
-  if (ultLinha < 3) { Logger.log('Nenhuma venda encontrada.'); return; }
-
-  var dados    = sheet.getRange(3, 1, ultLinha - 2, CONFIG.TOTAL_COLUNAS).getValues();
-  var cidades  = _getCidades();
-  var c        = CONFIG.COLUNAS;
-
-  // Monta mapa cidade normalizada → { sistema, segmentacao }
-  var mapaCidades = {};
-  for (var ci = 0; ci < cidades.length; ci++) {
-    var chave = _normalizarTexto(cidades[ci][6]);
-    if (chave) mapaCidades[chave] = { sistema: cidades[ci][2] || '', segmentacao: cidades[ci][3] || '' };
-  }
-
-  var corrigidos = 0;
-  for (var i = 0; i < dados.length; i++) {
-    var linha    = dados[i];
-    var cidade   = _normalizarTexto(String(linha[c.CIDADE] || ''));
-    var sistema  = String(linha[c.SISTEMA] || '').trim();
-    var segm     = String(linha[c.SEGMENTACAO] || '').trim();
-
-    if (!cidade) continue;                    // linha sem cidade — pula
-    if (sistema && segm) continue;            // ambos já preenchidos — pula
-    var lookup = mapaCidades[cidade];
-    if (!lookup) continue;                    // cidade não mapeada — pula
-
-    var linhaSheet = i + 3;
-    if (!sistema && lookup.sistema)   sheet.getRange(linhaSheet, c.SISTEMA + 1).setValue(lookup.sistema);
-    if (!segm    && lookup.segmentacao) sheet.getRange(linhaSheet, 27).setValue(lookup.segmentacao);
-    corrigidos++;
-  }
-
-  _limparCache();
-  var msg = 'repararSistemaSegmentacao: ' + corrigidos + ' linha(s) corrigida(s) de ' + dados.length + ' total.';
-  Logger.log(msg);
-  _getSpreadsheet_().toast(msg, '✅ Reparo concluído', 10);
-}
 
 
 // ── VALIDAÇÃO DE STATUS POR TIPO (onEdit) ────────────────────────────────────
@@ -3796,7 +3902,13 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     rg:               clienteLegado.rg,
     mapsLink:         '',
     reagendamentos:   parseInt(row[c.REAGENDAMENTOS]) || 0,
-    viabilidade:      String(row[c.VIABILIDADE]        || '').trim()
+    viabilidade:      String(row[c.VIABILIDADE]        || '').trim(),
+    criadoEm:         (function(v) {
+      if (!v) return '';
+      if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, tz, 'dd/MM/yyyy HH:mm');
+      return String(v).trim();
+    })(row[c.CRIADO_EM]),
+    veroStatus:       String(row[c.VERO_STATUS] || '').trim()
   };
 }
 
@@ -3840,7 +3952,7 @@ function _mapearLinha(row, numeroLinha) {
     venc:        row[c.VENC]         || '',
     fat:         row[c.FAT]          || '',
     plano:       row[c.PLANO]        || '',
-    valor:       _valorListaSemDuplicar(row[c.PLANO], row[c.VALOR]),
+    valor:       String(row[c.VALOR] || '').trim(),
     linhaMovel:    row[c.LINHA_MOVEL]    || '',
     portabilidade: row[c.PORTABILIDADE] || '',
     observacao:  row[c.OBSERVACAO]   || '',  // L  - Motivo Cancelamento / Observação
@@ -3861,7 +3973,13 @@ function _mapearLinha(row, numeroLinha) {
     rg:               clienteLegado.rg,
     mapsLink:         '',
     reagendamentos:   parseInt(row[c.REAGENDAMENTOS]) || 0,
-    viabilidade:      String(row[c.VIABILIDADE]        || '').trim()
+    viabilidade:      String(row[c.VIABILIDADE]        || '').trim(),
+    criadoEm:         (function(v) {
+      if (!v) return '';
+      if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+      return String(v).trim();
+    })(row[c.CRIADO_EM]),
+    veroStatus:       String(row[c.VERO_STATUS] || '').trim()
   };
 }
 
@@ -3910,6 +4028,8 @@ function _construirLinhaDados(d) {
   linha[c.BC_TAGS]           = d.bcTags            || '';
   linha[c.BC_STATUS]         = d.bcStatus          || '';
   linha[c.VIABILIDADE]       = d.viabilidade       || '';
+  linha[c.CRIADO_EM]         = d.criadoEm          || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+  linha[c.VERO_STATUS]       = d.veroStatus         || '';
   return linha;
 }
 
@@ -3932,7 +4052,7 @@ function _getSheetVinculosVendas_(createIfMissing) {
   var sh = ss.getSheetByName(CONFIG.SHEET_VINCULOS_VENDAS);
   if (!sh && createIfMissing) {
     sh = ss.insertSheet(CONFIG.SHEET_VINCULOS_VENDAS);
-    sh.getRange(1, 1, 1, 8).setValues([[
+    sh.getRange(1, 1, 1, 10).setValues([[
       'CriadoEm',
       'TipoVinculo',
       'VendaMaeLinha',
@@ -3940,7 +4060,9 @@ function _getSheetVinculosVendas_(createIfMissing) {
       'VendaMaeContrato',
       'VendaFilhaContrato',
       'Status',
-      'Observacao'
+      'Observacao',
+      'VendaMaeCliente',
+      'VendaFilhaCliente'
     ]]);
   }
   return sh;
@@ -3989,11 +4111,23 @@ function _decorarVendaComVinculos_(venda, vinculosMap, mapaResumoVinculos) {
   var pai = vinculosMap.maePorFilha[v.linha] || null;
   var produtoNorm = _normalizarTexto(v.produto);
 
-  v.vendaMovelLinha = filhos.length ? filhos[0].vendaFilhaLinha : '';
+  // ── Seleciona a filha mais recente cujo produto contenha 'MOVEL' (evita entradas antigas/obsoletas)
+  var melhorFilha = null;
+  for (var _fi = filhos.length - 1; _fi >= 0; _fi--) {
+    var _cand = filhos[_fi];
+    var _resumoCand = mapaResumoVinculos[_cand.vendaFilhaLinha];
+    if (_resumoCand && _normalizarTexto(_resumoCand.produto || '').indexOf('MOVEL') !== -1) {
+      melhorFilha = _cand;
+      break;
+    }
+  }
+  // Fallback: filha mais recente (última inserida) se nenhuma com MOVEL encontrada
+  if (!melhorFilha && filhos.length) melhorFilha = filhos[filhos.length - 1];
+  v.vendaMovelLinha = melhorFilha ? melhorFilha.vendaFilhaLinha : '';
   v.temVendaMovelVinculada = filhos.length > 0;
   v.comboMovelPendente = (produtoNorm === 'FIBRA COMBO') && !v.temVendaMovelVinculada;
   v.vendaMaeLinha = pai ? pai.vendaMaeLinha : '';
-  v.tipoVinculo = pai ? pai.tipo : (filhos.length ? filhos[0].tipo : '');
+  v.tipoVinculo = pai ? pai.tipo : (filhos.length ? filhos[filhos.length - 1].tipo : '');
   v.vendaMovelResumo = v.vendaMovelLinha ? (mapaResumoVinculos[v.vendaMovelLinha] || null) : null;
   v.vendaMaeResumo = v.vendaMaeLinha ? (mapaResumoVinculos[v.vendaMaeLinha] || null) : null;
   return v;
@@ -4002,19 +4136,23 @@ function _decorarVendaComVinculos_(venda, vinculosMap, mapaResumoVinculos) {
 function _resumirVendaVinculada_(venda) {
   if (!venda) return null;
   return {
-    linha: venda.linha || '',
-    cliente: venda.cliente || '',
-    produto: venda.produto || '',
-    plano: venda.plano || '',
-    valor: venda.valor || '',
-    status: venda.status || '',
-    contrato: venda.contrato || '',
-    linhaMovel: venda.linhaMovel || '',
-    portabilidade: venda.portabilidade || '',
-    dataAtiv: venda.dataAtiv || '',
-    agenda: venda.agenda || '',
-    turno: venda.turno || '',
-    instal: venda.instal || ''
+    linha:         venda.linha          || '',
+    cliente:       venda.cliente        || '',
+    produto:       venda.produto        || '',
+    plano:         venda.plano          || '',
+    valor:         venda.valor          || '',
+    venc:          venda.venc           || '',
+    fat:           venda.fat            || '',
+    status:        venda.status         || '',
+    preStatus:     venda.preStatus      || '',
+    contrato:      venda.contrato       || '',
+    linhaMovel:    venda.linhaMovel     || '',
+    portabilidade: venda.portabilidade  || '',
+    dataAtiv:      venda.dataAtiv       || '',
+    agenda:        venda.agenda         || '',
+    turno:         venda.turno          || '',
+    instal:        venda.instal         || '',
+    reagendamentos:venda.reagendamentos || 0
   };
 }
 
@@ -4150,6 +4288,20 @@ function _registrarVinculoVenda_(maeLinha, filhaLinha, tipo) {
   var rowFilha = sheetVendas.getRange(filhaLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
   var c = CONFIG.COLUNAS;
   var sh = _getSheetVinculosVendas_(true);
+
+  // ── Arquivar vínculos ATIVO anteriores para a mesma mãe ───────────────────
+  //  Evita acúmulo de entradas obsoletas que causariam seleção errada da filha
+  var lastRow = sh.getLastRow();
+  if (lastRow >= 2) {
+    var existentes = sh.getRange(2, 1, lastRow - 1, 8).getValues();
+    for (var ei = 0; ei < existentes.length; ei++) {
+      if (_normalizarTexto(existentes[ei][6] || 'ATIVO') !== 'ATIVO') continue;
+      if (parseInt(existentes[ei][2], 10) === maeLinha) {
+        sh.getRange(ei + 2, 7).setValue('ARQUIVADO');
+      }
+    }
+  }
+
   sh.appendRow([
     Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm:ss'),
     String(tipo || 'COMBO_MOVEL'),
@@ -4158,7 +4310,9 @@ function _registrarVinculoVenda_(maeLinha, filhaLinha, tipo) {
     String(rowMae[c.CONTRATO] || '').trim(),
     String(rowFilha[c.CONTRATO] || '').trim(),
     'ATIVO',
-    ''
+    '',
+    String(rowMae[c.CLIENTE] || '').trim(),
+    String(rowFilha[c.CLIENTE] || '').trim()
   ]);
 }
 
@@ -4285,6 +4439,15 @@ function getDashboard(mes, ano) {
     function toDate(v) {
       if (v instanceof Date && !isNaN(v)) return v;
       if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400 * 1000));
+      if (typeof v === 'string' && v.trim()) {
+        var s = v.trim();
+        // DD/MM/YYYY
+        var m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (m) return new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
+        // YYYY-MM-DD (ISO)
+        var iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (iso) return new Date(parseInt(iso[1]), parseInt(iso[2]) - 1, parseInt(iso[3]));
+      }
       return null;
     }
     function isFibra(p) {
@@ -4614,6 +4777,10 @@ function getFilaPAPHtml() {
 
 function getPainelAdsHtml() {
   return HtmlService.createHtmlOutputFromFile('PainelAds').getContent();
+}
+
+function getDispPessoalHtml() {
+  return HtmlService.createHtmlOutputFromFile('DispPessoal').getContent();
 }
 
 // Retorna HTML do dashboard já com dados embutidos — apenas 1 roundtrip
@@ -5129,68 +5296,10 @@ function _warmupScript() {
   }
 }
 
-/**
- * Cria o Time-based trigger que chama _warmupScript() a cada minuto.
- * Execute esta função UMA VEZ manualmente no editor do Apps Script.
- * Verifica se já existe antes de criar um duplicado.
- */
-// Suspeita: rotina operacional manual. Nao ha chamada pela UI atual.
-function configurarTriggerWarmup() {
-  var FUNC = '_warmupScript';
-  var triggers = ScriptApp.getProjectTriggers();
-
-  // Evita duplicata
-  for (var i = 0; i < triggers.length; i++) {
-    if (triggers[i].getHandlerFunction() === FUNC) {
-      Logger.log('configurarTriggerWarmup: trigger já existe. Nenhuma ação necessária.');
-      return 'Trigger já configurado.';
-    }
-  }
-
-  ScriptApp.newTrigger(FUNC)
-    .timeBased()
-    .everyMinutes(1)
-    .create();
-
-  Logger.log('configurarTriggerWarmup: trigger criado com sucesso (1 min).');
-  return 'Trigger de warmup criado com sucesso!';
-}
-
-/**
- * Remove o trigger de warmup caso queira desativar.
- */
-// Suspeita: rotina operacional manual. Nao ha chamada pela UI atual.
-function removerTriggerWarmup() {
-  var FUNC = '_warmupScript';
-  var triggers = ScriptApp.getProjectTriggers();
-  var removidos = 0;
-  for (var i = 0; i < triggers.length; i++) {
-    if (triggers[i].getHandlerFunction() === FUNC) {
-      ScriptApp.deleteTrigger(triggers[i]);
-      removidos++;
-    }
-  }
-  Logger.log('removerTriggerWarmup: ' + removidos + ' trigger(s) removido(s).');
-  return removidos > 0 ? 'Trigger removido.' : 'Nenhum trigger encontrado.';
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // ASSERTIVA LOCALIZE — Consulta cadastral por CPF
 // Docs: https://integracao.assertivasolucoes.com.br/v3/doc/
 // ══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Executar UMA VEZ no editor do Apps Script para salvar as credenciais.
- * Ex: configurarAssertiva('meuClientId', 'meuClientSecret')
- */
-function configurarAssertiva(clientId, clientSecret) {
-  if (!clientId || !clientSecret) throw new Error('Informe clientId e clientSecret.');
-  var props = PropertiesService.getScriptProperties();
-  props.setProperty('assertiva_client_id',     clientId);
-  props.setProperty('assertiva_client_secret',  clientSecret);
-  Logger.log('Assertiva: credenciais salvas com sucesso.');
-  return 'OK';
-}
 
 /**
  * Obtém token OAuth2 da Assertiva (cache 50s — token expira em 60s).
@@ -5566,115 +5675,9 @@ function epApagarExtratoDrive(fileId) {
 }
 
 
-// ══════════════════════════════════════════════════════════════════════════
-//  MIGRAÇÃO DE COLUNAS — rodar UMA VEZ após reorganização
-//  ATENÇÃO: testar em CÓPIA da planilha antes de rodar na original.
-//  Remapeia os dados do layout antigo (59 colunas com buracos) para
-//  o novo layout compacto (42 colunas, A–AP, sem buracos).
-// ══════════════════════════════════════════════════════════════════════════
-function migrarColunas() {
-  var MAPA = [
-    // [índice_antigo, índice_novo]
-    [0,0],   // CANAL         A→A
-    [2,1],   // STATUS        C→B
-    [36,2],  // PRE_STATUS    AK→C
-    [3,3],   // DATA_ATIV     D→D
-    [6,4],   // CONTRATO      G→E
-    [5,5],   // COD_CLI       F→F
-    [12,6],  // RESP          M→G
-    [7,7],   // AGENDA        H→H
-    [8,8],   // TURNO         I→I
-    [9,9],   // INSTAL        J→J
-    [10,10], // REAGENDAMENTOS K→K
-    [11,11], // OBSERVACAO    L→L
-    [1,12],  // PRODUTO       B→M
-    [33,13], // PLANO         AH→N
-    [35,14], // VALOR         AJ→O
-    [29,15], // VENC          AD→P
-    [30,16], // FAT           AE→Q
-    [37,17], // LINHA_MOVEL   AL→R
-    [40,18], // PORTABILIDADE AO→S
-    [14,19], // CLIENTE       O→T
-    [13,20], // CPF           N→U
-    [15,21], // WHATS         P→V
-    [16,22], // TEL           Q→W
-    [47,23], // NOME_MAE      AV→X
-    [48,24], // DT_NASC       AW→Y
-    [49,25], // RG            AX→Z
-    [17,26], // CEP           R→AA
-    [18,27], // RUA           S→AB
-    [19,28], // NUM           T→AC
-    [20,29], // COMPLEMENTO   U→AD
-    [21,30], // BAIRRO        V→AE
-    [22,31], // CIDADE        W→AF
-    [23,32], // UF            X→AG
-    [25,33], // SISTEMA       Z→AH
-    [26,34], // SEGMENTACAO   AA→AI
-    [41,35], // VEROHUB       AP→AJ
-    [43,36], // VEROHUB_PEDIDO AR→AK
-    [44,37], // VEROHUB_PEDIDO_DT AS→AL
-    [42,38], // STATUS_PAP    AQ→AM
-    [45,39], // BC_TAGS       AT→AN
-    [46,40], // BC_STATUS     AU→AO
-    [51,41]  // VIABILIDADE   AZ→AP
-  ];
-
-  var sheet = _getSpreadsheet_().getSheetByName(CONFIG.SHEET_NAME);
-  if (!sheet) return 'Aba "' + CONFIG.SHEET_NAME + '" não encontrada.';
-
-  var totalLinhas = sheet.getLastRow();
-  if (totalLinhas < 1) return 'Planilha vazia — nada a migrar.';
-
-  var totalColsAtual = sheet.getLastColumn();
-  var dados = sheet.getRange(1, 1, totalLinhas, totalColsAtual).getValues();
-
-  var novosDados = dados.map(function(row) {
-    var nova = new Array(CONFIG.TOTAL_COLUNAS).fill('');
-    MAPA.forEach(function(par) {
-      nova[par[1]] = (par[0] < row.length) ? row[par[0]] : '';
-    });
-    return nova;
-  });
-
-  sheet.getRange(1, 1, totalLinhas, CONFIG.TOTAL_COLUNAS).setValues(novosDados);
-
-  // Apaga colunas excedentes (além da col AP = coluna 42)
-  var maxCol = sheet.getMaxColumns();
-  if (maxCol > CONFIG.TOTAL_COLUNAS) {
-    sheet.deleteColumns(CONFIG.TOTAL_COLUNAS + 1, maxCol - CONFIG.TOTAL_COLUNAS);
-  }
-
-  var msg = 'migrarColunas() OK — ' + (totalLinhas - 2) + ' linhas de dados remapeadas para ' + CONFIG.TOTAL_COLUNAS + ' colunas.';
-  Logger.log(msg);
-  return msg;
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 //  GERENCIAR USUÁRIOS — API do painel admin
 // ══════════════════════════════════════════════════════════════════════════════
-
-// Migração única: copia usuários de Config.js para a aba Usuarios da planilha.
-// Idempotente — não faz nada se já houver linhas de dados.
-// Execute UMA VEZ no editor Apps Script: Ferramentas → Executar → migrarUsuariosParaSheet
-function migrarUsuariosParaSheet() {
-  var ss    = _getSpreadsheet_();
-  var sheet = ss.getSheetByName(CONFIG.SHEET_USUARIOS);
-  if (!sheet) {
-    sheet = ss.insertSheet(CONFIG.SHEET_USUARIOS);
-  }
-  if (sheet.getLastRow() > 1) {
-    Logger.log('migrarUsuariosParaSheet: planilha já populada — nenhuma ação tomada.');
-    return 'Já populada.';
-  }
-  sheet.getRange(1, 1, 1, 6).setValues([['usuario', 'senhaHash', 'nome', 'perfil', 'foto', 'ativo']]);
-  var rows = USUARIOS.map(function(u) {
-    return [u.usuario, u.senhaHash || '', u.nome, u.perfil, u.foto || '', true];
-  });
-  sheet.getRange(2, 1, rows.length, 6).setValues(rows);
-  var msg = 'migrarUsuariosParaSheet: ' + rows.length + ' usuários migrados.';
-  Logger.log(msg);
-  return msg;
-}
 
 // Verifica se adminUsuario é admin. Lança erro se não for.
 function _assertAdmin_(adminUsuario) {

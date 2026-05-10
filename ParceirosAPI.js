@@ -109,6 +109,21 @@ function _routePAP(payload) {
       case 'listarPreVendas':
         result = listarPreVendas(payload.filtro);
         break;
+      case 'getMinhaDashboard':
+        result = getMinhaDashboard(payload.cpf);
+        break;
+      case 'getCatalogoPremios':
+        result = getCatalogoPremios();
+        break;
+      case 'resgatarPremio':
+        result = resgatarPremio(payload.cpf, payload.premioId);
+        break;
+      case 'getExtratoPontos':
+        result = getExtratoPontos(payload.cpf);
+        break;
+      case 'getMeusPagamentosPAP':
+        result = getMeusPagamentosPAP(payload.cpf);
+        break;
       default:
         result = { ok: false, error: 'Ação desconhecida: ' + payload.action };
     }
@@ -523,7 +538,7 @@ function _papMontarObservacaoPreVenda(pv) {
 //    Marca como "Rejeitado" na aba "Pré-Vendas". Sem ação em "1 - Vendas".
 //    Retorna: { ok: bool }
 // ══════════════════════════════════════════════════════════════════════════════
-function rejeitarPreVenda(id, emailRejeitor) {
+function rejeitarPreVenda(id, emailRejeitor, motivo) {
   const ss    = _getSpreadsheet_();
   const sheet = ss.getSheetByName(PAP_SHEET_PRE_VENDAS);
   if (!sheet) return { ok: false, error: 'Aba "Pré-Vendas" não encontrada' };
@@ -557,10 +572,11 @@ function rejeitarPreVenda(id, emailRejeitor) {
       const v = _papBuscarSubscriberVendedor(pvCopia[4], pvCopia[3]);
       if (v && v.subscriberId) {
         _papNotificarVendedorPAP('pv_rejeitada', v.subscriberId, {
-          pap_pv_id:        pvCopia[0],
-          pap_nome_cliente: pvCopia[6] || '',
-          pap_plano:        pvCopia[11] || '',
-          pap_status:       'Rejeitada'
+          pap_pv_id:           pvCopia[0],
+          pap_nome_cliente:    pvCopia[6] || '',
+          pap_plano:           pvCopia[11] || '',
+          pap_motivo_rejeicao: motivo || '',
+          pap_status:          'Rejeitada'
         });
       }
     } catch(ne) { Logger.log('rejeitarPreVenda notif: ' + ne.message); }
@@ -713,13 +729,22 @@ function listarPreVendas(filtro) {
       parceiro:     String(row[3]  || ''),
       cpfCliente:   String(row[5]  || ''),
       nomeCliente:  String(row[6]  || ''),
-      enderecoRef:  String(row[7]  || ''),
+      cep:          String(row[7]  || ''),
       protocoloRef: String(row[8]  || ''),
       whatsapp:     String(row[9]  || ''),
+      email:        String(row[10] || ''),
       plano:        String(row[11] || ''),
       movel:        String(row[12] || ''),
+      tipoMovel:    String(row[13] || ''),
       vencimento:   row[14] instanceof Date ? row[14].toISOString() : String(row[14] || ''),
       pagamento:    String(row[15] || ''),
+      rua:          String(row[18] || ''),
+      num:          String(row[19] || ''),
+      complemento:  String(row[20] || ''),
+      bairro:       String(row[21] || ''),
+      cidade:       String(row[22] || ''),
+      uf:           String(row[23] || ''),
+      valor:        String(row[24] || ''),
     });
     if (items.length >= 50) break;
   }
@@ -846,12 +871,16 @@ function _papMontarMensagemNotificacao(evento, dados) {
              '\n🔖 Protocolo: ' + protocolo +
              '\n\nEm breve você receberá a confirmação do agendamento da instalação.';
 
-    case 'pv_rejeitada':
+    case 'pv_rejeitada': {
+      const motivoTexto = dados.pap_motivo_rejeicao
+        ? '\n\n📋 *Motivo:* ' + dados.pap_motivo_rejeicao
+        : '\n\nEntre em contato com o backoffice para mais informações.';
       return '❌ *Pré-venda não aprovada*\n\n' +
              'Infelizmente sua pré-venda não pôde ser aprovada.' +
              rodape +
              '\n🔖 Protocolo: ' + protocolo +
-             '\n\nEntre em contato com o backoffice para mais informações.';
+             motivoTexto;
+    }
 
     case 'aguardando_instalacao': {
       const agenda = dados.pap_agenda || '';
@@ -892,4 +921,295 @@ function _papNotificarVendedorPAP(evento, subscriberId, dados) {
   } catch(e) {
     Logger.log('_papNotificarVendedorPAP erro [' + evento + ']: ' + e.message);
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MÓDULO DASHBOARD + PONTOS PAP — adicionado 04/05/2026
+// ══════════════════════════════════════════════════════════════════════════════
+
+const PAP_SHEET_PREMIOS  = 'PAP Premios';
+const PAP_SHEET_RESGATES = 'PAP Resgates';
+
+const HEADERS_PREMIOS = [
+  'ID', 'Nome', 'Descricao', 'Pontos', 'Imagem URL', 'Disponivel', 'Estoque'
+];
+const HEADERS_RESGATES = [
+  'ID', 'Timestamp', 'CPF Parceiro', 'Nome Parceiro',
+  'Premio ID', 'Premio Nome', 'Pontos', 'Status', 'Data Entrega', 'Observacao'
+];
+
+function getMinhaDashboard(cpf) {
+  const cpfLimpo = _papNormCpf(cpf);
+  if (!cpfLimpo) return { ok: false, error: 'CPF inválido' };
+  const auth = autenticarParceiro(cpfLimpo);
+  if (!auth.found) return { ok: false, error: 'Parceiro não autenticado' };
+  const nomeParceiro = auth.nome || '';
+  const ss = _getSpreadsheet_();
+
+  const sheetPV = ss.getSheetByName(PAP_SHEET_PRE_VENDAS);
+  const preVendas = [];
+  if (sheetPV && sheetPV.getLastRow() >= 2) {
+    const pvData = sheetPV.getDataRange().getValues();
+    for (let i = pvData.length - 1; i >= 1; i--) {
+      const row = pvData[i];
+      if (_papNormCpf(row[4]) !== cpfLimpo) continue;
+      preVendas.push({
+        id:          String(row[0]  || ''),
+        ts:          row[1] instanceof Date ? row[1].toISOString() : String(row[1] || ''),
+        status:      String(row[2]  || ''),
+        nomeCliente: String(row[6]  || ''),
+        plano:       String(row[11] || ''),
+        movel:       String(row[12] || ''),
+        valor:       String(row[24] || ''),
+      });
+      if (preVendas.length >= 30) break;
+    }
+  }
+
+  const vendasAtivas = [];
+  const sheetV = ss.getSheetByName(PAP_SHEET_VENDAS);
+  if (sheetV && sheetV.getLastRow() >= 3 && nomeParceiro && typeof CONFIG !== 'undefined') {
+    const c = CONFIG.COLUNAS;
+    const numRows = sheetV.getLastRow() - 2;
+    if (numRows > 0) {
+      const maxCol = Math.max(c.CANAL, c.STATUS, c.RESP, c.CLIENTE||0, c.PLANO||0, c.PRODUTO||0, c.STATUS_PAP||0) + 1;
+      const raw = sheetV.getRange(3, 1, numRows, maxCol).getValues();
+      const nomeNorm = nomeParceiro.trim().toLowerCase();
+      const _stripD = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'');
+      for (let i = raw.length - 1; i >= 0; i--) {
+        const row = raw[i];
+        if (String(row[c.CANAL]||'').toUpperCase() !== 'PAP') continue;
+        if (String(row[c.RESP]||'').trim().toLowerCase() !== nomeNorm) continue;
+        const prodNorm = _stripD(String(row[c.PRODUTO]||'').trim().toUpperCase());
+        if (prodNorm !== 'FIBRA ALONE' && prodNorm !== 'FIBRA COMBO') continue;
+        const dInstal = row[c.INSTAL];
+        vendasAtivas.push({
+          cliente:    String(row[c.CLIENTE   ||0]||''),
+          plano:      String(row[c.PLANO     ||0]||''),
+          produto:    String(row[c.PRODUTO   ||0]||''),
+          status:     String(row[c.STATUS]       ||''),
+          statusPAP:  String(row[c.STATUS_PAP||0]||''),
+          valor:      String(row[c.VALOR     ||0]||''),
+          dataInstal: dInstal instanceof Date ? dInstal.toISOString() : String(dInstal||''),
+        });
+        if (vendasAtivas.length >= 50) break;
+      }
+    }
+  }
+
+  const pontosInfo = _calcularPontos(cpfLimpo, nomeParceiro);
+  return { ok: true, nomeParceiro, preVendas, vendasAtivas,
+           pontos: { saldo: pontosInfo.saldo, instaladas: pontosInfo.instaladas } };
+}
+
+function _calcularPontos(cpfLimpo, nomeParceiro) {
+  const ss = _getSpreadsheet_();
+  let pontosBrutos = 0, instaladas = 0;
+
+  const sheetV = ss.getSheetByName(PAP_SHEET_VENDAS);
+  if (sheetV && sheetV.getLastRow() >= 3 && nomeParceiro && typeof CONFIG !== 'undefined') {
+    const c = CONFIG.COLUNAS;
+    const numRows = sheetV.getLastRow() - 2;
+    if (numRows > 0) {
+      const maxCol = Math.max(c.CANAL, c.STATUS, c.RESP, c.PRODUTO||0) + 1;
+      const raw = sheetV.getRange(3, 1, numRows, maxCol).getValues();
+      const nomeNorm = nomeParceiro.trim().toLowerCase();
+      for (const row of raw) {
+        if (String(row[c.CANAL]||'').toUpperCase() !== 'PAP') continue;
+        if (String(row[c.RESP]||'').trim().toLowerCase() !== nomeNorm) continue;
+        const status = String(row[c.STATUS]||'');
+        if (!status.match(/^4/) && !status.toLowerCase().includes('instalad') && !status.toLowerCase().includes('ativo')) continue;
+        instaladas++;
+        pontosBrutos += String(row[c.PRODUTO||0]||'').toUpperCase().includes('COMBO') ? 2 : 1;
+      }
+    }
+  }
+
+  let pontosGastos = 0;
+  const sheetR = ss.getSheetByName(PAP_SHEET_RESGATES);
+  if (sheetR && sheetR.getLastRow() >= 2) {
+    const rData = sheetR.getDataRange().getValues();
+    for (let i = 1; i < rData.length; i++) {
+      if (_papNormCpf(rData[i][2]) !== cpfLimpo) continue;
+      if (String(rData[i][7]||'') === 'Cancelado') continue;
+      pontosGastos += Number(rData[i][6]||0);
+    }
+  }
+  return { saldo: Math.max(0, pontosBrutos - pontosGastos), instaladas, pontosBrutos, pontosGastos };
+}
+
+function getCatalogoPremios() {
+  const sheet = _papGetOrCreateSheet(PAP_SHEET_PREMIOS, HEADERS_PREMIOS);
+  if (sheet.getLastRow() < 2) {
+    const seed = [
+      ['P001','Camiseta Mobile Digital','Camiseta exclusiva da equipe',10,'','SIM',''],
+      ['P002','Vale Presente R$ 50','Voucher para parceiros credenciados',25,'','SIM',''],
+      ['P003','Vale Presente R$ 100','Voucher para parceiros credenciados',50,'','SIM',''],
+      ['P004','Fone Bluetooth','Fone sem fio de alta qualidade',80,'','SIM',5],
+      ['P005','Smartwatch','Relógio inteligente — estoque limitado',150,'','SIM',2],
+    ];
+    seed.forEach(r => sheet.appendRow(r));
+    SpreadsheetApp.flush();
+  }
+  const data = sheet.getDataRange().getValues();
+  const premios = [];
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    if (String(row[5]||'').toUpperCase() !== 'SIM') continue;
+    premios.push({ id: String(row[0]||''), nome: String(row[1]||''), descricao: String(row[2]||''),
+                   pontos: Number(row[3]||0), imagem: String(row[4]||''),
+                   estoque: (row[6]!==''&&row[6]!==null) ? Number(row[6]) : null });
+  }
+  return { ok: true, premios };
+}
+
+function getExtratoPontos(cpf) {
+  const cpfLimpo = _papNormCpf(cpf);
+  if (!cpfLimpo) return { ok: false, error: 'CPF inválido' };
+  const auth = autenticarParceiro(cpfLimpo);
+  if (!auth.found) return { ok: false, error: 'Parceiro não autenticado' };
+  const { saldo, instaladas, pontosBrutos, pontosGastos } = _calcularPontos(cpfLimpo, auth.nome);
+
+  const sheetR = _getSpreadsheet_().getSheetByName(PAP_SHEET_RESGATES);
+  const resgates = [];
+  if (sheetR && sheetR.getLastRow() >= 2) {
+    const rData = sheetR.getDataRange().getValues();
+    for (let i = rData.length - 1; i >= 1; i--) {
+      if (_papNormCpf(rData[i][2]) !== cpfLimpo) continue;
+      resgates.push({ id: String(rData[i][0]||''),
+        ts: rData[i][1] instanceof Date ? rData[i][1].toISOString() : String(rData[i][1]||''),
+        premioNome: String(rData[i][5]||''), pontos: Number(rData[i][6]||0),
+        status: String(rData[i][7]||''),
+        entrega: rData[i][8] instanceof Date ? rData[i][8].toISOString() : String(rData[i][8]||'') });
+      if (resgates.length >= 20) break;
+    }
+  }
+  return { ok: true, saldo, instaladas, pontosBrutos, pontosGastos, resgates };
+}
+
+function resgatarPremio(cpf, premioId) {
+  const cpfLimpo = _papNormCpf(cpf);
+  if (!cpfLimpo) return { ok: false, error: 'CPF inválido' };
+  const auth = autenticarParceiro(cpfLimpo);
+  if (!auth.found) return { ok: false, error: 'Parceiro não encontrado' };
+
+  const sheetP = _getSpreadsheet_().getSheetByName(PAP_SHEET_PREMIOS);
+  if (!sheetP) return { ok: false, error: 'Catálogo não encontrado' };
+
+  const pData = sheetP.getDataRange().getValues();
+  let premioRow = null, premioLine = -1;
+  for (let i = 1; i < pData.length; i++) {
+    if (String(pData[i][0]) === String(premioId)) { premioRow = pData[i]; premioLine = i + 1; break; }
+  }
+  if (!premioRow) return { ok: false, error: 'Prêmio não encontrado' };
+  if (String(premioRow[5]||'').toUpperCase() !== 'SIM') return { ok: false, error: 'Prêmio indisponível' };
+
+  const custoPontos = Number(premioRow[3]||0);
+  const estoque = (premioRow[6]!==''&&premioRow[6]!==null) ? Number(premioRow[6]) : null;
+  if (estoque !== null && estoque <= 0) return { ok: false, error: 'Estoque esgotado' };
+
+  const { saldo: saldoPre } = _calcularPontos(cpfLimpo, auth.nome);
+  if (saldoPre < custoPontos) return { ok: false, error: `Você tem ${saldoPre} pts, precisa de ${custoPontos} pts.` };
+
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(12000);
+    const { saldo } = _calcularPontos(cpfLimpo, auth.nome);
+    if (saldo < custoPontos) return { ok: false, error: `Saldo insuficiente (${saldo} pts).` };
+
+    const sheetR = _papGetOrCreateSheet(PAP_SHEET_RESGATES, HEADERS_RESGATES);
+    const resId = _papGerarId('RS');
+    sheetR.appendRow([resId, _papNow(), cpfLimpo, auth.nome,
+      String(premioRow[0]), String(premioRow[1]), custoPontos, 'Pendente', '', '']);
+
+    if (estoque !== null) {
+      const novo = estoque - 1;
+      sheetP.getRange(premioLine, 7).setValue(novo);
+      if (novo <= 0) sheetP.getRange(premioLine, 6).setValue('NÃO');
+    }
+    SpreadsheetApp.flush();
+    return { ok: true, id: resId, pontosSaldo: saldo - custoPontos, premioNome: String(premioRow[1]) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ── Pagamentos PAP do vendedor logado ──────────────────────────────────────
+// Retorna as vendas com STATUS_PAP="Em Aberto" e calcula a comissão devida.
+function getMeusPagamentosPAP(cpf) {
+  const cpfLimpo = _papNormCpf(cpf);
+  if (!cpfLimpo) return { ok: false, error: 'CPF inválido' };
+  const auth = autenticarParceiro(cpfLimpo);
+  if (!auth.found) return { ok: false, error: 'Parceiro não autenticado' };
+  const nomeParceiro = auth.nome || '';
+  const ss = _getSpreadsheet_();
+
+  // Lê config do vendedor na aba "3 - PAP" (cols S-AB, 1-based 19-28)
+  // S=0(nome) T=1(idbot) U=2(whats) V=3(dataCad) W=4(cpf) X=5(chavePix) Y=6 Z=7 AA=8(forma) AB=9(period)
+  let formaPgto = '', periodicidade = '', chavePix = '';
+  const shPAP = ss.getSheetByName('3 - PAP');
+  if (shPAP && shPAP.getLastRow() >= 2) {
+    const rawPAP = shPAP.getRange(2, 19, shPAP.getLastRow() - 1, 10).getValues();
+    for (const r of rawPAP) {
+      if (_papNormCpf(String(r[4]||'')) === cpfLimpo) {
+        chavePix      = String(r[5]||'').trim();
+        formaPgto     = String(r[8]||'').trim();
+        periodicidade = String(r[9]||'').trim();
+        break;
+      }
+    }
+  }
+
+  if (!formaPgto) {
+    return { ok: true, semConfig: true, totalComissao: 0, qtd: 0,
+             formaPgto: '', periodicidade: '', chavePix: '', itens: [] };
+  }
+
+  if (!nomeParceiro || typeof CONFIG === 'undefined') {
+    return { ok: true, totalComissao: 0, qtd: 0, formaPgto, periodicidade, chavePix, itens: [] };
+  }
+
+  const sheetV = ss.getSheetByName(PAP_SHEET_VENDAS);
+  if (!sheetV || sheetV.getLastRow() < 3) {
+    return { ok: true, totalComissao: 0, qtd: 0, formaPgto, periodicidade, chavePix, itens: [] };
+  }
+
+  const c = CONFIG.COLUNAS;
+  const numRows = sheetV.getLastRow() - 2;
+  const raw = sheetV.getRange(3, 1, numRows, c.STATUS_PAP + 2).getValues();
+  const nomeNorm = nomeParceiro.trim().toLowerCase();
+  const stripD = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const fNorm = stripD(formaPgto.toUpperCase());
+
+  let totalComissao = 0;
+  const itens = [];
+
+  for (const row of raw) {
+    if (String(row[c.CANAL]||'').toUpperCase() !== 'PAP') continue;
+    if (String(row[c.RESP]||'').trim().toLowerCase() !== nomeNorm) continue;
+    const prodNorm = stripD(String(row[c.PRODUTO]||'').trim().toUpperCase());
+    if (prodNorm !== 'FIBRA ALONE' && prodNorm !== 'FIBRA COMBO') continue;
+    if (String(row[c.STATUS]||'').trim() !== '3 - Finalizada/Instalada') continue;
+    if (stripD(String(row[c.STATUS_PAP]||'').trim().toUpperCase()) !== 'EM ABERTO') continue;
+
+    const valor = parseFloat(row[c.VALOR]||0) || 0;
+    let comissao;
+    if (fNorm === 'VALOR DO PLANO')  comissao = valor;
+    else if (fNorm === 'VALOR FIXO') comissao = 100;
+    else continue;
+
+    const dInstal = row[c.INSTAL];
+    totalComissao += comissao;
+    itens.push({
+      cliente:    String(row[c.CLIENTE] ||''),
+      plano:      String(row[c.PLANO]   ||''),
+      produto:    String(row[c.PRODUTO] ||''),
+      valor,
+      comissao,
+      dataInstal: dInstal instanceof Date ? dInstal.toISOString() : String(dInstal||''),
+    });
+  }
+
+  return { ok: true, totalComissao, qtd: itens.length,
+           formaPgto, periodicidade, chavePix, itens };
 }

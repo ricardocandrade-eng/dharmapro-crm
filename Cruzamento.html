@@ -819,6 +819,7 @@ function _cruzRenderVendas() {
   });
 
   _cruzAtualizarIconesLista(bateu, soVero, soCRM);
+  _cruzSalvarResultados(bateu, soCRM, 'Vendas');
 
   var html =
     _cruzResumoPainel({
@@ -1209,5 +1210,21 @@ function _cruzRemoverIconesLista() {
   document.querySelectorAll('.cruz-icone').forEach(function(el) {
     el.remove();
   });
+}
+
+function _cruzSalvarResultados(bateu, soCRM, nomeAba) {
+  if (typeof google === 'undefined' || !google.script || !google.script.run) return;
+  var resultados = [];
+  (bateu || []).forEach(function(item) {
+    if (item.crm && item.crm.linha) resultados.push({ linha: item.crm.linha, veroStatus: '🟢 ' + (nomeAba || 'Vero') });
+  });
+  (soCRM || []).forEach(function(item) {
+    if (item.linha) resultados.push({ linha: item.linha, veroStatus: '🟡' });
+  });
+  if (!resultados.length) return;
+  google.script.run
+    .withSuccessHandler(function() {})
+    .withFailureHandler(function() {})
+    .salvarResultadoCruzamento(resultados);
 }
 </script>

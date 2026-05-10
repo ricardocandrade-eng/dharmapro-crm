@@ -5,3 +5,7 @@
 .clasp.json
 .claspignore
 extensao-dharmapro/**
+_arquivo.js
+*.bak
+prompt-refatoracao.md
+planos_vero.json
