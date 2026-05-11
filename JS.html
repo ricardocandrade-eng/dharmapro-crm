@@ -323,7 +323,7 @@ function painelToggleEdicao() {
       elPre.disabled    = !ehConf;
       elPre.style.opacity = ehConf ? '' : '0.35';
     }
-    _pifSet('pif-valor',      v.valor      || '');
+    _pifSet('pif-valor',      _pifValorParaExibir(v.valor));
     _pifSet('pif-venc',       v.venc       || '');
     _pifSet('pif-fat',        v.fat        || '');
     _pifSet('pif-observacao', v.observacao || '');
@@ -471,7 +471,7 @@ function pifSalvar() {
     segmentacao: document.getElementById('pif-segmentacao').value.trim(),
     produto:     document.getElementById('pif-produto').value,
     plano:       document.getElementById('pif-plano').value,
-    valor:       document.getElementById('pif-valor').value.trim(),
+    valor:       _pifValorNumero(document.getElementById('pif-valor').value, document.getElementById('pif-plano')),
     observacao:    document.getElementById('pif-observacao').value.trim(),
     tel:           document.getElementById('pif-tel').value.trim(),
     contrato:      document.getElementById('pif-contrato').value.trim(),
@@ -943,6 +943,37 @@ function _lmaAtualizarBadge(n) {
   } else {
     badge.classList.remove('visivel', 'pulsar');
   }
+}
+
+// Badge "WA Campanha" — bolinha amarela pulsando quando há campanha ativa
+function _waPessoalAtualizarBadge(ativas) {
+  var badge = document.getElementById('badgeWaPessoal');
+  if (!badge) return;
+  if (ativas > 0) {
+    badge.textContent = '';
+    badge.classList.add('visivel', 'pulsar', 'dot-amarelo');
+    badge.title = ativas + ' campanha' + (ativas > 1 ? 's' : '') + ' ativa' + (ativas > 1 ? 's' : '');
+  } else {
+    badge.classList.remove('visivel', 'pulsar', 'dot-amarelo');
+    badge.title = '';
+  }
+}
+
+function _waPessoalCarregarBadge() {
+  var usr = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem('crm_usuario') : '';
+  if (!usr) return;
+  google.script.run
+    .withSuccessHandler(function(r) { _waPessoalAtualizarBadge(r && r.ativas || 0); })
+    .withFailureHandler(function() {})
+    .temCampanhaAtivaWaPessoal(usr, null);
+}
+
+// Inicia polling de 60s. Idempotente.
+var _waPessoalBadgeTimer = null;
+function _waPessoalIniciarPollingBadge() {
+  if (_waPessoalBadgeTimer) return;
+  _waPessoalCarregarBadge();
+  _waPessoalBadgeTimer = setInterval(_waPessoalCarregarBadge, 60000);
 }
 
 function _papAtualizarMenuFila(res) {
@@ -3951,6 +3982,9 @@ function fazerLogin() {
           .withFailureHandler(function() {})
           .contarLeadsMetaAdsPendentes();
 
+        // Badge campanha WA Pessoal ativa (bolinha amarela pulsando) + polling 60s
+        _waPessoalIniciarPollingBadge();
+
         // ─── Salva sessão para auto-login no F5 (nunca armazena a senha) ──
         try {
           sessionStorage.setItem('crm_usuario', usuario);
@@ -4361,7 +4395,7 @@ function navegar(pagina) {
   } else if (pagina === 'waPessoal') {
     document.getElementById('menuWaPessoal').classList.add('ativo');
     document.getElementById('pageWaPessoal').classList.add('ativa');
-    document.getElementById('breadcrumbTexto').textContent = 'WhatsApp Pessoal';
+    document.getElementById('breadcrumbTexto').textContent = 'WA Campanha';
     var wpc = document.getElementById('waPessoalContainer');
     if (!wpc.getAttribute('data-loaded')) {
       wpc.setAttribute('data-loaded', '1');
@@ -4493,6 +4527,9 @@ function preencherFormulario(v) {
       var vencVal = String(v[campo] || '').trim();
       if (vencVal && vencVal.length === 1) vencVal = '0' + vencVal;
       el.value = vencVal;
+    } else if (campo === 'valor') {
+      // Coluna O grava Number; formata "R$ X,XX" para exibição no input
+      el.value = _pifValorParaExibir(v[campo]);
     } else {
       el.value = v[campo] || '';
     }
@@ -4810,6 +4847,8 @@ function coletarDados() {
     dados[campo] = el ? el.value.trim() : '';
   });
   if (dados.uf) dados.uf = dados.uf.toUpperCase();
+  // Valor: enviar como Number (não string "R$ X,XX") para gravar limpo na col O
+  dados.valor = _pifValorNumero(dados.valor, document.getElementById('f_plano'));
   // PAP sempre Em Aberto quando não definido
   if (!dados.statusPAP) dados.statusPAP = 'Em Aberto';
   return dados;
@@ -6692,6 +6731,32 @@ function _preencherPlanos(planos, produto) {
     sel.value = reais[0];
     _extrairValorPlano(reais[0]);
   }
+}
+
+// Formata valor (Number ou string) para exibição "R$ X,XX" no input.
+function _pifValorParaExibir(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (typeof v === 'number' && isFinite(v)) return 'R$ ' + v.toFixed(2).replace('.', ',');
+  return String(v);
+}
+
+// Converte valor do campo (string "R$ 89,90" ou número) para Number ou ''.
+// Prioriza data-valor do #f_plano (preenchido por _extrairValorPlano), com fallback no raw.
+function _pifValorNumero(raw, planoEl) {
+  if (planoEl) {
+    var dv = planoEl.getAttribute && planoEl.getAttribute('data-valor');
+    if (dv) {
+      var nDv = parseFloat(dv);
+      if (isFinite(nDv) && nDv >= 0) return nDv;
+    }
+  }
+  if (raw === null || raw === undefined || raw === '') return '';
+  if (typeof raw === 'number') return isFinite(raw) && raw >= 0 ? raw : '';
+  var s = String(raw).replace(/R\$\s*/i, '').replace(/\s/g, '').trim();
+  if (!s) return '';
+  if (s.indexOf(',') !== -1) s = s.replace(/\./g, '').replace(',', '.');
+  var n = parseFloat(s);
+  return (isFinite(n) && n >= 0) ? n : '';
 }
 
 // Quando o usuário escolhe um plano, extrai e preenche o campo Valor

@@ -9,7 +9,7 @@
 
 // ── VERSÃO / DEPLOY ────────────────────────────────────────────────────────
 //  Atualizado automaticamente pelo salvar_010426_1930.bat a cada deploy
-var DEPLOY_DATE = '09/05/2026 23:57';
+var DEPLOY_DATE = '11/05/2026 15:15';
 
 // ── USUÁRIOS ───────────────────────────────────────────────────────────────
 // SENHAS: use o campo senhaHash (SHA-256 em hex). Nunca armazene senha em texto puro.
@@ -170,3 +170,4 @@ var TICKETS = [
     dataUpdate:  '12/03/2026'
   }
 ];
+

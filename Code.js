@@ -10,6 +10,7 @@
  * - Funções privadas com prefixo _ para clareza
  *
  * ── LOG DE ALTERAÇÕES ───────────────────────────────────────────────────
+ * Atualizado em: 11/05/2026 | Fix getDashboard: parseFloat de VALOR agora suporta formato BR ("R$ 89,90"); fallback extrai preço do nome do plano; ticketQtd só conta linhas com valor > 0 (evita ticket médio distorcido por linhas sem preço)
  * Atualizado em: 16/03/2026 | Auditoria: PERFIS_MENUS→Config.js, _getCidades()/_getTabela() com cache, _limparCache() unificada, LockService em salvarVenda/moverLeadAguardando/moverVendaFunil, getDashboard com cache, bug linha 3500 corrigido, doPost com webhook_secret, ternário morto removido em criarPedidoVeroHub
  * Atualizado em: 16/03/2026 | Fix: background hardcoded (#ddd) nos modais substituído por variáveis CSS
  * Atualizado em: 15/03/2026 | Fix: observacao adicionada em _construirLinhaDados (col L)
@@ -1186,6 +1187,18 @@ function doPost(e) {
       var resultResp = _handleWaPessoalMarkRespondeu_(payload);
       return ContentService
         .createTextOutput(JSON.stringify(resultResp))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (payload.action === 'wa_pessoal_check_dispatch') {
+      if (payload.secret !== CFG_WA_PESSOAL.WA_PESSOAL_SECRET) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ erro: 'wa_pessoal: secret inválido' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var resultDisp = _handleWaPessoalCheckDispatch_(payload);
+      return ContentService
+        .createTextOutput(JSON.stringify(resultDisp))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -3832,6 +3845,18 @@ function limparCacheCompleto() {
 }
 
 // Versão otimizada para listagens — recebe timezone explícito (evita Session.getScriptTimeZone() repetido)
+// Normaliza valor monetário para número antes de gravar na col O (VALOR).
+// Aceita number, "R$ 89,90", "89,90", "1.099,90", "89.90". Retorna '' se vazio/inválido.
+function _normalizarValorParaNumero_(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (typeof v === 'number') return isFinite(v) && v >= 0 ? v : '';
+  var s = String(v).replace(/R\$\s*/i, '').replace(/\s/g, '').trim();
+  if (!s) return '';
+  if (s.indexOf(',') !== -1) s = s.replace(/\./g, '').replace(',', '.');
+  var n = parseFloat(s);
+  return (isFinite(n) && n >= 0) ? n : '';
+}
+
 function _valorListaSemDuplicar(plano, valor) {
   var planoTxt = String(plano || '').trim();
   var valorTxt = String(valor || '').trim();
@@ -4012,7 +4037,7 @@ function _construirLinhaDados(d) {
   linha[c.VENC]        = d.venc        || '';
   linha[c.FAT]         = d.fat         || '';
   linha[c.PLANO]       = d.plano       || '';
-  linha[c.VALOR]       = d.valor       || '';
+  linha[c.VALOR]       = _normalizarValorParaNumero_(d.valor);
   linha[c.LINHA_MOVEL]   = d.linhaMovel    || '';
   linha[c.PORTABILIDADE] = d.portabilidade || '';
   linha[c.PRE_STATUS]        = d.preStatus        || '';
@@ -4524,7 +4549,19 @@ function getDashboard(mes, ano) {
       var resp    = String(row[c.RESP]      || '').trim();
       var cidade  = String(row[c.CIDADE]    || '').trim();
       var plano   = String(row[c.PLANO]     || '').trim();
-      var valor   = parseFloat(row[c.VALOR]) || 0;
+      // Lê VALOR com suporte a formato BR ("R$ 89,90" ou "89,90") e fallback no nome do plano
+      var _valorRaw = row[c.VALOR];
+      var valor = 0;
+      if (typeof _valorRaw === 'number' && _valorRaw > 0) {
+        valor = _valorRaw;
+      } else if (_valorRaw) {
+        var _vs = String(_valorRaw).replace(/R\$\s*/i, '').replace(/\./g, '').replace(',', '.').trim();
+        valor = parseFloat(_vs) || 0;
+      }
+      if (!valor && plano) {
+        var _mp = String(plano).match(/R\$\s*([\d\.,]+)/i);
+        if (_mp) valor = parseFloat(_mp[1].replace(/\./g, '').replace(',', '.')) || 0;
+      }
       var colD    = String(row[c.DATA_ATIV] || '').trim().toUpperCase()
                       .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 
@@ -4581,7 +4618,8 @@ function getDashboard(mes, ano) {
         if (isFibra(produto)) {
           instalacoesMes++;
           instalacaoCanal[canal] = (instalacaoCanal[canal] || 0) + 1;
-          ticketSoma += valor; ticketQtd++;
+          ticketSoma += valor;
+          if (valor > 0) ticketQtd++; // só conta denominador quando há preço real
           if (plano) planoCount[plano] = (planoCount[plano] || 0) + 1;
           if (cidade) cidadeCount[cidade] = (cidadeCount[cidade] || 0) + 1;
           if (resp) rankingInstalMes[resp] = (rankingInstalMes[resp] || 0) + 1;
