@@ -3288,6 +3288,14 @@ function salvarVenda(dados) {
       }
     }
 
+    // Cadastro novo: canal e responsável são obrigatórios.
+    // Em edições, deixamos passar para não exigir re-validar quando os selects
+    // do painel não foram tocados (preservação via merge cuida disso).
+    if (!dados.linhaReferencia || dados.linhaReferencia === '') {
+      if (!String(dados.canal || '').trim()) throw new Error('Canal é obrigatório.');
+      if (!String(dados.resp  || '').trim()) throw new Error('Responsável é obrigatório.');
+    }
+
     var sheet = _getSheet();
 
     // ── ARQUIVAR VENDA: se pré-status = "ARQUIVAR VENDA", arquiva e limpa ──
@@ -3306,6 +3314,11 @@ function salvarVenda(dados) {
       dados = _mesclarDadosVendaComLinhaAtual_(dados, linhaAtual, linhaNum);
       var linhaDados = _construirLinhaDados(dados);
       sheet.getRange(linhaNum, 1, 1, linhaDados.length).setValues([linhaDados]);
+      // Propaga campos compartilhados (cliente, endereço, contatos) para o Móvel
+      // vinculado, se a venda editada for a mãe de um combo ATIVO.
+      try { _propagarFibraParaMovelSeCombo_(sheet, linhaNum, dados); } catch (epm) {
+        Logger.log('Falha ao propagar Fibra→Móvel: ' + (epm && epm.message ? epm.message : epm));
+      }
       _limparCache();
       // Capturar linha para notificação PAP fora do lock
       if (dados.status === '2- Aguardando Instalação' || dados.status === '3 - Finalizada/Instalada') {
@@ -4071,12 +4084,14 @@ function _construirLinhaDados(d) {
   linha[c.CANAL]       = d.canal       || '';
   linha[c.PRODUTO]     = d.produto     || '';
   linha[c.STATUS]      = d.status      || '';
-  linha[c.DATA_ATIV]   = d.dataAtiv    || '';
+  // Datas: normalizadas no servidor para DD/MM/YYYY independente de como vieram
+  // (Date object do MMC, ISO YYYY-MM-DD do MS2/MS3, ou DD/MM/YYYY do PIF).
+  linha[c.DATA_ATIV]   = _formatarDataNascimento(d.dataAtiv, 'dd/MM/yyyy');
   linha[c.COD_CLI]     = d.codCli      || '';
   linha[c.CONTRATO]    = d.contrato    || '';
-  linha[c.AGENDA]      = d.agenda      || '';
+  linha[c.AGENDA]      = _formatarDataNascimento(d.agenda, 'dd/MM/yyyy');
   linha[c.TURNO]       = d.turno       || '';
-  linha[c.INSTAL]      = d.instal      || '';
+  linha[c.INSTAL]      = _formatarDataNascimento(d.instal, 'dd/MM/yyyy');
   linha[c.OBSERVACAO]  = d.observacao  || '';  // L  - Observação
   linha[c.RESP]        = d.resp        || '';
   linha[c.CPF]         = d.cpf         || '';
@@ -4127,6 +4142,45 @@ function _mesclarDadosVendaComLinhaAtual_(dados, linhaAtual, numeroLinha) {
   });
   mesclado.linhaReferencia = String(dados.linhaReferencia || numeroLinha || '');
   return mesclado;
+}
+
+// Campos que pertencem ao "cliente + endereço + contato" e fazem sentido
+// replicar entre as duas linhas de um combo. NÃO inclui status, produto, plano,
+// valor, contrato, datas, portabilidade, linhaMovel — esses são próprios do Móvel.
+var _COMBO_PROPAGAVEIS_ = [
+  'cpf','cliente','whats','tel','nomeMae','dtNasc','rg',
+  'cep','rua','num','complemento','bairro','cidade','uf','sistema','segmentacao',
+  'venc','fat','canal','resp'
+];
+
+function _propagarFibraParaMovelSeCombo_(sheet, linhaMae, dadosMae) {
+  if (!linhaMae || linhaMae < 3) return;
+  var produtoMae = _normalizarTexto(dadosMae && dadosMae.produto || '');
+  if (produtoMae.indexOf('FIBRA') === -1) return; // só propaga quando origem é Fibra
+
+  var vinculos = _getVinculosVendasMap_();
+  var filhas = (vinculos && vinculos.filhasPorMae) ? (vinculos.filhasPorMae[linhaMae] || []) : [];
+  if (!filhas.length) return;
+
+  var ultimaLinha = sheet.getLastRow();
+  for (var i = 0; i < filhas.length; i++) {
+    var linhaFilha = parseInt(filhas[i].vendaFilhaLinha, 10);
+    if (isNaN(linhaFilha) || linhaFilha < 3 || linhaFilha > ultimaLinha) continue;
+
+    var rowFilha = sheet.getRange(linhaFilha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+    var filha = _mapearLinha(rowFilha, linhaFilha);
+    if (_normalizarTexto(filha.produto || '').indexOf('MOVEL') === -1) continue; // só replica em Móvel
+
+    // Constrói novo objeto: cópia da filha sobrescrita pelos campos compartilhados da mãe.
+    var atualizado = {};
+    Object.keys(filha).forEach(function(k) { atualizado[k] = filha[k]; });
+    _COMBO_PROPAGAVEIS_.forEach(function(k) {
+      if (Object.prototype.hasOwnProperty.call(dadosMae, k)) atualizado[k] = dadosMae[k];
+    });
+
+    var linhaDados = _construirLinhaDados(atualizado);
+    sheet.getRange(linhaFilha, 1, 1, linhaDados.length).setValues([linhaDados]);
+  }
 }
 
 function _getSheetVinculosVendas_(createIfMissing) {

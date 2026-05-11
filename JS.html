@@ -230,6 +230,19 @@ function _filtrarStatusPorProduto(produto, statusAtual) {
   var lista   = ehMovel ? opcoesMovel : opcoesFibra;
   var atual   = statusAtual || sel.value;
   sel.innerHTML = '';
+
+  // Status legado: o valor atual não pertence à lista do produto.
+  // Acontece quando uma venda Móvel herdou status Fibra (ou vice-versa) por
+  // migração/importação. Preserva o valor para o usuário escolher conscientemente.
+  if (atual && lista.indexOf(atual) === -1) {
+    var optLegado = document.createElement('option');
+    optLegado.value = atual;
+    optLegado.textContent = '⚠ ' + atual + ' (legado — escolha um válido)';
+    optLegado.selected = true;
+    sel.appendChild(optLegado);
+    try { if (typeof mostrarToast === 'function') mostrarToast('⚠ Status legado detectado: "' + atual + '". Selecione um status válido para ' + (ehMovel ? 'Móvel' : 'Fibra') + '.', 'warning'); } catch(_) {}
+  }
+
   lista.forEach(function(s) {
     var opt = document.createElement('option');
     opt.value = s; opt.textContent = s;
@@ -593,6 +606,15 @@ function _abrirModalStatus2() {
   _ms2Set('ms2-valor',       v.valor       || '');
   _ms2Set('ms2-sistema',     v.sistema     || '');
   _ms2Set('ms2-segmentacao', v.segmentacao || '');
+
+  // Produto, plano e valor não devem mudar numa transição de status —
+  // se precisar trocá-los, use o painel de edição.
+  ['ms2-produto','ms2-plano'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) { el.disabled = true; el.style.opacity = '0.7'; }
+  });
+  var elValor = document.getElementById('ms2-valor');
+  if (elValor) { elValor.readOnly = true; elValor.style.opacity = '0.7'; }
 
   // Sistema / Segmentação display
   var sis = v.sistema || ''; var seg = v.segmentacao || '';
@@ -6254,6 +6276,16 @@ function mostrarPainel(v) {
       ['RG', v.rg],
       ['Nome da Mãe', v.nomeMae, true],
       ['Dt. Nascimento', v.dtNasc]
+    ]) +
+    // Campos preenchidos por integrações (VeroHub, BotConversa, Cruzamento Vero)
+    // ou pelo próprio fluxo de criação — read-only no painel para audit.
+    _secaoPainel('🔧 Sistema', [
+      ['Pagamento PAP',     v.statusPAP],
+      ['VeroHub Blindagem', v.verohub],
+      ['VeroHub Pedido',    v.verohubPedido],
+      ['Pedido em',         v.verohubPedidoDt],
+      ['Status Vero',       v.veroStatus],
+      ['Criado em',         v.criadoEm]
     ]);
 
   document.getElementById('painelScroll').innerHTML = html;
