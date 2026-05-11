@@ -97,22 +97,75 @@ período padrão agora é `3d` com `since=hoje-3, until=ontem`.
 ### Modulos operacionais
 
 Estao funcionando:
-- `WhatsApp Pessoal` — módulo full-stack operacional (Fases 1-3 concluídas em 08-09/05/2026):
-  disparo em massa via número comum conectado por QR Code à Evolution API self-hosted em
-  `evolution.ofertasverointernet.com.br`. Cada usuário tem sua própria instância
-  (nomeada com o login do CRM), 4 abas dedicadas no Sheets (`WA Instâncias`,
-  `WA Campanhas`, `WA Disparos`, `WA Blacklist`). Menu visível para admin + supervisor.
-  Pipeline n8n: 3 workflows ativos (`wa_pessoal_01_despacho`, `wa_pessoal_02_webhook_entrada`,
-  `wa_pessoal_03_schedule_diario`), todos usando credencial Service Account `Google Sheets
-  — DharmaPro` para acesso direto à planilha. Webhook global da Evolution captura respostas
-  e propaga via `doPost` (`action: wa_pessoal_update`, secret próprio em
-  `CFG_WA_PESSOAL.WA_PESSOAL_SECRET`). Anti-ban: delay 12-35s, janela 08:00-20:00 BRT seg-sáb,
-  warm-up dinâmico (50/100/150/200 por semana), pausa em 3 erros consecutivos, blacklist
-  automática em opt-out. Heurística LID→phone para responses (WhatsApp v2024+ usa LID).
-  **Variações de mensagem via Claude API** (09/05/2026): botão "✨ Gerar variações" na Nova
-  Campanha gera 10 reescritas via Claude (preservando `{nome}`/`{cidade}`); usuário aprova
-  individualmente; n8n WF1 sorteia 1 variação por contato no momento do envio. Reduz risco
-  de ban por hash duplicado. Coluna `variacoes_json` (col M) em `WA Campanhas`.
+- `WA Campanha` (renomeado de "WhatsApp Pessoal" em 10/05/2026) — módulo full-stack
+  operacional, Fases 1-3 concluídas em 08-09/05/2026; pendências #1 (variações via Claude)
+  e #2 (envio de imagens) finalizadas em 09-10/05/2026.
+
+  **Stack**: disparo em massa via número comum conectado por QR Code à Evolution API
+  self-hosted em `evolution.ofertasverointernet.com.br`. Cada usuário tem sua própria
+  instância (nomeada com o login do CRM). 4 abas dedicadas no Sheets:
+  - `WA Instâncias` (A-H)
+  - `WA Campanhas` (A-N: id, usuario, nome, criado_em, status, total_contatos,
+    total_enviado, total_respondeu, total_erro, template_msg, delay_min, delay_max,
+    `variacoes_json`, `imagem_url`)
+  - `WA Disparos` (A-N: campanha_id, contato_nome, contato_phone, status, criado_em,
+    enviado_em, respondeu_em, erro_msg, tentativas, instance_id, `mensagem_enviada`,
+    `message_id`, `entregue_em`, `lido_em`)
+  - `WA Blacklist` (A-C)
+
+  **Pipeline n8n**: 3 workflows ativos (`wa_pessoal_01_despacho`, `wa_pessoal_02_webhook_entrada`,
+  `wa_pessoal_03_schedule_diario`). WF1 chama endpoints GAS (`wa_pessoal_check_dispatch` pra
+  janela horário/bypass, `wa_pessoal_next_pending` pra próximo pendente atomicamente claimado,
+  `wa_pessoal_update` pra Marca Enviado/Erro). WF2 (webhook entrada da Evolution) chama
+  `wa_pessoal_mark_respondeu` pra respostas e `wa_pessoal_update` (delivery_update) pra
+  delivery/read receipts. Secret próprio em `CFG_WA_PESSOAL.WA_PESSOAL_SECRET`.
+
+  **Anti-ban**: delay 12-35s aleatório, janela 08:00-20:00 BRT seg-sáb (com **toggle de
+  bypass admin** no Dashboard), warm-up dinâmico (50/100/150/200 por semana), pausa em 3
+  erros consecutivos, blacklist automática em opt-out, claim atômico (`status='enviando'`)
+  pra evitar duplicar disparos quando Marca Enviado falha.
+
+  **Features**:
+  - **Variações via Claude API** (09/05/2026): botão "✨ Gerar variações" na Nova Campanha
+    gera 10 reescritas via Claude (preservando `{nome}`/`{cidade}` se o original tinha);
+    placeholder é OPCIONAL. WF1 sorteia 1 variação por contato no envio. Coluna
+    `variacoes_json` (col M).
+  - **Envio de imagens** (10/05/2026): upload pra Drive (folder "WA Pessoal Imagens",
+    pública via `drive.google.com/uc?export=download`), URL salva em col N `imagem_url`.
+    WF1 tem IF "Tem imagem?" → branch `sendMedia` da Evolution (caption=texto/variação)
+    OU branch `sendText` existente. Limite ≤5MB. Mesma imagem pra todos contatos.
+  - **Log completo de disparos** (09/05/2026): mensagem efetivamente enviada (variação
+    sorteada + replace), `message_id`, `entregue_em` (DELIVERY_ACK), `lido_em` (READ).
+    Modal `📋 Ver disparos` no Histórico mostra cada disparo expansível com ✓/✓✓ estilo
+    WhatsApp + KPIs por campanha.
+  - **Tracking de respostas com privacidade LID** (10/05/2026): Evolution v1.x emite
+    `messages.upsert` com `key.remoteJid` em formato `phone@s.whatsapp.net` (sem privacy)
+    OU `LID@lid` (privacy ON). Match exato por phone normalizado quando há phone real;
+    fallback heurístico "disparo enviado mais recente da instância" quando vem LID.
+    Endpoint `wa_pessoal_mark_respondeu` faz match+mark+blacklist+recalc atomicamente.
+    **Atenção:** `body.sender` da Evolution é o phone do **dono da instância**, NÃO do
+    remetente da mensagem incoming — não usar pra matching.
+  - **Helper `_normalizePhoneBR_`**: reduz phones BR a 10 dígitos canônicos (DDD + 8),
+    strippando prefixo `55` e o "9" extra de mobile quando 13 dígitos. Resolve cross-formato
+    no match.
+  - **Auto-conclusão da campanha** (10/05/2026): quando o loop do WF1 chama
+    `wa_pessoal_next_pending` e GAS não acha mais disparos `pendente`,
+    `_concluirCampanhaSeAtiva_` muda status `ativa→concluida`. Bolinha amarela do menu some
+    automaticamente (filtra só `ativa`).
+  - **Saúde da conta** (Dashboard tab): KPIs hoje vs baseline 7d (entrega %, engajamento
+    [lido OU respondeu]/entregue %, resposta %, erros). Alertas amarelo/vermelho com
+    sugestões anti-ban heurísticas (entrega <85/70%, engajamento <25/10% sustentado por
+    resposta <3%, queda relativa vs baseline). Read receipts amplamente desabilitados são
+    compensados pelo "engajamento efetivo" (resposta implica leitura).
+  - **Bolinha amarela pulsante no menu** ("WA Campanha"): indica campanha `status='ativa'`
+    do usuário logado. Polling 60s + refresh imediato após criar/pausar/cancelar/excluir.
+  - **Excluir campanha** (admin only): botão `🗑` no Histórico apaga campanha + todos os
+    disparos relacionados; confirmação modal `tipo:'perigo'`.
+  - **Toggle bypass janela horário** (admin only, Dashboard): switch amarelo pra liberar
+    disparos fora da janela 08-20 BRT seg-sáb. Estado em `Script Properties`
+    (`WA_PESSOAL_BYPASS_HORARIO`) lido pelo WF1 via endpoint GAS — bypass reflete em
+    tempo real.
+
   Spec completa em [../wa-pessoal/CLAUDE.md](../wa-pessoal/CLAUDE.md).
 - `Dashboard`
 - `Lista de Vendas`
@@ -457,6 +510,13 @@ AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw
 | 09/05/2026 01:35 | v525 | UX polish. (1) `<option>` dos dropdowns do `DispPessoal.html` agora forçam fundo `#1a1d24` + texto `#e8ecf3` — antes herdavam o tema do SO (fundo cinza claro com fonte branca = ilegível). (2) Sidebar: emojis coloridos `📨` (Disparos), `📲` (WA Pessoal), `👥` (Usuários) substituídos por símbolos Unicode monocromáticos `✉`, `☏`, `◐` para alinhar ao padrão visual do resto do menu (◉ ≡ ◈ ⊛ etc). |
 | 09/05/2026 01:45 | v526 | Rename: "Disparos em Massa" → "Disparos Waba" em 4 lugares user-facing — `Index.html` (item sidebar), `JS.html` (breadcrumb), `Usuarios.html` (UI permissões), `Disparos.html` (tag interna). IDs internos (`disparos`/`menuDisparos`/`pageDisparos`) preservados; backend e docs intactos. |
 | 09/05/2026 12:40 | v531 | **WA Pessoal — fix Retomar dispara webhook.** Bug detectado: `retomarCampanha` só mudava status pra `ativa` no Sheets, mas o loop do WF1 morre quando a Decisão retorna `skip_pausada` (não há trigger externo agendado). Fix: agora dispara `POST /webhook/wa-pessoal-despacho` após mudar status. Mesmo padrão que o WF3 schedule diário usa pra retomar `pausada_limite_diario` e que o `criarCampanha` usa pra inicializar. |
+| 09/05/2026 19:33 | v533 | **WA Pessoal — fix DEFINITIVO chain (3 bugs cascateados).** (1) Bug Sheets v4 multi-filter retornava 1 item por filtro em vez de AND (loop pegava sempre row 2 já enviada → 16 msgs duplicadas). Fix: WF1 abandonou Sheets node, criou novo endpoint GAS `wa_pessoal_next_pending` que retorna primeiro pendente atomicamente (claim com `status='enviando'`). (2) Bug LockService timeout: 3 handlers GAS usavam `getScriptLock()` global, causando timeout entre Próximo Pendente → Marca Enviado da mesma chain. Fix: removidos LockService dos 3 handlers (`_handleWaPessoalNextPending_`, `_handleWaPessoalUpdate_`, `_handleWaPessoalDeliveryUpdate_`). (3) Loop Próximo HTTP node sem `method:POST` (default GET → 404 no webhook). Fix: adicionado `"method": "POST"`. |
+| 09/05/2026 20:36 | v535 | **WA Pessoal — fix tracking de respostas LID.** WF2 simplificado: `Disparos enviados da instância` + `Resolve match` + `doPost GAS (respondeu)` substituídos por **um único** HTTP node `Mark Respondeu (GAS)` que chama endpoint `wa_pessoal_mark_respondeu` (match exato por phone normalizado + fallback heurístico LID atomicamente). Helper `_normalizePhoneBR_` reduz a 10 dígitos canônicos (DDD + 8) — strippa prefixo `55` e o "9" extra de mobile pra match cross-formato. |
+| 09/05/2026 23:34 | v536 | **WA Pessoal — pendência #2 (envio de imagens).** Backend: `uploadImagemCampanha(usuario, base64, filename, mimeType)` em DispPessoalAPI.js — salva no Drive (folder "WA Pessoal Imagens"), `setSharing(ANYONE_WITH_LINK, VIEW)`, retorna URL `drive.google.com/uc?export=download&id=...`. `criarCampanha` aceita `dados.imagem_url` e grava em col N `imagem_url` de `WA Campanhas`. Frontend: input file na "Nova Campanha" + preview + botão remover + validação ≤5MB + auto-upload. WF1: novo IF `Tem imagem?` após Wait Typing → branch `Envia Mídia` (POST `/message/sendMedia/{instance}` com `mediaMessage: {mediatype:image, media:URL, caption:texto}`) OU branch `Envia Mensagem` existente. Variação sorteada vira caption quando há imagem. One-shot `_addColunaImagemUrl` em `_waImagemSetup.js`. |
+| 09/05/2026 23:57 | v538 | **WA Pessoal — Saúde Dashboard.** Backend `getSaudeWaPessoal` calcula KPIs hoje vs baseline 7d (entrega %, engajamento [lido OU respondeu]/entregue %, resposta %, erros). Alertas amarelo/vermelho com sugestões anti-ban heurísticas. Read receipts amplamente desabilitados são compensados por "engajamento efetivo". Quedas relativas vs baseline geram alertas. Frontend: bloco no topo do Dashboard com banner status + alertas + 4 mini-KPIs com delta. v542 (10/05): quando `hoje.enviado=0`, mostra média baseline 7d com opacity em vez de `0% / -100%` confuso. |
+| 10/05/2026 09:58 | v543 | **WA Pessoal — toggle bypass horário (admin) + bolinha menu + rename "WhatsApp Pessoal" → "WA Campanha".** Novo endpoint `wa_pessoal_check_dispatch` substitui Code "Checa Horário" do WF1 (n8n agora chama GAS pra ver janela 08-20 + bypass admin em tempo real, fuso `America/Sao_Paulo`). Funções `setBypassHorarioWaPessoal`/`getBypassHorarioWaPessoal` (admin only) gravam em Script Property `WA_PESSOAL_BYPASS_HORARIO`. Frontend: toggle switch amarelo no Dashboard (visível só admin). `temCampanhaAtivaWaPessoal` retorna count; `_waPessoalIniciarPollingBadge()` em JS.html chama no login + 60s. CSS `.nav-badge.dot-amarelo` (8x8 amarelo + glow + animação `pulsar` reaproveitada). Rename em Index.html sidebar + JS.html breadcrumb + Usuarios.html permissões. |
+| 10/05/2026 10:12 | v544 | **WA Pessoal — auto-conclusão de campanha.** Quando WF1 chama `wa_pessoal_next_pending` e GAS não acha mais disparos `pendente`, novo helper `_concluirCampanhaSeAtiva_` muda status `ativa→concluida` em `WA Campanhas`. Não toca em `pausada`/`cancelada` (preserva intenção do usuário). Idempotente. Cascata: bolinha amarela do menu some automaticamente (`temCampanhaAtivaWaPessoal` filtra só `ativa`); badge "concluida" aparece azul no Histórico. |
+| 10/05/2026 10:35 | v546 | **WA Pessoal — fix tracking de respostas com privacidade LID.** Bug: WF2 `Parse e Filtro` usava `body.sender` da Evolution achando que era o phone do remetente da mensagem incoming. Mas `body.sender` é o phone do **dono da instância** (constante = teu número conectado), NÃO do remetente. Por isso match falhava em 100% das respostas com privacidade ON. Fix: voltou a usar `key.remoteJid` — se vem `phone@s.whatsapp.net` faz match exato; se vem `@lid` (privacy ON) ativa `isLid:true` e GAS faz fallback heurístico "disparo enviado mais recente da instância". Documentado no comentário do node. |
 | 09/05/2026 11:32 | v530 | **WA Pessoal — placeholders opcionais + excluir campanha.** (1) `{nome}`/`{cidade}` deixam de ser obrigatórios — variações via Claude já reduzem hash duplicado, então personalização vira opcional (chips ainda disponíveis pra mailings que tiverem os campos). Removido check em `wpAtualizarPreview`, `wpGerarVariacoes`, `wpCriarCampanha` (frontend) + `criarCampanha`, `gerarVariacoesMensagem` (backend); prompt da Claude condicionalmente inclui linha "preserve placeholders" só se original tiver. Filtro de variações continua exigindo placeholders se original tinha. (2) Nova função backend `excluirCampanha(usuario, campanhaId, usuarioAlvo)` — admin only — apaga linha em `WA Campanhas` + todas as linhas relacionadas em `WA Disparos`. Botão `🗑` no Histórico só aparece se `_wpIsAdmin=true`; usa `wpConfirm({tipo:'perigo'})` + `wpLoading`. |
 | 09/05/2026 11:22 | v529 | **WA Pessoal — UX modais.** (1) Modais (`📋 disparos`, confirm, loading) movidos pra `<body>` no `dispPessoalInit` — escapa containing block do sidebar/header do CRM (estavam ficando atrás do menu). z-index `999999`. (2) `confirm()` nativo do navegador removido em todos os fluxos: `wpConfirm({titulo, mensagem|html, okLabel, cancelLabel, tipo:'perigo', onOk})` + `wpLoading(msg)`/`wpLoadingClose()` reutilizáveis. Aplicado em "Iniciar Campanha", "Cancelar campanha" e "Desconectar WhatsApp". (3) Modal de disparos agora exibe **uma linha por contato** (Contato · Status · Última atividade); clicar expande detalhe (mensagem completa + erro + todos os timestamps + message_id). Seta ▶/▼ indica estado. (4) Ao clicar "Iniciar Campanha", aparece imediato `Processando — enfileirando disparos…` com spinner; só fecha após resposta. |
 | 09/05/2026 11:09 | v528 | **WA Pessoal — log de disparos + delivery/read receipts.** Backend: `_handleWaPessoalUpdate_` aceita 2 shapes (envio normal vs `delivery_update:true`); novo `_handleWaPessoalDeliveryUpdate_` faz lookup por `message_id` e atualiza `entregue_em`/`lido_em` (READ implica entregue); novo `getDisparosCampanha(usuario, campanhaId, usuarioAlvo)` retorna disparos da campanha. Frontend: botão `📋` por campanha no Histórico abre modal com tabela contato/status/mensagem/timestamps + KPIs (% entregue, % lido, % respondeu) e ícones `✓`/`✓✓` (cinza=entregue, verde=lido) no estilo WhatsApp. n8n WF1 "Marca Enviado" envia `mensagem_enviada` (texto pós-sorteio + replace) e `message_id` (`$json.key.id` da resposta `sendText`). n8n WF2 ganhou branch paralelo `Parse Delivery → doPost GAS (delivery)` que escuta `messages.update` da Evolution API com `status` ∈ {`DELIVERY_ACK`, `READ`} e `fromMe=true`. 4 colunas novas em `WA Disparos` (K=`mensagem_enviada`, L=`message_id`, M=`entregue_em`, N=`lido_em`) via one-shot `_addColunasRastreamentoWaDisparos`. |
@@ -517,42 +577,39 @@ condicional ou validação de dados como "usadas", causando saltos de centenas d
 
 ## Proximos Passos Naturais
 
-### WA Pessoal — pendências priorizadas (próxima sessão)
+### WA Campanha — pendências
 
-1. **Inbox dentro do CRM** (`~3-5 dias`): permitir que cada usuário responda clientes
-   diretamente pela tela do DharmaPro em vez de pelo WhatsApp Web. Componentes:
+1. ~~**Reescrita de mensagem via Claude API**~~ ✅ 09/05/2026 (v527) — `gerarVariacoesMensagem`
+   em `DispPessoalAPI.js`; placeholder `{nome}`/`{cidade}` opcional desde v530. Coluna
+   `variacoes_json` (col M).
+2. ~~**Envio de imagens nas campanhas**~~ ✅ 10/05/2026 (v536) — upload pra Drive +
+   `imagem_url` (col N) + WF1 IF `Tem imagem?` → branch `sendMedia` com caption.
+
+3. **Inbox dentro do CRM** (`~3-5 dias`) — única pendência aberta. Permitir que cada
+   usuário responda clientes diretamente pela tela do DharmaPro em vez de pelo WhatsApp
+   Web. Componentes:
    - Lista de conversas com last-message + contador de não-lidas
    - Histórico paginado via Evolution `/chat/findMessages/{instance}`
    - Envio de mensagens novas (texto e mídia)
-   - Polling ou WebSocket pra mensagens novas em tempo real
+   - Polling ou WebSocket pra mensagens em tempo real
    - Vínculo com lead/cliente do CRM (perfil ao lado da conversa)
    - **Antes de implementar, sessão de planejamento dedicada** com decisões de design
      (polling vs WebSocket, mídia sim/não, layout, scope por instância vs global).
 
-2. ~~**Reescrita de mensagem via Claude API**~~ ✅ 09/05/2026 — `gerarVariacoesMensagem`
-   em `DispPessoalAPI.js` (chama `_callClaudeApiDiag_` com prompt que preserva placeholders
-   e nunca inventa preço/plano/prazo). Frontend tem botão "✨ Gerar variações" + lista de
-   checkboxes para aprovar/rejeitar individualmente. WF1 "Prepara Envio" sorteia variação
-   antes do replace de `{nome}`/`{cidade}`. Coluna `variacoes_json` (col M).
+### WA Campanha — features adicionadas fora do roadmap original
 
-3. **Envio de imagens nas campanhas** (`~2-3h`): usar `POST /message/sendMedia/{instance}`
-
-> ✅ 09/05/2026 — **Log de disparos visível no Histórico** (parte adicional fora das 3 pendências
-> originais). 4 colunas novas em `WA Disparos`: `mensagem_enviada` (K), `message_id` (L),
-> `entregue_em` (M), `lido_em` (N). WF1 captura `key.id` da resposta do Evolution `sendText` e
-> envia junto com o texto efetivo (variação sorteada + replace) pro `_handleWaPessoalUpdate_`.
-> WF2 ganhou branch paralelo `Parse Delivery → doPost GAS (delivery)` que escuta eventos
-> `messages.update` da Evolution (status `DELIVERY_ACK` e `READ`) e atualiza por `message_id`.
-> Frontend: botão `📋` por campanha no Histórico abre modal com tabela contato/status/mensagem/
-> timestamps + ícones `✓`/`✓✓` (cinza=entregue, verde=lido) no estilo WhatsApp.
-
-   da Evolution.
-   - Frontend: input file na "Nova Campanha", upload pra Drive via `DriveApp.createFile`,
-     pega URL pública.
-   - Backend: salva `imagem_url` na campanha.
-   - n8n WF1: se campanha tem `imagem_url`, troca `sendText` por `sendMedia`
-     (texto vira `caption`).
-   - Limites: ≤5MB; mesma imagem pra todos contatos (variação por contato fica pra depois).
+- **Log completo de disparos** (09/05/2026, v528): cols K-N em `WA Disparos`
+  (`mensagem_enviada`, `message_id`, `entregue_em`, `lido_em`). Modal `📋` no Histórico
+  com tabela expansível por contato + ícones `✓`/`✓✓` estilo WhatsApp.
+- **UX modais** (v529): confirm/loading nativos do CRM, escapam containing block do
+  sidebar via `appendChild(document.body)`.
+- **Excluir campanha** (admin only, v530): botão `🗑` no Histórico.
+- **Saúde Dashboard** (v538): KPIs hoje vs baseline 7d, alertas anti-ban heurísticos.
+- **Toggle bypass janela horário** (admin only, v543): WF1 consulta GAS em tempo real.
+- **Auto-conclusão** (v544): campanha vira `concluida` quando esgota pendentes; bolinha
+  amarela do menu some sozinha.
+- **Tracking de respostas com privacidade LID** (v546): Evolution `key.remoteJid` como
+  fonte (LID quando privacy ON), com fallback heurístico no GAS.
 
 ### WA Pessoal — bugs/débitos conhecidos
 

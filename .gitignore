@@ -1,3 +1,18 @@
 deploy.log
 .claude/
 extensao-dharmapro/
+
+# Funções one-shot — nunca commitar (pode conter dados sensíveis)
+_arquivo.js
+_wa*.js
+
+# Chaves de Service Account e credenciais — NUNCA commitar
+dharmapro-cfe49b568d24.json
+*-credentials.json
+*-service-account.json
+
+# Arquivos de trabalho / rascunhos
+prompt-refatoracao.md
+patch_registro_manual_leads.md
+*.bak
+pap-portal-atualizado/

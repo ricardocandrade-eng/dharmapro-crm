@@ -113,7 +113,7 @@ function _waUpsertInstanciaLinha_(usuario, patch) {
     novaLinha[idxUsr] = usuario;
     novaLinha[_waColIdx_(data.header, 'daily_count')] = 0;
     novaLinha[_waColIdx_(data.header, 'daily_date')] = '';
-    novaLinha[_waColIdx_(data.header, 'daily_limit')] = CFG_WA_PESSOAL.DAILY_LIMIT_DEFAULT;
+    novaLinha[_waColIdx_(data.header, 'daily_limit')] = _getCfgWaPessoal_().daily_limit;
     Object.keys(patch || {}).forEach(function(k) {
       var ci = _waColIdx_(data.header, k);
       if (ci >= 0) novaLinha[ci] = patch[k];
@@ -238,7 +238,7 @@ function getMinhaInstancia(usuario, usuarioAlvo) {
       status: 'desconectado',
       phone: local.phone_display || '',
       daily_count: Number(local.daily_count || 0),
-      daily_limit: Number(local.daily_limit || CFG_WA_PESSOAL.DAILY_LIMIT_DEFAULT),
+      daily_limit: Number(local.daily_limit || _getCfgWaPessoal_().daily_limit),
       daily_date: local.daily_date || '',
       qrcode: ''
     };
@@ -322,6 +322,149 @@ function deletarInstancia(usuario) {
   } catch (e) {
     return { ok: false, mensagem: e.message };
   }
+}
+
+// ── CONFIGURAÇÕES GLOBAIS WA PESSOAL (admin editável via Dashboard) ────────────
+// Tudo persistido em Script Properties. Defaults são usados quando a property
+// não existe ou é inválida.
+
+var WA_PESSOAL_BYPASS_KEY = 'WA_PESSOAL_BYPASS_HORARIO';
+var WA_CFG_KEYS = {
+  HORA_INI:            'WA_PESSOAL_HORA_INI',           // 0-23
+  HORA_FIM:            'WA_PESSOAL_HORA_FIM',           // 1-24 (exclusivo)
+  DIAS_SEMANA:         'WA_PESSOAL_DIAS_SEMANA',        // CSV de 0-6 (0=Dom)
+  DELAY_MIN_DEFAULT:   'WA_PESSOAL_DELAY_MIN',          // segundos
+  DELAY_MAX_DEFAULT:   'WA_PESSOAL_DELAY_MAX',          // segundos
+  DAILY_LIMIT_DEFAULT: 'WA_PESSOAL_DAILY_LIMIT'         // msgs/dia
+};
+var WA_CFG_DEFAULTS = {
+  hora_ini: 9, hora_fim: 18,
+  dias_semana: [2, 3, 4],     // ter/qua/qui — recomendação pós-ban
+  delay_min: 30, delay_max: 90,
+  daily_limit: 30             // conservador pós-ban
+};
+
+function _getCfgWaPessoal_() {
+  var p = PropertiesService.getScriptProperties();
+  function pn(key, def) { var v = parseInt(p.getProperty(key), 10); return isFinite(v) ? v : def; }
+  var rawDias = p.getProperty(WA_CFG_KEYS.DIAS_SEMANA);
+  var dias;
+  if (rawDias != null) {
+    dias = String(rawDias).split(',').map(function(s){ return parseInt(s,10); })
+      .filter(function(d){ return d>=0 && d<=6; });
+    if (!dias.length) dias = WA_CFG_DEFAULTS.dias_semana.slice();
+  } else dias = WA_CFG_DEFAULTS.dias_semana.slice();
+  return {
+    hora_ini:     pn(WA_CFG_KEYS.HORA_INI,            WA_CFG_DEFAULTS.hora_ini),
+    hora_fim:     pn(WA_CFG_KEYS.HORA_FIM,            WA_CFG_DEFAULTS.hora_fim),
+    dias_semana:  dias,
+    delay_min:    pn(WA_CFG_KEYS.DELAY_MIN_DEFAULT,   WA_CFG_DEFAULTS.delay_min),
+    delay_max:    pn(WA_CFG_KEYS.DELAY_MAX_DEFAULT,   WA_CFG_DEFAULTS.delay_max),
+    daily_limit:  pn(WA_CFG_KEYS.DAILY_LIMIT_DEFAULT, WA_CFG_DEFAULTS.daily_limit)
+  };
+}
+
+function getConfigWaPessoal(usuario) {
+  try { _assertWaUser_(usuario); return { ok: true, config: _getCfgWaPessoal_() }; }
+  catch (e) { return { ok: false, mensagem: e.message }; }
+}
+
+function setConfigWaPessoal(usuario, config) {
+  try {
+    var u = _assertWaUser_(usuario);
+    if (String(u.perfil || '').toLowerCase() !== 'admin') {
+      throw new Error('Apenas admin pode alterar configurações.');
+    }
+    config = config || {};
+    var hi = Math.max(0, Math.min(23, parseInt(config.hora_ini, 10) || WA_CFG_DEFAULTS.hora_ini));
+    var hf = parseInt(config.hora_fim, 10) || WA_CFG_DEFAULTS.hora_fim;
+    hf = Math.max(hi + 1, Math.min(24, hf));
+    var dias = (config.dias_semana || []).map(function(d){ return parseInt(d,10); })
+      .filter(function(d){ return d>=0 && d<=6; });
+    if (!dias.length) throw new Error('Selecione ao menos 1 dia da semana.');
+    dias = Array.from(new Set(dias)).sort();
+    var dmin = Math.max(5, parseInt(config.delay_min, 10) || WA_CFG_DEFAULTS.delay_min);
+    var dmax = Math.max(dmin, parseInt(config.delay_max, 10) || WA_CFG_DEFAULTS.delay_max);
+    var dlimit = Math.max(1, Math.min(2000, parseInt(config.daily_limit, 10) || WA_CFG_DEFAULTS.daily_limit));
+
+    var p = PropertiesService.getScriptProperties();
+    p.setProperty(WA_CFG_KEYS.HORA_INI, String(hi));
+    p.setProperty(WA_CFG_KEYS.HORA_FIM, String(hf));
+    p.setProperty(WA_CFG_KEYS.DIAS_SEMANA, dias.join(','));
+    p.setProperty(WA_CFG_KEYS.DELAY_MIN_DEFAULT, String(dmin));
+    p.setProperty(WA_CFG_KEYS.DELAY_MAX_DEFAULT, String(dmax));
+    p.setProperty(WA_CFG_KEYS.DAILY_LIMIT_DEFAULT, String(dlimit));
+
+    return { ok: true, config: _getCfgWaPessoal_() };
+  } catch (e) { return { ok: false, mensagem: e.message }; }
+}
+
+// ── BYPASS HORÁRIO (admin only) ────────────────────────────────────────────────
+// Quando ativo, ignora a janela configurada e libera disparos a qualquer hora.
+
+function getBypassHorarioWaPessoal(usuario) {
+  try {
+    _assertWaUser_(usuario);
+    var v = PropertiesService.getScriptProperties().getProperty(WA_PESSOAL_BYPASS_KEY);
+    return { ok: true, ativo: v === 'true' };
+  } catch (e) { return { ok: false, mensagem: e.message }; }
+}
+
+function setBypassHorarioWaPessoal(usuario, ativo) {
+  try {
+    var u = _assertWaUser_(usuario);
+    if (String(u.perfil || '').toLowerCase() !== 'admin') {
+      throw new Error('Apenas admin pode alterar bypass de horário.');
+    }
+    PropertiesService.getScriptProperties().setProperty(WA_PESSOAL_BYPASS_KEY, ativo ? 'true' : 'false');
+    return { ok: true, ativo: !!ativo };
+  } catch (e) { return { ok: false, mensagem: e.message }; }
+}
+
+/**
+ * Endpoint chamado pelo WF1 no início (substitui Code "Checa Horário" do n8n).
+ * Calcula janela horário + dias da semana via Script Properties (admin editável).
+ * Bypass admin libera fora da janela.
+ * Retorno: { ok, skip, motivo, hora, dow, bypass, hora_ini, hora_fim, dias_semana }
+ */
+function _handleWaPessoalCheckDispatch_(payload) {
+  var bypass = PropertiesService.getScriptProperties().getProperty(WA_PESSOAL_BYPASS_KEY) === 'true';
+  var cfg = _getCfgWaPessoal_();
+  var tz = 'America/Sao_Paulo';
+  var agora = new Date();
+  var hora = parseInt(Utilities.formatDate(agora, tz, 'H'), 10);
+  // u = ISO day-of-week (1=seg…7=dom) → mapeio pra dow JS-style (0=dom)
+  var u = parseInt(Utilities.formatDate(agora, tz, 'u'), 10);
+  var dow = (u === 7) ? 0 : u;
+  var dayOk = cfg.dias_semana.indexOf(dow) >= 0;
+  var hourOk = hora >= cfg.hora_ini && hora < cfg.hora_fim;
+  var inWindow = dayOk && hourOk;
+  var base = { hora: hora, dow: dow, hora_ini: cfg.hora_ini, hora_fim: cfg.hora_fim, dias_semana: cfg.dias_semana };
+  if (bypass) return Object.assign({ ok: true, skip: false, motivo: 'bypass admin ativo', bypass: true }, base);
+  if (!inWindow) {
+    var motivo = !dayOk
+      ? 'dia (' + dow + ') fora dos dias permitidos [' + cfg.dias_semana.join(',') + ']'
+      : 'hora (' + hora + ') fora da janela ' + cfg.hora_ini + '-' + cfg.hora_fim + ' BRT';
+    return Object.assign({ ok: true, skip: true, motivo: motivo, bypass: false }, base);
+  }
+  return Object.assign({ ok: true, skip: false, motivo: 'dentro da janela', bypass: false }, base);
+}
+
+// ── CAMPANHAS ATIVAS (badge no menu) ───────────────────────────────────────────
+function temCampanhaAtivaWaPessoal(usuario, usuarioAlvo) {
+  try {
+    var alvo = _resolveUsuarioAlvo_(usuario, usuarioAlvo);
+    var sh = _waSheet_(CFG_WA_PESSOAL.ABA_CAMPANHAS);
+    var data = _waLerLinhas_(sh);
+    var idxUsr = _waColIdx_(data.header, 'usuario');
+    var idxStatus = _waColIdx_(data.header, 'status');
+    var ativas = 0;
+    for (var i = 0; i < data.linhas.length; i++) {
+      if (String(data.linhas[i][idxUsr]) !== alvo) continue;
+      if (String(data.linhas[i][idxStatus] || '').toLowerCase() === 'ativa') ativas++;
+    }
+    return { ok: true, ativas: ativas };
+  } catch (e) { return { ok: false, mensagem: e.message, ativas: 0 }; }
 }
 
 // ── UPLOAD DE IMAGEM (campanhas com mídia) ─────────────────────────────────────
@@ -414,8 +557,9 @@ function criarCampanha(usuario, dados) {
     // já reduz risco de hash duplicado, então personalização não é mais obrigatória.
 
     var camp_id   = 'C' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-    var delay_min = Math.max(5, Number(dados.delay_min || CFG_WA_PESSOAL.DELAY_MIN_DEFAULT));
-    var delay_max = Math.max(delay_min, Number(dados.delay_max || CFG_WA_PESSOAL.DELAY_MAX_DEFAULT));
+    var cfgGlobal = _getCfgWaPessoal_();
+    var delay_min = Math.max(5, Number(dados.delay_min || cfgGlobal.delay_min));
+    var delay_max = Math.max(delay_min, Number(dados.delay_max || cfgGlobal.delay_max));
 
     // Serializar variações (se fornecidas) — apenas remover vazias
     var variacoesJson = '';
@@ -1298,7 +1442,31 @@ function _handleWaPessoalNextPending_(payload) {
     disparo._row = i + 2;
     return { ok: true, disparo: _waNormalizarParaCliente_(disparo) };
   }
-  return { ok: true, disparo: null };
+  // Sem pendentes → marca campanha como concluída (se ainda estiver 'ativa')
+  var concluiu = _concluirCampanhaSeAtiva_(payload.campanha_id);
+  return { ok: true, disparo: null, conclusao: concluiu };
+}
+
+/**
+ * Marca campanha como 'concluida' em WA Campanhas se status atual é 'ativa'.
+ * Não toca em pausada/cancelada/etc. Idempotente.
+ * Retorna {alterou, statusAnterior, encontrou}.
+ */
+function _concluirCampanhaSeAtiva_(campanhaId) {
+  var sh = _waSheet_(CFG_WA_PESSOAL.ABA_CAMPANHAS);
+  var data = _waLerLinhas_(sh);
+  var idxId = _waColIdx_(data.header, 'id');
+  var idxStatus = _waColIdx_(data.header, 'status');
+  for (var i = 0; i < data.linhas.length; i++) {
+    if (String(data.linhas[i][idxId]).trim() !== String(campanhaId).trim()) continue;
+    var atual = String(data.linhas[i][idxStatus] || '').trim().toLowerCase();
+    if (atual === 'ativa') {
+      sh.getRange(i + 2, idxStatus + 1).setValue('concluida');
+      return { alterou: true, statusAnterior: atual, encontrou: true };
+    }
+    return { alterou: false, statusAnterior: atual, encontrou: true };
+  }
+  return { alterou: false, statusAnterior: null, encontrou: false };
 }
 
 /**

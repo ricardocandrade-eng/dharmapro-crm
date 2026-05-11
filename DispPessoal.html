@@ -92,6 +92,15 @@
   .wp-alerta.amarelo .wp-alerta-sug { color: #d4c389; }
   .wp-alerta.vermelho { background: rgba(230,62,109,.12); border: 1px solid rgba(230,62,109,.4); color: #ff8ea6; }
   .wp-alerta.vermelho .wp-alerta-sug { color: #d49aab; }
+
+  /* Toggle switch (bypass admin) */
+  .wp-switch { position: relative; display: inline-block; width: 50px; height: 26px; flex-shrink: 0; }
+  .wp-switch input { opacity: 0; width: 0; height: 0; }
+  .wp-switch-slider { position: absolute; cursor: pointer; inset: 0; background: #2a2f3a; border-radius: 26px; transition: .3s; border: 1px solid var(--border, #2a2f3a); }
+  .wp-switch-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; top: 2px; background: #6c7280; border-radius: 50%; transition: .3s; }
+  .wp-switch input:checked + .wp-switch-slider { background: rgba(241,196,15,.18); border-color: #f1c40f; }
+  .wp-switch input:checked + .wp-switch-slider:before { transform: translateX(23px); background: #f1c40f; box-shadow: 0 0 6px rgba(241,196,15,.6); }
+  #wpBypassBox.ativo { border: 1px solid rgba(241,196,15,.45); background: rgba(241,196,15,.06); }
 </style>
 
 <div class="wp-wrap">
@@ -188,13 +197,14 @@
           <div class="wp-field" style="display:flex;gap:12px">
             <div style="flex:1">
               <label>Delay mínimo (s)</label>
-              <input type="number" id="wpDelayMin" value="12" min="5" max="120">
+              <input type="number" id="wpDelayMin" value="30" min="5" max="600">
             </div>
             <div style="flex:1">
               <label>Delay máximo (s)</label>
-              <input type="number" id="wpDelayMax" value="35" min="5" max="120">
+              <input type="number" id="wpDelayMax" value="90" min="5" max="600">
             </div>
           </div>
+          <div style="font-size:11px;color:var(--text-muted,#8a93a3);margin-top:-8px">Defaults vêm das Configurações de envio (Dashboard). Você pode sobrescrever aqui só para essa campanha.</div>
         </div>
 
         <div class="wp-col">
@@ -255,6 +265,75 @@
       <div style="display:flex;gap:8px;align-items:center">
         <button id="wpDashTodosBtn" class="btn btn-ghost btn-sm" onclick="wpDashAlternarTodos()" style="display:none">👥 Ver todos os usuários</button>
         <button class="btn btn-ghost btn-sm" onclick="wpCarregarDashboard()">↻ Atualizar</button>
+      </div>
+    </div>
+
+    <!-- ───── BYPASS JANELA HORÁRIO (admin only) ───────────────────────────── -->
+    <div class="wp-card" id="wpBypassBox" style="display:none;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:14px">⚙ Bypass janela 08-20 BRT</div>
+          <div style="font-size:12px;color:var(--text-muted,#8a93a3);margin-top:3px" id="wpBypassDesc">
+            Quando ON, libera disparos a qualquer hora (inclusive domingo). Use com cuidado — risco de ban aumenta fora do horário comercial.
+          </div>
+        </div>
+        <label class="wp-switch" title="Apenas admin">
+          <input type="checkbox" id="wpBypassToggle" onchange="wpToggleBypass(this.checked)">
+          <span class="wp-switch-slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <!-- ───── CONFIGURAÇÕES DE ENVIO (admin only) ─────────────────────────── -->
+    <div class="wp-card" id="wpConfigBox" style="display:none;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div>
+          <div style="font-weight:600;font-size:14px">⚙ Configurações de envio</div>
+          <div style="font-size:12px;color:var(--text-muted,#8a93a3);margin-top:3px">Limites globais que valem pra todas as campanhas. Mais conservador = menor risco de ban.</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="wpSalvarConfig()">Salvar</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+        <!-- Janela horário -->
+        <div>
+          <label style="font-size:11px;color:var(--text-muted,#8a93a3);text-transform:uppercase;letter-spacing:.4px">Janela de horário (BRT)</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+            <input type="number" id="wpCfgHoraIni" min="0" max="23" style="width:60px;padding:6px 8px;background:rgba(0,0,0,.2);border:1px solid var(--border,#2a2f3a);border-radius:6px;color:inherit">
+            <span style="color:var(--text-muted,#8a93a3)">até</span>
+            <input type="number" id="wpCfgHoraFim" min="1" max="24" style="width:60px;padding:6px 8px;background:rgba(0,0,0,.2);border:1px solid var(--border,#2a2f3a);border-radius:6px;color:inherit">
+            <span style="color:var(--text-muted,#8a93a3);font-size:12px">h</span>
+          </div>
+        </div>
+
+        <!-- Dias da semana -->
+        <div>
+          <label style="font-size:11px;color:var(--text-muted,#8a93a3);text-transform:uppercase;letter-spacing:.4px">Dias da semana</label>
+          <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap" id="wpCfgDias"></div>
+        </div>
+
+        <!-- Delay -->
+        <div>
+          <label style="font-size:11px;color:var(--text-muted,#8a93a3);text-transform:uppercase;letter-spacing:.4px">Intervalo entre disparos (s)</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+            <input type="number" id="wpCfgDelayMin" min="5" max="600" style="width:70px;padding:6px 8px;background:rgba(0,0,0,.2);border:1px solid var(--border,#2a2f3a);border-radius:6px;color:inherit">
+            <span style="color:var(--text-muted,#8a93a3)">até</span>
+            <input type="number" id="wpCfgDelayMax" min="5" max="600" style="width:70px;padding:6px 8px;background:rgba(0,0,0,.2);border:1px solid var(--border,#2a2f3a);border-radius:6px;color:inherit">
+            <span style="color:var(--text-muted,#8a93a3);font-size:12px">s aleatório</span>
+          </div>
+        </div>
+
+        <!-- Daily limit -->
+        <div>
+          <label style="font-size:11px;color:var(--text-muted,#8a93a3);text-transform:uppercase;letter-spacing:.4px">Limite diário (msgs/dia)</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+            <input type="number" id="wpCfgDailyLimit" min="1" max="2000" style="width:80px;padding:6px 8px;background:rgba(0,0,0,.2);border:1px solid var(--border,#2a2f3a);border-radius:6px;color:inherit">
+            <span style="color:var(--text-muted,#8a93a3);font-size:12px">por instância</span>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:12px;font-size:11px;color:var(--text-muted,#8a93a3);padding:8px 10px;background:rgba(241,196,15,.06);border-left:2px solid rgba(241,196,15,.4);border-radius:4px">
+        💡 Defaults pós-ban (recomendado): 9-18h · ter/qua/qui · 30-90s · 30 msgs/dia. Aumente gradualmente conforme o número aquece.
       </div>
     </div>
 
@@ -388,7 +467,22 @@
     wpCarregarUsuariosAdmin();
     wpAtualizarStatus();
     wpFonteMudou(); // inicializa state da fonte (manual por padrão)
+    wpPrepopularDelaysNovaCampanha(); // defaults vêm do config global
   };
+
+  function wpPrepopularDelaysNovaCampanha() {
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (!r || !r.ok || !r.config) return;
+        var c = r.config;
+        var dmin = document.getElementById('wpDelayMin');
+        var dmax = document.getElementById('wpDelayMax');
+        if (dmin && !dmin.dataset.userTouched) dmin.value = c.delay_min;
+        if (dmax && !dmax.dataset.userTouched) dmax.value = c.delay_max;
+      })
+      .withFailureHandler(function() {})
+      .getConfigWaPessoal(_wpUser);
+  }
 
   // ── MODAIS GENÉRICOS (confirm + loading) ──────────────────────────────────────
   var _wpConfirmCallback = null;
@@ -432,10 +526,116 @@
         });
         document.getElementById('wpAdminBar').style.display = '';
         wpAtualizarLabelAlvo();
+        // Mostra cards admin (bypass + configurações) e carrega estado
+        document.getElementById('wpBypassBox').style.display = '';
+        wpCarregarBypass();
+        document.getElementById('wpConfigBox').style.display = '';
+        wpCarregarConfig();
       })
       .withFailureHandler(function(e) { console.error('listarUsuariosWaPessoal falhou:', e); })
       .listarUsuariosWaPessoal(_wpUser);
   }
+
+  function wpCarregarBypass() {
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (!r || !r.ok) return;
+        var box = document.getElementById('wpBypassBox');
+        var tog = document.getElementById('wpBypassToggle');
+        tog.checked = !!r.ativo;
+        box.classList.toggle('ativo', !!r.ativo);
+      })
+      .withFailureHandler(function() {})
+      .getBypassHorarioWaPessoal(_wpUser);
+  }
+
+  var _wpDiasSemana = []; // estado atual dos dias selecionados
+  var _wpDiasLabels = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+  function _wpRenderDiasChips() {
+    var wrap = document.getElementById('wpCfgDias');
+    wrap.innerHTML = _wpDiasLabels.map(function(lbl, i) {
+      var on = _wpDiasSemana.indexOf(i) >= 0;
+      var bg = on ? 'rgba(46,204,113,.15)' : 'rgba(0,0,0,.2)';
+      var border = on ? '#2ecc71' : 'var(--border,#2a2f3a)';
+      var color = on ? '#2ecc71' : 'var(--text-muted,#8a93a3)';
+      return '<button type="button" onclick="wpToggleDia(' + i + ')" style="padding:5px 9px;border-radius:5px;border:1px solid ' + border + ';background:' + bg + ';color:' + color + ';font-size:12px;font-weight:600;cursor:pointer">' + lbl + '</button>';
+    }).join('');
+  }
+
+  window.wpToggleDia = function(d) {
+    var i = _wpDiasSemana.indexOf(d);
+    if (i >= 0) _wpDiasSemana.splice(i, 1);
+    else _wpDiasSemana.push(d);
+    _wpDiasSemana.sort();
+    _wpRenderDiasChips();
+  };
+
+  function wpCarregarConfig() {
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (!r || !r.ok) return;
+        var c = r.config || {};
+        document.getElementById('wpCfgHoraIni').value = c.hora_ini;
+        document.getElementById('wpCfgHoraFim').value = c.hora_fim;
+        document.getElementById('wpCfgDelayMin').value = c.delay_min;
+        document.getElementById('wpCfgDelayMax').value = c.delay_max;
+        document.getElementById('wpCfgDailyLimit').value = c.daily_limit;
+        _wpDiasSemana = (c.dias_semana || []).slice();
+        _wpRenderDiasChips();
+      })
+      .withFailureHandler(function() {})
+      .getConfigWaPessoal(_wpUser);
+  }
+
+  window.wpSalvarConfig = function() {
+    var cfg = {
+      hora_ini: Number(document.getElementById('wpCfgHoraIni').value),
+      hora_fim: Number(document.getElementById('wpCfgHoraFim').value),
+      dias_semana: _wpDiasSemana.slice(),
+      delay_min: Number(document.getElementById('wpCfgDelayMin').value),
+      delay_max: Number(document.getElementById('wpCfgDelayMax').value),
+      daily_limit: Number(document.getElementById('wpCfgDailyLimit').value)
+    };
+    if (!cfg.dias_semana.length) { _toast('Selecione ao menos 1 dia.', 'error'); return; }
+    if (cfg.hora_fim <= cfg.hora_ini) { _toast('Hora fim precisa ser maior que hora ini.', 'error'); return; }
+    if (cfg.delay_max < cfg.delay_min) { _toast('Delay máx precisa ser ≥ delay min.', 'error'); return; }
+    wpLoading('Salvando configurações…');
+    google.script.run
+      .withSuccessHandler(function(r) {
+        wpLoadingClose();
+        if (!r || !r.ok) { _toast((r && r.mensagem) || 'Erro ao salvar.', 'error'); return; }
+        _toast('Configurações salvas. Próximos disparos respeitam os novos limites.', 'ok');
+        // Atualiza estado normalizado retornado pelo backend
+        var c = r.config || {};
+        _wpDiasSemana = (c.dias_semana || []).slice();
+        _wpRenderDiasChips();
+      })
+      .withFailureHandler(function(e) { wpLoadingClose(); _toast('Erro: ' + e.message, 'error'); })
+      .setConfigWaPessoal(_wpUser, cfg);
+  };
+
+  window.wpToggleBypass = function(checked) {
+    var tog = document.getElementById('wpBypassToggle');
+    tog.disabled = true;
+    google.script.run
+      .withSuccessHandler(function(r) {
+        tog.disabled = false;
+        if (!r || !r.ok) {
+          _toast((r && r.mensagem) || 'Falha ao alterar bypass.', 'error');
+          tog.checked = !checked;
+          return;
+        }
+        document.getElementById('wpBypassBox').classList.toggle('ativo', !!r.ativo);
+        _toast(r.ativo ? 'Bypass ATIVO: disparos liberados a qualquer hora.' : 'Bypass desativado: janela 08-20 BRT seg-sáb retomada.', 'ok');
+      })
+      .withFailureHandler(function(e) {
+        tog.disabled = false;
+        tog.checked = !checked;
+        _toast('Erro: ' + e.message, 'error');
+      })
+      .setBypassHorarioWaPessoal(_wpUser, !!checked);
+  };
 
   function wpAtualizarLabelAlvo() {
     var bar = document.getElementById('wpAdminBar');
@@ -868,6 +1068,8 @@
   };
 
   function wpRenderHistorico(camps) {
+    // Atualiza badge "WA Campanha" no menu lateral (campanhas ativas)
+    try { if (typeof _waPessoalCarregarBadge === 'function') _waPessoalCarregarBadge(); } catch (e) {}
     if (!camps.length) { document.getElementById('wpHistoricoBody').innerHTML = '<div style="color:var(--text-muted,#8a93a3);text-align:center;padding:24px">Nenhuma campanha ainda. Crie uma na aba "Nova Campanha".</div>'; return; }
     var html = '<table class="wp-tabela"><thead><tr><th>Nome</th><th>Status</th><th>Total</th><th>Enviado</th><th>Respondeu</th><th>Erro</th><th>Resposta</th><th>Ações</th></tr></thead><tbody>';
     camps.forEach(function(c) {
@@ -1034,26 +1236,46 @@
     }
 
     // KPIs com delta
-    function setKpi(elVal, elDelta, valorHoje, deltaPct, sufixo) {
-      document.getElementById(elVal).textContent =
-        (valorHoje != null ? valorHoje : 0) + (sufixo || '');
-      var de = document.getElementById(elDelta);
+    var semEnviosHoje = (s.hoje.enviado || 0) === 0;
+
+    function setKpi(elVal, elDelta, valorHoje, deltaPct, sufixo, baseline) {
+      var elV = document.getElementById(elVal);
+      var elD = document.getElementById(elDelta);
+      if (semEnviosHoje) {
+        // Sem envios hoje: mostra baseline 7d (se houver) e label explicativo
+        if (baseline != null && baseline > 0) {
+          elV.textContent = baseline + (sufixo || '');
+          elV.style.opacity = '0.5';
+          elD.textContent = 'média 7d (sem envios hoje)';
+        } else {
+          elV.textContent = '—';
+          elV.style.opacity = '0.5';
+          elD.textContent = 'sem dados';
+        }
+        elD.className = 'wp-saude-kpi-delta';
+        return;
+      }
+      elV.style.opacity = '';
+      elV.textContent = (valorHoje != null ? valorHoje : 0) + (sufixo || '');
       if (deltaPct == null || isNaN(deltaPct) || deltaPct === 0) {
-        de.textContent = 'vs 7d: —';
-        de.className = 'wp-saude-kpi-delta';
+        elD.textContent = 'vs 7d: —';
+        elD.className = 'wp-saude-kpi-delta';
       } else {
         var sinal = deltaPct > 0 ? '+' : '';
-        de.textContent = 'vs 7d: ' + sinal + deltaPct + '%';
-        de.className = 'wp-saude-kpi-delta ' + (deltaPct > 0 ? 'up' : 'down');
+        elD.textContent = 'vs 7d: ' + sinal + deltaPct + '%';
+        elD.className = 'wp-saude-kpi-delta ' + (deltaPct > 0 ? 'up' : 'down');
       }
     }
-    setKpi('wpSaudeEntrega',  'wpSaudeEntregaDelta',  s.hoje.pct_entregue,      s.deltas && s.deltas.entrega,  '%');
-    setKpi('wpSaudeLido',     'wpSaudeLidoDelta',     s.hoje.pct_lido_efetivo,  s.deltas && s.deltas.lido,     '%');
-    setKpi('wpSaudeResposta', 'wpSaudeRespostaDelta', s.hoje.pct_respondeu,     s.deltas && s.deltas.resposta, '%');
+    var b = s.baseline_7d || {};
+    setKpi('wpSaudeEntrega',  'wpSaudeEntregaDelta',  s.hoje.pct_entregue,      s.deltas && s.deltas.entrega,  '%', b.pct_entregue);
+    setKpi('wpSaudeLido',     'wpSaudeLidoDelta',     s.hoje.pct_lido_efetivo,  s.deltas && s.deltas.lido,     '%', b.pct_lido_efetivo);
+    setKpi('wpSaudeResposta', 'wpSaudeRespostaDelta', s.hoje.pct_respondeu,     s.deltas && s.deltas.resposta, '%', b.pct_respondeu);
 
     // KPI de erro mostra contagem absoluta hoje + volume hoje no delta
-    document.getElementById('wpSaudeErro').textContent = (s.hoje.erro || 0);
+    var elErr = document.getElementById('wpSaudeErro');
     var deErr = document.getElementById('wpSaudeVolumeHoje');
+    elErr.textContent = (s.hoje.erro || 0);
+    elErr.style.opacity = semEnviosHoje ? '0.5' : '';
     deErr.textContent = (s.hoje.enviado || 0) + ' enviados hoje';
     deErr.className = 'wp-saude-kpi-delta';
   }
