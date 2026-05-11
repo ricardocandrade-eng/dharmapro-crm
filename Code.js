@@ -4257,8 +4257,9 @@ function _decorarVendaComVinculos_(venda, vinculosMap, mapaResumoVinculos) {
       break;
     }
   }
-  // Fallback: filha mais recente (última inserida) se nenhuma com MOVEL encontrada
-  if (!melhorFilha && filhos.length) melhorFilha = filhos[filhos.length - 1];
+  // NÃO usar fallback genérico aqui: se nenhuma filha for Móvel, deixar sem
+  // vínculo visual. Combo = Fibra + Móvel por definição. Caia o vínculo no
+  // banco se estiver errado (mãe→Fibra), o card não deve agrupar 2 Fibras.
   v.vendaMovelLinha = melhorFilha ? melhorFilha.vendaFilhaLinha : '';
   v.temVendaMovelVinculada = filhos.length > 0;
   v.comboMovelPendente = (produtoNorm === 'FIBRA COMBO') && !v.temVendaMovelVinculada;
