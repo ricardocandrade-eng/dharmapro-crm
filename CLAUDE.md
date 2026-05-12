@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 11/05/2026 -->
+<!-- dharmapro-crm | CLAUDE.md | 12/05/2026 -->
 
 # dharmapro-crm
 
@@ -114,6 +114,40 @@ Resultado consolidado:
 - **Backfill executado**: `repararSistemaSegmentacao` corrigiu 7 linhas históricas;
   `repararVinculosCombosOrfaos` vinculou TAINARA + deixou 20 ambíguos + 10 sem par
   para revisão humana.
+
+Em 12/05/2026 o feature **Forma de Pagamento (Boleto vs Recorrente)** foi modelado
+no schema (v562) após a Vero formalizar dois clusters de preço lado a lado na NP 2.0
+(boleto cheio vs débito automático/cartão/pix com −R$10 para Fibra).
+
+- **Nova coluna AT (`FORMA_PAGAMENTO`)** em `1 - Vendas`. Valores: `'BOLETO'`,
+  `'RECORRENTE'` ou `''` (vazio em legado pré-feature). `TOTAL_COLUNAS: 45 → 46`
+  (AS reservada para `CRIADO_POR` do v559).
+- **`planos_vero.json` expandido 9 → 13 cols** (append no final: `ESPECIAIS_REC`,
+  `OURO_REC`, `PRATA_REC`, `PADRÃO_REC`). Fibra: REC = Boleto − R$10. Móvel:
+  REC = Boleto (sem desconto formal). Backward-compatible — callers antigos que
+  leem só cols 0-8 continuam funcionando.
+- **`getValorPlano(plano, cidade, forma)`** novo: lookup direto no JSON considerando
+  a forma de pagamento. Frontend chama ao trocar Plano ou Forma → recalcula valor.
+- **`getOfertasCidade`** retorna `{valorBoleto, valorRecorrente}` — Mapa de Ofertas
+  exibe os 2 valores lado a lado ("Boleto R$ X · Recorrente R$ Y"). Hardcode
+  `valor - 10` eliminado em `Code.js:2510`.
+- **Validação obrigatória em cadastro novo**: `salvarVenda` rejeita sem
+  `formaPagamento` ou sem `venc` quando `linhaReferencia` está vazia. Legado
+  (vendas pré-feature reabertas) passa sem reclamar.
+- **Coluna Q (`FAT`) liberada**: deixou de ser fonte da verdade. `_construirLinhaDados`
+  parou de gravar nela; `pif-fat` removido do painel. A coluna pode ser limpa
+  manualmente e reutilizada para outro dado.
+- **Vencimento agora é dropdown** (`05` / `10` / `13` / `19`) na Nova Venda
+  e no painel lateral. Valores legados fora do enum entram como `⚠ X (legado)`
+  via `_pifSetSelectComLegado`.
+- **Combo herda Forma**: `_COMBO_PROPAGAVEIS_` inclui `formaPagamento`;
+  `criarVendaMovelVinculada` herda da Fibra mãe. Se cliente troca Forma na Fibra,
+  o Móvel vinculado segue.
+- **Cards visuais atualizados**: 3 renderizadores substituem `v.fat` por
+  `_labelFormaPagamento(v.formaPagamento)` (💰 Boleto / 🔁 Recorrente).
+- **`nv-valor` virou readonly** — o valor vem do backend via `getValorPlano`,
+  evitando edição manual divergente.
+- **Rev4 do JSON executado** no editor (42 linhas, 9373 bytes no Drive).
 
 ---
 
@@ -369,14 +403,17 @@ que carrega `CONFIG.TABELA_JSON_FILE_ID` e cacheia 600s.
 - File ID: `1wB9jncB_eBhGnBE-OpiZZ5UfVnvmv-ro`
 - Nome: `planos_vero.json` (My Drive root)
 - Cópia local versionada: `dharmapro-crm/planos_vero.json`
-- Estrutura: array-of-arrays, **9 colunas**:
-  `[nome, TIPO, ESPECIAIS, OURO, PRATA, PADRÃO, NOME_LP, FEATURES, PUBLICAR]`
+- Estrutura: array-of-arrays, **13 colunas** (a partir da Rev4, 12/05/2026):
+  `[nome, TIPO, ESPECIAIS, OURO, PRATA, PADRÃO, NOME_LP, FEATURES, PUBLICAR, ESPECIAIS_REC, OURO_REC, PRATA_REC, PADRÃO_REC]`
 - Linha 0: metadata (`Última atualização: ...`)
-- Linha 1: header (com `TIPO` na col 1 e segmentações nas cols 2-5)
+- Linha 1: header (segmentações de Boleto nas cols 2-5; Recorrente nas cols 9-12)
 - Linhas 2+: planos. Categorias em uso: `VERO MAIS`, `MUNDO FIBRA`,
   `ENTRETENIMENTO`, `COMPLETO`, `GAMER`, `MÓVEL`, `MÓVEL COMBO`.
-- Preços de fibra são SEM PARCERIAS — `getOfertasCidade` desconta R$ 10
-  para FIBRA (parceria Vero Mais via boleto).
+- **Cols 2-5 (Boleto)**: preço cheio (espelho da tabela Vero "SEM PAGAMENTO RECORRENTE").
+- **Cols 9-12 (Recorrente)**: preço com débito automático/cartão/pix (`Boleto − R$10`
+  para Fibra; igual a Boleto para Móvel — sem desconto recorrente formal).
+- Frontend escolhe qual col ler via `getValorPlano(plano, cidade, forma)`.
+- Backward-compatible: callers antigos que leem apenas cols 0-8 continuam funcionando.
 - Aba `TABELA` do Sheets fica como fallback histórico (não deletar).
 
 ### Quem consome
@@ -552,6 +589,7 @@ AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw
 | 09/05/2026 23:34 | v536 | **WA Pessoal — pendência #2 (envio de imagens).** Backend: `uploadImagemCampanha(usuario, base64, filename, mimeType)` em DispPessoalAPI.js — salva no Drive (folder "WA Pessoal Imagens"), `setSharing(ANYONE_WITH_LINK, VIEW)`, retorna URL `drive.google.com/uc?export=download&id=...`. `criarCampanha` aceita `dados.imagem_url` e grava em col N `imagem_url` de `WA Campanhas`. Frontend: input file na "Nova Campanha" + preview + botão remover + validação ≤5MB + auto-upload. WF1: novo IF `Tem imagem?` após Wait Typing → branch `Envia Mídia` (POST `/message/sendMedia/{instance}` com `mediaMessage: {mediatype:image, media:URL, caption:texto}`) OU branch `Envia Mensagem` existente. Variação sorteada vira caption quando há imagem. One-shot `_addColunaImagemUrl` em `_waImagemSetup.js`. |
 | 09/05/2026 23:57 | v538 | **WA Pessoal — Saúde Dashboard.** Backend `getSaudeWaPessoal` calcula KPIs hoje vs baseline 7d (entrega %, engajamento [lido OU respondeu]/entregue %, resposta %, erros). Alertas amarelo/vermelho com sugestões anti-ban heurísticas. Read receipts amplamente desabilitados são compensados por "engajamento efetivo". Quedas relativas vs baseline geram alertas. Frontend: bloco no topo do Dashboard com banner status + alertas + 4 mini-KPIs com delta. v542 (10/05): quando `hoje.enviado=0`, mostra média baseline 7d com opacity em vez de `0% / -100%` confuso. |
 | 10/05/2026 09:58 | v543 | **WA Pessoal — toggle bypass horário (admin) + bolinha menu + rename "WhatsApp Pessoal" → "WA Campanha".** Novo endpoint `wa_pessoal_check_dispatch` substitui Code "Checa Horário" do WF1 (n8n agora chama GAS pra ver janela 08-20 + bypass admin em tempo real, fuso `America/Sao_Paulo`). Funções `setBypassHorarioWaPessoal`/`getBypassHorarioWaPessoal` (admin only) gravam em Script Property `WA_PESSOAL_BYPASS_HORARIO`. Frontend: toggle switch amarelo no Dashboard (visível só admin). `temCampanhaAtivaWaPessoal` retorna count; `_waPessoalIniciarPollingBadge()` em JS.html chama no login + 60s. CSS `.nav-badge.dot-amarelo` (8x8 amarelo + glow + animação `pulsar` reaproveitada). Rename em Index.html sidebar + JS.html breadcrumb + Usuarios.html permissões. |
+| 12/05/2026 00:35 | v562 | **Sprint 3 — Forma de Pagamento (Boleto/Recorrente) + Vencimento dropdown.** Tabela Vero NP 2.0 (11/05/2026) formaliza 2 clusters de preço: boleto cheio vs recorrente (−R$10 Fibra). Coluna nova **AT `FORMA_PAGAMENTO`** (índice 45, `'BOLETO' \| 'RECORRENTE' \| ''`). `TOTAL_COLUNAS: 45 → 46`. Novo helper backend `getValorPlano(plano, cidade, forma)` (lookup direto no JSON) — frontend chama ao trocar Plano ou Forma. `getOfertasCidade` retorna `{valorBoleto, valorRecorrente, valor}` (elimina hardcode `−10`); Mapa exibe os 2 valores lado a lado. `salvarVenda` valida cadastro novo: Forma + Vencimento obrigatórios além de canal+resp (legado passa). `_construirLinhaDados` grava AT; **para de gravar col Q (FAT) — liberada para reutilização futura**. `_resumirVendaVinculada_` e `_mapearLinha` expõem `formaPagamento`. `criarVendaMovelVinculada` + `_COMBO_PROPAGAVEIS_` propagam Forma da Fibra para o Móvel vinculado. JSON `planos_vero.json` expandido de 9 → 13 cols (append no final: `ESPECIAIS_REC, OURO_REC, PRATA_REC, PADRÃO_REC`, backward-compatible) via helper `_atualizarPlanosVeroJsonRev4` rodado no editor (42 linhas, 9373 bytes). Frontend: **Nova_venda.html** ganha `nv-formaPagamento` (select Boleto/Recorrente) e `nv-venc` (dropdown 05/10/13/19); `nv-valor` agora readonly recalculado pelo backend; validação no step 3. **Painel lateral** (`pif-formaPagamento`, `pif-venc` dropdown, `pif-fat` removido) com helper `_pifSetSelectComLegado` que preserva valores legados como `⚠ X (legado)` quando fora do enum. Cards visuais (3 renderizadores) substituem "Pagamento" (v.fat) por "Forma" formatada via `_labelFormaPagamento` (💰 Boleto / 🔁 Recorrente). |
 | 10/05/2026 10:12 | v544 | **WA Pessoal — auto-conclusão de campanha.** Quando WF1 chama `wa_pessoal_next_pending` e GAS não acha mais disparos `pendente`, novo helper `_concluirCampanhaSeAtiva_` muda status `ativa→concluida` em `WA Campanhas`. Não toca em `pausada`/`cancelada` (preserva intenção do usuário). Idempotente. Cascata: bolinha amarela do menu some automaticamente (`temCampanhaAtivaWaPessoal` filtra só `ativa`); badge "concluida" aparece azul no Histórico. |
 | 11/05/2026 23:25 | v559 | **Autor da venda (CRIADO_POR) registrado e exibido na Lista.** Nova coluna AS (índice 44) `CRIADO_POR` em `1 - Vendas` — `TOTAL_COLUNAS: 44 → 45`. `_construirLinhaDados` grava `d.criadoPor`; `_mesclarDadosVendaComLinhaAtual_` preserva o valor original em edições (imutável após criação, semântica idêntica à do `CRIADO_EM`); `_mapearLinhaLista` e `_mapearLinha` expõem `criadoPor` ao frontend. `criarVendaMovelVinculada` herda o autor da fibra-mãe no `dadosMovel`. Frontend: `_buildVendaPayload_` injeta `criadoPor: AppState.get('nomeUsuario')` em ambos os contextos (cadastro/edição), `coletarDados` (wizard antigo) e o fallback inline em `Nova_venda.html` idem. Render: os 3 cards da Lista de Venda (principal, PAP, combo agrupado) passam a exibir `Lanç. DD/MM HH:MM · Nome Completo` (mesma opacidade 55%, mesmo separador `·` já usado nos cards). Vendas legadas/Botconversa sem autor ficam graciosas (só timestamp). Setup: one-shot `_addColunaCriadoPor` em `_criadoPorSetup.js` grava o header `CRIADO_POR` em AS2 — executar UMA VEZ no editor; depois remover o arquivo no próximo push. |
 | 11/05/2026 22:40 | v556 | **Auto-fill Sistema/Segmentação em todos os caminhos de gravação.** `_construirLinhaDados` agora faz lookup via `getSistemaPorCidade`/`getSegmentacaoPorCidade` quando `d.cidade` está preenchida e os campos estão vazios (idempotente). `doPost` (webhook Botconversa) refatorado para chamar `buscarCEPBackend` e usar `_construirLinhaDados` — vendas via webhook agora nascem com endereço completo + sistema/segmentação preenchidos. Backfill: `repararSistemaSegmentacao` rodado no editor corrigiu 7 linhas históricas em "1 - Vendas". |
