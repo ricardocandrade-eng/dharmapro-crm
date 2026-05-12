@@ -570,6 +570,9 @@ function _pifAplicarModoLeitura() {
     if (el.tagName === 'SELECT') { el.disabled = true; }
     else                          { el.readOnly = true; }
   });
+  // Sprint 3.3: limpa opacity herdado da edição (preStatus etc)
+  var elPre = document.getElementById('pif-preStatus');
+  if (elPre) elPre.style.opacity = '';
 }
 
 function _pifAplicarModoEdicao() {
