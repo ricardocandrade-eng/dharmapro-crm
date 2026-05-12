@@ -1278,18 +1278,50 @@ function doPost(e) {
     var agora    = new Date();
     var dataAtiv = Utilities.formatDate(agora, tz, 'dd/MM/yyyy');
 
-    var linha = new Array(CONFIG.TOTAL_COLUNAS).fill('');
-    linha[CONFIG.COLUNAS.CANAL]    = String(payload.canal || 'META ADS').trim();
-    linha[CONFIG.COLUNAS.PRODUTO]  = String(payload.produto  || '').trim();
-    linha[CONFIG.COLUNAS.STATUS]   = '1- Conferencia/Ativação';
-    linha[CONFIG.COLUNAS.DATA_ATIV]= dataAtiv;
-    linha[CONFIG.COLUNAS.CLIENTE]  = String(payload.nome     || '').trim();
-    linha[CONFIG.COLUNAS.WHATS]    = String(payload.whatsapp || payload.telefone || '').replace(/\D/g,'');
-    linha[CONFIG.COLUNAS.CPF]      = String(payload.cpf      || '').trim();
-    linha[CONFIG.COLUNAS.CEP]      = String(payload.cep      || '').replace(/\D/g,'');
-    linha[CONFIG.COLUNAS.RESP]     = String(payload.resp     || '').trim();
-    linha[CONFIG.COLUNAS.OBSERVACAO] = String(payload.obs    || '').trim();
-    linha[CONFIG.COLUNAS.PRE_STATUS] = 'EM NEGOCIACAO';
+    // Sprint 2.6: monta dados via _construirLinhaDados (mesma normalização
+    // que salvarVenda usa). Se CEP veio no payload, busca cidade/rua/bairro/uf
+    // server-side; _construirLinhaDados então auto-preenche Sistema/Segmentacao
+    // via getSistemaPorCidade/getSegmentacaoPorCidade. Vendas via webhook
+    // nascem completas, sem depender do operador editar depois.
+    var cepLimpo = String(payload.cep || '').replace(/\D/g, '');
+    var endereco = {};
+    if (cepLimpo.length === 8) {
+      try {
+        var cepRes = buscarCEPBackend(cepLimpo);
+        if (cepRes && !cepRes.erro) {
+          endereco = {
+            rua:    cepRes.logradouro || '',
+            bairro: cepRes.bairro     || '',
+            cidade: cepRes.cidade     || '',
+            uf:     cepRes.uf         || ''
+          };
+        } else {
+          Logger.log('doPost: buscarCEPBackend falhou para ' + cepLimpo + ': ' + (cepRes && cepRes.mensagem || 'sem detalhes'));
+        }
+      } catch (eCep) {
+        Logger.log('doPost: excecao buscarCEPBackend: ' + (eCep && eCep.message || eCep));
+      }
+    }
+
+    var dadosWebhook = {
+      canal:       String(payload.canal || 'META ADS').trim(),
+      produto:     String(payload.produto || '').trim(),
+      status:      '1- Conferencia/Ativação',
+      dataAtiv:    dataAtiv,
+      cliente:     String(payload.nome || '').trim(),
+      whats:       String(payload.whatsapp || payload.telefone || '').replace(/\D/g, ''),
+      cpf:         String(payload.cpf || '').trim(),
+      cep:         cepLimpo,
+      rua:         endereco.rua    || '',
+      bairro:      endereco.bairro || '',
+      cidade:      endereco.cidade || '',
+      uf:          endereco.uf     || '',
+      resp:        String(payload.resp || '').trim(),
+      observacao:  String(payload.obs  || '').trim(),
+      preStatus:   'EM NEGOCIACAO'
+    };
+
+    var linha = _construirLinhaDados(dadosWebhook);
 
     // Insere na próxima linha com dados reais (ignora linhas em branco formatadas)
     var lock = LockService.getScriptLock();
@@ -4198,6 +4230,26 @@ function _validarContratoFormatoBackend_(valor, sistema) {
 function _construirLinhaDados(d) {
   var linha = new Array(CONFIG.TOTAL_COLUNAS).fill('');
   var c = CONFIG.COLUNAS;
+
+  // Auto-fill Sistema/Segmentação: se cidade está preenchida mas sistema OU
+  // segmentação estão vazios, buscar via _getCidades(). Idempotente (não
+  // sobrescreve valores já preenchidos). Garante que QUALQUER caminho de
+  // gravação (doPost/Botconversa, criarVendaMovelVinculada, salvarVenda,
+  // moverVendaFunil etc) produza vendas com esses campos.
+  var cidadeRaw = String(d.cidade || '').trim();
+  if (cidadeRaw) {
+    var sisRaw = String(d.sistema || '').trim();
+    var segRaw = String(d.segmentacao || '').trim();
+    if (!sisRaw || !segRaw) {
+      try {
+        if (!sisRaw)  d.sistema     = getSistemaPorCidade(cidadeRaw)     || '';
+        if (!segRaw)  d.segmentacao = getSegmentacaoPorCidade(cidadeRaw) || '';
+      } catch (eAuto) {
+        Logger.log('Auto-fill sistema/segmentacao falhou: ' + (eAuto && eAuto.message || eAuto));
+      }
+    }
+  }
+
   linha[c.CANAL]       = d.canal       || '';
   linha[c.PRODUTO]     = d.produto     || '';
   linha[c.STATUS]      = d.status      || '';
