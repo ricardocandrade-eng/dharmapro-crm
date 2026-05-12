@@ -344,7 +344,7 @@
       <div class="form-grid">
 
         <div class="form-group" id="nv-grp-produto">
-          <label>Produto</label>
+          <label>Produto <span class="req">*</span></label>
           <select id="nv-produto" onchange="nvOnProdutoChange()">
             <option value="">Selecione o produto...</option>
             <option value="Fibra Alone">Fibra Alone</option>
@@ -352,13 +352,15 @@
             <option value="Dependente">Dependente</option>
           </select>
           <span class="hint" id="nv-produtoHint"></span>
+          <span class="err-msg" id="nv-err-produto">Selecione o Produto.</span>
         </div>
 
         <div class="form-group" id="nv-grp-plano">
-          <label>Plano</label>
+          <label>Plano <span class="req">*</span></label>
           <select id="nv-plano" onchange="nvOnPlanoChange()">
             <option value="">— Preencha o CEP e Produto —</option>
           </select>
+          <span class="err-msg" id="nv-err-plano">Selecione um Plano válido.</span>
         </div>
 
         <div class="form-group" id="nv-grp-formaPagamento">
@@ -555,6 +557,14 @@ function nvValidarStep(step) {
     ok = nvMarcaErro('nv-cidade', 'nv-err-cidade', !document.getElementById('nv-cidade').value.trim()) && ok;
     ok = nvMarcaErro('nv-uf',     'nv-err-uf',     !document.getElementById('nv-uf').value.trim())     && ok;
   } else if (step === 3) {
+    // Sprint 3.3 (12/05/2026): Produto + Plano são obrigatórios — sem isso
+    // a venda nasce órfã. Bug observado: venda salva com PLANO = "112.9"
+    // (só o valor) porque validação não bloqueava.
+    ok = nvMarcaErro('nv-produto', 'nv-err-produto', !document.getElementById('nv-produto').value) && ok;
+    var planoVal = document.getElementById('nv-plano').value;
+    // Plano vazio OU placeholder ("⏳ Carregando", "▶️ CATEGORIA ◀️") rejeita.
+    var planoVazio = !planoVal || planoVal.indexOf('▶️') === 0 || planoVal.indexOf('⏳') === 0 || planoVal.indexOf('—') === 0;
+    ok = nvMarcaErro('nv-plano', 'nv-err-plano', planoVazio) && ok;
     // Sprint 3 (12/05/2026): Forma de Pagamento e Vencimento obrigatórios
     ok = nvMarcaErro('nv-formaPagamento', 'nv-err-formaPagamento', !document.getElementById('nv-formaPagamento').value) && ok;
     ok = nvMarcaErro('nv-venc',           'nv-err-venc',           !document.getElementById('nv-venc').value)           && ok;

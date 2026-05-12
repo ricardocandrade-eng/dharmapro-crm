@@ -3688,8 +3688,21 @@ function salvarVenda(dados) {
     if (!dados.linhaReferencia || dados.linhaReferencia === '') {
       if (!String(dados.canal || '').trim()) throw new Error('Canal é obrigatório.');
       if (!String(dados.resp  || '').trim()) throw new Error('Responsável é obrigatório.');
+      // Sprint 3.3 (12/05/2026): Produto e Plano são obrigatórios. Bug raiz
+      // observado: venda salva com PLANO = "112.9" (só o valor) porque
+      // validação do frontend não bloqueava. Backend agora trava em qualquer
+      // caminho (Nova Venda, console manual, scripts externos).
+      var produtoNovo = String(dados.produto || '').trim();
+      var planoNovo   = String(dados.plano   || '').trim();
+      if (!produtoNovo) throw new Error('Produto é obrigatório.');
+      if (!planoNovo)   throw new Error('Plano é obrigatório.');
+      // Plano sem nome (apenas valor numérico, ex: "112.9") é inválido.
+      // Plano legítimo tem letras: "VERO MAIS 800MB | 112,90" / "DISNEY+ PADRÃO | 144,90".
+      if (!/[A-Za-zÁÉÍÓÚÀÂÊÔÃÕÇa-záéíóúàâêôãõç]/.test(planoNovo)) {
+        Logger.log('salvarVenda: Plano sem texto rejeitado. dados.plano=' + JSON.stringify(planoNovo));
+        throw new Error('Plano inválido: nome do plano está vazio ou contém apenas números. Selecione um plano da lista. (Se o campo está preenchido na tela, faça Ctrl+Shift+R para limpar cache.)');
+      }
       // Sprint 3 (12/05/2026): Forma de Pagamento e Vencimento obrigatórios em cadastro novo.
-      // Legado (sem linhaReferencia mas com cadastro pré-feature) não cai aqui.
       var fpNova = String(dados.formaPagamento || '').toUpperCase().trim();
       if (fpNova !== 'BOLETO' && fpNova !== 'RECORRENTE') {
         throw new Error('Forma de Pagamento é obrigatória (Boleto ou Recorrente).');
