@@ -2744,8 +2744,13 @@ function getValorPlano(plano, cidade, forma) {
     }
     if (colIdx === -1) return { erro: true, mensagem: 'Segmentação "' + segmentacao + '" não encontrada.' };
 
-    // Extrai nome puro do plano (aceita "Nome | R$ XX,XX" do select do CRM)
-    var nomePuro = String(plano || '').split('|')[0].trim();
+    // Extrai nome puro do plano. O select do CRM monta "Nome | preço" (ex.
+    // "VERO MAIS 800MB | 149,90"), mas há planos cujo NOME contém pipes
+    // (ex. "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE"). Solução: tira só
+    // o último segmento se for número (preço), preservando o restante.
+    var nomePuro = String(plano || '').trim()
+                      .replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/, '')
+                      .trim();
     if (!nomePuro) return { erro: true, mensagem: 'Plano vazio.' };
     var nomeNorm = _normalizarTexto(nomePuro);
 
