@@ -5991,7 +5991,7 @@ function _criarItemVenda(v, index) {
 
         // Linha 2: Status / ID Contrato (+ vhub/viab/bcTags inline à direita)
         '<div class="vi-status-row">' +
-          '<span class="vi-status-inline" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
+          '<span class="vi-status-inline">' + esc(v.status || '—') + '</span>' +
           (v.contrato ? '<span class="vi-id-sep">/</span><span class="vi-id-inline">ID Contrato ' + esc(v.contrato) + '</span>' : '') +
           '<span style="margin-left:auto;display:flex;align-items:center;gap:6px;">' +
             (v.status === '1- Conferencia/Ativação' ? _veroHubPedidoHtml(v, index) : '') +
@@ -8459,8 +8459,6 @@ function _dhpLinhaPlanoComboV3(venda) {
 
 function _dhpBlocoPlanoV6(venda, index, extraHtml) {
   if (!venda) return '';
-  var coresP = STATUS_CORES[venda.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
-  var badgeStyleP = 'background:' + coresP.bg + ';color:' + coresP.text + ';border:1.5px solid ' + (coresP.border || coresP.text) + ';';
   var prodCls = _dhpProdutoClsV3(venda.produto);
   var planoValor = _dhpPlanoValorV3(venda);
   var idLabel = '';
@@ -8478,7 +8476,7 @@ function _dhpBlocoPlanoV6(venda, index, extraHtml) {
     '</div>' +
     // Linha 2: Status / ID Contrato
     '<div class="vi-status-row">' +
-      '<span class="vi-status-inline" style="' + badgeStyleP + '">' + esc(venda.status || '—') + '</span>' +
+      '<span class="vi-status-inline">' + esc(venda.status || '—') + '</span>' +
       (idLabel ? '<span class="vi-id-sep">/</span><span class="vi-id-inline">' + esc(idLabel) + '</span>' : '') +
       (extraHtml || '') +
     '</div>' +
