@@ -2801,15 +2801,29 @@ function getPlanosPorCidadeProduto(cidade, produto) {
     var colIdx      = cabecalho.indexOf(segNorm);
     if (colIdx === -1) return { erro: false, cidade: cidade, planos: [], mensagem: 'Segmentação "' + segmentacao + '" não encontrada na TABELA.' };
 
-    // Filtros por produto (Sprint 3 - 12/05/2026):
-    //  - Fibra Alone → SÓ planos Fibra cujo NOME não contém "MÓVEL"
-    //  - Fibra Combo → SÓ planos Fibra cujo NOME contém "MÓVEL"
-    //  - Móvel Alone / Móvel Combo → SÓ planos da categoria MÓVEL (filtro antigo, mantido)
-    //  - Dependente / vazio → mostra todos os Fibra (sem categoria MÓVEL)
-    var produtoNorm  = String(produto || '').toUpperCase();
+    // Filtros por produto (Sprint 3 - 12/05/2026, refator Rev5):
+    // Fonte da verdade = coluna PRODUTO_TIPO (índice 13) do JSON. Domínio
+    // fechado: FIBRA_ALONE | FIBRA_COMBO | MOVEL_ALONE | MOVEL_COMBO.
+    // Fallback heurístico (categoria + presença de "MÓVEL" no nome) só dispara
+    // se o JSON ainda for Rev4 (sem essa coluna) — comportamento idêntico ao
+    // que estava em produção antes do Rev5, preservando compatibilidade.
+    var colProdutoTipo = cabecalho.indexOf(_normalizarTexto('PRODUTO_TIPO'));
+    var produtoNorm    = String(produto || '').toUpperCase().trim();
+
+    // Mapa produto-UI → PRODUTO_TIPO esperado no JSON
+    var ALVO_TIPO = {
+      'FIBRA ALONE':  'FIBRA_ALONE',
+      'FIBRA COMBO':  'FIBRA_COMBO',
+      'MÓVEL ALONE':  'MOVEL_ALONE',
+      'MOVEL ALONE':  'MOVEL_ALONE',
+      'MÓVEL COMBO':  'MOVEL_COMBO',
+      'MOVEL COMBO':  'MOVEL_COMBO'
+    };
+    var tipoAlvo  = ALVO_TIPO[produtoNorm] || null;
+    var buscaMovel= produtoNorm.indexOf('MÓVEL') > -1 || produtoNorm.indexOf('MOVEL') > -1;
     var ehFibraAlone = produtoNorm === 'FIBRA ALONE';
     var ehFibraCombo = produtoNorm === 'FIBRA COMBO';
-    var buscaMovel   = produtoNorm.indexOf('MÓVEL') > -1 || produtoNorm.indexOf('MOVEL') > -1;
+
     var planos   = [];
     var catAtual = '';
 
@@ -2819,19 +2833,23 @@ function getPlanosPorCidadeProduto(cidade, produto) {
       var valRaw = dadosTab[ti][colIdx];
       if (!nome || valRaw === '' || valRaw === null) continue;
 
-      var catNorm     = cat.toUpperCase();
-      var nomeNorm    = nome.toUpperCase();
-      var ehCatMovel  = catNorm.indexOf('MÓVEL') > -1 || catNorm.indexOf('MOVEL') > -1;
-      var nomeTemMovel= nomeNorm.indexOf('MÓVEL') > -1 || nomeNorm.indexOf('MOVEL') > -1;
-
-      // Móvel Alone / Móvel Combo → só categoria MÓVEL
-      if (buscaMovel) {
-        if (!ehCatMovel) continue;
+      if (colProdutoTipo > -1 && tipoAlvo) {
+        // ── Filtro determinístico (Rev5+) ─────────────────────────────────
+        var pt = String(dadosTab[ti][colProdutoTipo] || '').toUpperCase().trim();
+        if (pt !== tipoAlvo) continue;
       } else {
-        // Produtos Fibra (ou Dependente) → nunca mostra categoria MÓVEL puro
-        if (ehCatMovel) continue;
-        if (ehFibraAlone && nomeTemMovel) continue;  // Alone = sem chip no nome
-        if (ehFibraCombo && !nomeTemMovel) continue; // Combo = só com chip no nome
+        // ── Fallback heurístico (Rev4 e anteriores) ───────────────────────
+        var catNorm     = cat.toUpperCase();
+        var nomeNorm    = nome.toUpperCase();
+        var ehCatMovel  = catNorm.indexOf('MÓVEL') > -1 || catNorm.indexOf('MOVEL') > -1;
+        var nomeTemMovel= nomeNorm.indexOf('MÓVEL') > -1 || nomeNorm.indexOf('MOVEL') > -1;
+        if (buscaMovel) {
+          if (!ehCatMovel) continue;
+        } else {
+          if (ehCatMovel) continue;
+          if (ehFibraAlone && nomeTemMovel) continue;
+          if (ehFibraCombo && !nomeTemMovel) continue;
+        }
       }
 
       if (_normalizarTexto(cat) !== _normalizarTexto(catAtual)) {
@@ -3199,6 +3217,62 @@ function _atualizarPlanosVeroJsonRev4() {
   DriveApp.getFileById(CONFIG.TABELA_JSON_FILE_ID).setContent(conteudo);
   CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'tabela_v1');
   Logger.log('OK rev4 — ' + dados.length + ' linhas, ' + conteudo.length + ' bytes. Cache invalidado.');
+}
+
+// Rev5 (12/05/2026): adiciona col 13 PRODUTO_TIPO ao final do array.
+// Domínio fechado: 'FIBRA_ALONE' | 'FIBRA_COMBO' | 'MOVEL_ALONE' | 'MOVEL_COMBO'.
+// Substitui filtro frágil por nome em getPlanosPorCidadeProduto. Backward-
+// compatible: callers que leem cols 0-12 continuam funcionando; o filtro
+// novo só ativa se a col 13 existir no header.
+function _atualizarPlanosVeroJsonRev5() {
+  var dados = [
+    ["Última atualização: 12/05/2026 — Rev5: col 13 PRODUTO_TIPO adicionada (FIBRA_ALONE/FIBRA_COMBO/MOVEL_ALONE/MOVEL_COMBO) para filtragem determinística.","","NG / ADAPTER","NG / ADAPTER","NG / ADAPTER","NG / ADAPTER","LANDING PAGE","","","","","","",""],
+    ["Valores para pagamento via boleto","TIPO","ESPECIAIS","OURO","PRATA","PADRÃO","NOME_LP","FEATURES","PUBLICAR","ESPECIAIS_REC","OURO_REC","PRATA_REC","PADRÃO_REC","PRODUTO_TIPO"],
+    ["VERO MAIS 550MB + MÓVEL 20GB","VERO MAIS",112.9,112.9,112.9,112.9,"Vero Mais","20GB Celular | Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",true,"102.9","102.9","102.9","102.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB","VERO MAIS",149.9,149.9,149.9,149.9,"Vero Mais","Globo Play Premium | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,"139.9","139.9","139.9","139.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + HBO MAX + MÓVEL 20GB","VERO MAIS",149.9,149.9,149.9,149.9,"Vero Mais","HBO Max | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,"139.9","139.9","139.9","139.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB","VERO MAIS",139.9,139.9,139.9,139.9,"Vero Mais","Esportes Futebol | YouTube Premium | 30GB Celular | Wi-Fi 6 | Instalação Grátis",true,"129.9","129.9","129.9","129.9","FIBRA_COMBO"],
+    ["OFERTA VERÃO 800MB + GLP PREMIUM + HBO MAX + MÓVEL 60GB","VERO MAIS",159.9,159.9,159.9,159.9,"Vero Mais","Globo Play Premium | HBO Max | 60GB Celular | Wi-Fi 6 | Instalação Grátis",true,"149.9","149.9","149.9","149.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB","VERO MAIS",144.9,144.9,144.9,144.9,"Vero Mais","Disney Padrão | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,"134.9","134.9","134.9","134.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB","VERO MAIS",149.9,149.9,149.9,149.9,"Vero Mais","Disney Premium | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,"139.9","139.9","139.9","139.9","FIBRA_COMBO"],
+    ["VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB","VERO MAIS",189.9,189.9,189.9,189.9,"Vero Mais","Vero Video Diversão | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,"179.9","179.9","179.9","179.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB","VERO MAIS",154.9,154.9,154.9,154.9,"Vero Mais","Globoplay Premium | Assistência Residencial | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,"144.9","144.9","144.9","144.9","FIBRA_COMBO"],
+    ["VERO MAIS 1GB + GLP PREMIUM + EXITLAG + MÓVEL 60GB","VERO MAIS","209,9 (Bauru)","","","","Vero Mais","Globoplay Premium | Assistência Residencial | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"199,9 (Bauru)","","","","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB","VERO MAIS",159.9,159.9,159.9,159.9,"Vero Mais","Disney com Ads | HBO Max com Ads | 30GB Celular | Wi-Fi 6 | Instalação Grátis",true,"149.9","149.9","149.9","149.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB","VERO MAIS",159.9,159.9,159.9,159.9,"Vero Mais","Prime Video | Apple TV | 30GB Celular | Wi-Fi 6 | Instalação Grátis",true,"149.9","149.9","149.9","149.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB","VERO MAIS",209.9,209.9,209.9,209.9,"Vero Mais","Prime Video | Apple TV | HBO Max | Globoplay Premium | 60GB Celular | Wi-Fi 6 | Instalação Grátis",true,"199.9","199.9","199.9","199.9","FIBRA_COMBO"],
+    ["550MB MUNDO FIBRA","MUNDO FIBRA",107.9,107.9,107.9,107.9,"Mundo Fibra","Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",true,"97.9","97.9","97.9","97.9","FIBRA_ALONE"],
+    ["550MB ASSISTÊNCIA RESIDENCIAL","MUNDO FIBRA",117.9,120.9,128.9,130.9,"Mundo Fibra","Assistência Residencial | Wi-Fi 6 | Instalação Grátis",true,"107.9","110.9","118.9","120.9","FIBRA_ALONE"],
+    ["750MB MUNDO FIBRA","MUNDO FIBRA",127.9,127.9,127.9,127.9,"Mundo Fibra","Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",true,"117.9","117.9","117.9","117.9","FIBRA_ALONE"],
+    ["600MB GLOBOPLAY PADRÃO COM ANÚNCIOS","ENTRETENIMENTO",137.9,137.9,137.9,137.9,"Mundo Entrenimento","Globo Play | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"127.9","127.9","127.9","127.9","FIBRA_ALONE"],
+    ["800MB YOUTUBE PREMIUM | HBO MAX | TELECINE","ENTRETENIMENTO",144.9,144.9,144.9,144.9,"Mundo Entrenimento","Youtube Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"134.9","134.9","134.9","134.9","FIBRA_ALONE"],
+    ["800MB DISNEY+ PADRÃO","ENTRETENIMENTO",144.9,144.9,144.9,144.9,"Mundo Entrenimento","Disney | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"134.9","134.9","134.9","134.9","FIBRA_ALONE"],
+    ["800MB DISNEY+ PREMIUM","ENTRETENIMENTO",165,165,165,165,"Mundo Entrenimento","Disney Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"155","155","155","155","FIBRA_ALONE"],
+    ["800MB GLOBOPLAY PREMIUM","ENTRETENIMENTO",144.9,144.9,144.9,144.9,"Mundo Entrenimento","Globoplay Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"134.9","134.9","134.9","134.9","FIBRA_ALONE"],
+    ["800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL","ENTRETENIMENTO",149.9,149.9,149.9,149.9,"Mundo Entrenimento","Globoplay Premium | Assistência Residencial | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"139.9","139.9","139.9","139.9","FIBRA_ALONE"],
+    ["800MB PREMIERE","ENTRETENIMENTO",160,160,160,160,"Mundo Entrenimento","Premiere | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"150","150","150","150","FIBRA_ALONE"],
+    ["850MB FILMES","COMPLETO",170,170,170,170,"Mundo Completo","Vero Video + Filmes | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"160","160","160","160","FIBRA_ALONE"],
+    ["850MB ESPORTES","COMPLETO",185,185,185,185,"Mundo Completo","Vero Video + Esportes | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"175","175","175","175","FIBRA_ALONE"],
+    ["1GB DIVERSÃO","COMPLETO",210,210,210,210,"Mundo Completo","Vero Video + Diversão | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"200","200","200","200","FIBRA_ALONE"],
+    ["800MB GAMER","GAMER",160,160,160,160,"Mundo Gamer","Exitlag | Oneplay | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"150","150","150","150","FIBRA_ALONE"],
+    ["VERO CONTROLE 10GB","MÓVEL",30,30,30,30,"","",false,30,30,30,30,"MOVEL_ALONE"],
+    ["VERO CONTROLE 20GB","MÓVEL",40,40,40,40,"","",false,40,40,40,40,"MOVEL_ALONE"],
+    ["VERO CONTROLE 30GB","MÓVEL",50,50,50,50,"","",false,50,50,50,50,"MOVEL_ALONE"],
+    ["VERO CONTROLE 60GB","MÓVEL",80,80,80,80,"","",false,80,80,80,80,"MOVEL_ALONE"],
+    ["VERO CONTROLE + CHIPS 20GB","MÓVEL",40,40,40,40,"","",false,40,40,40,40,"MOVEL_ALONE"],
+    ["ASSINATURA + CHIPS 20GB","MÓVEL",12,12,12,12,"","",false,12,12,12,12,"MOVEL_ALONE"],
+    ["VERO CONTROLE + CHIPS 30GB","MÓVEL",50,50,50,50,"","",false,50,50,50,50,"MOVEL_ALONE"],
+    ["ASSINATURA + CHIPS 30GB","MÓVEL",12,12,12,12,"","",false,12,12,12,12,"MOVEL_ALONE"],
+    ["VERO CONTROLE + CHIPS 60GB","MÓVEL",80,80,80,80,"","",false,80,80,80,80,"MOVEL_ALONE"],
+    ["ASSINATURA + CHIPS 60GB","MÓVEL",12,12,12,12,"","",false,12,12,12,12,"MOVEL_ALONE"],
+    ["10GB | MAIS CONECTADO | COMBO","MÓVEL COMBO",30,30,30,30,"","",false,30,30,30,30,"MOVEL_COMBO"],
+    ["20GB | MAIS CONECTADO | COMBO","MÓVEL COMBO",40,40,40,40,"","",false,40,40,40,40,"MOVEL_COMBO"],
+    ["60GB | MAIS CONECTADO | COMBO","MÓVEL COMBO",50,50,50,50,"","",false,50,50,50,50,"MOVEL_COMBO"]
+  ];
+  var conteudo = JSON.stringify(dados, null, 2);
+  DriveApp.getFileById(CONFIG.TABELA_JSON_FILE_ID).setContent(conteudo);
+  CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'tabela_v1');
+  Logger.log('OK rev5 — ' + dados.length + ' linhas, ' + conteudo.length + ' bytes. Cache invalidado.');
 }
 
 // ─── LEITURA ───────────────────────────────────────────────────────────────
