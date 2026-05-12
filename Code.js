@@ -2801,10 +2801,15 @@ function getPlanosPorCidadeProduto(cidade, produto) {
     var colIdx      = cabecalho.indexOf(segNorm);
     if (colIdx === -1) return { erro: false, cidade: cidade, planos: [], mensagem: 'Segmentação "' + segmentacao + '" não encontrada na TABELA.' };
 
-    var buscaMovel = produto && (
-      produto.toUpperCase().indexOf('MÓVEL') > -1 ||
-      produto.toUpperCase().indexOf('MOVEL') > -1
-    );
+    // Filtros por produto (Sprint 3 - 12/05/2026):
+    //  - Fibra Alone → SÓ planos Fibra cujo NOME não contém "MÓVEL"
+    //  - Fibra Combo → SÓ planos Fibra cujo NOME contém "MÓVEL"
+    //  - Móvel Alone / Móvel Combo → SÓ planos da categoria MÓVEL (filtro antigo, mantido)
+    //  - Dependente / vazio → mostra todos os Fibra (sem categoria MÓVEL)
+    var produtoNorm  = String(produto || '').toUpperCase();
+    var ehFibraAlone = produtoNorm === 'FIBRA ALONE';
+    var ehFibraCombo = produtoNorm === 'FIBRA COMBO';
+    var buscaMovel   = produtoNorm.indexOf('MÓVEL') > -1 || produtoNorm.indexOf('MOVEL') > -1;
     var planos   = [];
     var catAtual = '';
 
@@ -2814,9 +2819,20 @@ function getPlanosPorCidadeProduto(cidade, produto) {
       var valRaw = dadosTab[ti][colIdx];
       if (!nome || valRaw === '' || valRaw === null) continue;
 
-      var ehMovel = cat.toUpperCase().indexOf('MÓVEL') > -1 || cat.toUpperCase().indexOf('MOVEL') > -1;
-      if (buscaMovel && !ehMovel) continue;
-      if (!buscaMovel && ehMovel) continue;
+      var catNorm     = cat.toUpperCase();
+      var nomeNorm    = nome.toUpperCase();
+      var ehCatMovel  = catNorm.indexOf('MÓVEL') > -1 || catNorm.indexOf('MOVEL') > -1;
+      var nomeTemMovel= nomeNorm.indexOf('MÓVEL') > -1 || nomeNorm.indexOf('MOVEL') > -1;
+
+      // Móvel Alone / Móvel Combo → só categoria MÓVEL
+      if (buscaMovel) {
+        if (!ehCatMovel) continue;
+      } else {
+        // Produtos Fibra (ou Dependente) → nunca mostra categoria MÓVEL puro
+        if (ehCatMovel) continue;
+        if (ehFibraAlone && nomeTemMovel) continue;  // Alone = sem chip no nome
+        if (ehFibraCombo && !nomeTemMovel) continue; // Combo = só com chip no nome
+      }
 
       if (_normalizarTexto(cat) !== _normalizarTexto(catAtual)) {
         catAtual = cat;
