@@ -611,11 +611,12 @@ function atualizarVendaComAdapter(dados) {
     if (dados.instalada) {
       sheet.getRange(linha, CONFIG.COLUNAS.STATUS + 1).setValue('3 - Finalizada/Instalada');
       if (dados.dataInstalacao) {
-        sheet.getRange(linha, CONFIG.COLUNAS.INSTAL + 1).setValue(dados.dataInstalacao);
+        // Normaliza para DD/MM/YYYY (consistente com _construirLinhaDados)
+        sheet.getRange(linha, CONFIG.COLUNAS.INSTAL + 1).setValue(_formatarDataNascimento(dados.dataInstalacao, 'dd/MM/yyyy'));
       }
     }
     if (dados.dataAgendamento) {
-      sheet.getRange(linha, CONFIG.COLUNAS.AGENDA + 1).setValue(dados.dataAgendamento);
+      sheet.getRange(linha, CONFIG.COLUNAS.AGENDA + 1).setValue(_formatarDataNascimento(dados.dataAgendamento, 'dd/MM/yyyy'));
     }
 
     _limparCacheListaCompleta();
@@ -675,11 +676,11 @@ function atualizarVendaComNG(dados) {
     if (dados.instalada) {
       sheet.getRange(linha, CONFIG.COLUNAS.STATUS + 1).setValue('3 - Finalizada/Instalada');
       if (dados.dataInstalacao) {
-        sheet.getRange(linha, CONFIG.COLUNAS.INSTAL + 1).setValue(dados.dataInstalacao);
+        sheet.getRange(linha, CONFIG.COLUNAS.INSTAL + 1).setValue(_formatarDataNascimento(dados.dataInstalacao, 'dd/MM/yyyy'));
       }
     }
     if (dados.dataAgendamento) {
-      sheet.getRange(linha, CONFIG.COLUNAS.AGENDA + 1).setValue(dados.dataAgendamento);
+      sheet.getRange(linha, CONFIG.COLUNAS.AGENDA + 1).setValue(_formatarDataNascimento(dados.dataAgendamento, 'dd/MM/yyyy'));
     }
 
     _limparCacheListaCompleta();
@@ -2358,8 +2359,25 @@ function moverLeadAguardando(payload) {
     linha = parseInt(payload.linha);
     var c = CONFIG.COLUNAS;
 
+    // Le estado atual para validacao de transicao
+    var rowAtual    = sheet.getRange(linha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+    var vendaAtual  = _mapearLinha(rowAtual, linha);
+    var statusAnt   = vendaAtual.status || '';
+    var agendaNorm  = payload.agenda   ? _formatarDataNascimento(payload.agenda, 'dd/MM/yyyy') : (vendaAtual.agenda || '');
+    var contrato    = payload.contrato || vendaAtual.contrato || '';
+    var turno       = payload.turno    || vendaAtual.turno    || '';
+
+    var errTrans = _validarTransicaoStatusServer_(statusAnt, '2- Aguardando Instalação', {
+      dataAtiv: vendaAtual.dataAtiv, contrato: contrato,
+      agenda:   agendaNorm,          turno:    turno,
+      instal:   vendaAtual.instal,   sistema:  vendaAtual.sistema
+    });
+    if (errTrans) {
+      return { sucesso: false, mensagem: errTrans + ' Use o painel lateral (✏️ Editar) para completar.' };
+    }
+
     sheet.getRange(linha, c.STATUS    + 1).setValue('2- Aguardando Instalação');
-    if (payload.agenda)   sheet.getRange(linha, c.AGENDA    + 1).setValue(payload.agenda);
+    if (payload.agenda)   sheet.getRange(linha, c.AGENDA    + 1).setValue(agendaNorm);
     if (payload.turno)    sheet.getRange(linha, c.TURNO     + 1).setValue(payload.turno);
     if (payload.contrato) sheet.getRange(linha, c.CONTRATO  + 1).setValue(payload.contrato);
     if (payload.obs)      sheet.getRange(linha, c.OBSERVACAO + 1).setValue(payload.obs);
@@ -3327,7 +3345,16 @@ function salvarVenda(dados) {
       var linhaNum = parseInt(dados.linhaReferencia);
       if (isNaN(linhaNum) || linhaNum < 3) throw new Error('Linha de referência inválida!');
       var linhaAtual = sheet.getRange(linhaNum, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+      // Captura status antigo ANTES do merge (depois disso dados.status é o novo)
+      var statusAntigo = String(linhaAtual[CONFIG.COLUNAS.STATUS] || '').trim();
       dados = _mesclarDadosVendaComLinhaAtual_(dados, linhaAtual, linhaNum);
+      // Validação de transição usando estado FINAL pós-merge
+      var errTrans = _validarTransicaoStatusServer_(statusAntigo, dados.status, {
+        dataAtiv: dados.dataAtiv, contrato: dados.contrato,
+        agenda:   dados.agenda,   turno:    dados.turno,
+        instal:   dados.instal,   sistema:  dados.sistema
+      });
+      if (errTrans) throw new Error(errTrans);
       var linhaDados = _construirLinhaDados(dados);
       sheet.getRange(linhaNum, 1, 1, linhaDados.length).setValues([linhaDados]);
       // Propaga campos compartilhados (cliente, endereço, contatos) para o Móvel
@@ -3556,16 +3583,37 @@ function moverVendaFunil(payload) {
       return { sucesso: false, mensagem: 'Status inválido para o funil.' };
     }
 
+    // Le estado atual para validacao de transicao
+    var rowAtual    = sheet.getRange(linha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+    var vendaAtual  = _mapearLinha(rowAtual, linha);
+    var statusAnt   = vendaAtual.status || '';
+
+    // Normaliza valorExtra de data para DD/MM/YYYY (consistente com _construirLinhaDados)
+    var instalNorm = '';
+    if (campoExtra === 'instal' && valorExtra) {
+      instalNorm = _formatarDataNascimento(valorExtra, 'dd/MM/yyyy');
+    }
+
+    // Defesa em profundidade: valida transição com o estado FINAL projetado.
+    // Para o funil drag-and-drop, dataAtiv/contrato/agenda/turno tem de ja
+    // estar gravados na linha — o frontend nao envia esses campos. Se faltarem,
+    // o usuario eh orientado a usar o painel inline.
+    var errTrans = _validarTransicaoStatusServer_(statusAnt, novoStatus, {
+      dataAtiv: vendaAtual.dataAtiv, contrato: vendaAtual.contrato,
+      agenda:   vendaAtual.agenda,   turno:    vendaAtual.turno,
+      instal:   instalNorm || vendaAtual.instal,
+      sistema:  vendaAtual.sistema
+    });
+    if (errTrans) {
+      return { sucesso: false, mensagem: errTrans + ' Use o painel lateral (✏️ Editar) para completar os campos antes de mover no funil.' };
+    }
+
     // Atualiza status (coluna C = índice 2 = coluna 3)
     sheet.getRange(linha, CONFIG.COLUNAS.STATUS + 1).setValue(novoStatus);
 
-    // Atualiza campo extra conforme destino
-    if (campoExtra === 'instal' && valorExtra) {
-      var partesData = String(valorExtra).split('-');
-      var dataInstal = (partesData.length === 3)
-        ? new Date(parseInt(partesData[0]), parseInt(partesData[1]) - 1, parseInt(partesData[2]))
-        : valorExtra;
-      sheet.getRange(linha, CONFIG.COLUNAS.INSTAL + 1).setValue(dataInstal);
+    // Atualiza campo extra conforme destino — instal sempre normalizado a DD/MM/YYYY
+    if (instalNorm) {
+      sheet.getRange(linha, CONFIG.COLUNAS.INSTAL + 1).setValue(instalNorm);
     }
     if (campoExtra === 'observacao' && valorExtra) {
       sheet.getRange(linha, CONFIG.COLUNAS.OBSERVACAO + 1).setValue(valorExtra);
@@ -4097,6 +4145,40 @@ function _mapearLinha(row, numeroLinha) {
 // Sprint 2 — domínio fechado para Turno. Valores fora desta lista são
 // silenciosamente normalizados para '' em salvarVenda.
 var _TURNOS_VALIDOS_ = ['Manhã (08h às 12h)', 'Tarde (13h às 17h)'];
+
+// Sprint 2.5 — validação server-side de transição de status. Defesa em
+// profundidade: o frontend (_pifValidarTransicaoStatus em JS.html) já valida,
+// mas qualquer caminho de gravação (salvarVenda, moverVendaFunil, webhook,
+// macro) passa por aqui para garantir consistência da etapa.
+//   oldStatus / newStatus : strings exatas do STATUS_LIST
+//   campos : { dataAtiv, contrato, agenda, turno, instal, sistema }
+// Retorna null se OK; string com mensagem de erro se invalido.
+function _validarTransicaoStatusServer_(oldStatus, newStatus, campos) {
+  campos = campos || {};
+  var old = String(oldStatus || '').trim();
+  var nov = String(newStatus || '').trim();
+  if (nov === old) return null;
+
+  // Transição para 2 — exige dataAtiv + contrato + agenda + turno
+  if (nov === '2- Aguardando Instalação') {
+    if (!String(campos.dataAtiv || '').trim()) return 'Data de Ativação é obrigatória para mover para Aguardando Instalação.';
+    if (!String(campos.contrato || '').trim()) return 'ID Contrato é obrigatório para mover para Aguardando Instalação.';
+    if (!String(campos.agenda   || '').trim()) return 'Data de Agendamento é obrigatória para mover para Aguardando Instalação.';
+    if (!String(campos.turno    || '').trim()) return 'Turno é obrigatório para mover para Aguardando Instalação.';
+    var errContrato = _validarContratoFormatoBackend_(campos.contrato, campos.sistema);
+    if (errContrato) return errContrato;
+  }
+
+  // Transição para 3 — precisa vir de 2 e ter instal
+  if (nov === '3 - Finalizada/Instalada') {
+    if (old !== '2- Aguardando Instalação') {
+      return 'A venda precisa estar em "Aguardando Instalação" para ser finalizada.';
+    }
+    if (!String(campos.instal || '').trim()) return 'Data de Instalação é obrigatória para finalizar a venda.';
+  }
+
+  return null;
+}
 
 // Sprint 2 — validação server-side do contrato (NG/Adapter). Espelha a
 // _validarContratoFormato do frontend; é chamada em salvarVenda apenas em
