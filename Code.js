@@ -3730,6 +3730,9 @@ function salvarVenda(dados) {
       var linhaAtual = sheet.getRange(linhaNum, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
       // Captura status antigo ANTES do merge (depois disso dados.status é o novo)
       var statusAntigo = String(linhaAtual[CONFIG.COLUNAS.STATUS] || '').trim();
+      // Sprint 3.3 (12/05/2026): snapshot da linha original para reverter
+      // a Fibra caso a gravação subsequente do Móvel falhe (atomicidade).
+      var linhaAtualSnapshot = linhaAtual.slice();
       dados = _mesclarDadosVendaComLinhaAtual_(dados, linhaAtual, linhaNum);
       // Validação de transição usando estado FINAL pós-merge
       var errTrans = _validarTransicaoStatusServer_(statusAntigo, dados.status, {
@@ -3740,8 +3743,42 @@ function salvarVenda(dados) {
       if (errTrans) throw new Error(errTrans);
       var linhaDados = _construirLinhaDados(dados);
       sheet.getRange(linhaNum, 1, 1, linhaDados.length).setValues([linhaDados]);
+
+      // Sprint 3.3 (12/05/2026): se payload inclui `movel`, atualiza também
+      // a venda Móvel vinculada (painel unificado). Atômico: se falhar,
+      // reverte a Fibra para o snapshot original.
+      if (dados.movel && dados.movel.linha) {
+        try {
+          var linhaMv = parseInt(dados.movel.linha, 10);
+          if (isNaN(linhaMv) || linhaMv < 3) throw new Error('Linha do Móvel inválida.');
+          var rowMvAtual    = sheet.getRange(linhaMv, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+          var statusMvAnt   = String(rowMvAtual[CONFIG.COLUNAS.STATUS] || '').trim();
+          var dadosMv       = _mesclarDadosVendaComLinhaAtual_(dados.movel, rowMvAtual, linhaMv);
+          var errTransMv    = _validarTransicaoStatusServer_(statusMvAnt, dadosMv.status, {
+            dataAtiv: dadosMv.dataAtiv, contrato: dadosMv.contrato,
+            agenda:   dadosMv.agenda,   turno:    dadosMv.turno,
+            instal:   dadosMv.instal,   sistema:  dadosMv.sistema
+          });
+          if (errTransMv) throw new Error('Móvel: ' + errTransMv);
+          var linhaMvDados  = _construirLinhaDados(dadosMv);
+          sheet.getRange(linhaMv, 1, 1, linhaMvDados.length).setValues([linhaMvDados]);
+        } catch (eMv) {
+          // REVERSÃO: restaura a Fibra para o estado anterior à edição
+          try {
+            sheet.getRange(linhaNum, 1, 1, linhaAtualSnapshot.length).setValues([linhaAtualSnapshot]);
+            _limparCache();
+            Logger.log('salvarVenda: Fibra revertida após falha do Móvel: ' + (eMv && eMv.message || eMv));
+          } catch (eRev) {
+            Logger.log('salvarVenda: FALHA AO REVERTER Fibra linha ' + linhaNum + ': ' + (eRev && eRev.message || eRev));
+          }
+          throw new Error('Erro ao atualizar Móvel: ' + (eMv.message || eMv) + ' — alterações da Fibra revertidas.');
+        }
+      }
+
       // Propaga campos compartilhados (cliente, endereço, contatos) para o Móvel
-      // vinculado, se a venda editada for a mãe de um combo ATIVO.
+      // vinculado, se a venda editada for a mãe de um combo ATIVO. Esse helper
+      // roda APÓS o update explícito do Móvel — campos compartilhados do dados
+      // sobrescrevem o que veio em dados.movel (intencional: cliente é único).
       try { _propagarFibraParaMovelSeCombo_(sheet, linhaNum, dados); } catch (epm) {
         Logger.log('Falha ao propagar Fibra→Móvel: ' + (epm && epm.message ? epm.message : epm));
       }
@@ -4627,6 +4664,16 @@ function _validarTransicaoStatusServer_(oldStatus, newStatus, campos) {
       return 'A venda precisa estar em "Aguardando Instalação" para ser finalizada.';
     }
     if (!String(campos.instal || '').trim()) return 'Data de Instalação é obrigatória para finalizar a venda.';
+  }
+
+  // ── Transições do fluxo Móvel (Sprint 3.3 — 12/05/2026) ──────────────────
+  // Fluxo: 1- Conferencia/Ativação → 2- Aguardando Entrega → 3- Aguardando
+  // Retirada → 4- Entregue → 5 - Finalizado. Único campo exigido é o ID
+  // Contrato do Móvel ao mover para "Aguardando Retirada" (operação real).
+  if (nov === '3- Aguardando Retirada') {
+    if (!String(campos.contrato || '').trim()) {
+      return 'ID Contrato do Móvel é obrigatório para mover para Aguardando Retirada.';
+    }
   }
 
   return null;

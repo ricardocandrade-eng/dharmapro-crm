@@ -77,6 +77,22 @@ function pifOnStatusChange(novoStatus) {
   }
 }
 
+// Sprint 3.3 (12/05/2026): handler do select de Status do MÓVEL (`pif-mv-status`).
+// Foca contrato Móvel se transitando para 3- Aguardando Retirada. Demais statuses
+// Móvel (2- Aguardando Entrega, 4- Entregue, 5 - Finalizado) não exigem campos.
+function pifOnStatusChangeMovel(novoStatus) {
+  var v = AppState.get('vendaSelecionada');
+  if (!v || !v.vendaMovelResumo) return;
+  var statusAtual = (v.vendaMovelResumo && v.vendaMovelResumo.status) || '';
+  if (novoStatus === '3- Aguardando Retirada' && statusAtual !== '3- Aguardando Retirada') {
+    var elContrato = document.getElementById('pif-mv-contrato');
+    if (elContrato && !elContrato.value) {
+      setTimeout(function() { elContrato.focus(); }, 50);
+      mostrarToast('ℹ️ Informe o ID Contrato do Móvel antes de salvar.', 'info');
+    }
+  }
+}
+
 function pifValidarContrato(valor) {
   var sistema = document.getElementById('pif-sistema') ? document.getElementById('pif-sistema').value : '';
   var hint = document.getElementById('pif-contrato-hint');
@@ -375,172 +391,237 @@ function _pifSetSelect(id, val) {
   el.selectedIndex = 0;
 }
 
+// Sprint 3.3 (12/05/2026): popula todos os inputs do #painelInlineForm com os
+// valores da venda. Substitui o renderizador via innerHTML do antigo mostrarPainel
+// — agora há um único HTML estrutural que serve tanto leitura quanto edição.
+function _pifPopularInputs(v) {
+  if (!v) return;
+  _filtrarStatusPorProduto(v.produto || '', v.status || '');
+  _pifSetSelect('pif-preStatus', v.preStatus || '');
+  _pifSetSelect('pif-canal',     v.canal     || '');
+  _pifSet('pif-cliente',    v.cliente    || '');
+  _pifSet('pif-cpf',        v.cpf        || '');
+  _pifSet('pif-whats',      v.whats      || '');
+  _pifSet('pif-tel',        v.tel        || '');
+  _pifSet('pif-contrato',   v.contrato   || '');
+  _pifSet('pif-codCli',     v.codCli     || '');
+  _pifSet('pif-nomeMae',    v.nomeMae    || '');
+  _pifSet('pif-dtNasc',     v.dtNasc     || '');
+  _pifSet('pif-rg',         v.rg         || '');
+  _pifSet('pif-cep',        v.cep        || '');
+  _pifSet('pif-rua',        v.rua        || '');
+  _pifSet('pif-num',        v.num        || '');
+  _pifSet('pif-complemento',v.complemento|| '');
+  _pifSet('pif-bairro',     v.bairro     || '');
+  _pifSet('pif-cidade',     v.cidade     || '');
+  _pifSet('pif-uf',         v.uf         || '');
+  _pifSet('pif-sistema',    v.sistema    || '');
+  _pifSet('pif-segmentacao',v.segmentacao|| '');
+  _pifSet('pif-valor',      _pifValorParaExibir(v.valor));
+  _pifSetSelectComLegado('pif-venc', v.venc || '', ['1','3','5','9','13','18'], function(x){ return '⚠ ' + x + ' (legado)'; });
+  _pifSetSelectComLegado('pif-formaPagamento', v.formaPagamento || '', ['BOLETO','RECORRENTE'], function(x){ return '⚠ ' + x + ' (legado)'; });
+  _pifSet('pif-observacao', v.observacao || '');
+  _pifSet('pif-dataAtiv', _agendaToInputDate(v.dataAtiv || ''));
+  _pifSet('pif-agenda',   _agendaToInputDate(v.agenda || ''));
+  _pifSetSelect('pif-turno', v.turno || '');
+  _pifSet('pif-instal',   _agendaToInputDate(v.instal || ''));
+  _pifSet('pif-linhaMovel', v.linhaMovel || '');
+  _pifSetSelect('pif-portabilidade', v.portabilidade || '');
+
+  // Responsável (carrega lista do servidor)
+  _pifPopularResponsavel(v.resp || '');
+
+  // Produto + Plano (produto primeiro porque dispara carregamento de planos)
+  _pifSetSelect('pif-produto', v.produto || '');
+  if (v.produto && v.cidade) {
+    var selPlano = document.getElementById('pif-plano');
+    if (selPlano) {
+      selPlano.innerHTML = '<option value="">⏳ Carregando...</option>';
+      google.script.run
+        .withSuccessHandler(function(d) {
+          if (d && d.planos && d.planos.length) {
+            _pifPreencherPlanos(d.planos);
+            setTimeout(function() {
+              _pifSetSelect('pif-plano', v.plano || '');
+              var elVal = document.getElementById('pif-valor');
+              if (elVal && !elVal.value.trim()) pifOnPlanoChange();
+            }, 50);
+          }
+        })
+        .withFailureHandler(function() {})
+        .getPlanosPorCidadeProduto(v.cidade, v.produto);
+    }
+  } else {
+    _pifSet('pif-plano', v.plano || '');
+  }
+}
+
+// Sprint 3.3: popula inputs `pif-mv-*` da seção Móvel Combo Vinculado.
+function _pifPopularInputsMovel(mv) {
+  if (!mv) return;
+  _pifSetSelect('pif-mv-status',        mv.status || '');
+  _pifSet('pif-mv-contrato',            mv.contrato || '');
+  _pifSet('pif-mv-valor',               _pifValorParaExibir(mv.valor));
+  _pifSet('pif-mv-linhaMovel',          mv.linhaMovel || '');
+  _pifSetSelect('pif-mv-portabilidade', mv.portabilidade || '');
+  _pifSet('pif-mv-dataAtiv',            _agendaToInputDate(mv.dataAtiv || ''));
+  _pifSet('pif-mv-instal',              _agendaToInputDate(mv.instal || ''));
+  _pifSet('pif-mv-observacao',          mv.observacao || '');
+  var elLbl = document.getElementById('pif-mvLinhaLabel');
+  if (elLbl) elLbl.textContent = mv.linha ? '(linha ' + mv.linha + ')' : '';
+
+  // Carrega planos Móvel Combo (categoria fixa)
+  var selPlano = document.getElementById('pif-mv-plano');
+  if (selPlano && mv.cidade) {
+    selPlano.innerHTML = '<option value="">⏳ Carregando...</option>';
+    google.script.run
+      .withSuccessHandler(function(d) {
+        if (d && d.planos && d.planos.length) {
+          selPlano.innerHTML = '<option value="">— Selecione o plano —</option>';
+          d.planos.forEach(function(p) {
+            var opt = document.createElement('option');
+            if (p.indexOf('▶️') === 0) { opt.disabled = true; opt.style.color = 'var(--muted)'; }
+            opt.value = p; opt.textContent = p;
+            selPlano.appendChild(opt);
+          });
+          _pifSetSelect('pif-mv-plano', mv.plano || '');
+        }
+      })
+      .withFailureHandler(function() {})
+      .getPlanosPorCidadeProduto(mv.cidade, 'Móvel Combo');
+  } else {
+    _pifSet('pif-mv-plano', mv.plano || '');
+  }
+}
+
+// Sprint 3.3: helper extraído — carrega lista de responsáveis no select.
+function _pifPopularResponsavel(respAtual) {
+  var selResp = document.getElementById('pif-resp');
+  if (!selResp) return;
+  selResp.innerHTML = '<option value="">⏳ Carregando...</option>';
+  if (respAtual) {
+    var optAtual = document.createElement('option');
+    optAtual.value = respAtual; optAtual.textContent = respAtual;
+    selResp.appendChild(optAtual);
+    selResp.value = respAtual;
+  }
+  google.script.run
+    .withSuccessHandler(function(res) {
+      var sel = document.getElementById('pif-resp');
+      if (!sel) return;
+      sel.innerHTML = '<option value="">Selecione...</option>';
+      if (res && !res.erro && res.lista && res.lista.length > 0) {
+        res.lista.forEach(function(nome) {
+          var opt = document.createElement('option');
+          opt.value = nome; opt.textContent = nome;
+          sel.appendChild(opt);
+        });
+      }
+      if (respAtual) {
+        sel.value = respAtual;
+        if (!sel.value) {
+          var opt = document.createElement('option');
+          opt.value = respAtual; opt.textContent = respAtual;
+          sel.appendChild(opt);
+          sel.value = respAtual;
+        }
+      }
+    })
+    .withFailureHandler(function() {
+      var sel = document.getElementById('pif-resp');
+      if (!sel) return;
+      sel.innerHTML = '<option value="">Erro ao carregar</option>';
+      if (respAtual) {
+        var opt = document.createElement('option');
+        opt.value = respAtual; opt.textContent = respAtual;
+        sel.appendChild(opt);
+        sel.value = respAtual;
+      }
+    })
+    .getResponsaveis();
+}
+
+// Sprint 3.3: visibilidade condicional das seções (datas, móvel individual,
+// móvel combo). Centralizado para chamada única em mostrarPainel.
+function _pifVisibilidadeSecoes(v) {
+  var produto = (v.produto || '').toUpperCase();
+  var ehMovel = produto.indexOf('MÓVEL') > -1 || produto.indexOf('MOVEL') > -1;
+  var mostrarDatas = (
+    v.status === '2- Aguardando Instalação' ||
+    v.status === '3 - Finalizada/Instalada' ||
+    !!(v.agenda || v.dataAtiv || v.instal)
+  );
+  var secMv = document.getElementById('pif-secao-movel');
+  if (secMv) secMv.style.display = ehMovel ? '' : 'none';
+  var secDt = document.getElementById('pif-secao-datas');
+  if (secDt) secDt.style.display = mostrarDatas ? '' : 'none';
+  var secMc = document.getElementById('pif-secao-movel-combo');
+  if (secMc) secMc.style.display = v.vendaMovelResumo ? '' : 'none';
+}
+
+// Sprint 3.3: aplica modo leitura aos inputs do painelInlineForm.
+// Selects ficam disabled; inputs/textareas readonly. CSS .modo-edicao
+// retira o estilo "form" e mostra como texto puro.
+function _pifAplicarModoLeitura() {
+  var form = document.getElementById('painelInlineForm');
+  if (!form) return;
+  form.classList.remove('modo-edicao');
+  form.querySelectorAll('input, select, textarea').forEach(function(el) {
+    if (el.tagName === 'SELECT') { el.disabled = true; }
+    else                          { el.readOnly = true; }
+  });
+}
+
+function _pifAplicarModoEdicao() {
+  var form = document.getElementById('painelInlineForm');
+  if (!form) return;
+  form.classList.add('modo-edicao');
+  form.querySelectorAll('input, select, textarea').forEach(function(el) {
+    // Inputs marcados como sempre readonly (ex: pif-valor calculado) mantêm
+    if (el.dataset && el.dataset.sempreReadonly === '1') {
+      el.readOnly = true; return;
+    }
+    if (el.tagName === 'SELECT') { el.disabled = false; }
+    else                          { el.readOnly = false; }
+  });
+  // Pre-Status só editável quando status = 1- Conferencia/Ativação
+  var v = AppState.get('vendaSelecionada');
+  var elPre = document.getElementById('pif-preStatus');
+  if (elPre && v) {
+    var ehConf = (v.status || '') === '1- Conferencia/Ativação';
+    elPre.disabled = !ehConf;
+    elPre.style.opacity = ehConf ? '' : '0.35';
+  }
+}
+
 function painelToggleEdicao() {
-  var v         = AppState.get('vendaSelecionada');
-  var scroll    = document.getElementById('painelScroll');
-  var form      = document.getElementById('painelInlineForm');
+  var v = AppState.get('vendaSelecionada');
+  if (!v) { mostrarToast('Nenhuma venda selecionada.', 'warning'); return; }
   var acoesNorm = document.getElementById('painelAcoesNormal');
   var acoesInl  = document.getElementById('painelAcoesInline');
   var btnEdit   = document.getElementById('pBtnEditar');
 
   if (!_pifModoEdicao) {
-    // ── Entrar em modo edição ─────────────────────────────────────────────
-    if (!v) { mostrarToast('Nenhuma venda selecionada.', 'warning'); return; }
-
-    // Preencher campos com dados da venda atual
-    _filtrarStatusPorProduto(v.produto || '', v.status || '');
-    _pifSetSelect('pif-preStatus', v.preStatus || '');
-    _pifSetSelect('pif-canal',     v.canal     || '');
-    _pifSet('pif-cliente',    v.cliente    || '');
-    _pifSet('pif-cpf',        v.cpf        || '');
-    _pifSet('pif-whats',      v.whats      || '');
-    _pifSet('pif-tel',        v.tel        || '');
-    _pifSet('pif-contrato',   v.contrato   || '');
-    _pifSet('pif-codCli',     v.codCli     || '');
-    _pifSet('pif-nomeMae',    v.nomeMae    || '');
-    _pifSet('pif-dtNasc',     v.dtNasc     || '');
-    _pifSet('pif-rg',         v.rg         || '');
-    _pifSet('pif-cep',        v.cep        || '');
-    _pifSet('pif-rua',        v.rua        || '');
-    _pifSet('pif-num',        v.num        || '');
-    _pifSet('pif-complemento',v.complemento|| '');
-    _pifSet('pif-bairro',     v.bairro     || '');
-    _pifSet('pif-cidade',     v.cidade     || '');
-    _pifSet('pif-uf',         v.uf         || '');
-    _pifSet('pif-sistema',    v.sistema    || '');
-    _pifSet('pif-segmentacao',v.segmentacao|| '');
-
-    // preStatus só editável no status 1- Conferencia/Ativação
-    var elPre = document.getElementById('pif-preStatus');
-    if (elPre) {
-      var ehConf = (v.status || '') === '1- Conferencia/Ativação';
-      elPre.disabled    = !ehConf;
-      elPre.style.opacity = ehConf ? '' : '0.35';
-    }
-    _pifSet('pif-valor',      _pifValorParaExibir(v.valor));
-    // Sprint 3: pif-venc agora é dropdown (05/10/13/19). Valores legados (qualquer
-    // outra string) entram como opção ⚠ pra não sobrescrever silenciosamente.
-    _pifSetSelectComLegado('pif-venc', v.venc || '', ['1','3','5','9','13','18'], function(x){ return '⚠ ' + x + ' (legado)'; });
-    // Sprint 3: pif-formaPagamento — BOLETO | RECORRENTE | '' (vazio = legado pré-feature)
-    _pifSetSelectComLegado('pif-formaPagamento', v.formaPagamento || '', ['BOLETO','RECORRENTE'], function(x){ return '⚠ ' + x + ' (legado)'; });
-    // Sprint 3 (12/05/2026): pif-fat removido do painel (col Q liberada)
-    _pifSet('pif-observacao', v.observacao || '');
-
-    // Preencher responsável — carrega lista completa do servidor
-    var selResp = document.getElementById('pif-resp');
-    if (selResp) {
-      var respAtual = v.resp || '';
-      // Exibe o responsável atual imediatamente como fallback
-      selResp.innerHTML = '<option value="">⏳ Carregando...</option>';
-      if (respAtual) {
-        var optAtual = document.createElement('option');
-        optAtual.value = respAtual; optAtual.textContent = respAtual;
-        selResp.appendChild(optAtual);
-        selResp.value = respAtual;
-      }
-      // Carrega lista completa e re-seleciona o responsável atual
-      google.script.run
-        .withSuccessHandler(function(res) {
-          var sel = document.getElementById('pif-resp');
-          if (!sel) return;
-          sel.innerHTML = '<option value="">Selecione...</option>';
-          if (res && !res.erro && res.lista && res.lista.length > 0) {
-            res.lista.forEach(function(nome) {
-              var opt = document.createElement('option');
-              opt.value = nome; opt.textContent = nome;
-              sel.appendChild(opt);
-            });
-          }
-          // Re-seleciona o responsável da venda; se não estiver na lista, adiciona
-          if (respAtual) {
-            sel.value = respAtual;
-            if (!sel.value) {
-              var opt = document.createElement('option');
-              opt.value = respAtual; opt.textContent = respAtual;
-              sel.appendChild(opt);
-              sel.value = respAtual;
-            }
-          }
-        })
-        .withFailureHandler(function() {
-          var sel = document.getElementById('pif-resp');
-          if (!sel) return;
-          sel.innerHTML = '<option value="">Erro ao carregar</option>';
-          if (respAtual) {
-            var opt = document.createElement('option');
-            opt.value = respAtual; opt.textContent = respAtual;
-            sel.appendChild(opt);
-            sel.value = respAtual;
-          }
-        })
-        .getResponsaveis();
-    }
-
-    // Preencher produto e plano (produto primeiro pois dispara carregamento de planos)
-    _pifSetSelect('pif-produto', v.produto || '');
-    if (v.produto) {
-      // Carregar planos e depois selecionar o plano atual
-      var cidade = v.cidade || '';
-      var prodHint = document.getElementById('pif-produtoHint');
-      var selPlano = document.getElementById('pif-plano');
-      if (cidade && selPlano) {
-        selPlano.innerHTML = '<option value="">⏳ Carregando...</option>';
-        google.script.run
-          .withSuccessHandler(function(d) {
-            if (d && d.planos && d.planos.length) {
-              _pifPreencherPlanos(d.planos);
-              // Selecionar plano após carregar; auto-preenche valor se col O estava vazia
-              setTimeout(function() {
-                _pifSetSelect('pif-plano', v.plano || '');
-                var elVal = document.getElementById('pif-valor');
-                if (elVal && !elVal.value.trim()) pifOnPlanoChange();
-              }, 50);
-            }
-          })
-          .withFailureHandler(function() {})
-          .getPlanosPorCidadeProduto(cidade, v.produto);
-      } else {
-        _pifSet('pif-plano', v.plano || '');
-      }
-    }
-
-    // Seção Datas (agendamento + turno)
-    var _secaoDatas = document.getElementById('pif-secao-datas');
-    var _mostrarDatas = (
-      (v.status || '') === '2- Aguardando Instalação' ||
-      (v.status || '') === '3 - Finalizada/Instalada' ||
-      !!(v.agenda || v.dataAtiv || v.instal)
-    );
-    if (_secaoDatas) _secaoDatas.style.display = _mostrarDatas ? '' : 'none';
-    _pifSet('pif-dataAtiv', _agendaToInputDate(v.dataAtiv || ''));
-    _pifSet('pif-agenda', _agendaToInputDate(v.agenda || ''));
-    _pifSetSelect('pif-turno', v.turno || '');
-    _pifSet('pif-instal', _agendaToInputDate(v.instal || ''));
-
-    // Seção Móvel
-    var _ehMovel = (v.produto || '').toUpperCase().indexOf('MÓVEL') > -1 || (v.produto || '').toUpperCase().indexOf('MOVEL') > -1;
-    var _secaoMovel = document.getElementById('pif-secao-movel');
-    if (_secaoMovel) _secaoMovel.style.display = _ehMovel ? '' : 'none';
-    _pifSet('pif-linhaMovel', v.linhaMovel || '');
-    _pifSetSelect('pif-portabilidade', v.portabilidade || '');
-
-
-    // Alternar visibilidade
-    if (scroll)    scroll.style.display = 'none';
-    if (form)      form.classList.add('ativo');
+    // ── Entrar em modo edição ──────────────────────────────────────────
+    // Garante valores frescos no DOM (caso o usuário tenha tocado em algo
+    // em modo leitura — apesar de selects estarem disabled, é defensivo)
+    _pifPopularInputs(v);
+    if (v.vendaMovelResumo) _pifPopularInputsMovel(v.vendaMovelResumo);
+    _pifAplicarModoEdicao();
     if (acoesNorm) acoesNorm.style.display = 'none';
     if (acoesInl)  acoesInl.classList.add('ativo');
-
+    if (btnEdit)   btnEdit.textContent = '✕ Cancelar';
     _pifModoEdicao = true;
-
   } else {
-    // ── Sair do modo edição (Cancelar) ───────────────────────────────────
-    if (scroll)    scroll.style.display = '';
-    if (form)      form.classList.remove('ativo');
+    // ── Sair do modo edição (Cancelar) ─────────────────────────────────
+    // Re-popula com valores originais (descarta edições não salvas) e volta
+    // para leitura visual.
+    _pifPopularInputs(v);
+    if (v.vendaMovelResumo) _pifPopularInputsMovel(v.vendaMovelResumo);
+    _pifAplicarModoLeitura();
     if (acoesNorm) acoesNorm.style.display = '';
     if (acoesInl)  acoesInl.classList.remove('ativo');
     if (btnEdit)   btnEdit.textContent = '✏️ Editar';
-
     _pifModoEdicao = false;
   }
 }
@@ -672,6 +753,30 @@ function _pifValidarTransicaoStatus(vendaAtual, dados) {
     if (!dados.instal) return { msg: '⚠️ Informe a Data de Instalação.', focusId: 'pif-instal' };
   }
 
+  // Sprint 3.3 (12/05/2026): transições do fluxo Móvel.
+  // Apenas "3- Aguardando Retirada" exige ID Contrato do Móvel — demais statuses
+  // (2- Aguardando Entrega, 4- Entregue, 5 - Finalizado) não exigem campos extras.
+  if (statusNew === '3- Aguardando Retirada' && statusOld !== '3- Aguardando Retirada') {
+    if (!dados.contrato) return { msg: '⚠️ Informe o ID Contrato do Móvel para Aguardando Retirada.', focusId: 'pif-contrato' };
+  }
+
+  return null;
+}
+
+// Sprint 3.3 (12/05/2026): valida transição de status do MÓVEL vinculado no painel
+// unificado. Espelha _pifValidarTransicaoStatus mas usa IDs `pif-mv-*` e só conhece
+// o enum Móvel (sem statuses Fibra como "Aguardando Instalação"/"Finalizada/Instalada").
+function _pifValidarTransicaoStatusMovel(vendaMv, dadosMv) {
+  if (!vendaMv || !dadosMv) return null;
+  var statusOld = vendaMv.status || '';
+  var statusNew = dadosMv.status || '';
+  if (statusNew === statusOld) return null;
+
+  // Único campo exigido no fluxo Móvel: ID Contrato ao mover para Aguardando Retirada
+  if (statusNew === '3- Aguardando Retirada' && !String(dadosMv.contrato || '').trim()) {
+    return { msg: '⚠️ Informe o ID Contrato do Móvel para Aguardando Retirada.', focusId: 'pif-mv-contrato' };
+  }
+
   return null;
 }
 
@@ -681,7 +786,40 @@ function pifSalvar() {
 
   var dados = _buildVendaPayload_('edicao', v);
 
-  // Validação de formato do contrato (NG/Adapter)
+  // Sprint 3.3 (12/05/2026): se a seção Móvel Combo Vinculado está visível,
+  // anexa payload.movel para o backend gravar ambas as linhas atômico.
+  var secMovel = document.getElementById('pif-secao-movel-combo');
+  if (secMovel && secMovel.style.display !== 'none' && v.vendaMovelResumo && v.vendaMovelResumo.linha) {
+    function _gv(id)     { var el = document.getElementById(id); return el ? el.value : ''; }
+    function _gt(id)     { return String(_gv(id) || '').trim(); }
+    function _gd(id)     { var raw = _gv(id); return raw ? _inputDateToDisplay(raw) : ''; }
+    dados.movel = {
+      linhaReferencia: String(v.vendaMovelResumo.linha),
+      linha:           v.vendaMovelResumo.linha,
+      status:          _gv('pif-mv-status'),
+      contrato:        _gt('pif-mv-contrato'),
+      plano:           _gv('pif-mv-plano'),
+      valor:           _pifValorNumero(_gv('pif-mv-valor'), document.getElementById('pif-mv-plano')),
+      linhaMovel:      _gt('pif-mv-linhaMovel'),
+      portabilidade:   _gv('pif-mv-portabilidade'),
+      dataAtiv:        _gd('pif-mv-dataAtiv'),
+      instal:          _gd('pif-mv-instal'),
+      observacao:      _gt('pif-mv-observacao')
+    };
+
+    // Valida transição de status do Móvel (espelha backend)
+    var _errMv = _pifValidarTransicaoStatusMovel(v.vendaMovelResumo, dados.movel);
+    if (_errMv) {
+      mostrarToast(_errMv.msg, 'warning');
+      if (_errMv.focusId) {
+        var _elMv = document.getElementById(_errMv.focusId);
+        if (_elMv) _elMv.focus();
+      }
+      return;
+    }
+  }
+
+  // Validação de formato do contrato (NG/Adapter) — só Fibra
   var _errPifContrato = _validarContratoFormato(dados.contrato, dados.sistema);
   if (_errPifContrato) {
     mostrarToast(_errPifContrato, 'warning');
@@ -690,7 +828,7 @@ function pifSalvar() {
     return;
   }
 
-  // Validação de transição de status — campos obrigatórios da etapa
+  // Validação de transição de status — campos obrigatórios da etapa (Fibra)
   var _errTransicao = _pifValidarTransicaoStatus(v, dados);
   if (_errTransicao) {
     mostrarToast(_errTransicao.msg, 'warning');
@@ -730,14 +868,8 @@ function pifSalvar() {
         .withSuccessHandler(function(vAtual) {
           if (!vAtual) { carregarVendas(1, ''); return; }
           AppState.set('vendaSelecionada', vAtual);
-          _pifModoEdicao = false;
-          // Restaura visualização
-          document.getElementById('painelScroll').style.display    = '';
-          document.getElementById('painelInlineForm').classList.remove('ativo');
-          document.getElementById('painelAcoesNormal').style.display = '';
-          document.getElementById('painelAcoesInline').classList.remove('ativo');
-          var btnEdit = document.getElementById('pBtnEditar');
-          if (btnEdit) btnEdit.textContent = '✏️ Editar';
+          // Sprint 3.3: mostrarPainel já reseta tudo (modo leitura, botões etc),
+          // não precisa mais alternar visibilidade manualmente aqui.
           mostrarPainel(vAtual);
           carregarVendas(1, '');
         })
@@ -6031,136 +6163,51 @@ function selecionarVenda(index, el) {
   mostrarPainel(v);
 }
 
+// Sprint 3.3 (12/05/2026): mostrarPainel reescrito — painel unificado.
+// Em vez de gerar HTML via innerHTML em #painelScroll (que era layout distinto
+// do form de edição), agora popula os inputs do #painelInlineForm com os valores
+// da venda e aplica modo leitura (readonly/disabled). Clicar Editar apenas
+// remove readonly. Layout e posição idênticos nos dois modos.
 function mostrarPainel(v) {
+  if (!v) return;
   var cores = STATUS_CORES[v.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
-
   _dhpPopularHeaderPainel(v, cores.text, v.comboMovelPendente);
 
-  // Endereço completo para Google Maps
-  var endCompleto = [v.rua, v.num, v.complemento, v.bairro, v.cidade, v.uf].filter(Boolean).join(', ');
-  var mapsUrl = endCompleto ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(endCompleto) : '';
+  // Popula todos os inputs da Fibra (mãe)
+  _pifPopularInputs(v);
 
-  var _c2 = function(lbl, val, full) {
-    return '<div class="painel-campo' + (full ? ' full' : '') + '"><span class="painel-lbl">' + esc(lbl) + '</span><span class="painel-val">' + esc(val || '—') + '</span></div>';
-  };
+  // Popula seção Móvel Combo Vinculado (se houver Móvel vinculado)
+  if (v.vendaMovelResumo) {
+    var mv = v.vendaMovelResumo;
+    // Cidade do Móvel = cidade da Fibra (compartilhada) — necessária pra carregar planos
+    if (!mv.cidade) mv.cidade = v.cidade || '';
+    _pifPopularInputsMovel(mv);
+  }
 
-  var html =
-    // ── 2. CLASSIFICAÇÃO ────────────────────────────────────────────────────
-    '<div class="painel-secao">' +
-      '<div class="painel-secao-titulo">⭐ Classificação</div>' +
-      '<div class="painel-campos">' +
-        _c2('Status',     v.status, true) +
-        _c2('Pré-Status', v.status === '1- Conferencia/Ativação' ? v.preStatus : '') +
-      '</div>' +
-    '</div>' +
+  // Visibilidade condicional das seções
+  _pifVisibilidadeSecoes(v);
 
-    // ── 3. ENDEREÇO & SISTEMA ───────────────────────────────────────────────
-    '<div class="painel-secao">' +
-      '<div class="painel-secao-titulo">📍 Endereço & Sistema</div>' +
-      '<div class="painel-campos">' +
-        (v.rua ? _c2('Logradouro', (v.rua||'') + (v.num?', '+v.num:'') + (v.complemento?' — '+v.complemento:''), true) : '') +
-        _c2('Bairro',        v.bairro) +
-        _c2('Cidade / UF',   (v.cidade||'') + (v.uf ? ' / '+v.uf : '') || '') +
-        _c2('CEP',           v.cep) +
-        _c2('Sistema',       v.sistema) +
-        _c2('Segmentação',   v.segmentacao, true) +
-        _c2('Viabilidade',   v.viabilidade, true) +
-        (mapsUrl ? '<div class="painel-campo full"><span class="painel-lbl">Maps</span><span class="painel-val"><a href="' + mapsUrl + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">Abrir no Google Maps ↗</a></span></div>' : '') +
-      '</div>' +
-    '</div>' +
-
-    // ── 4. PLANO & PRODUTO ──────────────────────────────────────────────────
-    (function() {
-      var _ehMovel = (v.produto||'').toUpperCase().indexOf('MÓVEL') > -1 || (v.produto||'').toUpperCase().indexOf('MOVEL') > -1;
-      return '<div class="painel-secao">' +
-        '<div class="painel-secao-titulo">📦 Plano & Produto</div>' +
-        '<div class="painel-campos">' +
-          _c2('Produto',    v.produto) +
-          _c2('Plano',      v.plano, true) +
-          _c2('Valor',      v.valor) +
-          _c2('Vencimento', v.venc) +
-          _c2('Forma',      _labelFormaPagamento(v.formaPagamento)) +
-          (_ehMovel ? _c2('Linha Móvel',   v.linhaMovel) : '') +
-          (_ehMovel ? _c2('Portabilidade', v.portabilidade) : '') +
-        '</div>' +
-      '</div>';
-    })() +
-
-    // ── 5. DATAS ────────────────────────────────────────────────────────────
-    '<div class="painel-secao">' +
-      '<div class="painel-secao-titulo">📅 Datas</div>' +
-      '<div class="painel-campos">' +
-        (function(){ var d = _fmtData(v.dataAtiv); return /^\d{2}\/\d{2}\/\d{4}$/.test(d) ? _c2('Ativação', d) : ''; })() +
-        (v.instal ? _c2('Instalação', _fmtData(v.instal)) : '') +
-      '</div>' +
-      _linhaPainelHtml('Agendamento',
-        '<div class="painel-agenda-wrap">' +
-          '<input type="date" class="agenda-input" id="painel-agenda-input" value="' + _agendaToInputDate(v.agenda) + '" onchange="_salvarAgendamento(' + v.linha + ',this,-1)">' +
-          (v.reagendamentos ? '<span class="painel-reag-badge painel-reag-tooltip-wrap">🔄 ' + v.reagendamentos + '<span class="painel-reag-tooltip">Reagendada <b>' + v.reagendamentos + '</b> vez' + (v.reagendamentos > 1 ? 'es' : '') + '.</span></span>' : '') +
-        '</div>') +
-      _linhaPainelHtml('Turno',
-        '<select class="painel-turno-select" id="painel-turno-select" onchange="_salvarTurno(' + v.linha + ',this)">' +
-          '<option value=""' + (!v.turno ? ' selected' : '') + '>—</option>' +
-          '<option value="Manhã (08h às 12h)"' + (v.turno === 'Manhã (08h às 12h)' ? ' selected' : '') + '>☀️ Manhã</option>' +
-          '<option value="Tarde (13h às 17h)"' + (v.turno === 'Tarde (13h às 17h)' ? ' selected' : '') + '>🌤️ Tarde</option>' +
-        '</select>') +
-    '</div>' +
-
-    // ── 6. BOTCONVERSA ──────────────────────────────────────────────────────
-    (v.bcTags || v.bcStatus ?
-    '<div class="painel-secao">' +
-      '<div class="painel-secao-titulo">💬 BotConversa</div>' +
-      '<div class="painel-campos">' +
-        _c2('Status BC',  v.bcStatus) +
-        _c2('Tags BC',    v.bcTags, true) +
-      '</div>' +
-    '</div>' : '') +
-
-    // ── 7. OBSERVAÇÃO ───────────────────────────────────────────────────────
-    (v.observacao ? '<div class="painel-secao">' +
-      '<div class="painel-secao-titulo">📝 Observação</div>' +
-      '<div class="painel-campos"><div class="painel-campo full"><span class="painel-val" style="color:var(--muted);font-weight:400;line-height:1.6;white-space:pre-wrap;">' + esc(v.observacao) + '</span></div></div>' +
-    '</div>' : '') +
-    _secaoPainel('Dados Complementares', [
-      ['Telefone', v.tel],
-      ['RG', v.rg],
-      ['Nome da Mãe', v.nomeMae, true],
-      ['Dt. Nascimento', v.dtNasc]
-    ]) +
-    // Campos preenchidos por integrações (VeroHub, BotConversa, Cruzamento Vero)
-    // ou pelo próprio fluxo de criação — read-only no painel para audit.
-    _secaoPainel('🔧 Sistema', [
-      ['Pagamento PAP',     v.statusPAP],
-      ['VeroHub Blindagem', v.verohub],
-      ['VeroHub Pedido',    v.verohubPedido],
-      ['Pedido em',         v.verohubPedidoDt],
-      ['Status Vero',       v.veroStatus],
-      ['Criado em',         v.criadoEm]
-    ]);
-
-  document.getElementById('painelScroll').innerHTML = html;
-
-  var whatsBtn = document.getElementById('pBtnWhats');
-  whatsBtn.style.display = v.whats ? 'flex' : 'none';
-
-  _painelAbertoPorClique = true; // ignora o clique que abriu
+  // Visibilidade do painel principal
+  _painelAbertoPorClique = true;
   document.getElementById('painelVazio').style.display = 'none';
   document.getElementById('painelConteudo').classList.add('ativo');
+  document.getElementById('painelInlineForm').classList.add('ativo');
   var listaCol = document.getElementById('listaCol');
   if (listaCol) listaCol.classList.add('painel-aberto');
 
-  // Reset inline DEPOIS do painel estar visível — garante que botão Editar funciona
+  // Reset modo leitura
   _pifModoEdicao = false;
-  var _scroll    = document.getElementById('painelScroll');
-  var _form      = document.getElementById('painelInlineForm');
-  var _acoesNorm = document.getElementById('painelAcoesNormal');
-  var _acoesInl  = document.getElementById('painelAcoesInline');
-  var _btnEdit   = document.getElementById('pBtnEditar');
-  if (_scroll)    _scroll.style.display = '';
-  if (_form)      _form.classList.remove('ativo');
-  if (_acoesNorm) _acoesNorm.style.display = '';
-  if (_acoesInl)  _acoesInl.classList.remove('ativo');
-  if (_btnEdit)   _btnEdit.textContent = '✏️ Editar';
+  _pifAplicarModoLeitura();
+
+  // Botões
+  var acoesNorm = document.getElementById('painelAcoesNormal');
+  var acoesInl  = document.getElementById('painelAcoesInline');
+  var btnEdit   = document.getElementById('pBtnEditar');
+  if (acoesNorm) acoesNorm.style.display = '';
+  if (acoesInl)  acoesInl.classList.remove('ativo');
+  if (btnEdit)   btnEdit.textContent = '✏️ Editar';
+  var whatsBtn = document.getElementById('pBtnWhats');
+  if (whatsBtn) whatsBtn.style.display = v.whats ? 'flex' : 'none';
 }
 
 function _secaoPainel(titulo, linhas) {
@@ -7977,181 +8024,43 @@ _criarItemVenda = function(v, index) {
   return html.replace(/(<div class="vi-actions">)/, badge + '$1');
 };
 
+// Sprint 3.3 (12/05/2026): wrapper minimal sobre mostrarPainel.
+// Antes do refator unificado, esse wrapper redirecionava Fibra Combo + Móvel
+// para _dhpMostrarPainelCombo (renderizador duplo via innerHTML). Agora o
+// mostrarPainel unificado já cuida disso via seção 📱 Móvel Combo Vinculado
+// inline no #painelInlineForm. Wrapper apenas mantém o botão "Duplicar Móvel"
+// visível quando a Fibra Combo ainda não tem Móvel vinculado.
 var _dhpMostrarPainelOriginal = mostrarPainel;
 mostrarPainel = function(v) {
   var btnDM = document.getElementById('pBtnDuplicarMovel');
   if (btnDM) btnDM.style.display = v && v.comboMovelPendente ? 'flex' : 'none';
-  if (!v) { _dhpMostrarPainelOriginal(v); return; }
-
-  // Fibra Combo com Móvel vinculado → painel unificado
-  if (_normalizarTexto(v.produto || '') === 'FIBRA COMBO' && v.vendaMovelResumo) {
-    _dhpMostrarPainelCombo(v);
-    return;
-  }
-
-  // Padrão (inclui Móvel aberto individualmente)
   _dhpMostrarPainelOriginal(v);
-
-  // Para Móvel individual: link de volta à Fibra mãe
-  var scroll = document.getElementById('painelScroll');
-  if (!scroll || scroll.querySelector('.dhp-vinculo-vendas')) return;
-  if (!v.vendaMaeLinha) return;
-  var secao = document.createElement('div');
-  secao.className = 'painel-secao dhp-vinculo-vendas';
-  secao.innerHTML = '<div class="painel-secao-titulo">🔗 Vínculo</div>' +
-    '<div class="painel-campos"><div class="painel-campo full">' +
-      '<span class="painel-lbl">🌐 Fibra Origem</span>' +
-      '<span class="painel-val"><a href="#" onclick="event.preventDefault();_abrirVendaNoLista(' + v.vendaMaeLinha + ')" style="color:var(--accent);text-decoration:none;">Abrir Fibra Combo #' + v.vendaMaeLinha + ' ↗</a></span>' +
-    '</div></div>';
-  scroll.appendChild(secao);
 };
 
-// ── Painel unificado para Fibra Combo + Móvel Combo ───────────────────────
-function _dhpMostrarPainelCombo(v) {
-  var mr     = v.vendaMovelResumo;
-  var mLinha = v.vendaMovelLinha;
+// Sprint 3.3 (12/05/2026): _dhpMostrarPainelCombo eliminado — Fibra Combo+Móvel
+// agora rendem juntos no painel unificado (mostrarPainel preenche a seção
+// "📱 Móvel Combo Vinculado" do #painelInlineForm). Stub no-op preservado caso
+// algum handler residual ainda chame por aqui.
+function _dhpMostrarPainelCombo(v) { mostrarPainel(v); }
 
-  // Extrai R$ do plano quando VALOR está vazio ("NOME | 149,90")
-  var _val = function(valor, plano) {
-    var s = String(valor || '').trim();
-    if (s && s !== '—') return s;
-    var m = String(plano || '').match(/\|\s*([\d,\.]+)\s*$/);
-    return m ? 'R$ ' + m[1].trim() : '—';
-  };
-
-  var _c = function(lbl, val, full) {
-    return '<div class="painel-campo' + (full ? ' full' : '') + '">' +
-      '<span class="painel-lbl">' + esc(lbl) + '</span>' +
-      '<span class="painel-val">' + esc(val || '—') + '</span></div>';
-  };
-
-  // ── Header ─────────────────────────────────────────────────────────────
-  var cF = STATUS_CORES[v.status]  || { bg:'transparent', text:'#D90000', border:'#D90000' };
-  var cM = STATUS_CORES[mr.status] || { bg:'transparent', text:'#888',    border:'#888'    };
-  var bStyle = function(c) {
-    return 'background:' + c.bg + ';color:' + c.text + ';border:1.5px solid ' + (c.border || c.text) + ';';
-  };
-
-  _dhpPopularHeaderPainel(v, cF.text, false);
-
-  // ── Seção FIBRA ─────────────────────────────────────────────────────────
-  var endCompleto = [v.rua, v.num, v.complemento, v.bairro, v.cidade, v.uf].filter(Boolean).join(', ');
-  var mapsUrl = endCompleto ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(endCompleto) : '';
-
-  var secFibra =
-    '<div class="painel-secao" style="border-left:2px solid rgba(86,180,255,.4);padding-left:10px;">' +
-      '<div class="painel-secao-titulo">🌐 Fibra Combo</div>' +
-      '<div class="painel-campos">' +
-        _c('Status', v.status, true) +
-        (v.preStatus && v.status === '1- Conferencia/Ativação' ? _c('Pré-Status', v.preStatus) : '') +
-        _c('Plano',      v.plano,                 true) +
-        _c('Valor',      _val(v.valor, v.plano)) +
-        _c('Vencimento', v.venc) +
-        _c('Forma',      _labelFormaPagamento(v.formaPagamento)) +
-      '</div>' +
-      '<div class="painel-campos" style="margin-top:4px;">' +
-        (v.dataAtiv  ? _c('Ativação',   _fmtData(v.dataAtiv))  : '') +
-        (v.instal    ? _c('Instalação', _fmtData(v.instal))    : '') +
-      '</div>' +
-      _linhaPainelHtml('Agendamento',
-        '<input type="date" class="agenda-input" value="' + _agendaToInputDate(v.agenda) + '" onchange="_salvarAgendamento(' + v.linha + ',this,-1)">' +
-        (v.reagendamentos ? '<span class="painel-reag-badge painel-reag-tooltip-wrap">🔄 ' + v.reagendamentos + '</span>' : '')) +
-      _linhaPainelHtml('Turno',
-        '<select class="painel-turno-select" onchange="_salvarTurno(' + v.linha + ',this)">' +
-          '<option value=""'                  + (!v.turno                      ? ' selected' : '') + '>—</option>' +
-          '<option value="Manhã (08h às 12h)" ' + (v.turno === 'Manhã (08h às 12h)'  ? ' selected' : '') + '>☀️ Manhã</option>' +
-          '<option value="Tarde (13h às 17h)" ' + (v.turno === 'Tarde (13h às 17h)'  ? ' selected' : '') + '>🌤️ Tarde</option>' +
-        '</select>') +
-    '</div>';
-
-  // ── Seção MÓVEL ─────────────────────────────────────────────────────────
-  var secMovel =
-    '<div class="painel-secao" style="border-left:2px solid rgba(34,217,138,.4);padding-left:10px;">' +
-      '<div class="painel-secao-titulo">📱 Móvel Combo</div>' +
-      '<div class="painel-campos">' +
-        _c('Status', mr.status, true) +
-        (mr.preStatus && mr.status === '1- Conferencia/Ativação' ? _c('Pré-Status', mr.preStatus) : '') +
-        _c('Plano',        mr.plano,                  true) +
-        _c('Valor',        _val(mr.valor, mr.plano)) +
-        _c('Vencimento',   mr.venc) +
-        _c('Forma',        _labelFormaPagamento(mr.formaPagamento)) +
-        _c('Linha Móvel',  mr.linhaMovel) +
-        _c('Portabilidade',mr.portabilidade) +
-        (mr.contrato ? _c('ID Contrato', mr.contrato) : '') +
-      '</div>' +
-      '<div class="painel-campos" style="margin-top:4px;">' +
-        (mr.dataAtiv ? _c('Ativação',   _fmtData(mr.dataAtiv)) : '') +
-        (mr.instal   ? _c('Instalação', _fmtData(mr.instal))   : '') +
-      '</div>' +
-      '<div class="painel-linha" style="justify-content:flex-end;padding-top:2px;">' +
-        '<a href="#" onclick="event.preventDefault();_dhpAbrirPainelMovel(' + mLinha + ')" style="font-size:11px;color:var(--accent);text-decoration:none;opacity:.8;">✏️ Editar Móvel ↗</a>' +
-      '</div>' +
-    '</div>';
-
-  // ── Endereço ─────────────────────────────────────────────────────────────
-  var secEnd = (v.rua || v.cidade) ?
-    '<div class="painel-secao">' +
-      '<div class="painel-secao-titulo">📍 Endereço & Sistema</div>' +
-      '<div class="painel-campos">' +
-        (v.rua ? _c('Logradouro', (v.rua||'') + (v.num?', '+v.num:'') + (v.complemento?' — '+v.complemento:''), true) : '') +
-        _c('Bairro',      v.bairro) +
-        _c('Cidade / UF', (v.cidade||'') + (v.uf ? ' / '+v.uf : '')) +
-        _c('CEP',         v.cep) +
-        _c('Sistema',     v.sistema) +
-        _c('Segmentação', v.segmentacao, true) +
-        _c('Viabilidade', v.viabilidade, true) +
-        (mapsUrl ? '<div class="painel-campo full"><span class="painel-lbl">Maps</span><span class="painel-val"><a href="' + mapsUrl + '" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">Abrir no Google Maps ↗</a></span></div>' : '') +
-      '</div>' +
-    '</div>' : '';
-
-  // ── BotConversa / Observação / Dados Complementares ──────────────────────
-  var secBC = (v.bcTags || v.bcStatus) ?
-    '<div class="painel-secao"><div class="painel-secao-titulo">💬 BotConversa</div><div class="painel-campos">' +
-      _c('Status BC', v.bcStatus) + _c('Tags BC', v.bcTags, true) +
-    '</div></div>' : '';
-
-  var secObs = v.observacao ?
-    '<div class="painel-secao"><div class="painel-secao-titulo">📝 Observação</div>' +
-      '<div class="painel-campos"><div class="painel-campo full"><span class="painel-val" style="color:var(--muted);font-weight:400;line-height:1.6;white-space:pre-wrap;">' + esc(v.observacao) + '</span></div></div>' +
-    '</div>' : '';
-
-  var dcPares = [['Telefone',v.tel,false],['RG',v.rg,false],['Nome da Mãe',v.nomeMae,true],['Dt. Nascimento',v.dtNasc,false]];
-  var dcHtml = '';
-  for (var _di = 0; _di < dcPares.length; _di++) {
-    if (dcPares[_di][1]) dcHtml += _c(dcPares[_di][0], dcPares[_di][1], dcPares[_di][2]);
-  }
-  var secDC = dcHtml ? '<div class="painel-secao"><div class="painel-secao-titulo">Dados Complementares</div><div class="painel-campos">' + dcHtml + '</div></div>' : '';
-
-  // ── Renderizar ────────────────────────────────────────────────────────────
-  document.getElementById('painelScroll').innerHTML = secFibra + secMovel + secEnd + secBC + secObs + secDC;
-
-  var whatsBtn = document.getElementById('pBtnWhats');
-  if (whatsBtn) whatsBtn.style.display = v.whats ? 'flex' : 'none';
-  _painelAbertoPorClique = true;
-  document.getElementById('painelVazio').style.display = 'none';
-  document.getElementById('painelConteudo').classList.add('ativo');
-  var _lc = document.getElementById('listaCol');
-  if (_lc) _lc.classList.add('painel-aberto');
-  _pifModoEdicao = false;
-  var _ps = document.getElementById('painelScroll');
-  var _pf = document.getElementById('painelInlineForm');
-  var _an = document.getElementById('painelAcoesNormal');
-  var _ai = document.getElementById('painelAcoesInline');
-  var _be = document.getElementById('pBtnEditar');
-  if (_ps) _ps.style.display = '';
-  if (_pf) _pf.classList.remove('ativo');
-  if (_an) _an.style.display = '';
-  if (_ai) _ai.classList.remove('ativo');
-  if (_be) _be.textContent = '✏️ Editar';
-}
-
-// Abre o painel individual do Móvel (para edição completa via "✏️ Editar Móvel ↗")
+// Sprint 3.3: "✏️ Editar Móvel ↗" deixou de existir (não há mais painel separado
+// pro Móvel). Quem chamava recebe redirect para o painel da mãe quando possível.
 function _dhpAbrirPainelMovel(mLinha) {
   var mv = null;
   for (var _ci = 0; _ci < (_dadosListaCache || []).length; _ci++) {
     if (_dadosListaCache[_ci] && _dadosListaCache[_ci].linha === mLinha) { mv = _dadosListaCache[_ci]; break; }
   }
-  if (!mv) { mostrarToast('Dados do Móvel não encontrados no cache — recarregue a lista.', 'warning'); return; }
+  if (!mv) return;
+  // Se o Móvel tem mãe na cache, abre a Fibra mãe (que já mostra Móvel inline)
+  if (mv.vendaMaeLinha) {
+    for (var _cj = 0; _cj < (_dadosListaCache || []).length; _cj++) {
+      if (_dadosListaCache[_cj] && _dadosListaCache[_cj].linha === mv.vendaMaeLinha) {
+        AppState.set('vendaSelecionada', _dadosListaCache[_cj]);
+        mostrarPainel(_dadosListaCache[_cj]);
+        return;
+      }
+    }
+  }
   AppState.set('vendaSelecionada', mv);
   mostrarPainel(mv);
 }
