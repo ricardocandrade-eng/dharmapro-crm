@@ -5979,32 +5979,34 @@ function _criarItemVenda(v, index) {
 
       '<div class="vi-divider"></div>' +
 
-      // ZONA 2 — rodapé
-      '<div class="vi-bot">' +
+      // ZONA 2 v6 — 3 linhas empilhadas
+      '<div class="vi-bot-v6">' +
 
-        // Esquerda: produto + plano/valor + etiquetas BotConversa
-        '<div class="vi-bot-left">' +
+        // Linha 1: Tipo | bolinha | Plano | Valor
+        '<div class="vi-pv-row">' +
           (v.produto ? '<span class="vi-produto ' + prodCls + '">' + esc(_produtoComEmoji(v.produto)) + '</span>' : '') +
-          ((planoVal || v.veroStatus) ? '<span class="vi-plano-val">' +
-            (v.veroStatus ? '<span class="vi-vero-status" title="' + (v.veroStatus.substring(0,2) === '🟢' ? 'Encontrado: aba ' + (v.veroStatus.substring(3) || 'Vero') : 'Não encontrado no relatório Vero') + '">' + v.veroStatus.substring(0,2) + '</span> ' : '') +
-            (planoVal ? esc(planoVal) : '') +
-          '</span>' : '') +
-          (v.bcTags || v.bcStatus ? '<span class="vi-bc-tags">' +
-            (v.bcStatus ? '<span class="vi-bc-status vi-bc-status--' + (v.bcStatus === 'Aberto' ? 'aberto' : 'ok') + '">' + esc(v.bcStatus) + '</span>' : '') +
-            (v.bcTags   ? esc(v.bcTags) : '') +
-          '</span>' : '') +
+          (v.veroStatus ? '<span class="vi-vero-status" title="' + (v.veroStatus.substring(0,2) === '🟢' ? 'Encontrado: aba ' + (v.veroStatus.substring(3) || 'Vero') : 'Não encontrado no relatório Vero') + '">' + v.veroStatus.substring(0,2) + '</span>' : '') +
+          (planoVal ? '<span class="vi-plano-val">' + esc(planoVal) + '</span>' : '') +
         '</div>' +
 
-        '<div class="vi-vsep"></div>' +
-
-        // Direita: vhub (só conf) / viabilidade / datas
-        '<div class="vi-bot-right">' +
-          (v.status === '1- Conferencia/Ativação' ? _veroHubPedidoHtml(v, index) : '') +
-          (v.viabilidade ? '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>' : '<div id="viab-badge-' + index + '"></div>') +
-          (datasHtml ? '<div class="vi-row-dates">'  + datasHtml + '</div>' : '') +
+        // Linha 2: Status / ID Contrato (+ vhub/viab/bcTags inline à direita)
+        '<div class="vi-status-row">' +
+          '<span class="vi-status-inline" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
+          (v.contrato ? '<span class="vi-id-sep">/</span><span class="vi-id-inline">ID Contrato ' + esc(v.contrato) + '</span>' : '') +
+          '<span style="margin-left:auto;display:flex;align-items:center;gap:6px;">' +
+            (v.status === '1- Conferencia/Ativação' ? _veroHubPedidoHtml(v, index) : '') +
+            (v.viabilidade ? '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>' : '<div id="viab-badge-' + index + '"></div>') +
+            (v.bcTags || v.bcStatus ? '<span class="vi-bc-tags" style="opacity:.75;">' +
+              (v.bcStatus ? '<span class="vi-bc-status vi-bc-status--' + (v.bcStatus === 'Aberto' ? 'aberto' : 'ok') + '">' + esc(v.bcStatus) + '</span>' : '') +
+              (v.bcTags   ? esc(v.bcTags) : '') +
+            '</span>' : '') +
+          '</span>' +
         '</div>' +
 
-        // Botões
+        // Linha 3: Datas (Ativ. | Ag. | Lanç. + Nome Usuário via criadoPor)
+        (datasHtml ? '<div class="vi-row-dates">' + datasHtml + '</div>' : '') +
+
+        // Botões — ocultos provisoriamente via .vi-bot-v6 .vi-actions { display:none }
         '<div class="vi-actions">' +
           (v.cpf ? '<button class="btn-popup" title="Consultar CPF Assertiva" onclick="event.stopPropagation();abrirModalAssertiva(\'' + esc(v.cpf.replace(/\D/g,'')) + '\')">👤</button>' : '') +
           '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
@@ -8455,21 +8457,51 @@ function _dhpLinhaPlanoComboV3(venda) {
   '</div>';
 }
 
+function _dhpBlocoPlanoV6(venda, index, extraHtml) {
+  if (!venda) return '';
+  var coresP = STATUS_CORES[venda.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
+  var badgeStyleP = 'background:' + coresP.bg + ';color:' + coresP.text + ';border:1.5px solid ' + (coresP.border || coresP.text) + ';';
+  var prodCls = _dhpProdutoClsV3(venda.produto);
+  var planoValor = _dhpPlanoValorV3(venda);
+  var idLabel = '';
+  if (venda.linhaMovel) {
+    idLabel = 'Linha ' + venda.linhaMovel;
+  } else if (venda.contrato) {
+    idLabel = 'ID Contrato ' + venda.contrato;
+  }
+  return '<div class="dhp-combo-plano-bloco">' +
+    // Linha 1: Tipo | bolinha | Plano | Valor
+    '<div class="vi-pv-row">' +
+      (venda.produto ? '<span class="vi-produto ' + prodCls + '">' + esc(_produtoComEmoji(venda.produto)) + '</span>' : '') +
+      (venda.veroStatus ? '<span class="vi-vero-status" title="' + (venda.veroStatus.substring(0,2) === '🟢' ? 'Encontrado: aba ' + (venda.veroStatus.substring(3) || 'Vero') : 'Não encontrado no relatório Vero') + '">' + venda.veroStatus.substring(0,2) + '</span>' : '') +
+      (planoValor ? '<span class="vi-plano-val">' + esc(planoValor) + '</span>' : '') +
+    '</div>' +
+    // Linha 2: Status / ID Contrato
+    '<div class="vi-status-row">' +
+      '<span class="vi-status-inline" style="' + badgeStyleP + '">' + esc(venda.status || '—') + '</span>' +
+      (idLabel ? '<span class="vi-id-sep">/</span><span class="vi-id-inline">' + esc(idLabel) + '</span>' : '') +
+      (extraHtml || '') +
+    '</div>' +
+  '</div>';
+}
+
 function _dhpCriarItemVendaAgrupadaV3(v, index) {
   var cores = STATUS_CORES[v.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
   var topColor = cores.border || cores.text || '#555';
   var badgeStyle = 'background:' + cores.bg + ';color:' + cores.text + ';border:1.5px solid ' + (cores.border || cores.text) + ';';
   var respHtml = _dhpResponsavelHtmlV3(v);
   var datasHtml = _dhpDatasHtmlVendaV3(v);
-  var sideHtml = '';
   var statusNorm = _normalizarTexto(v.status || '');
 
+  // Side info (vhub/viab) — ancorado ao lado do status da Fibra (linha 2 do bloco Fibra)
+  var sideFibra = '';
   if (statusNorm === '1- CONFERENCIA/ATIVACAO') {
-    sideHtml += _veroHubPedidoHtml(v, index);
+    sideFibra += _veroHubPedidoHtml(v, index);
   }
   if (v.viabilidade) {
-    sideHtml += '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>';
+    sideFibra += '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>';
   }
+  var extraFibra = sideFibra ? '<span style="margin-left:auto;display:flex;align-items:center;gap:6px;">' + sideFibra + '</span>' : '';
 
   return '<div class="venda-item dhp-combo-card" id="item_' + index + '" onclick="selecionarVenda(' + index + ',this)" style="border-top:2px solid ' + topColor + '">' +
     '<div class="vi-body">' +
@@ -8492,13 +8524,11 @@ function _dhpCriarItemVendaAgrupadaV3(v, index) {
         '</div>' +
       '</div>' +
       '<div class="vi-divider"></div>' +
-      '<div class="vi-bot">' +
-        '<div class="dhp-combo-planos">' +
-          _dhpLinhaPlanoComboV3(v) +
-          _dhpLinhaPlanoComboV3(v.vendaMovelResumo) +
-          (datasHtml ? '<div class="vi-row-dates">' + datasHtml + '</div>' : '') +
-        '</div>' +
-        '<div class="dhp-combo-side">' + sideHtml + '</div>' +
+      // ZONA 2 v6 — Fibra (2 linhas) + Móvel (2 linhas) + Datas
+      '<div class="vi-bot-v6">' +
+        _dhpBlocoPlanoV6(v, index, extraFibra) +
+        _dhpBlocoPlanoV6(v.vendaMovelResumo, index, '') +
+        (datasHtml ? '<div class="vi-row-dates">' + datasHtml + '</div>' : '') +
         _dhpAcoesVendaV3(index, v) +
       '</div>' +
     '</div>' +
