@@ -809,7 +809,9 @@ function nvSalvar() {
   var dados = (typeof _buildVendaPayload_ === 'function')
     ? _buildVendaPayload_('cadastro')
     : (function fallback() {
-        // fallback sem helper: replica o mínimo necessário
+        // Fallback sem helper: replica TODOS os campos do payload de cadastro.
+        // Sprint 3.2 (12/05/2026): inclui formaPagamento, venc, e os 3 campos
+        // do Móvel vinculado — sem eles o backend rejeita Fibra Combo.
         function g(id){ var e=document.getElementById(id); return e?e.value:''; }
         function gt(id){ return String(g(id)||'').trim(); }
         return {
@@ -823,7 +825,14 @@ function nvSalvar() {
           produto: g('nv-produto'), plano: g('nv-plano'),
           valor: gt('nv-valor'), observacao: gt('nv-observacao'),
           nomeMae: gt('nv-nomeMae'), dtNasc: g('nv-dtNasc'), rg: gt('nv-rg'),
-          criadoPor: (typeof AppState !== 'undefined' && AppState.get('nomeUsuario')) || ''
+          criadoPor: (typeof AppState !== 'undefined' && AppState.get('nomeUsuario')) || '',
+          // Sprint 3 (Forma + Vencimento obrigatórios)
+          formaPagamento: g('nv-formaPagamento'),
+          venc:           g('nv-venc'),
+          // Sprint 3.2 (Móvel vinculado quando Fibra Combo)
+          movelPortabilidade: g('nv-movelPortabilidade'),
+          movelContrato:      gt('nv-movelContrato'),
+          movelLinha:         gt('nv-movelLinha')
         };
       })();
   // Delega ao JS.html

@@ -3763,7 +3763,10 @@ function salvarVenda(dados) {
       var inferidoMovel = null;
       if (ehFibraComboNovo) {
         if (!String(dados.movelPortabilidade || '').trim()) {
-          throw new Error('Portabilidade do Móvel é obrigatória ao cadastrar Fibra Combo.');
+          // Log de diagnóstico: ajuda detectar payload incompleto (ex: frontend
+          // em cache enviou sem o campo). Inclui keys do dados sem valores PII.
+          Logger.log('salvarVenda Fibra Combo SEM movelPortabilidade — keys do payload: ' + Object.keys(dados || {}).join(','));
+          throw new Error('Portabilidade do Móvel é obrigatória ao cadastrar Fibra Combo. (Se o campo está preenchido na tela, faça Ctrl+Shift+R para limpar cache e tente novamente.)');
         }
         inferidoMovel = _inferirMovelComboFromFibra_(dados.plano);
         if (inferidoMovel.erro) {
