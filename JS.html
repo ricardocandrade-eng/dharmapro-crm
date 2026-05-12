@@ -12,31 +12,59 @@ function pifOnStatusChange(novoStatus) {
   var v = AppState.get('vendaSelecionada');
   if (!v) return;
   var statusAtual = v.status || '';
+
+  // Sprint 2: modais MS2/MS3 eliminados. Mudar status revela campos extras
+  // inline na seção "Datas e Contrato" do painel. Validação dos obrigatorios
+  // roda em pifSalvar via _pifValidarTransicaoStatus.
+
+  // Bloqueia 1→3 direto (transição inválida). 3 só vem após 2.
+  if (novoStatus === '3 - Finalizada/Instalada' &&
+      statusAtual !== '3 - Finalizada/Instalada' &&
+      statusAtual !== '2- Aguardando Instalação') {
+    document.getElementById('pif-status').value = statusAtual;
+    mostrarToast('⚠️ A venda precisa estar em "Aguardando Instalação" para ser finalizada.', 'warning');
+    return;
+  }
+
+  // Revela seção de Datas e Contrato quando há transição ou já há datas preenchidas.
   var secaoDatas = document.getElementById('pif-secao-datas');
-  var deveMostrarDatas = (
+  var deveMostrar = (
     novoStatus === '2- Aguardando Instalação' ||
     novoStatus === '3 - Finalizada/Instalada' ||
     !!(v.agenda || v.dataAtiv || v.instal)
   );
-  if (secaoDatas) secaoDatas.style.display = deveMostrarDatas ? '' : 'none';
+  if (secaoDatas) secaoDatas.style.display = deveMostrar ? '' : 'none';
 
-  // Status 2 — Aguardando Instalação
+  // Pré-fill: ao entrar em "2- Aguardando Instalação", se dataAtiv estiver vazia
+  // sugere hoje (usuário pode mudar). Foca o primeiro campo obrigatório vazio.
   if (novoStatus === '2- Aguardando Instalação' && statusAtual !== '2- Aguardando Instalação') {
-    document.getElementById('pif-status').value = statusAtual;
-    _abrirModalStatus2();
-    return;
+    var elDataAtiv = document.getElementById('pif-dataAtiv');
+    if (elDataAtiv && !elDataAtiv.value) {
+      var hoje = new Date();
+      var iso = hoje.getFullYear() + '-' +
+                String(hoje.getMonth() + 1).padStart(2, '0') + '-' +
+                String(hoje.getDate()).padStart(2, '0');
+      elDataAtiv.value = iso;
+    }
+    setTimeout(function() {
+      var prox = ['pif-contrato','pif-agenda','pif-turno']
+        .map(function(id){ return document.getElementById(id); })
+        .filter(function(el){ return el && !el.value; })[0];
+      if (prox) prox.focus();
+    }, 50);
+    mostrarToast('ℹ️ Preencha Data Ativação, ID Contrato, Agendamento e Turno antes de salvar.', 'info');
   }
 
-  // Status 3 — Finalizada/Instalada (só permitido se vier de Aguardando Instalação)
-  if (novoStatus === '3 - Finalizada/Instalada' && statusAtual !== '3 - Finalizada/Instalada') {
-    if (statusAtual !== '2- Aguardando Instalação') {
-      document.getElementById('pif-status').value = statusAtual;
-      mostrarToast('⚠️ A venda precisa estar em Aguardando Instalação para ser finalizada.', 'warning');
-      return;
+  if (novoStatus === '3 - Finalizada/Instalada' && statusAtual === '2- Aguardando Instalação') {
+    var elInstal = document.getElementById('pif-instal');
+    if (elInstal && !elInstal.value) {
+      var h2 = new Date();
+      elInstal.value = h2.getFullYear() + '-' +
+                       String(h2.getMonth() + 1).padStart(2, '0') + '-' +
+                       String(h2.getDate()).padStart(2, '0');
+      setTimeout(function(){ elInstal.focus(); }, 50);
     }
-    document.getElementById('pif-status').value = statusAtual;
-    _abrirModalStatus3();
-    return;
+    mostrarToast('ℹ️ Confirme a Data de Instalação antes de salvar.', 'info');
   }
 
   // Pré-Status só faz sentido em Conferencia/Ativação
@@ -65,14 +93,10 @@ function _inputDateToDisplay(value) {
   return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : String(value);
 }
 
-function ms2ValidarContrato(valor) {
-  var sistema = document.getElementById('ms2-sistema') ? document.getElementById('ms2-sistema').value : '';
-  var hint = document.getElementById('ms2-err-contrato-fmt');
-  if (!hint) return;
-  var err = _validarContratoFormato(valor, sistema);
-  hint.textContent = err || '';
-  hint.style.display = err ? '' : 'none';
-}
+// Stub Sprint 2: MS2 eliminado. Validação de contrato agora roda em
+// pifValidarContrato (inline no painel). Função mantida para evitar
+// ReferenceError em handlers residuais.
+function ms2ValidarContrato() {}
 
 // Busca CEP no formulário inline
 function pifBuscarCEP(cep) {
@@ -460,73 +484,146 @@ function painelToggleEdicao() {
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// _buildVendaPayload_(contexto, vendaAtual)
+// Fonte única de verdade para o payload de salvarVenda — usado por Nova
+// Venda (cadastro), painel inline (edicao) e transicoes de status. Substitui
+// 3 caminhos divergentes que existiam antes (pifSalvar/nvSalvar/MS2-MS3).
+//   contexto ∈ { 'cadastro', 'edicao' }
+//   vendaAtual: objeto com v.linha, v.statusPAP, v.reagendamentos, v.agenda
+//               (somente requerido para 'edicao')
+// ──────────────────────────────────────────────────────────────────────────
+function _buildVendaPayload_(contexto, vendaAtual) {
+  function getVal(id)     { var el = document.getElementById(id); return el ? el.value : ''; }
+  function getTrim(id)    { return String(getVal(id) || '').trim(); }
+  function inputToDate(id){ var raw = getVal(id); return raw ? _inputDateToDisplay(raw) : ''; }
+
+  if (contexto === 'cadastro') {
+    return {
+      linhaReferencia: '',
+      status:      '1- Conferencia/Ativação',
+      canal:       getVal('nv-canal'),
+      preStatus:   getVal('nv-preStatus'),
+      resp:        getVal('nv-resp'),
+      cliente:     getTrim('nv-cliente'),
+      cpf:         getTrim('nv-cpf'),
+      whats:       getTrim('nv-whats'),
+      cep:         getTrim('nv-cep'),
+      rua:         getTrim('nv-rua'),
+      num:         getTrim('nv-num'),
+      complemento: getTrim('nv-complemento'),
+      bairro:      getTrim('nv-bairro'),
+      cidade:      getTrim('nv-cidade'),
+      uf:          getTrim('nv-uf'),
+      sistema:     getTrim('nv-sistema'),
+      segmentacao: getTrim('nv-segmentacao'),
+      produto:     getVal('nv-produto'),
+      plano:       getVal('nv-plano'),
+      valor:       getTrim('nv-valor'),
+      observacao:  getTrim('nv-observacao'),
+      nomeMae:     getTrim('nv-nomeMae'),
+      dtNasc:      getVal('nv-dtNasc'),
+      rg:          getTrim('nv-rg')
+    };
+  }
+
+  // contexto === 'edicao' — todos os campos editaveis no painel inline +
+  // os 4 campos extras (dataAtiv, agenda, turno, instal, contrato) que
+  // antes ficavam em MS2/MS3 e agora vivem inline.
+  var v = vendaAtual || {};
+  var rawAgenda = getVal('pif-agenda');
+  var novaAgenda = rawAgenda ? _inputDateToDisplay(rawAgenda) : '';
+  return {
+    linhaReferencia: String(v.linha || ''),
+    status:        getVal('pif-status'),
+    preStatus:     getVal('pif-preStatus'),
+    canal:         getVal('pif-canal'),
+    resp:          getVal('pif-resp'),
+    cliente:       getTrim('pif-cliente'),
+    cpf:           getTrim('pif-cpf'),
+    whats:         getTrim('pif-whats'),
+    tel:           getTrim('pif-tel'),
+    cep:           getTrim('pif-cep'),
+    rua:           getTrim('pif-rua'),
+    num:           getTrim('pif-num'),
+    complemento:   getTrim('pif-complemento'),
+    bairro:        getTrim('pif-bairro'),
+    cidade:        getTrim('pif-cidade'),
+    uf:            getTrim('pif-uf'),
+    sistema:       getTrim('pif-sistema'),
+    segmentacao:   getTrim('pif-segmentacao'),
+    produto:       getVal('pif-produto'),
+    plano:         getVal('pif-plano'),
+    valor:         _pifValorNumero(getVal('pif-valor'), document.getElementById('pif-plano')),
+    observacao:    getTrim('pif-observacao'),
+    contrato:      getTrim('pif-contrato'),
+    codCli:        getTrim('pif-codCli'),
+    nomeMae:       getTrim('pif-nomeMae'),
+    dtNasc:        getVal('pif-dtNasc'),
+    rg:            getTrim('pif-rg'),
+    venc:          getTrim('pif-venc'),
+    fat:           getTrim('pif-fat'),
+    linhaMovel:    getTrim('pif-linhaMovel'),
+    portabilidade: getVal('pif-portabilidade'),
+    dataAtiv:      inputToDate('pif-dataAtiv'),
+    instal:        inputToDate('pif-instal'),
+    agenda:        novaAgenda,
+    turno:         getVal('pif-turno') || (v.turno || ''),
+    reagendamentos: (novaAgenda && novaAgenda !== (v.agenda || ''))
+                      ? (v.reagendamentos || 0) + 1
+                      : (v.reagendamentos || 0),
+    statusPAP:     v.statusPAP || ''
+  };
+}
+
+// Valida campos obrigatorios na transicao de status (1→2, 2→3).
+// Retorna null se OK ou { msg, focusId } se faltar campo.
+function _pifValidarTransicaoStatus(vendaAtual, dados) {
+  var statusOld = (vendaAtual && vendaAtual.status) || '';
+  var statusNew = dados.status || '';
+
+  // Transicao para "2- Aguardando Instalacao": exige dataAtiv + contrato + agenda + turno
+  if (statusNew === '2- Aguardando Instalação' && statusOld !== '2- Aguardando Instalação') {
+    if (!dados.dataAtiv) return { msg: '⚠️ Informe a Data de Ativação.',    focusId: 'pif-dataAtiv' };
+    if (!dados.contrato) return { msg: '⚠️ Informe o ID Contrato.',         focusId: 'pif-contrato' };
+    if (!dados.agenda)   return { msg: '⚠️ Informe a Data de Agendamento.', focusId: 'pif-agenda' };
+    if (!dados.turno)    return { msg: '⚠️ Selecione o Turno.',             focusId: 'pif-turno' };
+  }
+
+  // Transicao para "3 - Finalizada/Instalada": precisa vir de 2 + exige instal
+  if (statusNew === '3 - Finalizada/Instalada' && statusOld !== '3 - Finalizada/Instalada') {
+    if (statusOld !== '2- Aguardando Instalação') {
+      return { msg: '⚠️ A venda precisa estar em "Aguardando Instalação" para ser finalizada.', focusId: 'pif-status' };
+    }
+    if (!dados.instal) return { msg: '⚠️ Informe a Data de Instalação.', focusId: 'pif-instal' };
+  }
+
+  return null;
+}
+
 function pifSalvar() {
   var v = AppState.get('vendaSelecionada');
   if (!v || !v.linha) { mostrarToast('❌ Venda não identificada.', 'error'); return; }
 
-  var dados = {
-    linhaReferencia: String(v.linha), // garante string não-vazia para o salvarVenda identificar edição
-    status:      document.getElementById('pif-status').value,
-    preStatus:   document.getElementById('pif-preStatus').value,
-    canal:       document.getElementById('pif-canal').value,
-    resp:        document.getElementById('pif-resp').value,
-    cliente:     document.getElementById('pif-cliente').value.trim(),
-    cpf:         document.getElementById('pif-cpf').value.trim(),
-    whats:       document.getElementById('pif-whats').value.trim(),
-    cep:         document.getElementById('pif-cep').value.trim(),
-    rua:         document.getElementById('pif-rua').value.trim(),
-    num:         document.getElementById('pif-num').value.trim(),
-    complemento: document.getElementById('pif-complemento').value.trim(),
-    bairro:      document.getElementById('pif-bairro').value.trim(),
-    cidade:      document.getElementById('pif-cidade').value.trim(),
-    uf:          document.getElementById('pif-uf').value.trim(),
-    sistema:     document.getElementById('pif-sistema').value.trim(),
-    segmentacao: document.getElementById('pif-segmentacao').value.trim(),
-    produto:     document.getElementById('pif-produto').value,
-    plano:       document.getElementById('pif-plano').value,
-    valor:       _pifValorNumero(document.getElementById('pif-valor').value, document.getElementById('pif-plano')),
-    observacao:    document.getElementById('pif-observacao').value.trim(),
-    tel:           document.getElementById('pif-tel').value.trim(),
-    contrato:      document.getElementById('pif-contrato').value.trim(),
-    codCli:        document.getElementById('pif-codCli').value.trim(),
-    nomeMae:       document.getElementById('pif-nomeMae').value.trim(),
-    dtNasc:        document.getElementById('pif-dtNasc').value,
-    rg:            document.getElementById('pif-rg').value.trim(),
-    venc:          document.getElementById('pif-venc').value.trim(),
-    fat:           document.getElementById('pif-fat').value.trim(),
-    linhaMovel:    document.getElementById('pif-linhaMovel').value.trim(),
-    portabilidade: document.getElementById('pif-portabilidade').value,
-    dataAtiv: (function() {
-      var raw = document.getElementById('pif-dataAtiv') ? document.getElementById('pif-dataAtiv').value : '';
-      return raw ? _inputDateToDisplay(raw) : '';
-    })(),
-    instal: (function() {
-      var raw = document.getElementById('pif-instal') ? document.getElementById('pif-instal').value : '';
-      return raw ? _inputDateToDisplay(raw) : '';
-    })(),
-    // Agenda: converte YYYY-MM-DD → DD/MM/YYYY para o backend
-    agenda: (function() {
-      var raw = document.getElementById('pif-agenda') ? document.getElementById('pif-agenda').value : '';
-      if (!raw) return v.agenda || '';
-      var p = raw.split('-');
-      return p[2] + '/' + p[1] + '/' + p[0];
-    })(),
-    turno: document.getElementById('pif-turno') ? document.getElementById('pif-turno').value : (v.turno || ''),
-    // Reagendamentos: incrementa se a data mudou
-    reagendamentos: (function() {
-      var raw = document.getElementById('pif-agenda') ? document.getElementById('pif-agenda').value : '';
-      var novaData = raw ? (function(){ var p=raw.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; })() : '';
-      var dataOriginal = v.agenda || '';
-      return (novaData && novaData !== dataOriginal) ? (v.reagendamentos || 0) + 1 : (v.reagendamentos || 0);
-    })(),
-    statusPAP:     v.statusPAP  || ''
-  };
+  var dados = _buildVendaPayload_('edicao', v);
 
-  var _errPifContrato = _validarContratoFormato(dados.contrato, document.getElementById('pif-sistema').value);
+  // Validação de formato do contrato (NG/Adapter)
+  var _errPifContrato = _validarContratoFormato(dados.contrato, dados.sistema);
   if (_errPifContrato) {
     mostrarToast(_errPifContrato, 'warning');
     var _elC = document.getElementById('pif-contrato');
     if (_elC) _elC.focus();
+    return;
+  }
+
+  // Validação de transição de status — campos obrigatórios da etapa
+  var _errTransicao = _pifValidarTransicaoStatus(v, dados);
+  if (_errTransicao) {
+    mostrarToast(_errTransicao.msg, 'warning');
+    if (_errTransicao.focusId) {
+      var _elT = document.getElementById(_errTransicao.focusId);
+      if (_elT) _elT.focus();
+    }
     return;
   }
 
@@ -581,355 +678,22 @@ function pifSalvar() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  MODAL STATUS 2 — Aguardando Instalação
+//  MODAIS MS2/MS3 ELIMINADOS (Sprint 2, 11/05/2026)
+//  Antes: trocar status no painel para "2- Aguardando Instalação" ou
+//  "3 - Finalizada/Instalada" abria um modal dedicado para coletar campos
+//  extras (dataAtiv, contrato, agenda, turno, instal).
+//  Depois: pifOnStatusChange revela a seção "📅 Datas" inline no painel.
+//  pifSalvar valida obrigatórios via _pifValidarTransicaoStatus.
+//  Stubs abaixo evitam ReferenceError em handlers/HTML residuais.
 // ══════════════════════════════════════════════════════════════════════════
-
-function _abrirModalStatus2() {
-  var v = AppState.get('vendaSelecionada');
-  if (!v) return;
-
-  // Limpa erros
-  ['ms2-dataAtiv','ms2-contrato','ms2-agenda','ms2-turno'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.classList.remove('erro');
-    var err = document.getElementById(id.replace('ms2-','ms2-err-'));
-    if (err) err.classList.remove('visivel');
-  });
-
-  // Pré-preenche campos existentes
-  _ms2Set('ms2-dataAtiv',    v.dataAtiv    || '');
-  _ms2Set('ms2-contrato',    v.contrato    || '');
-  _ms2Set('ms2-codCli',      v.codCli      || '');
-  _ms2Set('ms2-agenda',      v.agenda      || '');
-  _ms2Set('ms2-turno',       v.turno       || '');
-  _ms2Set('ms2-produto',     v.produto     || '');
-  _ms2Set('ms2-valor',       v.valor       || '');
-  _ms2Set('ms2-sistema',     v.sistema     || '');
-  _ms2Set('ms2-segmentacao', v.segmentacao || '');
-
-  // Produto, plano e valor não devem mudar numa transição de status —
-  // se precisar trocá-los, use o painel de edição.
-  ['ms2-produto','ms2-plano'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) { el.disabled = true; el.style.opacity = '0.7'; }
-  });
-  var elValor = document.getElementById('ms2-valor');
-  if (elValor) { elValor.readOnly = true; elValor.style.opacity = '0.7'; }
-
-  // Sistema / Segmentação display
-  var sis = v.sistema || ''; var seg = v.segmentacao || '';
-  if (sis || seg) {
-    document.getElementById('ms2-sistema-display').textContent     = sis || '—';
-    document.getElementById('ms2-segmentacao-display').textContent = seg || '—';
-    document.getElementById('ms2-infoGeoWrap').style.display       = 'grid';
-  } else {
-    document.getElementById('ms2-infoGeoWrap').style.display = 'none';
-  }
-
-  // Carrega planos se produto e cidade já existem
-  if (v.produto && v.cidade) {
-    var selPlano = document.getElementById('ms2-plano');
-    var planoSalvo = v.plano || '';
-    selPlano.disabled = true;
-    selPlano.innerHTML = '<option>⏳ Carregando...</option>';
-    google.script.run
-      .withSuccessHandler(function(d) {
-        selPlano.disabled = false;
-        if (!d || d.erro || !d.planos || d.planos.length === 0) {
-          selPlano.innerHTML = '<option value="">— Nenhum plano —</option>';
-          if (planoSalvo) {
-            var opt = document.createElement('option');
-            opt.value = planoSalvo; opt.textContent = planoSalvo + ' (atual)';
-            selPlano.appendChild(opt); selPlano.value = planoSalvo;
-          }
-          return;
-        }
-        _ms2PreencherPlanos(d.planos);
-        if (planoSalvo) selPlano.value = planoSalvo;
-      })
-      .withFailureHandler(function() {
-        selPlano.disabled = false;
-        selPlano.innerHTML = '<option value="">— Erro ao carregar —</option>';
-      })
-      .getPlanosPorCidadeProduto(v.cidade, v.produto);
-  }
-
-  document.getElementById('modalStatus2').classList.add('ativo');
-}
-
-function _fecharModalStatus2() {
-  document.getElementById('modalStatus2').classList.remove('ativo');
-}
-
-function _ms2Set(id, val) {
-  var el = document.getElementById(id); if (el) el.value = val;
-}
-
-function ms2OnProdutoChange() {
-  var v = AppState.get('vendaSelecionada');
-  var cidade  = (v && v.cidade) ? v.cidade : '';
-  var produto = document.getElementById('ms2-produto').value;
-  var hint    = document.getElementById('ms2-produtoHint');
-  var selPlano = document.getElementById('ms2-plano');
-
-  selPlano.innerHTML = '<option value="">⏳ Carregando...</option>';
-  selPlano.disabled  = true;
-  document.getElementById('ms2-valor').value = '';
-
-  if (!produto || !cidade) {
-    selPlano.innerHTML = '<option value="">—</option>';
-    selPlano.disabled = false;
-    return;
-  }
-
-  google.script.run
-    .withSuccessHandler(function(d) {
-      selPlano.disabled = false;
-      if (!d || d.erro || !d.planos || d.planos.length === 0) {
-        selPlano.innerHTML = '<option value="">— Nenhum plano —</option>';
-        if (hint) { hint.textContent = '⚠️ Nenhum plano para esta cidade.'; hint.style.color = 'var(--yellow)'; }
-        return;
-      }
-      _ms2PreencherPlanos(d.planos);
-      var qtd = d.planos.filter(function(p) { return p.indexOf('▶️') === -1; }).length;
-      if (hint) { hint.textContent = '✅ ' + qtd + ' plano(s)'; hint.style.color = 'var(--green)'; }
-    })
-    .withFailureHandler(function() {
-      selPlano.disabled = false;
-      selPlano.innerHTML = '<option value="">— Erro —</option>';
-    })
-    .getPlanosPorCidadeProduto(cidade, produto);
-}
-
-function _ms2PreencherPlanos(planos) {
-  var sel = document.getElementById('ms2-plano');
-  sel.innerHTML = '<option value="">— Selecione o plano —</option>';
-  planos.forEach(function(item) {
-    var opt = document.createElement('option');
-    if (item.indexOf('▶️') === 0) { opt.disabled = true; opt.style.color = 'var(--muted)'; }
-    opt.value = item; opt.textContent = item;
-    sel.appendChild(opt);
-  });
-}
-
-function ms2OnPlanoChange() {
-  var plano = document.getElementById('ms2-plano').value;
-  if (!plano || plano.indexOf('▶️') === 0) return;
-  var partes = plano.split(' | ');
-  if (partes.length >= 2) {
-    document.getElementById('ms2-valor').value = 'R$ ' + partes[partes.length - 1].trim();
-  }
-}
-
-function _ms2MarcaErro(id, errId, cond) {
-  var el = document.getElementById(id); if (el) el.classList.toggle('erro', cond);
-  var er = document.getElementById(errId); if (er) er.classList.toggle('visivel', cond);
-  return !cond;
-}
-
-function _confirmarStatus2() {
-  // Valida obrigatórios
-  var ok = true;
-  ok = _ms2MarcaErro('ms2-dataAtiv', 'ms2-err-dataAtiv', !document.getElementById('ms2-dataAtiv').value) && ok;
-  ok = _ms2MarcaErro('ms2-agenda',   'ms2-err-agenda',   !document.getElementById('ms2-agenda').value) && ok;
-  ok = _ms2MarcaErro('ms2-turno',    'ms2-err-turno',    !document.getElementById('ms2-turno').value) && ok;
-  var _errMs2Contrato = _validarContratoFormato(
-    document.getElementById('ms2-contrato').value,
-    (AppState.get('vendaSelecionada') || {}).sistema || ''
-  );
-  if (_errMs2Contrato) {
-    _ms2MarcaErro('ms2-contrato', 'ms2-err-contrato', true);
-    document.getElementById('ms2-err-contrato').textContent = _errMs2Contrato;
-    ok = false;
-  }
-  if (!ok) { mostrarToast('⚠️ Preencha todos os campos obrigatórios.', 'warning'); return; }
-
-  var v = AppState.get('vendaSelecionada');
-  if (!v || !v.linha) return;
-
-  var btn = document.getElementById('ms2-btnSalvar');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando...'; }
-
-  var dados = {
-    linhaReferencia: String(v.linha),
-    status:      '2- Aguardando Instalação',
-    preStatus:   v.preStatus   || '',
-    canal:       v.canal       || '',
-    resp:        v.resp        || '',
-    cliente:     v.cliente     || '',
-    cpf:         v.cpf         || '',
-    whats:       v.whats       || '',
-    cep:         v.cep         || '',
-    rua:         v.rua         || '',
-    num:         v.num         || '',
-    complemento: v.complemento || '',
-    bairro:      v.bairro      || '',
-    cidade:      v.cidade      || '',
-    uf:          v.uf          || '',
-    sistema:     document.getElementById('ms2-sistema').value     || v.sistema     || '',
-    segmentacao: document.getElementById('ms2-segmentacao').value || v.segmentacao || '',
-    dataAtiv:   document.getElementById('ms2-dataAtiv').value,
-    contrato:   document.getElementById('ms2-contrato').value.trim(),
-    codCli:     document.getElementById('ms2-codCli').value.trim(),
-    agenda:     document.getElementById('ms2-agenda').value,
-    turno:      document.getElementById('ms2-turno').value,
-    produto:    document.getElementById('ms2-produto').value || v.produto || '',
-    plano:      document.getElementById('ms2-plano').value   || v.plano   || '',
-    valor:      document.getElementById('ms2-valor').value   || v.valor   || '',
-    instal:     v.instal     || '',
-    linhaMovel: v.linhaMovel || '',
-    statusPAP:  v.statusPAP  || '',
-    observacao: v.observacao || '',
-    venc:       v.venc       || '',
-    fat:        v.fat        || '',
-    tel:        v.tel        || '',
-    nomeMae:    v.nomeMae    || '',
-    dtNasc:     v.dtNasc     || '',
-    rg:         v.rg         || '',
-    portabilidade:   v.portabilidade   || '',
-    reagendamentos:  v.reagendamentos  || 0,
-    verohub:         v.verohub         || '',
-    verohubPedido:   v.verohubPedido   || '',
-    verohubPedidoDt: v.verohubPedidoDt || ''
-  };
-
-  mostrarLoading(true);
-  google.script.run
-    .withSuccessHandler(function(res) {
-      mostrarLoading(false);
-      if (btn) { btn.disabled = false; btn.textContent = '✅ Confirmar e Salvar'; }
-      _fecharModalStatus2();
-      if (!res || !res.sucesso) {
-        mostrarToast('❌ ' + (res ? res.mensagem : 'Erro ao salvar.'), 'error');
-        return;
-      }
-      _listaNeedsReload = true; // invalida cache — lista precisa de dado fresco
-      mostrarToast('✅ ' + res.mensagem, 'success');
-      dispararConfete();
-      google.script.run
-        .withSuccessHandler(function(vAtual) {
-          if (!vAtual) { carregarVendas(1, ''); return; }
-          AppState.set('vendaSelecionada', vAtual);
-          mostrarPainel(vAtual);
-          carregarVendas(1, '');
-        })
-        .withFailureHandler(function() { carregarVendas(1, ''); })
-        .getVendaPorLinha(v.linha);
-    })
-    .withFailureHandler(function(err) {
-      mostrarLoading(false);
-      if (btn) { btn.disabled = false; btn.textContent = '✅ Confirmar e Salvar'; }
-      _fecharModalStatus2();
-      mostrarToast('❌ Erro: ' + (err && err.message ? err.message : 'tente novamente'), 'error');
-    })
-    .salvarVenda(dados);
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-//  MODAL STATUS 3 — Finalizada/Instalada
-// ══════════════════════════════════════════════════════════════════════════
-
-function _abrirModalStatus3() {
-  // Limpa e abre
-  var instal = document.getElementById('ms3-instal');
-  if (instal) { instal.value = ''; instal.classList.remove('erro'); }
-  var err = document.getElementById('ms3-err-instal');
-  if (err) err.classList.remove('visivel');
-  document.getElementById('modalStatus3').classList.add('ativo');
-}
-
-function _fecharModalStatus3() {
-  document.getElementById('modalStatus3').classList.remove('ativo');
-}
-
-function _confirmarStatus3() {
-  var instal = document.getElementById('ms3-instal').value;
-  if (!instal) {
-    document.getElementById('ms3-instal').classList.add('erro');
-    document.getElementById('ms3-err-instal').classList.add('visivel');
-    mostrarToast('⚠️ Informe a data de instalação.', 'warning');
-    return;
-  }
-
-  var v = AppState.get('vendaSelecionada');
-  if (!v || !v.linha) return;
-
-  var btn = document.getElementById('ms3-btnSalvar');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando...'; }
-
-  var dados = {
-    linhaReferencia: v.linha,
-    status:      '3 - Finalizada/Instalada',
-    preStatus:   v.preStatus   || '',
-    canal:       v.canal       || '',
-    resp:        v.resp        || '',
-    cliente:     v.cliente     || '',
-    cpf:         v.cpf         || '',
-    whats:       v.whats       || '',
-    cep:         v.cep         || '',
-    rua:         v.rua         || '',
-    num:         v.num         || '',
-    complemento: v.complemento || '',
-    bairro:      v.bairro      || '',
-    cidade:      v.cidade      || '',
-    uf:          v.uf          || '',
-    sistema:     v.sistema     || '',
-    segmentacao: v.segmentacao || '',
-    dataAtiv:   v.dataAtiv   || '',
-    contrato:   v.contrato   || '',
-    agenda:     v.agenda     || '',
-    turno:      v.turno      || '',
-    produto:    v.produto    || '',
-    plano:      v.plano      || '',
-    valor:      v.valor      || '',
-    instal:     instal,
-    linhaMovel: v.linhaMovel || '',
-    statusPAP:  v.statusPAP  || '',
-    observacao: v.observacao || '',
-    venc:       v.venc       || '',
-    fat:        v.fat        || '',
-    tel:        v.tel        || '',
-    nomeMae:    v.nomeMae    || '',
-    dtNasc:     v.dtNasc     || '',
-    rg:         v.rg         || '',
-    portabilidade:   v.portabilidade   || '',
-    reagendamentos:  v.reagendamentos  || 0,
-    verohub:         v.verohub         || '',
-    verohubPedido:   v.verohubPedido   || '',
-    verohubPedidoDt: v.verohubPedidoDt || ''
-  };
-
-  mostrarLoading(true);
-  google.script.run
-    .withSuccessHandler(function(res) {
-      mostrarLoading(false);
-      if (btn) { btn.disabled = false; btn.textContent = '✅ Confirmar Instalação'; }
-      _fecharModalStatus3();
-      if (!res || !res.sucesso) {
-        mostrarToast('❌ ' + (res ? res.mensagem : 'Erro ao salvar.'), 'error');
-        return;
-      }
-      _listaNeedsReload = true; // invalida cache — lista precisa de dado fresco
-      mostrarToast('✅ ' + res.mensagem, 'success');
-      dispararChovaDinheiro();
-      google.script.run
-        .withSuccessHandler(function(vAtual) {
-          if (!vAtual) { carregarVendas(1, ''); return; }
-          AppState.set('vendaSelecionada', vAtual);
-          mostrarPainel(vAtual);
-          carregarVendas(1, '');
-        })
-        .withFailureHandler(function() { carregarVendas(1, ''); })
-        .getVendaPorLinha(v.linha);
-    })
-    .withFailureHandler(function(err) {
-      mostrarLoading(false);
-      if (btn) { btn.disabled = false; btn.textContent = '✅ Confirmar Instalação'; }
-      _fecharModalStatus3();
-      mostrarToast('❌ Erro: ' + (err && err.message ? err.message : 'tente novamente'), 'error');
-    })
-    .salvarVenda(dados);
-}
+function _abrirModalStatus2() {}
+function _fecharModalStatus2() {}
+function _confirmarStatus2() {}
+function _abrirModalStatus3() {}
+function _fecharModalStatus3() {}
+function _confirmarStatus3() {}
+function _ms2Set() {}
+function _ms2MarcaErro() { return true; }
 
 
 var PAP_ALERT_KEYS = {

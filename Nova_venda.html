@@ -668,32 +668,26 @@ function nvSalvar() {
   for (var s = 0; s < NV_TOTAL - 1; s++) {
     if (!nvValidarStep(s)) { _nvStep = s; nvAtualizarProgress(); return; }
   }
-  var dados = {
-    status:      '1- Conferencia/Ativação',
-    canal:       document.getElementById('nv-canal').value,
-    preStatus:   document.getElementById('nv-preStatus').value,
-    resp:        document.getElementById('nv-resp').value,
-    cliente:     document.getElementById('nv-cliente').value.trim(),
-    cpf:         document.getElementById('nv-cpf').value.trim(),
-    whats:       document.getElementById('nv-whats').value.trim(),
-    cep:         document.getElementById('nv-cep').value.trim(),
-    rua:         document.getElementById('nv-rua').value.trim(),
-    num:         document.getElementById('nv-num').value.trim(),
-    complemento: document.getElementById('nv-complemento').value.trim(),
-    bairro:      document.getElementById('nv-bairro').value.trim(),
-    cidade:      document.getElementById('nv-cidade').value.trim(),
-    uf:          document.getElementById('nv-uf').value.trim(),
-    sistema:     document.getElementById('nv-sistema').value.trim(),
-    segmentacao: document.getElementById('nv-segmentacao').value.trim(),
-    produto:     document.getElementById('nv-produto').value,
-    plano:       document.getElementById('nv-plano').value,
-    valor:       document.getElementById('nv-valor').value.trim(),
-    observacao:  document.getElementById('nv-observacao').value.trim(),
-    nomeMae:     document.getElementById('nv-nomeMae').value.trim(),
-    dtNasc:      document.getElementById('nv-dtNasc').value,
-    rg:          document.getElementById('nv-rg').value.trim(),
-    linhaReferencia: ''
-  };
+  // Sprint 2: payload unificado via _buildVendaPayload_ (definido em JS.html)
+  var dados = (typeof _buildVendaPayload_ === 'function')
+    ? _buildVendaPayload_('cadastro')
+    : (function fallback() {
+        // fallback sem helper: replica o mínimo necessário
+        function g(id){ var e=document.getElementById(id); return e?e.value:''; }
+        function gt(id){ return String(g(id)||'').trim(); }
+        return {
+          status: '1- Conferencia/Ativação', linhaReferencia: '',
+          canal: g('nv-canal'), preStatus: g('nv-preStatus'), resp: g('nv-resp'),
+          cliente: gt('nv-cliente'), cpf: gt('nv-cpf'), whats: gt('nv-whats'),
+          cep: gt('nv-cep'), rua: gt('nv-rua'), num: gt('nv-num'),
+          complemento: gt('nv-complemento'), bairro: gt('nv-bairro'),
+          cidade: gt('nv-cidade'), uf: gt('nv-uf'),
+          sistema: gt('nv-sistema'), segmentacao: gt('nv-segmentacao'),
+          produto: g('nv-produto'), plano: g('nv-plano'),
+          valor: gt('nv-valor'), observacao: gt('nv-observacao'),
+          nomeMae: gt('nv-nomeMae'), dtNasc: g('nv-dtNasc'), rg: gt('nv-rg')
+        };
+      })();
   // Delega ao JS.html
   if (typeof _nvExecutarSalvar === 'function') _nvExecutarSalvar(dados);
 }

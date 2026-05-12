@@ -3296,6 +3296,22 @@ function salvarVenda(dados) {
       if (!String(dados.resp  || '').trim()) throw new Error('Responsável é obrigatório.');
     }
 
+    // Turno: domínio fechado (Manhã, Tarde, vazio). Qualquer outro valor vira ''.
+    if (dados.turno && _TURNOS_VALIDOS_.indexOf(String(dados.turno).trim()) === -1) {
+      dados.turno = '';
+    }
+
+    // Validação de formato do contrato (NG/Adapter) — só para transições para
+    // status 2 ou 3, onde o ID é operacional. Replica a validação que vivia
+    // no frontend (_validarContratoFormato) para defesa em profundidade.
+    var statusValidaContrato =
+      dados.status === '2- Aguardando Instalação' ||
+      dados.status === '3 - Finalizada/Instalada';
+    if (statusValidaContrato && dados.contrato) {
+      var errContrato = _validarContratoFormatoBackend_(dados.contrato, dados.sistema);
+      if (errContrato) throw new Error(errContrato);
+    }
+
     var sheet = _getSheet();
 
     // ── ARQUIVAR VENDA: se pré-status = "ARQUIVAR VENDA", arquiva e limpa ──
@@ -4076,6 +4092,25 @@ function _mapearLinha(row, numeroLinha) {
     })(row[c.CRIADO_EM]),
     veroStatus:       String(row[c.VERO_STATUS] || '').trim()
   };
+}
+
+// Sprint 2 — domínio fechado para Turno. Valores fora desta lista são
+// silenciosamente normalizados para '' em salvarVenda.
+var _TURNOS_VALIDOS_ = ['Manhã (08h às 12h)', 'Tarde (13h às 17h)'];
+
+// Sprint 2 — validação server-side do contrato (NG/Adapter). Espelha a
+// _validarContratoFormato do frontend; é chamada em salvarVenda apenas em
+// transições para status 2 ou 3 (onde o ID precisa ser operacional).
+// Retorna null se válido, string com mensagem de erro se inválido.
+function _validarContratoFormatoBackend_(valor, sistema) {
+  if (!valor) return null;
+  var v = String(valor).trim();
+  if (!/^\d+$/.test(v)) return 'ID Contrato inválido. Use apenas números.';
+  var sis = String(sistema || '').toUpperCase();
+  var msgErro = 'ID Contrato inválido. Use: NG (9 dígitos começando com 202) ou Adapter (7 dígitos começando com 3).';
+  if (sis.indexOf('NG') > -1)      return /^202\d{6}$/.test(v) ? null : msgErro;
+  if (sis.indexOf('ADAPTER') > -1) return /^3\d{6}$/.test(v)   ? null : msgErro;
+  return (/^202\d{6}$/.test(v) || /^3\d{6}$/.test(v)) ? null : msgErro;
 }
 
 function _construirLinhaDados(d) {
