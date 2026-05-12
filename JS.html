@@ -420,7 +420,7 @@ function painelToggleEdicao() {
     _pifSet('pif-valor',      _pifValorParaExibir(v.valor));
     // Sprint 3: pif-venc agora é dropdown (05/10/13/19). Valores legados (qualquer
     // outra string) entram como opção ⚠ pra não sobrescrever silenciosamente.
-    _pifSetSelectComLegado('pif-venc', v.venc || '', ['05','10','13','19'], function(x){ return '⚠ ' + x + ' (legado)'; });
+    _pifSetSelectComLegado('pif-venc', v.venc || '', ['1','3','5','9','13','18'], function(x){ return '⚠ ' + x + ' (legado)'; });
     // Sprint 3: pif-formaPagamento — BOLETO | RECORRENTE | '' (vazio = legado pré-feature)
     _pifSetSelectComLegado('pif-formaPagamento', v.formaPagamento || '', ['BOLETO','RECORRENTE'], function(x){ return '⚠ ' + x + ' (legado)'; });
     // Sprint 3 (12/05/2026): pif-fat removido do painel (col Q liberada)
@@ -588,7 +588,13 @@ function _buildVendaPayload_(contexto, vendaAtual) {
       nomeMae:     getTrim('nv-nomeMae'),
       dtNasc:      getVal('nv-dtNasc'),
       rg:          getTrim('nv-rg'),
-      criadoPor:   (typeof AppState !== 'undefined' && AppState.get('nomeUsuario')) || ''
+      criadoPor:   (typeof AppState !== 'undefined' && AppState.get('nomeUsuario')) || '',
+      // Sprint 3.2 (12/05/2026): dados do Móvel vinculado quando Fibra Combo.
+      // Backend infere produto+plano Móvel pelo GB do nome da Fibra e cria
+      // a 2ª linha automaticamente (substitui o modal _abrirModalMovelCombo).
+      movelPortabilidade: getVal('nv-movelPortabilidade'),
+      movelContrato:      getTrim('nv-movelContrato'),
+      movelLinha:         getTrim('nv-movelLinha')
     };
   }
 
@@ -6828,7 +6834,11 @@ function _nvExecutarSalvar(dados) {
         return;
       }
       _listaNeedsReload = true; // invalida cache — nova venda precisa aparecer na lista
-      if (dados.produto === 'Fibra Combo') {
+      // Sprint 3.2 (12/05/2026): backend cria o Móvel Combo automaticamente
+      // quando a Fibra Combo é salva (com portabilidade no payload). O modal
+      // legado só dispara como fallback se houver aviso de Móvel não criado.
+      if (res.avisoMovel) {
+        mostrarToast('⚠️ ' + res.avisoMovel, 'warning');
         _abrirModalMovelCombo({
           linhaOrigem: res.linha,
           cliente: dados.cliente,

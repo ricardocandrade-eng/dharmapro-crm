@@ -375,10 +375,12 @@
           <label>Vencimento <span class="req">*</span></label>
           <select id="nv-venc">
             <option value="">— Selecione —</option>
-            <option value="05">Dia 05</option>
-            <option value="10">Dia 10</option>
+            <option value="1">Dia 1</option>
+            <option value="3">Dia 3</option>
+            <option value="5">Dia 5</option>
+            <option value="9">Dia 9</option>
             <option value="13">Dia 13</option>
-            <option value="19">Dia 19</option>
+            <option value="18">Dia 18</option>
           </select>
           <span class="err-msg" id="nv-err-venc">Selecione o Vencimento.</span>
         </div>
@@ -389,6 +391,37 @@
           <span class="hint" id="nv-valorHint">Defina o plano e a forma de pagamento.</span>
         </div>
 
+      </div>
+    </div>
+
+    <!-- ── Móvel Vinculado (visível só quando Produto = Fibra Combo) ── -->
+    <div class="card" id="nv-card-movel" style="display:none;">
+      <div class="card-header">
+        <div class="card-icon">📱</div>
+        <h3>Móvel Combo Vinculado</h3>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px;font-family:'DM Mono',monospace;">
+        O chip Móvel será inferido automaticamente do plano Fibra escolhido.
+        <span id="nv-movelInferido" style="color:var(--green);margin-left:4px;"></span>
+      </p>
+      <div class="form-grid">
+        <div class="form-group" id="nv-grp-movelPortabilidade">
+          <label>Portabilidade <span class="req">*</span></label>
+          <select id="nv-movelPortabilidade">
+            <option value="">— Selecione —</option>
+            <option value="Sim">Sim</option>
+            <option value="Não">Não</option>
+          </select>
+          <span class="err-msg" id="nv-err-movelPortabilidade">Selecione a Portabilidade.</span>
+        </div>
+        <div class="form-group" id="nv-grp-movelLinha">
+          <label>Número da Linha <span style="font-size:11px;color:var(--muted);font-weight:400;">(opcional)</span></label>
+          <input type="tel" id="nv-movelLinha" placeholder="(00) 00000-0000">
+        </div>
+        <div class="form-group span2" id="nv-grp-movelContrato">
+          <label>ID Contrato Móvel <span style="font-size:11px;color:var(--muted);font-weight:400;">(opcional)</span></label>
+          <input type="text" id="nv-movelContrato" placeholder="Ex: 123456">
+        </div>
       </div>
     </div>
 
@@ -525,6 +558,12 @@ function nvValidarStep(step) {
     // Sprint 3 (12/05/2026): Forma de Pagamento e Vencimento obrigatórios
     ok = nvMarcaErro('nv-formaPagamento', 'nv-err-formaPagamento', !document.getElementById('nv-formaPagamento').value) && ok;
     ok = nvMarcaErro('nv-venc',           'nv-err-venc',           !document.getElementById('nv-venc').value)           && ok;
+    // Sprint 3.2: Portabilidade obrigatória quando produto = Fibra Combo
+    var produtoSel = document.getElementById('nv-produto').value;
+    if (produtoSel === 'Fibra Combo') {
+      ok = nvMarcaErro('nv-movelPortabilidade', 'nv-err-movelPortabilidade',
+                       !document.getElementById('nv-movelPortabilidade').value) && ok;
+    }
   }
   if (!ok) nvToast('⚠️ Preencha os campos obrigatórios.', 'warning');
   return ok;
@@ -659,6 +698,14 @@ function nvOnProdutoChange() {
   selPlano.innerHTML = '<option value="">⏳ Carregando...</option>';
   selPlano.disabled  = true;
   document.getElementById('nv-valor').value = '';
+
+  // Sprint 3.2 (12/05/2026): revelar card de Móvel Vinculado quando Fibra Combo.
+  // O chip é inferido do nome do plano; usuário só preenche Portabilidade + opcionais.
+  var cardMovel = document.getElementById('nv-card-movel');
+  if (cardMovel) cardMovel.style.display = (produto === 'Fibra Combo') ? '' : 'none';
+  var movelInferido = document.getElementById('nv-movelInferido');
+  if (movelInferido) movelInferido.textContent = '';
+
   if (!produto) {
     selPlano.innerHTML = '<option value="">— Preencha o CEP e Produto —</option>';
     selPlano.disabled = false; hint.textContent = ''; return;
@@ -670,6 +717,13 @@ function nvOnProdutoChange() {
   }
   // Delega ao JS.html
   if (typeof _nvCarregarPlanos === 'function') _nvCarregarPlanos(cidade, produto, selPlano, hint);
+}
+
+// Sprint 3.2: extrai o GB do nome do plano Fibra (ex: "MÓVEL 20GB" → "20GB").
+// Usado apenas para exibir o chip inferido na UI; o backend faz a validação real.
+function _nvExtrairGBMovel(planoNome) {
+  var m = String(planoNome || '').toUpperCase().match(/M[ÓO]VEL\s+(\d+)\s*GB/);
+  return m ? (m[1] + 'GB') : '';
 }
 
 function _nvPreencherPlanos(planos) {
@@ -686,6 +740,18 @@ function _nvPreencherPlanos(planos) {
 function nvOnPlanoChange() {
   var plano = document.getElementById('nv-plano').value;
   var hint  = document.getElementById('nv-valorHint');
+  // Sprint 3.2: atualiza hint do chip Móvel inferido (só Fibra Combo)
+  var produto = document.getElementById('nv-produto').value;
+  var movelInf = document.getElementById('nv-movelInferido');
+  if (movelInf) {
+    if (produto === 'Fibra Combo' && plano && plano.indexOf('▶️') !== 0) {
+      var gb = _nvExtrairGBMovel(plano);
+      movelInf.textContent = gb ? ('→ chip ' + gb + ' MAIS CONECTADO COMBO') : '→ ⚠ chip não identificado pelo nome';
+      movelInf.style.color = gb ? 'var(--green)' : 'var(--yellow)';
+    } else {
+      movelInf.textContent = '';
+    }
+  }
   if (!plano || plano.indexOf('▶️') === 0) {
     document.getElementById('nv-valor').value = '';
     if (hint) hint.textContent = 'Defina o plano e a forma de pagamento.';

@@ -3433,6 +3433,50 @@ function getVendaPorLinha(numeroLinha) {
   }
 }
 
+// Sprint 3.2 (12/05/2026): infere automaticamente o plano Móvel Combo
+// a partir do nome do plano Fibra Combo. Regex extrai "MÓVEL NGB" → busca
+// no JSON o plano "NGB | MAIS CONECTADO | COMBO" com PRODUTO_TIPO=MOVEL_COMBO.
+// Substitui o modal manual de escolha do chip.
+// Retorna: { erro: false, produto: 'Móvel Combo', plano: 'NGB | MAIS CONECTADO | COMBO', valor: N }
+// ou { erro: true, mensagem: '...' } com mensagem clara para o operador.
+function _inferirMovelComboFromFibra_(planoFibra) {
+  var nome = String(planoFibra || '').toUpperCase();
+  var m = nome.match(/M[ÓO]VEL\s+(\d+)\s*GB/);
+  if (!m) return { erro: true, mensagem: 'Plano Fibra Combo "' + planoFibra + '" não indica GB do Móvel.' };
+  var gb = parseInt(m[1], 10) + 'GB';
+
+  var dadosTab = _getTabela();
+  if (!dadosTab || !dadosTab.length) return { erro: true, mensagem: 'TABELA indisponível.' };
+
+  var cabecalho     = dadosTab[1].map(function(h) { return _normalizarTexto(h); });
+  var colProdutoTipo= cabecalho.indexOf(_normalizarTexto('PRODUTO_TIPO'));
+  // Busca plano Móvel Combo cujo nome começa com o GB extraído
+  // Ex: "20GB | MAIS CONECTADO | COMBO" matches gb="20GB"
+  for (var ti = 2; ti < dadosTab.length; ti++) {
+    var nomePlano = String(dadosTab[ti][0] || '').trim().toUpperCase();
+    if (!nomePlano) continue;
+    if (colProdutoTipo > -1) {
+      var pt = String(dadosTab[ti][colProdutoTipo] || '').toUpperCase().trim();
+      if (pt !== 'MOVEL_COMBO') continue;
+    } else {
+      // Fallback Rev4: usa TIPO=MÓVEL COMBO
+      var tipoRow = String(dadosTab[ti][1] || '').toUpperCase();
+      if (tipoRow.indexOf('MÓVEL COMBO') === -1 && tipoRow.indexOf('MOVEL COMBO') === -1) continue;
+    }
+    if (nomePlano.indexOf(gb) === 0) {
+      // Match: nome começa com o GB esperado. Captura nome original (case original)
+      var nomeOrig = String(dadosTab[ti][0] || '').trim();
+      var valor = parseFloat(String(dadosTab[ti][2] || '').replace(',', '.')) || 0;
+      return { erro: false, produto: 'Móvel Combo', plano: nomeOrig, valor: valor };
+    }
+  }
+  return {
+    erro: true,
+    mensagem: 'Plano Móvel Combo com ' + gb + ' não encontrado na tabela. ' +
+              'Configure no JSON (`_atualizarPlanosVeroJsonRev5`) antes de cadastrar este combo.'
+  };
+}
+
 function criarVendaMovelVinculada(payload) {
   payload = payload || {};
   var linhaOrigem = parseInt(payload.linhaOrigem || payload.linhaMae || payload.linha || '', 10);
@@ -3560,6 +3604,7 @@ function salvarVenda(dados) {
   }
   var resultado = { sucesso: false };
   var _papLinha  = null; // linha da venda PAP para notificar após lock
+  var _lockReleased = false; // flag para o finally não tentar liberar 2x
   try {
     Logger.log('salvarVenda recebido: linhaReferencia=' + dados.linhaReferencia + ' | cliente=' + dados.cliente + ' | status=' + dados.status);
     dados.cliente = String(dados.cliente || '');
@@ -3670,12 +3715,49 @@ function salvarVenda(dados) {
       sheet.getRange(novaLinha, 1, 1, linhaDados.length).setValues([linhaDados]);
       _limparCache();
       resultado = { sucesso: true, linha: novaLinha, mensagem: '✅ ' + dados.cliente.trim() + ' cadastrado com sucesso!' };
+
+      // Sprint 3.2 (12/05/2026): cria Móvel Combo automaticamente quando a
+      // Fibra acabada de salvar é "Fibra Combo" e o payload contém os dados
+      // mínimos do chip (portabilidade obrigatória; contrato/linha opcionais).
+      // Substitui o modal _abrirModalMovelCombo que abria no frontend.
+      if (String(dados.produto || '').trim() === 'Fibra Combo' &&
+          String(dados.movelPortabilidade || '').trim()) {
+        try {
+          var inferido = _inferirMovelComboFromFibra_(dados.plano);
+          if (inferido.erro) {
+            resultado.avisoMovel = 'Fibra criada, mas o Móvel não pôde ser inferido: ' + inferido.mensagem;
+            Logger.log('salvarVenda: ' + resultado.avisoMovel);
+          } else {
+            // released lock antes de chamar criarVendaMovelVinculada (que adquire o seu próprio)
+            lock.releaseLock(); _lockReleased = true;
+            var resMovel = criarVendaMovelVinculada({
+              linhaOrigem:   novaLinha,
+              produto:       inferido.produto,
+              plano:         inferido.plano + ' | ' + (inferido.valor || 0).toFixed(2).replace('.', ','),
+              valor:         inferido.valor,
+              contrato:      String(dados.movelContrato || '').trim(),
+              portabilidade: String(dados.movelPortabilidade || '').trim(),
+              linhaMovel:    String(dados.movelLinha || '').trim()
+            });
+            if (resMovel && resMovel.sucesso) {
+              resultado.movelLinha = resMovel.linha;
+              resultado.mensagem = '✅ Combo criado: ' + dados.cliente.trim() + ' — Fibra + Móvel ' + inferido.plano.split(' | ')[0];
+            } else {
+              resultado.avisoMovel = 'Fibra criada, mas erro ao criar Móvel: ' + (resMovel && resMovel.mensagem || 'desconhecido');
+              Logger.log('salvarVenda: ' + resultado.avisoMovel);
+            }
+          }
+        } catch (eMovel) {
+          resultado.avisoMovel = 'Fibra criada, mas erro ao criar Móvel: ' + (eMovel && eMovel.message || eMovel);
+          Logger.log('salvarVenda: ' + resultado.avisoMovel);
+        }
+      }
     }
 
   } catch (erro) {
     resultado = { sucesso: false, mensagem: '❌ ' + erro.message };
   } finally {
-    lock.releaseLock();
+    if (!_lockReleased) { try { lock.releaseLock(); } catch (_) {} }
   }
 
   // Notificação PAP fora do lock (chamada HTTP não pode ocorrer dentro do lock)
