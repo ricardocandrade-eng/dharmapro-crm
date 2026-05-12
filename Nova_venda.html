@@ -685,7 +685,8 @@ function nvSalvar() {
           sistema: gt('nv-sistema'), segmentacao: gt('nv-segmentacao'),
           produto: g('nv-produto'), plano: g('nv-plano'),
           valor: gt('nv-valor'), observacao: gt('nv-observacao'),
-          nomeMae: gt('nv-nomeMae'), dtNasc: g('nv-dtNasc'), rg: gt('nv-rg')
+          nomeMae: gt('nv-nomeMae'), dtNasc: g('nv-dtNasc'), rg: gt('nv-rg'),
+          criadoPor: (typeof AppState !== 'undefined' && AppState.get('nomeUsuario')) || ''
         };
       })();
   // Delega ao JS.html

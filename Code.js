@@ -26,7 +26,7 @@ var CONFIG = {
   CACHE_TTL:       300, // 5 min — era 60s; invalidado corretamente por _limparCache() após escritas
   CACHE_PREFIX:    'crm_v3_',   // prefixo v3 — invalida cache após reorganização de colunas
   MAX_RESULTS:     50,
-  TOTAL_COLUNAS:   44,          // A (0) até AR (43) — sem buracos
+  TOTAL_COLUNAS:   45,          // A (0) até AS (44) — sem buracos
   TABELA_JSON_FILE_ID: '1wB9jncB_eBhGnBE-OpiZZ5UfVnvmv-ro',  // _getTabela() lê deste JSON no Drive (substitui aba TABELA)
   COLUNAS: {
     // ── Bloco 1: Venda (A–G) ────────────────────────────────────────
@@ -78,7 +78,8 @@ var CONFIG = {
     BC_STATUS:         40,  // AO - BotConversa status atendimento (Aberto/Concluído)
     VIABILIDADE:       41,  // AP - Resultado da consulta de viabilidade VeroHub
     CRIADO_EM:         42,  // AQ - Data/hora do lançamento da venda (imutável após criação)
-    VERO_STATUS:       43   // AR - Resultado do cruzamento Vero: 🟢 (match) | 🟡 (só CRM)
+    VERO_STATUS:       43,  // AR - Resultado do cruzamento Vero: 🟢 (match) | 🟡 (só CRM)
+    CRIADO_POR:        44   // AS - Nome do usuário que registrou a venda (imutável após criação)
   }
 };
 
@@ -3276,6 +3277,7 @@ function criarVendaMovelVinculada(payload) {
       dtNasc:          vendaOrigem.dtNasc || '',
       rg:              vendaOrigem.rg || '',
       segmentacao:     vendaOrigem.segmentacao || '',
+      criadoPor:       vendaOrigem.criadoPor || '',  // herda o autor da fibra-mãe
       reagendamentos:  0,
       statusPAP:       vendaOrigem.statusPAP || 'Em Aberto',
       verohub:         '',
@@ -4099,6 +4101,7 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
       if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, tz, 'dd/MM/yyyy HH:mm');
       return String(v).trim();
     })(row[c.CRIADO_EM]),
+    criadoPor:        String(row[c.CRIADO_POR] || '').trim(),
     veroStatus:       String(row[c.VERO_STATUS] || '').trim()
   };
 }
@@ -4170,6 +4173,7 @@ function _mapearLinha(row, numeroLinha) {
       if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
       return String(v).trim();
     })(row[c.CRIADO_EM]),
+    criadoPor:        String(row[c.CRIADO_POR] || '').trim(),
     veroStatus:       String(row[c.VERO_STATUS] || '').trim()
   };
 }
@@ -4296,6 +4300,7 @@ function _construirLinhaDados(d) {
   linha[c.VIABILIDADE]       = d.viabilidade       || '';
   linha[c.CRIADO_EM]         = d.criadoEm          || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
   linha[c.VERO_STATUS]       = d.veroStatus         || '';
+  linha[c.CRIADO_POR]        = d.criadoPor          || '';
   return linha;
 }
 
@@ -4310,6 +4315,10 @@ function _mesclarDadosVendaComLinhaAtual_(dados, linhaAtual, numeroLinha) {
     if (valor !== undefined) mesclado[chave] = valor;
   });
   mesclado.linhaReferencia = String(dados.linhaReferencia || numeroLinha || '');
+  // CRIADO_POR é imutável após criação — preserva o autor original se já existir
+  if (atual.criadoPor) {
+    mesclado.criadoPor = atual.criadoPor;
+  }
   return mesclado;
 }
 

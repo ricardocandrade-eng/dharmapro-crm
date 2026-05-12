@@ -523,7 +523,8 @@ function _buildVendaPayload_(contexto, vendaAtual) {
       observacao:  getTrim('nv-observacao'),
       nomeMae:     getTrim('nv-nomeMae'),
       dtNasc:      getVal('nv-dtNasc'),
-      rg:          getTrim('nv-rg')
+      rg:          getTrim('nv-rg'),
+      criadoPor:   (typeof AppState !== 'undefined' && AppState.get('nomeUsuario')) || ''
     };
   }
 
@@ -572,7 +573,8 @@ function _buildVendaPayload_(contexto, vendaAtual) {
     reagendamentos: (novaAgenda && novaAgenda !== (v.agenda || ''))
                       ? (v.reagendamentos || 0) + 1
                       : (v.reagendamentos || 0),
-    statusPAP:     v.statusPAP || ''
+    statusPAP:     v.statusPAP || '',
+    criadoPor:     (typeof AppState !== 'undefined' && AppState.get('nomeUsuario')) || ''
   };
 }
 
@@ -4637,6 +4639,7 @@ function coletarDados() {
   dados.valor = _pifValorNumero(dados.valor, document.getElementById('f_plano'));
   // PAP sempre Em Aberto quando não definido
   if (!dados.statusPAP) dados.statusPAP = 'Em Aberto';
+  dados.criadoPor = (typeof AppState !== 'undefined' && AppState.get('nomeUsuario')) || '';
   return dados;
 }
 
@@ -5869,7 +5872,9 @@ function _criarItemVenda(v, index) {
     datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
   }
   if (v.criadoEm && v.criadoEm.length >= 16) {
-    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl" style="opacity:.55">Lanç.</span><span class="vi-dval" style="opacity:.55">' + esc(v.criadoEm.substring(0,5) + ' ' + v.criadoEm.substring(11,16)) + '</span></span>';
+    var _lancVal = v.criadoEm.substring(0,5) + ' ' + v.criadoEm.substring(11,16);
+    if (v.criadoPor) _lancVal += ' · ' + v.criadoPor;
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl" style="opacity:.55">Lanç.</span><span class="vi-dval" style="opacity:.55">' + esc(_lancVal) + '</span></span>';
   }
 
   return '<div class="venda-item" id="item_' + index + '" onclick="selecionarVenda(' + index + ',this)" style="border-top:2px solid ' + topColor + '">' +
@@ -8130,7 +8135,9 @@ function _dhpDatasHtmlVenda(v) {
     datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
   }
   if (v.criadoEm && v.criadoEm.length >= 16) {
-    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl" style="opacity:.55">Lanç.</span><span class="vi-dval" style="opacity:.55">' + esc(v.criadoEm.substring(0,5) + ' ' + v.criadoEm.substring(11,16)) + '</span></span>';
+    var _lancVal = v.criadoEm.substring(0,5) + ' ' + v.criadoEm.substring(11,16);
+    if (v.criadoPor) _lancVal += ' · ' + v.criadoPor;
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl" style="opacity:.55">Lanç.</span><span class="vi-dval" style="opacity:.55">' + esc(_lancVal) + '</span></span>';
   }
   return datasHtml;
 }
@@ -8297,7 +8304,9 @@ function _dhpDatasHtmlVendaV3(v) {
     datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
   }
   if (v.criadoEm && v.criadoEm.length >= 16) {
-    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl" style="opacity:.55">Lanç.</span><span class="vi-dval" style="opacity:.55">' + esc(v.criadoEm.substring(0,5) + ' ' + v.criadoEm.substring(11,16)) + '</span></span>';
+    var _lancVal = v.criadoEm.substring(0,5) + ' ' + v.criadoEm.substring(11,16);
+    if (v.criadoPor) _lancVal += ' · ' + v.criadoPor;
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl" style="opacity:.55">Lanç.</span><span class="vi-dval" style="opacity:.55">' + esc(_lancVal) + '</span></span>';
   }
   return datasHtml;
 }
