@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 30/04/2026 -->
+<!-- dharmapro-crm | CLAUDE.md | 11/05/2026 -->
 
 # dharmapro-crm
 
@@ -77,6 +77,43 @@ Campanhas com CPL alto, CTR baixo ou frequência saturada geram cards interativo
 de Aprovar/Rejeitar conectados ao `executarAcoesAprovadas()` já existente.
 Na mesma data (v488), a janela de análise foi alinhada ao `workflow_relatorio_07h`:
 período padrão agora é `3d` com `since=hoje-3, until=ontem`.
+
+Em 11/05/2026 o **fluxo de cadastro/edição de venda** passou por uma refatoração
+estrutural completa (v550–v556) após audit das 44 colunas (A–AR) da aba `1 - Vendas`
+contra todos os caminhos de gravação (Nova Venda, painel inline, MS2/MS3, Móvel
+Combo, funil drag-and-drop, webhook BotConversa, integrações NG/Adapter).
+
+Resultado consolidado:
+- **`_construirLinhaDados` é o ponto único de normalização**: datas vão a `DD/MM/YYYY`,
+  Sistema/Segmentação fazem lookup automático via `getSistemaPorCidade`/`getSegmentacaoPorCidade`
+  quando cidade está preenchida, valor passa por `_normalizarValorParaNumero_`.
+- **`_validarTransicaoStatusServer_` em `Code.js`** valida pré-requisitos das transições
+  1→2 (`dataAtiv+contrato+agenda+turno`) e 2→3 (`instal` + obrigatoriamente vir de 2)
+  em **todos os caminhos backend** (`salvarVenda`, `moverVendaFunil`, `moverLeadAguardando`).
+- **Modais `#modalStatus2`/`#modalStatus3` eliminados**: a transição de status acontece
+  inline no painel lateral via `pifOnStatusChange` (revela a seção 📅 Datas, pré-preenche
+  com hoje, foca o próximo campo obrigatório).
+- **Frontend usa `_buildVendaPayload_(contexto, venda)` como builder único** — `pifSalvar`,
+  `nvSalvar` e helpers de transição são one-liners.
+- **`_filtrarStatusPorProduto`** preserva status legado como opção `⚠ legado` quando o
+  produto (Móvel/Fibra) não inclui o status atual no enum — resolve o bug crônico de
+  "não consigo editar status do Móvel em combo".
+- **`_propagarFibraParaMovelSeCombo_`** replica campos compartilhados (cliente/CPF/endereço/
+  contato/canal/responsável) da Fibra para o Móvel vinculado ATIVO em cada `salvarVenda`.
+- **`_decorarVendaComVinculos_`** não agrupa mais 2 Fibras como combo (fallback genérico
+  removido); `repararVinculosCombosOrfaos` ganhou janela temporal bidirecional de 7 dias.
+- **`doPost` (webhook BotConversa)** agora chama `buscarCEPBackend` e usa
+  `_construirLinhaDados` — vendas via webhook nascem com endereço + sistema/segmentação
+  completos.
+- **Mojibake zerado** em `JS.html`: 14 strings com encoding quebrado nos cards combo
+  agrupados (`MÃ³vel`, `AtivaÃ§Ã£o`, `ðŸ‘¤`, `Â·` etc) foram corrigidas — algumas eram
+  bugs funcionais (CSS class quebrada, branches que nunca disparavam).
+- **Nova seção `🔧 Sistema`** read-only no painel expõe campos antes invisíveis na UI:
+  `STATUS_PAP`, `VEROHUB`, `VEROHUB_PEDIDO/DT`, `VIABILIDADE`, `BC_*`, `CRIADO_EM`,
+  `VERO_STATUS`.
+- **Backfill executado**: `repararSistemaSegmentacao` corrigiu 7 linhas históricas;
+  `repararVinculosCombosOrfaos` vinculou TAINARA + deixou 20 ambíguos + 10 sem par
+  para revisão humana.
 
 ---
 
@@ -516,6 +553,12 @@ AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw
 | 09/05/2026 23:57 | v538 | **WA Pessoal — Saúde Dashboard.** Backend `getSaudeWaPessoal` calcula KPIs hoje vs baseline 7d (entrega %, engajamento [lido OU respondeu]/entregue %, resposta %, erros). Alertas amarelo/vermelho com sugestões anti-ban heurísticas. Read receipts amplamente desabilitados são compensados por "engajamento efetivo". Quedas relativas vs baseline geram alertas. Frontend: bloco no topo do Dashboard com banner status + alertas + 4 mini-KPIs com delta. v542 (10/05): quando `hoje.enviado=0`, mostra média baseline 7d com opacity em vez de `0% / -100%` confuso. |
 | 10/05/2026 09:58 | v543 | **WA Pessoal — toggle bypass horário (admin) + bolinha menu + rename "WhatsApp Pessoal" → "WA Campanha".** Novo endpoint `wa_pessoal_check_dispatch` substitui Code "Checa Horário" do WF1 (n8n agora chama GAS pra ver janela 08-20 + bypass admin em tempo real, fuso `America/Sao_Paulo`). Funções `setBypassHorarioWaPessoal`/`getBypassHorarioWaPessoal` (admin only) gravam em Script Property `WA_PESSOAL_BYPASS_HORARIO`. Frontend: toggle switch amarelo no Dashboard (visível só admin). `temCampanhaAtivaWaPessoal` retorna count; `_waPessoalIniciarPollingBadge()` em JS.html chama no login + 60s. CSS `.nav-badge.dot-amarelo` (8x8 amarelo + glow + animação `pulsar` reaproveitada). Rename em Index.html sidebar + JS.html breadcrumb + Usuarios.html permissões. |
 | 10/05/2026 10:12 | v544 | **WA Pessoal — auto-conclusão de campanha.** Quando WF1 chama `wa_pessoal_next_pending` e GAS não acha mais disparos `pendente`, novo helper `_concluirCampanhaSeAtiva_` muda status `ativa→concluida` em `WA Campanhas`. Não toca em `pausada`/`cancelada` (preserva intenção do usuário). Idempotente. Cascata: bolinha amarela do menu some automaticamente (`temCampanhaAtivaWaPessoal` filtra só `ativa`); badge "concluida" aparece azul no Histórico. |
+| 11/05/2026 22:40 | v556 | **Auto-fill Sistema/Segmentação em todos os caminhos de gravação.** `_construirLinhaDados` agora faz lookup via `getSistemaPorCidade`/`getSegmentacaoPorCidade` quando `d.cidade` está preenchida e os campos estão vazios (idempotente). `doPost` (webhook Botconversa) refatorado para chamar `buscarCEPBackend` e usar `_construirLinhaDados` — vendas via webhook agora nascem com endereço completo + sistema/segmentação preenchidos. Backfill: `repararSistemaSegmentacao` rodado no editor corrigiu 7 linhas históricas em "1 - Vendas". |
+| 11/05/2026 22:07 | v554 | **Defesa em profundidade nas transições de status (Zonas 1+2 do audit de robustez).** Nova função `_validarTransicaoStatusServer_(oldStatus, newStatus, campos)` em `Code.js` espelha a validação do frontend e é chamada por `salvarVenda` (após capturar `statusAntigo` pré-merge), `moverVendaFunil` (drag-and-drop no funil) e `moverLeadAguardando`. Exige `dataAtiv+contrato+agenda+turno` em 1→2 (incluindo formato NG/Adapter); exige `instal` em 2→3 e bloqueia 1→3 direto. `moverVendaFunil` e `moverLeadAguardando` agora normalizam `instal`/`agenda` para DD/MM/YYYY. `atualizarVendaComAdapter`/`atualizarVendaComNG` (integrações externas) recebem só normalização de data — preservam autoridade sobre instalação. |
+| 11/05/2026 21:38 | v553 | **Sprint 2 — payload unificado + modais MS2/MS3 eliminados (campos inline no painel).** Novo `_buildVendaPayload_(contexto, vendaAtual)` em `JS.html` consolida 3 caminhos divergentes (NV/PIF/MS2-MS3) num payload único; `pifSalvar` e `nvSalvar` viram one-liners. Novo `_pifValidarTransicaoStatus(vendaAtual, dados)` valida obrigatórios da etapa antes de chamar `salvarVenda`. `pifOnStatusChange` para de abrir MS2/MS3 — revela a seção 📅 Datas inline no painel, pré-preenche `dataAtiv`/`instal` com hoje, foca o próximo campo obrigatório vazio, mostra toast informativo. Bloqueia 1→3 direto no select. Removidos ~350 linhas de JS (funções MS2/MS3) + 110 de HTML (`#modalStatus2`/`#modalStatus3`) + 22 de CSS (`.ms-*`). Backend: `_TURNOS_VALIDOS_` domínio fechado + `_validarContratoFormatoBackend_` em `salvarVenda` para transições para 2/3. Net diff: −336 linhas. |
+| 11/05/2026 21:25 | v552 | **Fix mojibake JS.html nos cards combo agrupados + funções `_dhp*`.** 14 substituições (`MÃ³vel`→`Móvel`, `AtivaÃ§Ã£o`→`Ativação`, `Â·`→`·`, `â€"` / `â€º`→`—` / `›`, `ðŸ‘¤` / `ðŸ"‹` / `ðŸ"`→`👤` / `📋` / `🔍`). Alguns eram bugs funcionais (não cosméticos): `prodMap['MÃ³vel Combo']` nunca casava com `'Móvel Combo'` real → CSS class quebrada; `=== '1- Conferencia/AtivaÃ§Ã£o'` nunca era true → branch do VeroHub/preStatus morta no card combo. Auditoria byte-level com Python confirma zero mojibake no projeto. |
+| 11/05/2026 21:00 | v551 | **Fix combo agrupamento: card combo não agrupa mais 2 Fibras.** `_decorarVendaComVinculos_` tinha um fallback `if (!melhorFilha && filhos.length) melhorFilha = filhos[filhos.length - 1]` que, se nenhuma filha do vínculo fosse Móvel, pegava qualquer filha — incluindo Fibras Combo legadas/erróneas. Fallback removido. Agora: se nenhuma filha for Móvel, deixa sem vínculo visual. Combo = Fibra + Móvel por definição. Lateral: rodada de `repararVinculosCombosOrfaos` (filtro temporal relaxado de 24h estrito → ±7 dias bidirecional, cobrindo casos onde Móvel foi criado antes da Fibra) vinculou TAINARA FRANCIELE SILVA GOMES; 20 ambíguos + 10 sem par pendentes de revisão manual. |
+| 11/05/2026 20:32 | v550 | **Sprint 1 — saneamento do fluxo de cadastro/edição de venda (6 fixes cirúrgicos).** (1) `_filtrarStatusPorProduto` (JS.html) preserva status legado como opção marcada com ⚠ + toast — resolve "não consigo editar status de Móvel em combo" (Móvel cuja venda tinha status legado de Fibra herdado por migração). (2) `_construirLinhaDados` (Code.js) normaliza `DATA_ATIV` / `AGENDA` / `INSTAL` para `DD/MM/YYYY` via `_formatarDataNascimento` — antes os 3 caminhos gravavam em formatos divergentes (ISO no MS2/MS3, BR no PIF, `Date` no MMC). (3) MS2: produto/plano `disabled`, valor `readOnly` — transição de status não troca mais produto acidentalmente. (4) `salvarVenda` rejeita cadastro novo sem canal/responsável. (5) Novo `_propagarFibraParaMovelSeCombo_`: ao editar `cliente`/`CPF`/`endereço`/`contato`/`canal`/`resp` da Fibra, replica no Móvel vinculado ATIVO (status, produto, plano, contrato, datas e portabilidade do Móvel ficam intactos). (6) Nova seção 🔧 Sistema (read-only) no painel mostra `STATUS_PAP`, `VEROHUB`, `VEROHUB_PEDIDO/DT`, `VERO_STATUS`, `CRIADO_EM` (só quando preenchidos). |
 | 10/05/2026 10:35 | v546 | **WA Pessoal — fix tracking de respostas com privacidade LID.** Bug: WF2 `Parse e Filtro` usava `body.sender` da Evolution achando que era o phone do remetente da mensagem incoming. Mas `body.sender` é o phone do **dono da instância** (constante = teu número conectado), NÃO do remetente. Por isso match falhava em 100% das respostas com privacidade ON. Fix: voltou a usar `key.remoteJid` — se vem `phone@s.whatsapp.net` faz match exato; se vem `@lid` (privacy ON) ativa `isLid:true` e GAS faz fallback heurístico "disparo enviado mais recente da instância". Documentado no comentário do node. |
 | 09/05/2026 11:32 | v530 | **WA Pessoal — placeholders opcionais + excluir campanha.** (1) `{nome}`/`{cidade}` deixam de ser obrigatórios — variações via Claude já reduzem hash duplicado, então personalização vira opcional (chips ainda disponíveis pra mailings que tiverem os campos). Removido check em `wpAtualizarPreview`, `wpGerarVariacoes`, `wpCriarCampanha` (frontend) + `criarCampanha`, `gerarVariacoesMensagem` (backend); prompt da Claude condicionalmente inclui linha "preserve placeholders" só se original tiver. Filtro de variações continua exigindo placeholders se original tinha. (2) Nova função backend `excluirCampanha(usuario, campanhaId, usuarioAlvo)` — admin only — apaga linha em `WA Campanhas` + todas as linhas relacionadas em `WA Disparos`. Botão `🗑` no Histórico só aparece se `_wpIsAdmin=true`; usa `wpConfirm({tipo:'perigo'})` + `wpLoading`. |
 | 09/05/2026 11:22 | v529 | **WA Pessoal — UX modais.** (1) Modais (`📋 disparos`, confirm, loading) movidos pra `<body>` no `dispPessoalInit` — escapa containing block do sidebar/header do CRM (estavam ficando atrás do menu). z-index `999999`. (2) `confirm()` nativo do navegador removido em todos os fluxos: `wpConfirm({titulo, mensagem|html, okLabel, cancelLabel, tipo:'perigo', onOk})` + `wpLoading(msg)`/`wpLoadingClose()` reutilizáveis. Aplicado em "Iniciar Campanha", "Cancelar campanha" e "Desconectar WhatsApp". (3) Modal de disparos agora exibe **uma linha por contato** (Contato · Status · Última atividade); clicar expande detalhe (mensagem completa + erro + todos os timestamps + message_id). Seta ▶/▼ indica estado. (4) Ao clicar "Iniciar Campanha", aparece imediato `Processando — enfileirando disparos…` com spinner; só fecha após resposta. |
@@ -657,6 +700,22 @@ condicional ou validação de dados como "usadas", causando saltos de centenas d
   ficam como `={{$env.EVOLUTION_API_KEY}}` e `{{$env.WA_PESSOAL_SECRET}}`. Se mexer no
   workflow pelo editor n8n, manter as expressões — não recolar valor literal.
 
+### Fluxo de vendas — pendências pós-refatoração de 11/05/2026
+
+- **20 ambíguos do `repararVinculosCombosOrfaos`**: CPFs com 2+ Fibras Combo + N Móveis
+  (KARINA ALVES, LUCAS SEGANTINI, KARLLET CAROLINA, JANDERSON, SERGIO RICARDO etc) —
+  geralmente cancelamentos + renovações. Precisam revisão humana caso a caso.
+  Considerar uma aba "Vínculos Pendentes" com botões aprovar/rejeitar no CRM.
+- **10 "sem par"** do mesmo reparo: Fibras Combo sem Móvel correspondente na janela de
+  7 dias. Investigar se o Móvel existe mais distante temporalmente ou se nunca foi criado.
+- **Portabilidade obrigatória só no MMC** (audit §4 item 5): no painel de edição,
+  portabilidade pode ser apagada quando produto é Móvel. Tornar obrigatória.
+- **Domínio fechado para `VENC` e `FAT`** (audit §4 item 9): hoje texto livre. Migrar
+  para enum (Boleto, Débito automático, Cartão, Pix etc).
+- **Validação de transição em integrações externas**: `atualizarVendaComNG`/`atualizarVendaComAdapter`
+  hoje só normalizam datas e respeitam autoridade externa. Considerar log de warning
+  quando pulam de status 1 direto para 3 (operador esqueceu de passar por 2).
+
 ### Outras pendências do DharmaPro
 
 - rodar `migrarUsuariosParaSheet()` no editor Apps Script para ativar a gestao de usuarios via CRM;
@@ -665,5 +724,5 @@ condicional ou validação de dados como "usadas", causando saltos de centenas d
 - ~~resolver erro #1487194 do A2 (Instagram vinculado) antes de editar o anuncio no Ads Manager~~ ✅ 28/04/2026 — creative recriado via API;
 - consolidar o workflow WABA final no projeto `disparo-massa`;
 - documentar de forma definitiva a captura correta de `messaging_limit_tier`;
-- revisar encoding de arquivos HTML/JS antigos;
+- ~~revisar encoding de arquivos HTML/JS antigos~~ ✅ 11/05/2026 — mojibake zerado em `JS.html`;
 - rotacionar chaves expostas em testes operacionais.
