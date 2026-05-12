@@ -1225,7 +1225,7 @@ function _coletarValoresSelect(id) {
   var valores = [];
   for (var i = 0; i < el.options.length; i++) {
     var valor = String(el.options[i].value || el.options[i].text || '').trim();
-    if (!valor || valor === 'Selecione...' || valor === 'Carregando...' || valor === 'â€”') continue;
+    if (!valor || valor === 'Selecione...' || valor === 'Carregando...' || valor === '—') continue;
     valores.push(valor);
   }
   return valores;
@@ -8307,10 +8307,10 @@ _criarItemVenda = function(v, index) {
   if (v && v._dhpComboAgrupado) return _dhpCriarItemVendaAgrupada(v, index);
   var html = _dhpCriarItemVendaOriginalV2(v, index);
   if (!v || !v.comboMovelPendente) return html;
-  html = html.replace(/<div class="vi-viab-badge vi-viab-nok" style="grid-column:4;grid-row:1;justify-self:end;border-color:rgba\(247,162,59,.35\);color:var\(--yellow\);background:rgba\(247,162,59,.12\);">[^<]*Combo sem mÃ³vel<\/div>/, '');
-  html = html.replace(/<span class="vi-prestatus-badge" style="background:rgba\(247,162,59,.14\);color:var\(--yellow\);border-color:rgba\(247,162,59,.35\);">[^<]*Combo sem mÃ³vel<\/span>/g, '');
+  html = html.replace(/<div class="vi-viab-badge vi-viab-nok" style="grid-column:4;grid-row:1;justify-self:end;border-color:rgba\(247,162,59,.35\);color:var\(--yellow\);background:rgba\(247,162,59,.12\);">[^<]*Combo sem móvel<\/div>/, '');
+  html = html.replace(/<span class="vi-prestatus-badge" style="background:rgba\(247,162,59,.14\);color:var\(--yellow\);border-color:rgba\(247,162,59,.35\);">[^<]*Combo sem móvel<\/span>/g, '');
   if (html.indexOf('dhp-combo-inline-badge') !== -1) return html;
-  var badge = '<span class="dhp-combo-inline-badge">âš  Combo sem mÃ³vel</span>';
+  var badge = '<span class="dhp-combo-inline-badge">âš  Combo sem móvel</span>';
   return html.replace(/<span class="vi-nome"([^>]*)>([\s\S]*?)<\/span>/, '<div class="dhp-nome-wrap"><span class="vi-nome"$1>$2</span>' + badge + '</div>');
 };
 
@@ -8342,12 +8342,12 @@ function _dhpAgruparPaginaVendas(dados) {
 }
 
 function _dhpProdutoCls(produto) {
-  var prodMap = { 'Fibra Alone': 'vi-prod-fa', 'Fibra Combo': 'vi-prod-fc', 'MÃ³vel Combo': 'vi-prod-mc', 'MÃ³vel Alone': 'vi-prod-ma' };
+  var prodMap = { 'Fibra Alone': 'vi-prod-fa', 'Fibra Combo': 'vi-prod-fc', 'Móvel Combo': 'vi-prod-mc', 'Móvel Alone': 'vi-prod-ma' };
   return prodMap[produto] || 'vi-prod-xx';
 }
 
 function _dhpPlanoValor(venda) {
-  return [venda && venda.plano, venda && venda.valor].filter(Boolean).join(' Â· ');
+  return [venda && venda.plano, venda && venda.valor].filter(Boolean).join(' · ');
 }
 
 function _dhpDatasHtmlVenda(v) {
@@ -8388,12 +8388,12 @@ function _dhpResponsavelHtml(v) {
 
 function _dhpAcoesVenda(index, v) {
   return '<div class="vi-actions">' +
-    (v.cpf ? '<button class="btn-popup" title="Consultar CPF Assertiva" onclick="event.stopPropagation();abrirModalAssertiva(\'' + esc(v.cpf.replace(/\D/g,'')) + '\')">ðŸ‘¤</button>' : '') +
-    '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">ðŸ“‹</button>' +
-    (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">ðŸ”</button>' : '') +
+    (v.cpf ? '<button class="btn-popup" title="Consultar CPF Assertiva" onclick="event.stopPropagation();abrirModalAssertiva(\'' + esc(v.cpf.replace(/\D/g,'')) + '\')">👤</button>' : '') +
+    '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
+    (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">🔍</button>' : '') +
     (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
     (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
-    '<span class="venda-arrow">â€º</span>' +
+    '<span class="venda-arrow">›</span>' +
   '</div>';
 }
 
@@ -8408,7 +8408,7 @@ function _dhpLinhaPlanoCombo(venda) {
   return '<div class="dhp-combo-linha">' +
     produto +
     (planoValor ? '<span class="vi-plano-val">' + esc(planoValor) + '</span>' : '') +
-    (meta.length ? '<span class="dhp-combo-substatus">' + esc(meta.join(' Â· ')) + '</span>' : '') +
+    (meta.length ? '<span class="dhp-combo-substatus">' + esc(meta.join(' · ')) + '</span>' : '') +
   '</div>';
 }
 
@@ -8420,7 +8420,7 @@ function _dhpCriarItemVendaAgrupada(v, index) {
   var datasHtml = _dhpDatasHtmlVenda(v);
   var sideHtml = '';
 
-  if (v.status === '1- Conferencia/AtivaÃ§Ã£o') {
+  if (v.status === '1- Conferencia/Ativação') {
     sideHtml += _veroHubPedidoHtml(v, index);
   }
   if (v.viabilidade) {
@@ -8436,13 +8436,13 @@ function _dhpCriarItemVendaAgrupada(v, index) {
           '</div>' +
           '<div class="vi-ids">' +
             (v.cpf ? '<span class="vi-id">' + esc(v.cpf) + '</span>' : '') +
-            (v.contrato ? '<span class="vi-id-sep">Â·</span><span class="vi-id">ID Contrato ' + esc(v.contrato) + '</span>' : '') +
+            (v.contrato ? '<span class="vi-id-sep">·</span><span class="vi-id">ID Contrato ' + esc(v.contrato) + '</span>' : '') +
           '</div>' +
         '</div>' +
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">' +
           '<div style="display:flex;align-items:center;gap:6px;">' +
-            (v.preStatus && v.status === '1- Conferencia/AtivaÃ§Ã£o' ? '<span class="vi-prestatus-badge">' + esc(v.preStatus) + '</span>' : '') +
-            '<span class="vi-status" style="' + badgeStyle + '">' + esc(v.status || 'â€”') + '</span>' +
+            (v.preStatus && v.status === '1- Conferencia/Ativação' ? '<span class="vi-prestatus-badge">' + esc(v.preStatus) + '</span>' : '') +
+            '<span class="vi-status" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
           '</div>' +
           (respHtml ? '<div class="vi-row-resp" style="justify-content:flex-end">' + respHtml + '</div>' : '') +
         '</div>' +
