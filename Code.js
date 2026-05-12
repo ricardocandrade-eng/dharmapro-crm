@@ -3275,6 +3275,63 @@ function _atualizarPlanosVeroJsonRev5() {
   Logger.log('OK rev5 — ' + dados.length + ' linhas, ' + conteudo.length + ' bytes. Cache invalidado.');
 }
 
+// Rev6 (12/05/2026): adiciona "30GB | MAIS CONECTADO | COMBO" (R$ 50) e
+// corrige preço de "60GB | MAIS CONECTADO | COMBO" (R$ 50 → R$ 80, alinhado
+// à tabela MÓVEL Vero atual: VERO CONTROLE 60GB / TITULAR 60GB = R$ 80).
+// Resolve auto-inferência de Móvel Combo para planos Fibra com "MÓVEL 30GB"
+// no nome (3 planos: ESPORTES FUTEBOL, DISNEY+ ADS, PRIME VIDEO).
+function _atualizarPlanosVeroJsonRev6() {
+  var dados = [
+    ["Última atualização: 12/05/2026 — Rev6: corrige preço 60GB MAIS CONECTADO COMBO (R$50→R$80) e adiciona 30GB MAIS CONECTADO COMBO (R$50).","","NG / ADAPTER","NG / ADAPTER","NG / ADAPTER","NG / ADAPTER","LANDING PAGE","","","","","","",""],
+    ["Valores para pagamento via boleto","TIPO","ESPECIAIS","OURO","PRATA","PADRÃO","NOME_LP","FEATURES","PUBLICAR","ESPECIAIS_REC","OURO_REC","PRATA_REC","PADRÃO_REC","PRODUTO_TIPO"],
+    ["VERO MAIS 550MB + MÓVEL 20GB","VERO MAIS",112.9,112.9,112.9,112.9,"Vero Mais","20GB Celular | Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",true,"102.9","102.9","102.9","102.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB","VERO MAIS",149.9,149.9,149.9,149.9,"Vero Mais","Globo Play Premium | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,"139.9","139.9","139.9","139.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + HBO MAX + MÓVEL 20GB","VERO MAIS",149.9,149.9,149.9,149.9,"Vero Mais","HBO Max | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,"139.9","139.9","139.9","139.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB","VERO MAIS",139.9,139.9,139.9,139.9,"Vero Mais","Esportes Futebol | YouTube Premium | 30GB Celular | Wi-Fi 6 | Instalação Grátis",true,"129.9","129.9","129.9","129.9","FIBRA_COMBO"],
+    ["OFERTA VERÃO 800MB + GLP PREMIUM + HBO MAX + MÓVEL 60GB","VERO MAIS",159.9,159.9,159.9,159.9,"Vero Mais","Globo Play Premium | HBO Max | 60GB Celular | Wi-Fi 6 | Instalação Grátis",true,"149.9","149.9","149.9","149.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB","VERO MAIS",144.9,144.9,144.9,144.9,"Vero Mais","Disney Padrão | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,"134.9","134.9","134.9","134.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB","VERO MAIS",149.9,149.9,149.9,149.9,"Vero Mais","Disney Premium | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,"139.9","139.9","139.9","139.9","FIBRA_COMBO"],
+    ["VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB","VERO MAIS",189.9,189.9,189.9,189.9,"Vero Mais","Vero Video Diversão | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,"179.9","179.9","179.9","179.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB","VERO MAIS",154.9,154.9,154.9,154.9,"Vero Mais","Globoplay Premium | Assistência Residencial | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,"144.9","144.9","144.9","144.9","FIBRA_COMBO"],
+    ["VERO MAIS 1GB + GLP PREMIUM + EXITLAG + MÓVEL 60GB","VERO MAIS","209,9 (Bauru)","","","","Vero Mais","Globoplay Premium | Assistência Residencial | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"199,9 (Bauru)","","","","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB","VERO MAIS",159.9,159.9,159.9,159.9,"Vero Mais","Disney com Ads | HBO Max com Ads | 30GB Celular | Wi-Fi 6 | Instalação Grátis",true,"149.9","149.9","149.9","149.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB","VERO MAIS",159.9,159.9,159.9,159.9,"Vero Mais","Prime Video | Apple TV | 30GB Celular | Wi-Fi 6 | Instalação Grátis",true,"149.9","149.9","149.9","149.9","FIBRA_COMBO"],
+    ["VERO MAIS 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB","VERO MAIS",209.9,209.9,209.9,209.9,"Vero Mais","Prime Video | Apple TV | HBO Max | Globoplay Premium | 60GB Celular | Wi-Fi 6 | Instalação Grátis",true,"199.9","199.9","199.9","199.9","FIBRA_COMBO"],
+    ["550MB MUNDO FIBRA","MUNDO FIBRA",107.9,107.9,107.9,107.9,"Mundo Fibra","Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",true,"97.9","97.9","97.9","97.9","FIBRA_ALONE"],
+    ["550MB ASSISTÊNCIA RESIDENCIAL","MUNDO FIBRA",117.9,120.9,128.9,130.9,"Mundo Fibra","Assistência Residencial | Wi-Fi 6 | Instalação Grátis",true,"107.9","110.9","118.9","120.9","FIBRA_ALONE"],
+    ["750MB MUNDO FIBRA","MUNDO FIBRA",127.9,127.9,127.9,127.9,"Mundo Fibra","Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",true,"117.9","117.9","117.9","117.9","FIBRA_ALONE"],
+    ["600MB GLOBOPLAY PADRÃO COM ANÚNCIOS","ENTRETENIMENTO",137.9,137.9,137.9,137.9,"Mundo Entrenimento","Globo Play | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"127.9","127.9","127.9","127.9","FIBRA_ALONE"],
+    ["800MB YOUTUBE PREMIUM | HBO MAX | TELECINE","ENTRETENIMENTO",144.9,144.9,144.9,144.9,"Mundo Entrenimento","Youtube Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"134.9","134.9","134.9","134.9","FIBRA_ALONE"],
+    ["800MB DISNEY+ PADRÃO","ENTRETENIMENTO",144.9,144.9,144.9,144.9,"Mundo Entrenimento","Disney | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"134.9","134.9","134.9","134.9","FIBRA_ALONE"],
+    ["800MB DISNEY+ PREMIUM","ENTRETENIMENTO",165,165,165,165,"Mundo Entrenimento","Disney Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"155","155","155","155","FIBRA_ALONE"],
+    ["800MB GLOBOPLAY PREMIUM","ENTRETENIMENTO",144.9,144.9,144.9,144.9,"Mundo Entrenimento","Globoplay Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"134.9","134.9","134.9","134.9","FIBRA_ALONE"],
+    ["800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL","ENTRETENIMENTO",149.9,149.9,149.9,149.9,"Mundo Entrenimento","Globoplay Premium | Assistência Residencial | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"139.9","139.9","139.9","139.9","FIBRA_ALONE"],
+    ["800MB PREMIERE","ENTRETENIMENTO",160,160,160,160,"Mundo Entrenimento","Premiere | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"150","150","150","150","FIBRA_ALONE"],
+    ["850MB FILMES","COMPLETO",170,170,170,170,"Mundo Completo","Vero Video + Filmes | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"160","160","160","160","FIBRA_ALONE"],
+    ["850MB ESPORTES","COMPLETO",185,185,185,185,"Mundo Completo","Vero Video + Esportes | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"175","175","175","175","FIBRA_ALONE"],
+    ["1GB DIVERSÃO","COMPLETO",210,210,210,210,"Mundo Completo","Vero Video + Diversão | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"200","200","200","200","FIBRA_ALONE"],
+    ["800MB GAMER","GAMER",160,160,160,160,"Mundo Gamer","Exitlag | Oneplay | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"150","150","150","150","FIBRA_ALONE"],
+    ["VERO CONTROLE 10GB","MÓVEL",30,30,30,30,"","",false,30,30,30,30,"MOVEL_ALONE"],
+    ["VERO CONTROLE 20GB","MÓVEL",40,40,40,40,"","",false,40,40,40,40,"MOVEL_ALONE"],
+    ["VERO CONTROLE 30GB","MÓVEL",50,50,50,50,"","",false,50,50,50,50,"MOVEL_ALONE"],
+    ["VERO CONTROLE 60GB","MÓVEL",80,80,80,80,"","",false,80,80,80,80,"MOVEL_ALONE"],
+    ["VERO CONTROLE + CHIPS 20GB","MÓVEL",40,40,40,40,"","",false,40,40,40,40,"MOVEL_ALONE"],
+    ["ASSINATURA + CHIPS 20GB","MÓVEL",12,12,12,12,"","",false,12,12,12,12,"MOVEL_ALONE"],
+    ["VERO CONTROLE + CHIPS 30GB","MÓVEL",50,50,50,50,"","",false,50,50,50,50,"MOVEL_ALONE"],
+    ["ASSINATURA + CHIPS 30GB","MÓVEL",12,12,12,12,"","",false,12,12,12,12,"MOVEL_ALONE"],
+    ["VERO CONTROLE + CHIPS 60GB","MÓVEL",80,80,80,80,"","",false,80,80,80,80,"MOVEL_ALONE"],
+    ["ASSINATURA + CHIPS 60GB","MÓVEL",12,12,12,12,"","",false,12,12,12,12,"MOVEL_ALONE"],
+    ["10GB | MAIS CONECTADO | COMBO","MÓVEL COMBO",30,30,30,30,"","",false,30,30,30,30,"MOVEL_COMBO"],
+    ["20GB | MAIS CONECTADO | COMBO","MÓVEL COMBO",40,40,40,40,"","",false,40,40,40,40,"MOVEL_COMBO"],
+    ["30GB | MAIS CONECTADO | COMBO","MÓVEL COMBO",50,50,50,50,"","",false,50,50,50,50,"MOVEL_COMBO"],
+    ["60GB | MAIS CONECTADO | COMBO","MÓVEL COMBO",80,80,80,80,"","",false,80,80,80,80,"MOVEL_COMBO"]
+  ];
+  var conteudo = JSON.stringify(dados, null, 2);
+  DriveApp.getFileById(CONFIG.TABELA_JSON_FILE_ID).setContent(conteudo);
+  CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'tabela_v1');
+  Logger.log('OK rev6 — ' + dados.length + ' linhas, ' + conteudo.length + ' bytes. Cache invalidado.');
+}
+
 // ─── LEITURA ───────────────────────────────────────────────────────────────
 
 // ============================================================================

@@ -1,6 +1,6 @@
 [
   [
-    "Última atualização: 12/05/2026 — Rev5: col 13 PRODUTO_TIPO adicionada (FIBRA_ALONE/FIBRA_COMBO/MOVEL_ALONE/MOVEL_COMBO) para filtragem determinística.",
+    "Última atualização: 12/05/2026 — Rev6: corrige preço 60GB MAIS CONECTADO COMBO (R$50→R$80) e adiciona 30GB MAIS CONECTADO COMBO (R$50).",
     "",
     "NG / ADAPTER",
     "NG / ADAPTER",
@@ -656,7 +656,7 @@
     "MOVEL_COMBO"
   ],
   [
-    "60GB | MAIS CONECTADO | COMBO",
+    "30GB | MAIS CONECTADO | COMBO",
     "MÓVEL COMBO",
     50,
     50,
@@ -669,6 +669,22 @@
     50,
     50,
     50,
+    "MOVEL_COMBO"
+  ],
+  [
+    "60GB | MAIS CONECTADO | COMBO",
+    "MÓVEL COMBO",
+    80,
+    80,
+    80,
+    80,
+    "",
+    "",
+    false,
+    80,
+    80,
+    80,
+    80,
     "MOVEL_COMBO"
   ]
 ]
