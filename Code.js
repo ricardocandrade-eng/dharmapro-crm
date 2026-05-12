@@ -26,7 +26,7 @@ var CONFIG = {
   CACHE_TTL:       300, // 5 min — era 60s; invalidado corretamente por _limparCache() após escritas
   CACHE_PREFIX:    'crm_v3_',   // prefixo v3 — invalida cache após reorganização de colunas
   MAX_RESULTS:     50,
-  TOTAL_COLUNAS:   45,          // A (0) até AS (44) — sem buracos
+  TOTAL_COLUNAS:   46,          // A (0) até AT (45) — sem buracos
   TABELA_JSON_FILE_ID: '1wB9jncB_eBhGnBE-OpiZZ5UfVnvmv-ro',  // _getTabela() lê deste JSON no Drive (substitui aba TABELA)
   COLUNAS: {
     // ── Bloco 1: Venda (A–G) ────────────────────────────────────────
@@ -79,7 +79,8 @@ var CONFIG = {
     VIABILIDADE:       41,  // AP - Resultado da consulta de viabilidade VeroHub
     CRIADO_EM:         42,  // AQ - Data/hora do lançamento da venda (imutável após criação)
     VERO_STATUS:       43,  // AR - Resultado do cruzamento Vero: 🟢 (match) | 🟡 (só CRM)
-    CRIADO_POR:        44   // AS - Nome do usuário que registrou a venda (imutável após criação)
+    CRIADO_POR:        44,  // AS - Nome do usuário que registrou a venda (imutável após criação)
+    FORMA_PAGAMENTO:   45   // AT - 'BOLETO' ou 'RECORRENTE' (obrigatório em cadastro novo; legado pode estar vazio)
   }
 };
 
@@ -2492,10 +2493,21 @@ function getOfertasCidade(cidade) {
     var colIdx   = cabecalho.indexOf(_normalizarTexto(segmentacao));
     if (colIdx === -1) return { erro: true, mensagem: 'Segmentação "' + segmentacao + '" não encontrada na TABELA.' };
 
-    // Monta grupos de categorias com seus planos
+    // Coluna pareada com sufixo "_REC" no header (Rev4 do JSON, 12/05/2026).
+    // Fallback: se col REC não existir, usa Boleto - 10 para Fibra, Boleto para Móvel
+    // (comportamento da Rev3, mantido como segurança até o JSON ser atualizado).
+    var colIdxRec = cabecalho.indexOf(_normalizarTexto(segmentacao + '_REC'));
+
+    // Monta grupos de categorias com seus planos (boleto + recorrente lado a lado)
     var grupos = [];
     var catAtual = null;
     var planosAtual = [];
+
+    function _parseValor_(v) {
+      if (v === '' || v === null || v === undefined) return 0;
+      var s = String(v).replace(/[^0-9.,]/g, '').replace(',', '.');
+      return parseFloat(s) || 0;
+    }
 
     for (var ti = 2; ti < dadosTab.length; ti++) {
       var nomePlano = String(dadosTab[ti][0] || '').trim();
@@ -2503,19 +2515,31 @@ function getOfertasCidade(cidade) {
       var valRaw    = dadosTab[ti][colIdx];
       if (!nomePlano || valRaw === '' || valRaw === null || valRaw === 0) continue;
 
-      var valNum    = parseFloat(valRaw) || 0;
-      if (valNum === 0) continue;
+      var valBol = _parseValor_(valRaw);
+      if (valBol === 0) continue;
 
-      // Valor final: móvel não desconta, fibra desconta R$10 (boleto)
-      var ehMovel   = cat.toUpperCase().indexOf('MOVEL') > -1 || cat.toUpperCase().indexOf('MÓVEL') > -1;
-      var valFinal  = ehMovel ? valNum : valNum - 10;
+      var ehMovel = cat.toUpperCase().indexOf('MOVEL') > -1 || cat.toUpperCase().indexOf('MÓVEL') > -1;
+      var valRec;
+      if (colIdxRec > -1) {
+        valRec = _parseValor_(dadosTab[ti][colIdxRec]);
+        if (valRec === 0) valRec = ehMovel ? valBol : (valBol - 10); // fallback se REC vier vazio
+      } else {
+        valRec = ehMovel ? valBol : (valBol - 10); // sem col REC: deduz como antes
+      }
 
       if (cat !== catAtual) {
         if (catAtual !== null) grupos.push({ categoria: catAtual, planos: planosAtual });
         catAtual   = cat;
         planosAtual= [];
       }
-      planosAtual.push({ nome: nomePlano, valor: valFinal.toFixed(2).replace('.', ',') });
+      planosAtual.push({
+        nome:            nomePlano,
+        valorBoleto:     valBol.toFixed(2).replace('.', ','),
+        valorRecorrente: valRec.toFixed(2).replace('.', ','),
+        // 'valor' mantido por backward-compat: alias para o recorrente
+        // (era o comportamento da Rev3 com hardcode -10).
+        valor:           valRec.toFixed(2).replace('.', ',')
+      });
     }
     if (catAtual !== null) grupos.push({ categoria: catAtual, planos: planosAtual });
 
@@ -2682,6 +2706,71 @@ function getSegmentacaoPorCidade(cidade) {
   } catch(e) {
     Logger.log('getSegmentacaoPorCidade erro: ' + e);
     return '';
+  }
+}
+
+// ─── VALOR DE UM PLANO POR CIDADE + FORMA DE PAGAMENTO ─────────────────────
+// Sprint 3 (12/05/2026): retorna o valor exato do plano considerando se é
+// boleto ou recorrente. Frontend chama em duas situações:
+//   1. ao trocar a Forma de Pagamento no select (recalcula valor)
+//   2. ao trocar de plano com Forma já selecionada (preenche valor)
+//   plano: aceita "Nome do Plano" puro OU "Nome | R$ XX,XX" (parser tolerante)
+//   cidade: nome da cidade (mesma normalização de getSistemaPorCidade)
+//   forma: 'BOLETO' ou 'RECORRENTE' (default 'RECORRENTE' se vier vazio/desconhecido)
+// Retorna: { erro: boolean, valor: number, mensagem?: string }
+function getValorPlano(plano, cidade, forma) {
+  try {
+    var dadosTab = _getTabela();
+    var dadosCid = _getCidades();
+    if (!dadosTab || !dadosTab.length || !dadosCid || !dadosCid.length) {
+      return { erro: true, mensagem: 'TABELA ou CIDADES indisponíveis.' };
+    }
+
+    // Resolve segmentação pela cidade
+    var cidNorm  = _normalizarTexto(cidade);
+    var segmentacao = '';
+    for (var ci = 0; ci < dadosCid.length; ci++) {
+      if (_normalizarTexto(dadosCid[ci][6]) === cidNorm) { segmentacao = String(dadosCid[ci][3] || '').trim(); break; }
+    }
+    if (!segmentacao) return { erro: true, mensagem: 'Cidade não mapeada em CIDADES.' };
+
+    var cabecalho = dadosTab[1].map(function(h) { return _normalizarTexto(h); });
+    var formaNorm = String(forma || '').toUpperCase().trim();
+    var sufixo    = (formaNorm === 'BOLETO') ? '' : '_REC';
+    var colIdx    = cabecalho.indexOf(_normalizarTexto(segmentacao + sufixo));
+    if (colIdx === -1 && sufixo) {
+      // Fallback: tabela ainda em Rev3 sem cols REC — usa boleto e deduz
+      colIdx = cabecalho.indexOf(_normalizarTexto(segmentacao));
+    }
+    if (colIdx === -1) return { erro: true, mensagem: 'Segmentação "' + segmentacao + '" não encontrada.' };
+
+    // Extrai nome puro do plano (aceita "Nome | R$ XX,XX" do select do CRM)
+    var nomePuro = String(plano || '').split('|')[0].trim();
+    if (!nomePuro) return { erro: true, mensagem: 'Plano vazio.' };
+    var nomeNorm = _normalizarTexto(nomePuro);
+
+    for (var ti = 2; ti < dadosTab.length; ti++) {
+      var nomeRow = String(dadosTab[ti][0] || '').trim();
+      if (!nomeRow) continue;
+      if (_normalizarTexto(nomeRow) !== nomeNorm) continue;
+      var raw = dadosTab[ti][colIdx];
+      if (raw === '' || raw === null || raw === undefined) {
+        return { erro: true, mensagem: 'Plano sem valor para a segmentação "' + segmentacao + '".' };
+      }
+      var s = String(raw).replace(/[^0-9.,]/g, '').replace(',', '.');
+      var valor = parseFloat(s) || 0;
+      // Fallback Rev3: se forma=RECORRENTE mas o JSON só tem boleto, aplica regra antiga
+      if (formaNorm !== 'BOLETO' && cabecalho.indexOf(_normalizarTexto(segmentacao + '_REC')) === -1) {
+        var cat = String(dadosTab[ti][1] || '').toUpperCase();
+        var ehMovel = cat.indexOf('MOVEL') > -1 || cat.indexOf('MÓVEL') > -1;
+        if (!ehMovel) valor = valor - 10;
+      }
+      return { erro: false, valor: valor };
+    }
+    return { erro: true, mensagem: 'Plano "' + nomePuro + '" não encontrado na TABELA.' };
+  } catch (e) {
+    Logger.log('getValorPlano erro: ' + (e && e.message || e));
+    return { erro: true, mensagem: e.message || String(e) };
   }
 }
 
@@ -3036,6 +3125,61 @@ function _atualizarPlanosVeroJsonRev3() {
   Logger.log('OK rev3 — ' + dados.length + ' linhas, ' + conteudo.length + ' bytes. Cache invalidado.');
 }
 
+// Rev4 (12/05/2026): adiciona 4 cols REC ao final (ESPECIAIS_REC, OURO_REC,
+// PRATA_REC, PADRÃO_REC). Fibra: REC = Boleto − R$10. Móvel: REC = Boleto
+// (sem desconto recorrente formal). Backward-compatible: cols 0-8 idênticas
+// à Rev3, novas cols 9-12 ignoradas por callers antigos.
+function _atualizarPlanosVeroJsonRev4() {
+  var dados = [
+    ["Última atualização: 12/05/2026 — Forma de Pagamento (Boleto vs Recorrente). Cols 2-5: Boleto. Cols 9-12: Recorrente (Fibra = Boleto - R$10; Móvel = Boleto, sem desconto formal).","","NG / ADAPTER","NG / ADAPTER","NG / ADAPTER","NG / ADAPTER","LANDING PAGE","","","","","",""],
+    ["Valores para pagamento via boleto","TIPO","ESPECIAIS","OURO","PRATA","PADRÃO","NOME_LP","FEATURES","PUBLICAR","ESPECIAIS_REC","OURO_REC","PRATA_REC","PADRÃO_REC"],
+    ["VERO MAIS 550MB + MÓVEL 20GB","VERO MAIS",112.9,112.9,112.9,112.9,"Vero Mais","20GB Celular | Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",true,102.9,102.9,102.9,102.9],
+    ["VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB","VERO MAIS",149.9,149.9,149.9,149.9,"Vero Mais","Globo Play Premium | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,139.9,139.9,139.9,139.9],
+    ["VERO MAIS 800MB + HBO MAX + MÓVEL 20GB","VERO MAIS",149.9,149.9,149.9,149.9,"Vero Mais","HBO Max | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,139.9,139.9,139.9,139.9],
+    ["VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB","VERO MAIS",139.9,139.9,139.9,139.9,"Vero Mais","Esportes Futebol | YouTube Premium | 30GB Celular | Wi-Fi 6 | Instalação Grátis",true,129.9,129.9,129.9,129.9],
+    ["OFERTA VERÃO 800MB + GLP PREMIUM + HBO MAX + MÓVEL 60GB","VERO MAIS",159.9,159.9,159.9,159.9,"Vero Mais","Globo Play Premium | HBO Max | 60GB Celular | Wi-Fi 6 | Instalação Grátis",true,149.9,149.9,149.9,149.9],
+    ["VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB","VERO MAIS",144.9,144.9,144.9,144.9,"Vero Mais","Disney Padrão | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,134.9,134.9,134.9,134.9],
+    ["VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB","VERO MAIS",149.9,149.9,149.9,149.9,"Vero Mais","Disney Premium | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,139.9,139.9,139.9,139.9],
+    ["VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB","VERO MAIS",189.9,189.9,189.9,189.9,"Vero Mais","Vero Video Diversão | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,179.9,179.9,179.9,179.9],
+    ["VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB","VERO MAIS",154.9,154.9,154.9,154.9,"Vero Mais","Globoplay Premium | Assistência Residencial | 20GB Celular | Wi-Fi 6 | Instalação Grátis",true,144.9,144.9,144.9,144.9],
+    ["VERO MAIS 1GB + GLP PREMIUM + EXITLAG + MÓVEL 60GB","VERO MAIS","209,9 (Bauru)","","","","Vero Mais","Globoplay Premium | Assistência Residencial | Wi-Fi 6 | Kiddle | Instalação Grátis",true,"199,9 (Bauru)","","",""],
+    ["VERO MAIS 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB","VERO MAIS",159.9,159.9,159.9,159.9,"Vero Mais","Disney com Ads | HBO Max com Ads | 30GB Celular | Wi-Fi 6 | Instalação Grátis",true,149.9,149.9,149.9,149.9],
+    ["VERO MAIS 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB","VERO MAIS",159.9,159.9,159.9,159.9,"Vero Mais","Prime Video | Apple TV | 30GB Celular | Wi-Fi 6 | Instalação Grátis",true,149.9,149.9,149.9,149.9],
+    ["VERO MAIS 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB","VERO MAIS",209.9,209.9,209.9,209.9,"Vero Mais","Prime Video | Apple TV | HBO Max | Globoplay Premium | 60GB Celular | Wi-Fi 6 | Instalação Grátis",true,199.9,199.9,199.9,199.9],
+    ["550MB MUNDO FIBRA","MUNDO FIBRA",107.9,107.9,107.9,107.9,"Mundo Fibra","Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",true,97.9,97.9,97.9,97.9],
+    ["550MB ASSISTÊNCIA RESIDENCIAL","MUNDO FIBRA",117.9,120.9,128.9,130.9,"Mundo Fibra","Assistência Residencial | Wi-Fi 6 | Instalação Grátis",true,107.9,110.9,118.9,120.9],
+    ["750MB MUNDO FIBRA","MUNDO FIBRA",127.9,127.9,127.9,127.9,"Mundo Fibra","Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",true,117.9,117.9,117.9,117.9],
+    ["600MB GLOBOPLAY PADRÃO COM ANÚNCIOS","ENTRETENIMENTO",137.9,137.9,137.9,137.9,"Mundo Entrenimento","Globo Play | Wi-Fi 6 | Kiddle | Instalação Grátis",true,127.9,127.9,127.9,127.9],
+    ["800MB YOUTUBE PREMIUM | HBO MAX | TELECINE","ENTRETENIMENTO",144.9,144.9,144.9,144.9,"Mundo Entrenimento","Youtube Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",true,134.9,134.9,134.9,134.9],
+    ["800MB DISNEY+ PADRÃO","ENTRETENIMENTO",144.9,144.9,144.9,144.9,"Mundo Entrenimento","Disney | Wi-Fi 6 | Kiddle | Instalação Grátis",true,134.9,134.9,134.9,134.9],
+    ["800MB DISNEY+ PREMIUM","ENTRETENIMENTO",165,165,165,165,"Mundo Entrenimento","Disney Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",true,155,155,155,155],
+    ["800MB GLOBOPLAY PREMIUM","ENTRETENIMENTO",144.9,144.9,144.9,144.9,"Mundo Entrenimento","Globoplay Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",true,134.9,134.9,134.9,134.9],
+    ["800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL","ENTRETENIMENTO",149.9,149.9,149.9,149.9,"Mundo Entrenimento","Globoplay Premium | Assistência Residencial | Wi-Fi 6 | Kiddle | Instalação Grátis",true,139.9,139.9,139.9,139.9],
+    ["800MB PREMIERE","ENTRETENIMENTO",160,160,160,160,"Mundo Entrenimento","Premiere | Wi-Fi 6 | Kiddle | Instalação Grátis",true,150,150,150,150],
+    ["850MB FILMES","COMPLETO",170,170,170,170,"Mundo Completo","Vero Video + Filmes | Wi-Fi 6 | Kiddle | Instalação Grátis",true,160,160,160,160],
+    ["850MB ESPORTES","COMPLETO",185,185,185,185,"Mundo Completo","Vero Video + Esportes | Wi-Fi 6 | Kiddle | Instalação Grátis",true,175,175,175,175],
+    ["1GB DIVERSÃO","COMPLETO",210,210,210,210,"Mundo Completo","Vero Video + Diversão | Wi-Fi 6 | Kiddle | Instalação Grátis",true,200,200,200,200],
+    ["800MB GAMER","GAMER",160,160,160,160,"Mundo Gamer","Exitlag | Oneplay | Wi-Fi 6 | Kiddle | Instalação Grátis",true,150,150,150,150],
+    ["VERO CONTROLE 10GB","MÓVEL",30,30,30,30,"","",false,30,30,30,30],
+    ["VERO CONTROLE 20GB","MÓVEL",40,40,40,40,"","",false,40,40,40,40],
+    ["VERO CONTROLE 30GB","MÓVEL",50,50,50,50,"","",false,50,50,50,50],
+    ["VERO CONTROLE 60GB","MÓVEL",80,80,80,80,"","",false,80,80,80,80],
+    ["VERO CONTROLE + CHIPS 20GB","MÓVEL",40,40,40,40,"","",false,40,40,40,40],
+    ["ASSINATURA + CHIPS 20GB","MÓVEL",12,12,12,12,"","",false,12,12,12,12],
+    ["VERO CONTROLE + CHIPS 30GB","MÓVEL",50,50,50,50,"","",false,50,50,50,50],
+    ["ASSINATURA + CHIPS 30GB","MÓVEL",12,12,12,12,"","",false,12,12,12,12],
+    ["VERO CONTROLE + CHIPS 60GB","MÓVEL",80,80,80,80,"","",false,80,80,80,80],
+    ["ASSINATURA + CHIPS 60GB","MÓVEL",12,12,12,12,"","",false,12,12,12,12],
+    ["10GB | MAIS CONECTADO | COMBO","MÓVEL COMBO",30,30,30,30,"","",false,30,30,30,30],
+    ["20GB | MAIS CONECTADO | COMBO","MÓVEL COMBO",40,40,40,40,"","",false,40,40,40,40],
+    ["60GB | MAIS CONECTADO | COMBO","MÓVEL COMBO",50,50,50,50,"","",false,50,50,50,50]
+  ];
+  var conteudo = JSON.stringify(dados, null, 2);
+  DriveApp.getFileById(CONFIG.TABELA_JSON_FILE_ID).setContent(conteudo);
+  CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'tabela_v1');
+  Logger.log('OK rev4 — ' + dados.length + ' linhas, ' + conteudo.length + ' bytes. Cache invalidado.');
+}
+
 // ─── LEITURA ───────────────────────────────────────────────────────────────
 
 // ============================================================================
@@ -3268,7 +3412,7 @@ function criarVendaMovelVinculada(payload) {
       uf:              vendaOrigem.uf || '',
       sistema:         vendaOrigem.sistema || '',
       venc:            vendaOrigem.venc || '',
-      fat:             vendaOrigem.fat || '',
+      // Sprint 3: FAT (col Q) liberada — não gravamos mais
       plano:           plano,
       valor:           valor,
       linhaMovel:      linhaMovel,
@@ -3277,7 +3421,8 @@ function criarVendaMovelVinculada(payload) {
       dtNasc:          vendaOrigem.dtNasc || '',
       rg:              vendaOrigem.rg || '',
       segmentacao:     vendaOrigem.segmentacao || '',
-      criadoPor:       vendaOrigem.criadoPor || '',  // herda o autor da fibra-mãe
+      criadoPor:       vendaOrigem.criadoPor || '',       // herda o autor da fibra-mãe
+      formaPagamento:  vendaOrigem.formaPagamento || '',  // Sprint 3: Móvel herda Forma de Pagamento da Fibra
       reagendamentos:  0,
       statusPAP:       vendaOrigem.statusPAP || 'Em Aberto',
       verohub:         '',
@@ -3346,6 +3491,13 @@ function salvarVenda(dados) {
     if (!dados.linhaReferencia || dados.linhaReferencia === '') {
       if (!String(dados.canal || '').trim()) throw new Error('Canal é obrigatório.');
       if (!String(dados.resp  || '').trim()) throw new Error('Responsável é obrigatório.');
+      // Sprint 3 (12/05/2026): Forma de Pagamento e Vencimento obrigatórios em cadastro novo.
+      // Legado (sem linhaReferencia mas com cadastro pré-feature) não cai aqui.
+      var fpNova = String(dados.formaPagamento || '').toUpperCase().trim();
+      if (fpNova !== 'BOLETO' && fpNova !== 'RECORRENTE') {
+        throw new Error('Forma de Pagamento é obrigatória (Boleto ou Recorrente).');
+      }
+      if (!String(dados.venc || '').trim()) throw new Error('Vencimento é obrigatório.');
     }
 
     // Turno: domínio fechado (Manhã, Tarde, vazio). Qualquer outro valor vira ''.
@@ -4102,7 +4254,8 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
       return String(v).trim();
     })(row[c.CRIADO_EM]),
     criadoPor:        String(row[c.CRIADO_POR] || '').trim(),
-    veroStatus:       String(row[c.VERO_STATUS] || '').trim()
+    veroStatus:       String(row[c.VERO_STATUS] || '').trim(),
+    formaPagamento:   String(row[c.FORMA_PAGAMENTO] || '').trim()
   };
 }
 
@@ -4174,7 +4327,8 @@ function _mapearLinha(row, numeroLinha) {
       return String(v).trim();
     })(row[c.CRIADO_EM]),
     criadoPor:        String(row[c.CRIADO_POR] || '').trim(),
-    veroStatus:       String(row[c.VERO_STATUS] || '').trim()
+    veroStatus:       String(row[c.VERO_STATUS] || '').trim(),
+    formaPagamento:   String(row[c.FORMA_PAGAMENTO] || '').trim()
   };
 }
 
@@ -4280,7 +4434,10 @@ function _construirLinhaDados(d) {
   linha[c.UF]          = d.uf          || '';
   linha[c.SISTEMA]     = d.sistema     || '';
   linha[c.VENC]        = d.venc        || '';
-  linha[c.FAT]         = d.fat         || '';
+  // Sprint 3 (12/05/2026): FAT (col Q) liberada — fonte da verdade agora é
+  // FORMA_PAGAMENTO (col AT). Não gravamos mais nada aqui. A coluna pode
+  // ser limpa manualmente e reutilizada para outro dado.
+  // linha[c.FAT] = d.fat || '';
   linha[c.PLANO]       = d.plano       || '';
   linha[c.VALOR]       = _normalizarValorParaNumero_(d.valor);
   linha[c.LINHA_MOVEL]   = d.linhaMovel    || '';
@@ -4301,6 +4458,8 @@ function _construirLinhaDados(d) {
   linha[c.CRIADO_EM]         = d.criadoEm          || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
   linha[c.VERO_STATUS]       = d.veroStatus         || '';
   linha[c.CRIADO_POR]        = d.criadoPor          || '';
+  // AT = FORMA_PAGAMENTO: 'BOLETO' | 'RECORRENTE' | '' (legado vazio até ser editado)
+  linha[c.FORMA_PAGAMENTO]   = d.formaPagamento    || '';
   return linha;
 }
 
@@ -4328,7 +4487,10 @@ function _mesclarDadosVendaComLinhaAtual_(dados, linhaAtual, numeroLinha) {
 var _COMBO_PROPAGAVEIS_ = [
   'cpf','cliente','whats','tel','nomeMae','dtNasc','rg',
   'cep','rua','num','complemento','bairro','cidade','uf','sistema','segmentacao',
-  'venc','fat','canal','resp'
+  'venc','canal','resp',
+  // Sprint 3 (12/05/2026): Forma de Pagamento entra no propagáveis; FAT
+  // (legado) sai — sua coluna foi liberada e não é mais gravada.
+  'formaPagamento'
 ];
 
 function _propagarFibraParaMovelSeCombo_(sheet, linhaMae, dadosMae) {
@@ -4457,7 +4619,8 @@ function _resumirVendaVinculada_(venda) {
     plano:         venda.plano          || '',
     valor:         venda.valor          || '',
     venc:          venda.venc           || '',
-    fat:           venda.fat            || '',
+    fat:           venda.fat            || '',  // legado — manter até col Q ser repurposada
+    formaPagamento:venda.formaPagamento || '',  // Sprint 3
     status:        venda.status         || '',
     preStatus:     venda.preStatus      || '',
     contrato:      venda.contrato       || '',

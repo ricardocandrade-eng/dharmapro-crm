@@ -2615,16 +2615,26 @@
                     </select>
                   </div>
                   <div class="pif-group">
-                    <label>Valor</label>
-                    <input type="text" id="pif-valor" placeholder="R$ 0,00">
+                    <label>Forma de Pagamento</label>
+                    <select id="pif-formaPagamento" onchange="pifOnFormaPagamentoChange()">
+                      <option value="">—</option>
+                      <option value="BOLETO">💰 Boleto</option>
+                      <option value="RECORRENTE">🔁 Pagamento Recorrente</option>
+                    </select>
                   </div>
                   <div class="pif-group">
                     <label>Vencimento</label>
-                    <input type="text" id="pif-venc" placeholder="Ex: 10">
+                    <select id="pif-venc">
+                      <option value="">—</option>
+                      <option value="05">Dia 05</option>
+                      <option value="10">Dia 10</option>
+                      <option value="13">Dia 13</option>
+                      <option value="19">Dia 19</option>
+                    </select>
                   </div>
                   <div class="pif-group">
-                    <label>Pagamento</label>
-                    <input type="text" id="pif-fat" placeholder="Ex: Boleto">
+                    <label>Valor</label>
+                    <input type="text" id="pif-valor" placeholder="R$ 0,00">
                   </div>
                 </div>
               </div>

@@ -1,12 +1,16 @@
-﻿[
+[
   [
-    "Última atualização: 11/05/2026 — REDE VERO SEM RECORRENTE (REDE EPON e Pagamento Recorrente fora de escopo)",
+    "Última atualização: 12/05/2026 — Forma de Pagamento (Boleto vs Recorrente). Cols 2-5: Boleto. Cols 9-12: Recorrente (Fibra = Boleto - R$10; Móvel = Boleto, sem desconto formal).",
     "",
     "NG / ADAPTER",
     "NG / ADAPTER",
     "NG / ADAPTER",
     "NG / ADAPTER",
     "LANDING PAGE",
+    "",
+    "",
+    "",
+    "",
     "",
     ""
   ],
@@ -19,7 +23,11 @@
     "PADRÃO",
     "NOME_LP",
     "FEATURES",
-    "PUBLICAR"
+    "PUBLICAR",
+    "ESPECIAIS_REC",
+    "OURO_REC",
+    "PRATA_REC",
+    "PADRÃO_REC"
   ],
   [
     "VERO MAIS 550MB + MÓVEL 20GB",
@@ -30,7 +38,11 @@
     112.9,
     "Vero Mais",
     "20GB Celular | Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",
-    true
+    true,
+    "102.9",
+    "102.9",
+    "102.9",
+    "102.9"
   ],
   [
     "VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB",
@@ -41,7 +53,11 @@
     149.9,
     "Vero Mais",
     "Globo Play Premium | 20GB Celular | Wi-Fi 6 | Instalação Grátis",
-    true
+    true,
+    "139.9",
+    "139.9",
+    "139.9",
+    "139.9"
   ],
   [
     "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB",
@@ -52,7 +68,11 @@
     149.9,
     "Vero Mais",
     "HBO Max | 20GB Celular | Wi-Fi 6 | Instalação Grátis",
-    true
+    true,
+    "139.9",
+    "139.9",
+    "139.9",
+    "139.9"
   ],
   [
     "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
@@ -63,7 +83,11 @@
     139.9,
     "Vero Mais",
     "Esportes Futebol | YouTube Premium | 30GB Celular | Wi-Fi 6 | Instalação Grátis",
-    true
+    true,
+    "129.9",
+    "129.9",
+    "129.9",
+    "129.9"
   ],
   [
     "OFERTA VERÃO 800MB + GLP PREMIUM + HBO MAX + MÓVEL 60GB",
@@ -74,7 +98,11 @@
     159.9,
     "Vero Mais",
     "Globo Play Premium | HBO Max | 60GB Celular | Wi-Fi 6 | Instalação Grátis",
-    true
+    true,
+    "149.9",
+    "149.9",
+    "149.9",
+    "149.9"
   ],
   [
     "VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB",
@@ -85,7 +113,11 @@
     144.9,
     "Vero Mais",
     "Disney Padrão | 20GB Celular | Wi-Fi 6 | Instalação Grátis",
-    true
+    true,
+    "134.9",
+    "134.9",
+    "134.9",
+    "134.9"
   ],
   [
     "VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB",
@@ -96,7 +128,11 @@
     149.9,
     "Vero Mais",
     "Disney Premium | 20GB Celular | Wi-Fi 6 | Instalação Grátis",
-    true
+    true,
+    "139.9",
+    "139.9",
+    "139.9",
+    "139.9"
   ],
   [
     "VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB",
@@ -107,7 +143,11 @@
     189.9,
     "Vero Mais",
     "Vero Video Diversão | 20GB Celular | Wi-Fi 6 | Instalação Grátis",
-    true
+    true,
+    "179.9",
+    "179.9",
+    "179.9",
+    "179.9"
   ],
   [
     "VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB",
@@ -118,7 +158,11 @@
     154.9,
     "Vero Mais",
     "Globoplay Premium | Assistência Residencial | 20GB Celular | Wi-Fi 6 | Instalação Grátis",
-    true
+    true,
+    "144.9",
+    "144.9",
+    "144.9",
+    "144.9"
   ],
   [
     "VERO MAIS 1GB + GLP PREMIUM + EXITLAG + MÓVEL 60GB",
@@ -129,7 +173,11 @@
     "",
     "Vero Mais",
     "Globoplay Premium | Assistência Residencial | Wi-Fi 6 | Kiddle | Instalação Grátis",
-    true
+    true,
+    "199.9 (Bauru)",
+    "",
+    "",
+    ""
   ],
   [
     "VERO MAIS 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB",
@@ -140,7 +188,11 @@
     159.9,
     "Vero Mais",
     "Disney com Ads | HBO Max com Ads | 30GB Celular | Wi-Fi 6 | Instalação Grátis",
-    true
+    true,
+    "149.9",
+    "149.9",
+    "149.9",
+    "149.9"
   ],
   [
     "VERO MAIS 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB",
@@ -151,7 +203,11 @@
     159.9,
     "Vero Mais",
     "Prime Video | Apple TV | 30GB Celular | Wi-Fi 6 | Instalação Grátis",
-    true
+    true,
+    "149.9",
+    "149.9",
+    "149.9",
+    "149.9"
   ],
   [
     "VERO MAIS 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB",
@@ -162,7 +218,11 @@
     209.9,
     "Vero Mais",
     "Prime Video | Apple TV | HBO Max | Globoplay Premium | 60GB Celular | Wi-Fi 6 | Instalação Grátis",
-    true
+    true,
+    "199.9",
+    "199.9",
+    "199.9",
+    "199.9"
   ],
   [
     "550MB MUNDO FIBRA",
@@ -173,7 +233,11 @@
     107.9,
     "Mundo Fibra",
     "Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",
-    true
+    true,
+    "97.9",
+    "97.9",
+    "97.9",
+    "97.9"
   ],
   [
     "550MB ASSISTÊNCIA RESIDENCIAL",
@@ -184,7 +248,11 @@
     130.9,
     "Mundo Fibra",
     "Assistência Residencial | Wi-Fi 6 | Instalação Grátis",
-    true
+    true,
+    "107.9",
+    "110.9",
+    "118.9",
+    "120.9"
   ],
   [
     "750MB MUNDO FIBRA",
@@ -195,7 +263,11 @@
     127.9,
     "Mundo Fibra",
     "Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis",
-    true
+    true,
+    "117.9",
+    "117.9",
+    "117.9",
+    "117.9"
   ],
   [
     "600MB GLOBOPLAY PADRÃO COM ANÚNCIOS",
@@ -206,7 +278,11 @@
     137.9,
     "Mundo Entrenimento",
     "Globo Play | Wi-Fi 6 | Kiddle | Instalação Grátis",
-    true
+    true,
+    "127.9",
+    "127.9",
+    "127.9",
+    "127.9"
   ],
   [
     "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
@@ -217,7 +293,11 @@
     144.9,
     "Mundo Entrenimento",
     "Youtube Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",
-    true
+    true,
+    "134.9",
+    "134.9",
+    "134.9",
+    "134.9"
   ],
   [
     "800MB DISNEY+ PADRÃO",
@@ -228,7 +308,11 @@
     144.9,
     "Mundo Entrenimento",
     "Disney | Wi-Fi 6 | Kiddle | Instalação Grátis",
-    true
+    true,
+    "134.9",
+    "134.9",
+    "134.9",
+    "134.9"
   ],
   [
     "800MB DISNEY+ PREMIUM",
@@ -239,7 +323,11 @@
     165,
     "Mundo Entrenimento",
     "Disney Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",
-    true
+    true,
+    "155",
+    "155",
+    "155",
+    "155"
   ],
   [
     "800MB GLOBOPLAY PREMIUM",
@@ -250,7 +338,11 @@
     144.9,
     "Mundo Entrenimento",
     "Globoplay Premium | Wi-Fi 6 | Kiddle | Instalação Grátis",
-    true
+    true,
+    "134.9",
+    "134.9",
+    "134.9",
+    "134.9"
   ],
   [
     "800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL",
@@ -261,7 +353,11 @@
     149.9,
     "Mundo Entrenimento",
     "Globoplay Premium | Assistência Residencial | Wi-Fi 6 | Kiddle | Instalação Grátis",
-    true
+    true,
+    "139.9",
+    "139.9",
+    "139.9",
+    "139.9"
   ],
   [
     "800MB PREMIERE",
@@ -272,7 +368,11 @@
     160,
     "Mundo Entrenimento",
     "Premiere | Wi-Fi 6 | Kiddle | Instalação Grátis",
-    true
+    true,
+    "150",
+    "150",
+    "150",
+    "150"
   ],
   [
     "850MB FILMES",
@@ -283,7 +383,11 @@
     170,
     "Mundo Completo",
     "Vero Video + Filmes | Wi-Fi 6 | Kiddle | Instalação Grátis",
-    true
+    true,
+    "160",
+    "160",
+    "160",
+    "160"
   ],
   [
     "850MB ESPORTES",
@@ -294,7 +398,11 @@
     185,
     "Mundo Completo",
     "Vero Video + Esportes | Wi-Fi 6 | Kiddle | Instalação Grátis",
-    true
+    true,
+    "175",
+    "175",
+    "175",
+    "175"
   ],
   [
     "1GB DIVERSÃO",
@@ -305,7 +413,11 @@
     210,
     "Mundo Completo",
     "Vero Video + Diversão | Wi-Fi 6 | Kiddle | Instalação Grátis",
-    true
+    true,
+    "200",
+    "200",
+    "200",
+    "200"
   ],
   [
     "800MB GAMER",
@@ -316,7 +428,11 @@
     160,
     "Mundo Gamer",
     "Exitlag | Oneplay | Wi-Fi 6 | Kiddle | Instalação Grátis",
-    true
+    true,
+    "150",
+    "150",
+    "150",
+    "150"
   ],
   [
     "VERO CONTROLE 10GB",
@@ -327,7 +443,11 @@
     30,
     "",
     "",
-    false
+    false,
+    30,
+    30,
+    30,
+    30
   ],
   [
     "VERO CONTROLE 20GB",
@@ -338,7 +458,11 @@
     40,
     "",
     "",
-    false
+    false,
+    40,
+    40,
+    40,
+    40
   ],
   [
     "VERO CONTROLE 30GB",
@@ -349,7 +473,11 @@
     50,
     "",
     "",
-    false
+    false,
+    50,
+    50,
+    50,
+    50
   ],
   [
     "VERO CONTROLE 60GB",
@@ -360,7 +488,11 @@
     80,
     "",
     "",
-    false
+    false,
+    80,
+    80,
+    80,
+    80
   ],
   [
     "VERO CONTROLE + CHIPS 20GB",
@@ -371,7 +503,11 @@
     40,
     "",
     "",
-    false
+    false,
+    40,
+    40,
+    40,
+    40
   ],
   [
     "ASSINATURA + CHIPS 20GB",
@@ -382,7 +518,11 @@
     12,
     "",
     "",
-    false
+    false,
+    12,
+    12,
+    12,
+    12
   ],
   [
     "VERO CONTROLE + CHIPS 30GB",
@@ -393,7 +533,11 @@
     50,
     "",
     "",
-    false
+    false,
+    50,
+    50,
+    50,
+    50
   ],
   [
     "ASSINATURA + CHIPS 30GB",
@@ -404,7 +548,11 @@
     12,
     "",
     "",
-    false
+    false,
+    12,
+    12,
+    12,
+    12
   ],
   [
     "VERO CONTROLE + CHIPS 60GB",
@@ -415,7 +563,11 @@
     80,
     "",
     "",
-    false
+    false,
+    80,
+    80,
+    80,
+    80
   ],
   [
     "ASSINATURA + CHIPS 60GB",
@@ -426,7 +578,11 @@
     12,
     "",
     "",
-    false
+    false,
+    12,
+    12,
+    12,
+    12
   ],
   [
     "10GB | MAIS CONECTADO | COMBO",
@@ -437,7 +593,11 @@
     30,
     "",
     "",
-    false
+    false,
+    30,
+    30,
+    30,
+    30
   ],
   [
     "20GB | MAIS CONECTADO | COMBO",
@@ -448,7 +608,11 @@
     40,
     "",
     "",
-    false
+    false,
+    40,
+    40,
+    40,
+    40
   ],
   [
     "60GB | MAIS CONECTADO | COMBO",
@@ -459,6 +623,10 @@
     50,
     "",
     "",
-    false
+    false,
+    50,
+    50,
+    50,
+    50
   ]
 ]

@@ -289,10 +289,67 @@ function _pifPreencherPlanos(planos) {
 function pifOnPlanoChange() {
   var plano = document.getElementById('pif-plano').value;
   if (!plano || plano.indexOf('▶️') === 0) return;
+  // Sprint 3: se Forma já está definida, recalcula via backend (preço exato).
+  var formaEl = document.getElementById('pif-formaPagamento');
+  if (formaEl && formaEl.value) {
+    pifOnFormaPagamentoChange();
+    return;
+  }
+  // Sem forma: usa preview do label do option
   var partes = plano.split(' | ');
   if (partes.length >= 2) {
     document.getElementById('pif-valor').value = 'R$ ' + partes[partes.length - 1].trim();
   }
+}
+
+// Sprint 3 (12/05/2026): troca de Forma de Pagamento no painel recalcula valor.
+function pifOnFormaPagamentoChange() {
+  var plano  = document.getElementById('pif-plano').value;
+  var forma  = document.getElementById('pif-formaPagamento').value;
+  var cidade = document.getElementById('pif-cidade').value;
+  var valorEl = document.getElementById('pif-valor');
+  if (!plano || plano.indexOf('▶️') === 0 || !forma || !cidade) return;
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (!r || r.erro) {
+        if (typeof mostrarToast === 'function' && r && r.mensagem) mostrarToast('⚠️ ' + r.mensagem, 'warning');
+        return;
+      }
+      valorEl.value = 'R$ ' + r.valor.toFixed(2).replace('.', ',');
+    })
+    .getValorPlano(plano, cidade, forma);
+}
+
+// Sprint 3 (12/05/2026): formata FORMA_PAGAMENTO para exibição.
+// 'BOLETO'/'RECORRENTE' -> '💰 Boleto' / '🔁 Recorrente'. Qualquer outro
+// valor (legado, sem dado) -> '' (cai no '—' do _c2).
+function _labelFormaPagamento(forma) {
+  var f = String(forma || '').toUpperCase().trim();
+  if (f === 'BOLETO')     return '💰 Boleto';
+  if (f === 'RECORRENTE') return '🔁 Recorrente';
+  return '';
+}
+
+// Sprint 3 — popula select com fallback de valor legado (se valor atual não está
+// nas opções, prepende como ⚠ legado pra não sobrescrever silenciosamente).
+function _pifSetSelectComLegado(id, valor, opcoesValidas, formatLegado) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var v = String(valor || '').trim();
+  // Remove possíveis options de legado pré-existentes (id-based)
+  var i = 0;
+  while (i < el.options.length) {
+    if (el.options[i].getAttribute('data-legado') === '1') el.remove(i);
+    else i++;
+  }
+  if (v && opcoesValidas.indexOf(v) === -1) {
+    var opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = (formatLegado || function(x){ return '⚠ ' + x + ' (legado)'; })(v);
+    opt.setAttribute('data-legado', '1');
+    el.insertBefore(opt, el.firstChild);
+  }
+  el.value = v;
 }
 
 // Salva edição inline
@@ -361,8 +418,12 @@ function painelToggleEdicao() {
       elPre.style.opacity = ehConf ? '' : '0.35';
     }
     _pifSet('pif-valor',      _pifValorParaExibir(v.valor));
-    _pifSet('pif-venc',       v.venc       || '');
-    _pifSet('pif-fat',        v.fat        || '');
+    // Sprint 3: pif-venc agora é dropdown (05/10/13/19). Valores legados (qualquer
+    // outra string) entram como opção ⚠ pra não sobrescrever silenciosamente.
+    _pifSetSelectComLegado('pif-venc', v.venc || '', ['05','10','13','19'], function(x){ return '⚠ ' + x + ' (legado)'; });
+    // Sprint 3: pif-formaPagamento — BOLETO | RECORRENTE | '' (vazio = legado pré-feature)
+    _pifSetSelectComLegado('pif-formaPagamento', v.formaPagamento || '', ['BOLETO','RECORRENTE'], function(x){ return '⚠ ' + x + ' (legado)'; });
+    // Sprint 3 (12/05/2026): pif-fat removido do painel (col Q liberada)
     _pifSet('pif-observacao', v.observacao || '');
 
     // Preencher responsável — carrega lista completa do servidor
@@ -520,6 +581,9 @@ function _buildVendaPayload_(contexto, vendaAtual) {
       produto:     getVal('nv-produto'),
       plano:       getVal('nv-plano'),
       valor:       getTrim('nv-valor'),
+      // Sprint 3 (12/05/2026): Forma de Pagamento e Vencimento (col P e AT)
+      formaPagamento: getVal('nv-formaPagamento'),
+      venc:           getVal('nv-venc'),
       observacao:  getTrim('nv-observacao'),
       nomeMae:     getTrim('nv-nomeMae'),
       dtNasc:      getVal('nv-dtNasc'),
@@ -562,8 +626,10 @@ function _buildVendaPayload_(contexto, vendaAtual) {
     nomeMae:       getTrim('pif-nomeMae'),
     dtNasc:        getVal('pif-dtNasc'),
     rg:            getTrim('pif-rg'),
-    venc:          getTrim('pif-venc'),
-    fat:           getTrim('pif-fat'),
+    venc:          getVal('pif-venc'),
+    // Sprint 3 (12/05/2026): pif-fat removido — coluna Q liberada
+    // Forma de Pagamento (col AT) é a fonte da verdade.
+    formaPagamento: getVal('pif-formaPagamento'),
     linhaMovel:    getTrim('pif-linhaMovel'),
     portabilidade: getVal('pif-portabilidade'),
     dataAtiv:      inputToDate('pif-dataAtiv'),
@@ -2575,19 +2641,26 @@ function _renderizarOfertas(res) {
     _ofertasWhatsText += icon + ' *' + grupo.categoria.toUpperCase() + '*\n';
 
     grupo.planos.forEach(function(p) {
+      // Sprint 3 (12/05/2026): exibe os 2 valores (boleto + recorrente).
+      // Backward compat: se vier só p.valor (cache antigo), usa o que tiver.
+      var vRec = p.valorRecorrente || p.valor || '';
+      var vBol = p.valorBoleto     || '';
+      var valoresHtml = vBol
+        ? ('<span class="ofertas-plano-valor"><span style="opacity:.6;font-size:11px;">Boleto </span>R$ ' + esc(vBol) + ' <span style="opacity:.4;">·</span> <span style="opacity:.6;font-size:11px;">Recorrente </span>R$ ' + esc(vRec) + '</span>')
+        : ('<span class="ofertas-plano-valor">R$ ' + esc(vRec) + '</span>');
       html +=
         '<div class="ofertas-plano-row">' +
           '<span class="ofertas-plano-nome">' + esc(p.nome) + '</span>' +
-          '<span class="ofertas-plano-valor">R$ ' + esc(p.valor) + '</span>' +
+          valoresHtml +
         '</div>';
-      _ofertasWhatsText += '• ' + p.nome + ' — *R$ ' + p.valor + '*\n';
+      _ofertasWhatsText += '• ' + p.nome + (vBol ? ' — *R$ ' + vBol + ' (boleto) · R$ ' + vRec + ' (recorrente)*' : ' — *R$ ' + vRec + '*') + '\n';
     });
 
     html += '</div>';
     _ofertasWhatsText += '\n';
   });
 
-  _ofertasWhatsText += '_*Valores para cartão, pix automático e débito em conta. Boleto +R$10,00.*_\n';
+  _ofertasWhatsText += '_*Valores recorrentes: cartão, pix automático ou débito em conta. Boleto +R$10,00.*_\n';
   _ofertasWhatsText += '_Sujeito a viabilidade técnica e análise de crédito._';
 
   html += '<div style="font-size:10px;color:var(--muted);margin-top:8px;font-family:\'DM Mono\',monospace;line-height:1.5;">' +
@@ -5998,7 +6071,7 @@ function mostrarPainel(v) {
           _c2('Plano',      v.plano, true) +
           _c2('Valor',      v.valor) +
           _c2('Vencimento', v.venc) +
-          _c2('Pagamento',  v.fat) +
+          _c2('Forma',      _labelFormaPagamento(v.formaPagamento)) +
           (_ehMovel ? _c2('Linha Móvel',   v.linhaMovel) : '') +
           (_ehMovel ? _c2('Portabilidade', v.portabilidade) : '') +
         '</div>' +
@@ -7962,7 +8035,7 @@ function _dhpMostrarPainelCombo(v) {
         _c('Plano',      v.plano,                 true) +
         _c('Valor',      _val(v.valor, v.plano)) +
         _c('Vencimento', v.venc) +
-        _c('Pagamento',  v.fat) +
+        _c('Forma',      _labelFormaPagamento(v.formaPagamento)) +
       '</div>' +
       '<div class="painel-campos" style="margin-top:4px;">' +
         (v.dataAtiv  ? _c('Ativação',   _fmtData(v.dataAtiv))  : '') +
@@ -7989,7 +8062,7 @@ function _dhpMostrarPainelCombo(v) {
         _c('Plano',        mr.plano,                  true) +
         _c('Valor',        _val(mr.valor, mr.plano)) +
         _c('Vencimento',   mr.venc) +
-        _c('Pagamento',    mr.fat) +
+        _c('Forma',        _labelFormaPagamento(mr.formaPagamento)) +
         _c('Linha Móvel',  mr.linhaMovel) +
         _c('Portabilidade',mr.portabilidade) +
         (mr.contrato ? _c('ID Contrato', mr.contrato) : '') +
