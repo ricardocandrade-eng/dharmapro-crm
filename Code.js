@@ -3752,6 +3752,25 @@ function salvarVenda(dados) {
       }
       resultado = { sucesso: true, linha: linhaNum, mensagem: '✅ ' + dados.cliente.trim() + ' atualizado com sucesso!' };
     } else {
+      // ── CADASTRO NOVO ──────────────────────────────────────────────────
+      // Sprint 3.2 (rev2, 12/05/2026): cadastro de Fibra Combo é ATÔMICO.
+      // Valida pré-condições do Móvel ANTES de gravar a Fibra — se faltar
+      // Portabilidade ou inferência falhar, aborta sem deixar a Fibra órfã.
+      // Se a gravação do Móvel falhar APÓS gravar a Fibra (race condition,
+      // lock, etc), reverte a linha da Fibra via clearContent (preserva
+      // numeração das linhas em "Vinculos Vendas").
+      var ehFibraComboNovo = String(dados.produto || '').trim() === 'Fibra Combo';
+      var inferidoMovel = null;
+      if (ehFibraComboNovo) {
+        if (!String(dados.movelPortabilidade || '').trim()) {
+          throw new Error('Portabilidade do Móvel é obrigatória ao cadastrar Fibra Combo.');
+        }
+        inferidoMovel = _inferirMovelComboFromFibra_(dados.plano);
+        if (inferidoMovel.erro) {
+          throw new Error('Não foi possível inferir o plano Móvel: ' + inferidoMovel.mensagem);
+        }
+      }
+
       var linhaDados = _construirLinhaDados(dados);
       var ultimaSheet = sheet.getLastRow();
       var novaLinha;
@@ -3773,40 +3792,46 @@ function salvarVenda(dados) {
       _limparCache();
       resultado = { sucesso: true, linha: novaLinha, mensagem: '✅ ' + dados.cliente.trim() + ' cadastrado com sucesso!' };
 
-      // Sprint 3.2 (12/05/2026): cria Móvel Combo automaticamente quando a
-      // Fibra acabada de salvar é "Fibra Combo" e o payload contém os dados
-      // mínimos do chip (portabilidade obrigatória; contrato/linha opcionais).
-      // Substitui o modal _abrirModalMovelCombo que abria no frontend.
-      if (String(dados.produto || '').trim() === 'Fibra Combo' &&
-          String(dados.movelPortabilidade || '').trim()) {
+      // Cria Móvel Combo automaticamente (validação prévia já garantiu que
+      // chega aqui só se Portabilidade + inferência estiverem OK). Se mesmo
+      // assim falhar a gravação do Móvel, REVERTE a Fibra (clearContent).
+      if (ehFibraComboNovo && inferidoMovel) {
+        var resMovel = null;
+        var erroMovel = null;
         try {
-          var inferido = _inferirMovelComboFromFibra_(dados.plano);
-          if (inferido.erro) {
-            resultado.avisoMovel = 'Fibra criada, mas o Móvel não pôde ser inferido: ' + inferido.mensagem;
-            Logger.log('salvarVenda: ' + resultado.avisoMovel);
-          } else {
-            // released lock antes de chamar criarVendaMovelVinculada (que adquire o seu próprio)
-            lock.releaseLock(); _lockReleased = true;
-            var resMovel = criarVendaMovelVinculada({
-              linhaOrigem:   novaLinha,
-              produto:       inferido.produto,
-              plano:         inferido.plano + ' | ' + (inferido.valor || 0).toFixed(2).replace('.', ','),
-              valor:         inferido.valor,
-              contrato:      String(dados.movelContrato || '').trim(),
-              portabilidade: String(dados.movelPortabilidade || '').trim(),
-              linhaMovel:    String(dados.movelLinha || '').trim()
-            });
-            if (resMovel && resMovel.sucesso) {
-              resultado.movelLinha = resMovel.linha;
-              resultado.mensagem = '✅ Combo criado: ' + dados.cliente.trim() + ' — Fibra + Móvel ' + inferido.plano.split(' | ')[0];
-            } else {
-              resultado.avisoMovel = 'Fibra criada, mas erro ao criar Móvel: ' + (resMovel && resMovel.mensagem || 'desconhecido');
-              Logger.log('salvarVenda: ' + resultado.avisoMovel);
-            }
-          }
+          // releases lock antes — criarVendaMovelVinculada adquire o seu próprio
+          lock.releaseLock(); _lockReleased = true;
+          resMovel = criarVendaMovelVinculada({
+            linhaOrigem:   novaLinha,
+            produto:       inferidoMovel.produto,
+            plano:         inferidoMovel.plano + ' | ' + (inferidoMovel.valor || 0).toFixed(2).replace('.', ','),
+            valor:         inferidoMovel.valor,
+            contrato:      String(dados.movelContrato || '').trim(),
+            portabilidade: String(dados.movelPortabilidade || '').trim(),
+            linhaMovel:    String(dados.movelLinha || '').trim()
+          });
         } catch (eMovel) {
-          resultado.avisoMovel = 'Fibra criada, mas erro ao criar Móvel: ' + (eMovel && eMovel.message || eMovel);
-          Logger.log('salvarVenda: ' + resultado.avisoMovel);
+          erroMovel = (eMovel && eMovel.message) || String(eMovel);
+        }
+
+        if (resMovel && resMovel.sucesso) {
+          resultado.movelLinha = resMovel.linha;
+          resultado.mensagem   = '✅ Combo criado: ' + dados.cliente.trim() + ' — Fibra + Móvel ' + inferidoMovel.plano.split(' | ')[0];
+        } else {
+          // ── REVERSÃO ATÔMICA ─────────────────────────────────────────
+          // Limpa o conteúdo da linha da Fibra recém-criada para não deixar
+          // venda órfã. Usa clearContent em vez de deleteRow para preservar
+          // a numeração das linhas (vinculos em "Vinculos Vendas" são por
+          // número de linha; deletar quebraria índices).
+          var msgErroMovel = erroMovel || (resMovel && resMovel.mensagem) || 'erro desconhecido';
+          try {
+            sheet.getRange(novaLinha, 1, 1, CONFIG.TOTAL_COLUNAS).clearContent();
+            _limparCache();
+            Logger.log('salvarVenda: Fibra revertida (linha ' + novaLinha + ') após falha no Móvel: ' + msgErroMovel);
+          } catch (eRev) {
+            Logger.log('salvarVenda: FALHA AO REVERTER linha ' + novaLinha + ': ' + (eRev && eRev.message || eRev) + ' — venda órfã possível.');
+          }
+          resultado = { sucesso: false, mensagem: '❌ Erro ao criar Móvel Combo: ' + msgErroMovel + ' — venda cancelada.' };
         }
       }
     }
