@@ -943,7 +943,8 @@ function doGet(e) {
   if (action === 'planos') {
     var cidade  = (e.parameter.cidade  || '').trim();
     var produto = (e.parameter.produto || '').trim().toUpperCase();
-    if (produto === 'FIBRA') produto = 'FIBRA_ALONE';  // compat com PlanosSection.tsx legado
+    // produto=FIBRA captura FIBRA_ALONE + FIBRA_COMBO via prefixo (idem MOVEL).
+    // FIBRA_ALONE / FIBRA_COMBO / MOVEL_ALONE / MOVEL_COMBO explícitos seguem como filtro exato.
     var forma = (e.parameter.forma || 'BOLETO').toUpperCase();
     return ContentService
       .createTextOutput(JSON.stringify(_serveActionPlanos_(cidade, produto, forma)))
@@ -3113,7 +3114,9 @@ function _serveActionPlanos_(cidade, produto, forma) {
       if (publicar !== true && publicar !== 'SIM') continue;
 
       if (produtoNorm && colProduto > -1) {
-        if (_normalizarTexto(dadosTab[ti][colProduto]) !== produtoNorm) continue;
+        // Match por prefixo: 'FIBRA' captura FIBRA_ALONE+FIBRA_COMBO; 'FIBRA_ALONE' segue exato.
+        var prodTipo = _normalizarTexto(dadosTab[ti][colProduto]);
+        if (prodTipo.indexOf(produtoNorm) !== 0) continue;
       }
 
       var nome = String(dadosTab[ti][0] || '').trim();
