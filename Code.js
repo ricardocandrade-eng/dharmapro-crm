@@ -935,6 +935,26 @@ function doGet(e) {
   // View mobile — servida quando ?view=mobile está na URL
   var view = (e && e.parameter && e.parameter.view) ? e.parameter.view : '';
 
+  // ── API pública: planos/cidades (consumidores externos — ofertasverointernet, Renata) ─
+  // Fonte da verdade dos planos da Vero — mesmo JSON do Drive (`planos_vero.json`)
+  // já consumido internamente pelo CRM via `_getTabela()` (cache 600s).
+  // Sem secret: dados públicos (preços de plano + cidades com cobertura).
+  var action = (e && e.parameter && e.parameter.action) || '';
+  if (action === 'planos') {
+    var cidade  = (e.parameter.cidade  || '').trim();
+    var produto = (e.parameter.produto || '').trim().toUpperCase();
+    if (produto === 'FIBRA') produto = 'FIBRA_ALONE';  // compat com PlanosSection.tsx legado
+    var forma = (e.parameter.forma || 'BOLETO').toUpperCase();
+    return ContentService
+      .createTextOutput(JSON.stringify(_serveActionPlanos_(cidade, produto, forma)))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  if (action === 'cidades') {
+    return ContentService
+      .createTextOutput(JSON.stringify(_serveActionCidades_()))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   // ── PWA: Manifest (Android/Chrome) ────────────────────────────────────────
   // Acessado automaticamente pelo browser ao carregar Mobile.html.
   // Permite instalar o CRM como app na tela inicial do celular.
@@ -3054,6 +3074,154 @@ function _getTabela() {
     if (json.length < 95000) cache.put(key, json, 600);
   } catch(e) {}
   return rows;
+}
+
+// ─── API PÚBLICA — `?action=planos` e `?action=cidades` (doGet) ──────────────
+// Consumidores externos: ofertasverointernet (PlanosSection.tsx, HeroForm.tsx)
+// e agente-ia-vero (Renata, via HTTP node n8n com cache 1h).
+// Single source: `planos_vero.json` no Drive, lido via _getTabela() (cache 600s).
+
+function _serveActionPlanos_(cidade, produto, forma) {
+  try {
+    var dadosTab = _getTabela();
+    if (!dadosTab || dadosTab.length < 3) {
+      return { ok: false, mensagem: 'TABELA indisponível.', planos: [], total: 0 };
+    }
+
+    var cabecalho = dadosTab[1].map(function(h) { return _normalizarTexto(h); });
+
+    // Resolve segmentação pela cidade; default PADRÃO se cidade vazia/não mapeada
+    var segmentacao = cidade ? String(getSegmentacaoPorCidade(cidade) || '').trim() : '';
+    if (!segmentacao) segmentacao = 'PADRÃO';
+
+    var segNorm     = _normalizarTexto(segmentacao);
+    var colBoleto   = cabecalho.indexOf(segNorm);
+    var colRec      = cabecalho.indexOf(segNorm + '_REC');           // -1 em Rev3 e anteriores
+    var colProduto  = cabecalho.indexOf(_normalizarTexto('PRODUTO_TIPO')); // -1 em Rev4 e anteriores
+    var colPublicar = cabecalho.indexOf(_normalizarTexto('PUBLICAR'));
+
+    if (colBoleto === -1) {
+      return { ok: false, mensagem: 'Segmentação "' + segmentacao + '" ausente no cabeçalho.', planos: [], total: 0 };
+    }
+
+    var produtoNorm = _normalizarTexto(produto);
+    var planos = [];
+
+    for (var ti = 2; ti < dadosTab.length; ti++) {
+      var publicar = colPublicar > -1 ? dadosTab[ti][colPublicar] : true;
+      // PUBLICAR é boolean (Rev2+) ou string 'SIM' em revisões antigas — aceita ambos
+      if (publicar !== true && publicar !== 'SIM') continue;
+
+      if (produtoNorm && colProduto > -1) {
+        if (_normalizarTexto(dadosTab[ti][colProduto]) !== produtoNorm) continue;
+      }
+
+      var nome = String(dadosTab[ti][0] || '').trim();
+      if (!nome) continue;
+
+      var tipo  = String(dadosTab[ti][1] || '').trim();
+      var precoBoletoRaw = dadosTab[ti][colBoleto];
+      var precoRecRaw;
+      if (colRec > -1) {
+        precoRecRaw = dadosTab[ti][colRec];
+      } else {
+        // Fallback Rev3: recorrente = boleto - 10 para Fibra; Móvel preserva (mesma regra de getValorPlano)
+        var ehMovel = tipo.toUpperCase().indexOf('MOVEL') > -1 || tipo.toUpperCase().indexOf('MÓVEL') > -1;
+        if (!ehMovel && typeof precoBoletoRaw === 'number') {
+          precoRecRaw = precoBoletoRaw - 10;
+        } else {
+          precoRecRaw = precoBoletoRaw;
+        }
+      }
+
+      planos.push({
+        nome:             nome,
+        tipo:             tipo,
+        produto_tipo:     colProduto > -1 ? String(dadosTab[ti][colProduto] || '') : '',
+        nome_lp:          String(dadosTab[ti][6] || ''),
+        features:         _parseFeatures_(dadosTab[ti][7]),
+        speed:            _deriveSpeed_(nome),
+        destaque:         false,
+        preco:            _formatarPrecoBR_(forma === 'RECORRENTE' ? precoRecRaw : precoBoletoRaw),
+        preco_boleto:     _formatarPrecoBR_(precoBoletoRaw),
+        preco_recorrente: _formatarPrecoBR_(precoRecRaw)
+      });
+    }
+
+    // Heurística destaque: primeiro VERO MAIS da lista filtrada
+    for (var i = 0; i < planos.length; i++) {
+      if (planos[i].tipo === 'VERO MAIS') { planos[i].destaque = true; break; }
+    }
+
+    return {
+      ok: true,
+      gerado_em: new Date().toISOString(),
+      cidade: cidade,
+      segmentacao: segmentacao,
+      total: planos.length,
+      planos: planos
+    };
+  } catch (err) {
+    Logger.log('_serveActionPlanos_ erro: ' + (err && err.message || err));
+    return { ok: false, mensagem: String((err && err.message) || err), planos: [], total: 0 };
+  }
+}
+
+function _serveActionCidades_() {
+  try {
+    var rows = _getCidades();
+    var nomes = [];
+    var vistos = {};
+    // rows[i][6] = nome da cidade (mesmo índice usado em getSistemaPorCidade/getSegmentacaoPorCidade)
+    for (var i = 0; i < rows.length; i++) {
+      var nome = String(rows[i][6] || '').trim();
+      if (!nome) continue;
+      var k = _normalizarTexto(nome);
+      if (vistos[k]) continue;
+      vistos[k] = true;
+      nomes.push(nome);
+    }
+    nomes.sort(function(a, b) { return a.localeCompare(b, 'pt-BR'); });
+    return { ok: true, total: nomes.length, cidades: nomes };
+  } catch (err) {
+    Logger.log('_serveActionCidades_ erro: ' + (err && err.message || err));
+    return { ok: false, mensagem: String((err && err.message) || err), cidades: [] };
+  }
+}
+
+function _parseFeatures_(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.map(function(x) { return String(x).trim(); }).filter(Boolean);
+  return String(raw)
+    .split(/[|;]/)
+    .map(function(s) { return s.trim(); })
+    .filter(Boolean);
+}
+
+function _deriveSpeed_(nome) {
+  // Extrai velocidade do nome do plano. Ex: "VERO MAIS 550MB + ..." → { valor: '550', unidade: 'MB' }.
+  // Retorna undefined para planos sem velocidade óbvia (Móvel, combos sem MB/GB no nome).
+  var m = String(nome || '').match(/(\d+(?:[.,]\d+)?)\s*(MB|GIGA|GB|MEGA)\b/i);
+  if (!m) return undefined;
+  var valor = m[1].replace(',', '.');
+  var unidadeRaw = m[2].toUpperCase();
+  var unidade = (unidadeRaw === 'GIGA' || unidadeRaw === 'GB') ? 'Giga' : 'MB';
+  return { valor: valor, unidade: unidade };
+}
+
+function _formatarPrecoBR_(raw) {
+  // Devolve string no formato BR ("112,90"). Preserva strings exóticas do JSON (ex: "209,9 (Bauru)").
+  // Strings puramente numéricas (ex: "97.9" — formato como recorrentes estão hoje no JSON) são normalizadas.
+  if (raw === null || raw === undefined || raw === '') return '';
+  if (typeof raw === 'number') {
+    return raw.toFixed(2).replace('.', ',');
+  }
+  var s = String(raw).trim();
+  if (/^\d+([.,]\d+)?$/.test(s)) {
+    var n = parseFloat(s.replace(',', '.'));
+    if (!isNaN(n)) return n.toFixed(2).replace('.', ',');
+  }
+  return s;
 }
 
 

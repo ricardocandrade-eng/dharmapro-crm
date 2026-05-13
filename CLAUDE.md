@@ -427,6 +427,70 @@ Qualquer função que chama `_getTabela()`:
 - `getOfertasCidade(cidade)` — Mapa de Ofertas (botão flutuante "+")
 - `getPlanosPorCidadeProduto(cidade, produto)` — Nova Venda (dropdown plano)
 - `buscarCEPBackend(cep, produto)` — fluxo CEP → planos
+- **API pública** `doGet ?action=planos` / `?action=cidades` — consumidores externos (`ofertasverointernet`, `agente-ia-vero/Renata`).
+
+### Endpoint público (`?action=planos`, `?action=cidades`)
+
+Desde 12/05/2026, o `doGet` expõe duas rotas GET públicas (sem secret — dados são públicos) que servem o conteúdo do `planos_vero.json` em shape "amigável" para consumidores externos. Ambas reusam `_getTabela()` e `_getCidades()` (cache 600s) — não há leitura adicional do Drive/Sheets.
+
+URL base: o deployment principal do Web App (mesmo `AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw/exec`).
+
+**`?action=planos&cidade={cidade}&produto={produto}&forma={forma}`**
+
+| Param | Valores | Default |
+|---|---|---|
+| `cidade` | nome da cidade (ex.: `Juiz de Fora`). Vazio = `PADRÃO`. | `''` |
+| `produto` | `FIBRA_ALONE`, `FIBRA_COMBO`, `MOVEL_ALONE`, `MOVEL_COMBO`, vazio (todos). `FIBRA` é aceito como alias de `FIBRA_ALONE` (compat com PlanosSection.tsx legado). | `''` |
+| `forma` | `BOLETO` ou `RECORRENTE`. Controla o alias do campo `preco`. | `BOLETO` |
+
+Response (shape unificado — superset retrocompatível com a interface `Plano` de `PlanosSection.tsx`):
+
+```json
+{ "ok": true,
+  "gerado_em": "2026-05-12T12:30:00Z",
+  "cidade": "Juiz de Fora",
+  "segmentacao": "PADRÃO",
+  "total": 22,
+  "planos": [
+    { "nome":             "VERO MAIS 550MB + MÓVEL 20GB",
+      "tipo":             "VERO MAIS",
+      "produto_tipo":     "FIBRA_ALONE",
+      "nome_lp":          "Vero Mais",
+      "features":         ["20GB Celular", "Wi-Fi 6", "Kiddle", "Estuda Mais", "Instalação Grátis"],
+      "speed":            { "valor": "550", "unidade": "MB" },
+      "destaque":         true,
+      "preco":            "112,90",
+      "preco_boleto":     "112,90",
+      "preco_recorrente": "102,90" }
+  ]
+}
+```
+
+Regras de geração:
+- **Filtro `PUBLICAR`**: aceita boolean `true` (Rev2+) E string `'SIM'` (revisões antigas) — planos Móvel (`MÓVEL`/`MÓVEL COMBO`) têm `PUBLICAR=false` e ficam de fora desta rota.
+- **Filtro `PRODUTO_TIPO`** (col 13, Rev5+): match exato após normalização. Em revisões anteriores (Rev4-) a col não existe e o filtro de produto é ignorado.
+- **`preco`** é alias dinâmico: `preco = forma === 'RECORRENTE' ? preco_recorrente : preco_boleto`. Garante compat com clientes que leem apenas `preco`.
+- **Fallback Rev3** (sem colunas `_REC`): `preco_recorrente = preco_boleto − 10` para Fibra; Móvel preserva (mesma regra de `getValorPlano`).
+- **`speed`** derivado por regex `/(\d+)\s*(MB|GIGA|GB|MEGA)/i` no `nome`. `undefined` quando não casa.
+- **`features`** splita por `|` ou `;` (col 7 hoje é string).
+- **`destaque`** heurístico: primeiro plano com `tipo === 'VERO MAIS'` na lista filtrada.
+- Preços-strings exóticos do JSON (ex.: `"209,9 (Bauru)"`) são preservados como string.
+
+**`?action=cidades`**
+
+Response:
+```json
+{ "ok": true, "total": 412, "cidades": ["Aimorés", "Alfenas", "..."] }
+```
+
+Array de strings (compat com `setCidades` em `PlanosSection.tsx:31`).
+
+**Cache**: o `_getTabela()` cacheia o JSON por 600s. Atualizar preços via helper one-off (vide fluxo abaixo) invalida o cache automaticamente — endpoint reflete imediatamente.
+
+**Consumidores conhecidos**:
+- `ofertasverointernet/components/PlanosSection.tsx` (LP por cidade — desde 12/05/2026).
+- `ofertasverointernet/components/HeroForm.tsx`.
+- `agente-ia-vero` n8n node `no4c_consultar_planos_vero` (Renata IA — Fase 2 pendente).
 
 ### Fluxo de atualização (quando a Vero muda preços)
 
@@ -594,6 +658,8 @@ AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw
 | 09/05/2026 23:34 | v536 | **WA Pessoal — pendência #2 (envio de imagens).** Backend: `uploadImagemCampanha(usuario, base64, filename, mimeType)` em DispPessoalAPI.js — salva no Drive (folder "WA Pessoal Imagens"), `setSharing(ANYONE_WITH_LINK, VIEW)`, retorna URL `drive.google.com/uc?export=download&id=...`. `criarCampanha` aceita `dados.imagem_url` e grava em col N `imagem_url` de `WA Campanhas`. Frontend: input file na "Nova Campanha" + preview + botão remover + validação ≤5MB + auto-upload. WF1: novo IF `Tem imagem?` após Wait Typing → branch `Envia Mídia` (POST `/message/sendMedia/{instance}` com `mediaMessage: {mediatype:image, media:URL, caption:texto}`) OU branch `Envia Mensagem` existente. Variação sorteada vira caption quando há imagem. One-shot `_addColunaImagemUrl` em `_waImagemSetup.js`. |
 | 09/05/2026 23:57 | v538 | **WA Pessoal — Saúde Dashboard.** Backend `getSaudeWaPessoal` calcula KPIs hoje vs baseline 7d (entrega %, engajamento [lido OU respondeu]/entregue %, resposta %, erros). Alertas amarelo/vermelho com sugestões anti-ban heurísticas. Read receipts amplamente desabilitados são compensados por "engajamento efetivo". Quedas relativas vs baseline geram alertas. Frontend: bloco no topo do Dashboard com banner status + alertas + 4 mini-KPIs com delta. v542 (10/05): quando `hoje.enviado=0`, mostra média baseline 7d com opacity em vez de `0% / -100%` confuso. |
 | 10/05/2026 09:58 | v543 | **WA Pessoal — toggle bypass horário (admin) + bolinha menu + rename "WhatsApp Pessoal" → "WA Campanha".** Novo endpoint `wa_pessoal_check_dispatch` substitui Code "Checa Horário" do WF1 (n8n agora chama GAS pra ver janela 08-20 + bypass admin em tempo real, fuso `America/Sao_Paulo`). Funções `setBypassHorarioWaPessoal`/`getBypassHorarioWaPessoal` (admin only) gravam em Script Property `WA_PESSOAL_BYPASS_HORARIO`. Frontend: toggle switch amarelo no Dashboard (visível só admin). `temCampanhaAtivaWaPessoal` retorna count; `_waPessoalIniciarPollingBadge()` em JS.html chama no login + 60s. CSS `.nav-badge.dot-amarelo` (8x8 amarelo + glow + animação `pulsar` reaproveitada). Rename em Index.html sidebar + JS.html breadcrumb + Usuarios.html permissões. |
+| 12/05/2026 21:55 | v593 | **fix(api):** `_formatarPrecoBR_` agora normaliza strings puramente numéricas (`"97.9"` → `"97,90"`). Recorrentes no `planos_vero.json` estão como string; sem o fix, o response do `?action=planos` voltava com ponto em vez de vírgula no `preco_recorrente`. Validado: `curl ...?action=planos&cidade=Juiz%20de%20Fora&produto=FIBRA_ALONE` → boleto `"107,90"` / recorrente `"97,90"`. |
+| 12/05/2026 21:51 | v592 | **feat(api): endpoint público `?action=planos` e `?action=cidades` no `doGet`.** Single source para `ofertasverointernet` (que já consumia um GAS proxy `AKfycby9...`) e para `agente-ia-vero/Renata` (Fase 2 — atualmente hardcoded em `no5_montar_payload`). 5 helpers novos próximos de `_getTabela`: `_serveActionPlanos_`, `_serveActionCidades_`, `_parseFeatures_`, `_deriveSpeed_`, `_formatarPrecoBR_`. Shape unificado retrocompatível com a interface `Plano` de `PlanosSection.tsx` (`nome`, `preco`, `speed.{valor,unidade}`, `features[]`, `destaque`) + campos novos `preco_boleto`, `preco_recorrente`, `tipo`, `produto_tipo`, `nome_lp`. `preco` é alias dinâmico do param `?forma=` (BOLETO default). Filtro `PUBLICAR` aceita boolean `true` E string `'SIM'` (compat com revisões antigas do JSON). Filtro `?produto=FIBRA` mapeado para `FIBRA_ALONE` (compat com `PlanosSection.tsx` legado). Sem secret (dados públicos). Cache 600s do `_getTabela()` absorve o tráfego. Doc completa em `CLAUDE.md § Endpoint público`. |
 | 12/05/2026 13:14 | v585 | **Sprint 3.3 — Painel lateral unificado (leitura + edição mesmo layout) + edição inline do Móvel Combo.** Duas dores resolvidas: (1) edição de status do Móvel em combo travava silenciosamente porque `_pifValidarTransicaoStatus` e `_validarTransicaoStatusServer_` só conheciam statuses Fibra; (2) layout mudava completamente entre leitura e edição (duas estruturas HTML/CSS distintas: `mostrarPainel` gerava `#painelScroll` via innerHTML com classes `.painel-*`, edição usava `#painelInlineForm` estático com `.pif-*`). **Backend** (`Code.js`): `_validarTransicaoStatusServer_` reconhece `"3- Aguardando Retirada"` (único campo exigido: ID Contrato Móvel); `salvarVenda` em edição aceita `payload.movel` e grava as 2 linhas atômico (snapshot da Fibra original via `linhaAtualSnapshot`, reversão via `setValues` em caso de falha do Móvel). **Frontend** (`JS.html` + `Index.html`): novo `#pif-secao-movel-combo` no `painelInlineForm` com inputs `pif-mv-*` (status, contrato, plano, valor, linhaMovel, portabilidade, dataAtiv, instal, observacao); CSS `.painel-inline-form.modo-edicao` aplica borda+bg surface2 nos inputs (modo leitura padrão = transparente). `mostrarPainel` reescrito: popula inputs em vez de gerar HTML via innerHTML. Novos helpers `_pifPopularInputs(v)`, `_pifPopularInputsMovel(mv)`, `_pifVisibilidadeSecoes(v)`, `_pifAplicarModoLeitura()`, `_pifAplicarModoEdicao()`. `painelToggleEdicao` simplificado para alternar modo leitura/edição via classe CSS. `_dhpMostrarPainelCombo` virou stub no-op (renderizador duplo eliminado). `_dhpAbrirPainelMovel` redireciona pro painel da Fibra mãe. `pifSalvar` anexa `dados.movel` quando seção visível, validando transição antes. Validações novas: `_pifValidarTransicaoStatusMovel` (frontend) + `pifOnStatusChangeMovel` (foca contrato). Net diff: −452 / +485 linhas. |
 | 12/05/2026 10:33 | v574 | **JSON Rev6: cluster Móvel Combo alinhado à tabela Vero.** Adiciona `30GB \| MAIS CONECTADO \| COMBO` (R$ 50) — desbloqueia auto-inferência para 3 planos Fibra com "MÓVEL 30GB" no nome (ESPORTES FUTEBOL, DISNEY+ ADS, PRIME VIDEO). Corrige `60GB \| MAIS CONECTADO \| COMBO` (R$ 50 → R$ 80, alinhado a VERO CONTROLE 60GB / TITULAR 60GB). Cluster final: 10GB R$30, 20GB R$40, 30GB R$50, 60GB R$80. Vendas legadas com 60GB a R$ 50 preservam o valor gravado. Helper `_atualizarPlanosVeroJsonRev6` rodado no editor (43 linhas, 10501 bytes). |
 | 12/05/2026 10:15 | v572 | **Auto-criação do Móvel Combo a partir da Fibra Combo + Vencimentos 1/3/5/9/13/18.** Modal `_abrirModalMovelCombo` eliminado do fluxo principal — Nova Venda mostra inline um card "📱 Móvel Combo Vinculado" (revelado em `nvOnProdutoChange` quando produto === 'Fibra Combo') com Portabilidade obrigatória + ID Contrato e Linha opcionais. Chip Móvel inferido deterministicamente pelo backend via regex `/MÓVEL\s+(\d+)\s*GB/` cruzada com PRODUTO_TIPO=MOVEL_COMBO no JSON (novo helper `_inferirMovelComboFromFibra_`). `salvarVenda` em cadastro novo de Fibra Combo dispara `criarVendaMovelVinculada` automaticamente após gravar a Fibra; lock liberado entre as duas operações (flag `_lockReleased`). Se a inferência falhar (Móvel não encontrado), Fibra é salva normalmente e `res.avisoMovel` faz o frontend abrir o modal antigo como fallback. Vencimentos: dropdown atualizado (antes 05/10/13/19) — valores fora do enum aparecem como ⚠ legado via `_pifSetSelectComLegado`. |
