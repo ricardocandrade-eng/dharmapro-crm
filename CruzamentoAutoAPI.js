@@ -79,7 +79,7 @@ function _importarRelatorioVero_(opts) {
     var crmRows = (resCRM && resCRM.dados) ? resCRM.dados : [];
 
     var consolidacao = _cruzConsolidarServer_(dados, crmRows);
-    var resSalvar = salvarResultadoCruzamento(consolidacao.resultados);
+    var resSalvar = aplicarVeroStatusCompleto(consolidacao.resultados);
 
     props.setProperty(CRUZ_VERO_PROP_LAST, threadId);
 
@@ -111,17 +111,30 @@ function _importarRelatorioVero_(opts) {
 
 // ── Gmail: buscar thread mais recente ────────────────────────────────────
 function _buscarThreadVeroMaisRecente_() {
-  var q = 'label:' + CRUZ_VERO_LABEL + ' has:attachment newer_than:14d';
-  var threads = GmailApp.search(q, 0, 5);
-  if (!threads.length) {
-    var fallback = 'from:(' + CRUZ_VERO_REMETENTE + ') subject:("' + CRUZ_VERO_ASSUNTO + '") has:attachment newer_than:14d';
-    threads = GmailApp.search(fallback, 0, 5);
+  // Encadeamento de buscas progressivamente mais largas para tolerar
+  // diferentes pipelines de entrega (envio direto, encaminhamento Outlook,
+  // assunto alterado, label nao aplicado etc).
+  var queries = [
+    'label:' + CRUZ_VERO_LABEL + ' has:attachment newer_than:14d',
+    'from:(' + CRUZ_VERO_REMETENTE + ') subject:("' + CRUZ_VERO_ASSUNTO + '") has:attachment newer_than:14d',
+    'subject:("SNIPER MOBILE") has:attachment newer_than:14d',
+    'filename:"SNIPER MOBILE.xlsx" newer_than:14d',
+    'filename:SNIPER has:attachment newer_than:14d'
+  ];
+
+  for (var i = 0; i < queries.length; i++) {
+    var threads = GmailApp.search(queries[i], 0, 5);
+    if (threads.length) {
+      Logger.log('Vero: encontrou ' + threads.length + ' thread(s) via query #' + (i + 1) + ': ' + queries[i]);
+      threads.sort(function(a, b) {
+        return b.getLastMessageDate().getTime() - a.getLastMessageDate().getTime();
+      });
+      return threads[0];
+    }
   }
-  if (!threads.length) return null;
-  threads.sort(function(a, b) {
-    return b.getLastMessageDate().getTime() - a.getLastMessageDate().getTime();
-  });
-  return threads[0];
+
+  Logger.log('Vero: nenhuma das ' + queries.length + ' queries retornou thread.');
+  return null;
 }
 
 // ── Gmail: baixar anexo XLSX ─────────────────────────────────────────────
@@ -275,6 +288,12 @@ function _cruzConsolidarServer_(dados, crmRows) {
     if (id) idsInstal[id] = true;
   });
 
+  // Janela temporal para os 🟡: usa o mes/ano predominante da aba VENDAS
+  // (DATA_CADASTRO) — soh marca 🟡 contratos do CRM cujo dataAtiv cai no
+  // mesmo mes/ano. Evita marcar todo o historico como "falta no Vero"
+  // quando o relatorio e diario.
+  var mesVigente = _cruzMesVigenteServer_(dados.vendas || [], ['DATA_CADASTRO']);
+
   var resultados = [];
   var contV = 0, contI = 0, contA = 0;
   (crmRows || []).forEach(function(item) {
@@ -288,17 +307,54 @@ function _cruzConsolidarServer_(dados, crmRows) {
       resultados.push({ linha: item.linha, veroStatus: '🟢 Vendas' });
       contV++;
     } else if (_cruzEhStatusVendaServer_(item.status)) {
+      if (mesVigente && _cruzMesAnoCRMServer_(item.dataAtiv) !== mesVigente) return;
       resultados.push({ linha: item.linha, veroStatus: '🟡' });
       contA++;
     }
   });
 
+  Logger.log('Cruz consolidacao — mesVigenteVendas=' + (mesVigente || 'todos') +
+             ', verde_instal=' + contI + ', verde_vendas=' + contV + ', amarelos=' + contA);
+
   return {
     resultados: resultados,
     contagemInstalacoes: contI,
     contagemVendas: contV,
-    contagemAmarelos: contA
+    contagemAmarelos: contA,
+    mesVigente: mesVigente
   };
+}
+
+function _cruzMesAnoServer_(dataStr) {
+  if (!dataStr) return null;
+  var s = String(dataStr).trim();
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+    var p = s.split('/');
+    return p[1] + '/' + p[2];
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    return s.substring(5, 7) + '/' + s.substring(0, 4);
+  }
+  return null;
+}
+
+function _cruzMesAnoCRMServer_(dataStr) {
+  return _cruzMesAnoServer_(dataStr);
+}
+
+function _cruzMesVigenteServer_(rows, campos) {
+  var contagem = {};
+  (rows || []).forEach(function(row) {
+    for (var i = 0; i < campos.length; i++) {
+      var mesAno = _cruzMesAnoServer_(row[campos[i]]);
+      if (mesAno) { contagem[mesAno] = (contagem[mesAno] || 0) + 1; break; }
+    }
+  });
+  var mesVigente = null, maior = 0;
+  Object.keys(contagem).forEach(function(k) {
+    if (contagem[k] > maior) { maior = contagem[k]; mesVigente = k; }
+  });
+  return mesVigente;
 }
 
 function _cruzNormIdServer_(id) {

@@ -1282,6 +1282,11 @@ function _cruzConsolidarESalvar() {
     if (id) idsInstal[id] = true;
   });
 
+  // 🟡 escopado ao mes vigente do relatorio Vero VENDAS (DATA_CADASTRO).
+  // Sem esse filtro, relatorios diarios marcam todo o historico do CRM
+  // como "falta no Vero" — ruido inutil. Mesmo criterio do _cruzRenderVendas.
+  var mesVigente = _cruzMesVigente(_cruzDados.vendas || [], 'DATA_CADASTRO');
+
   var resultados = [];
   _cruzDadosCRM.forEach(function(item) {
     if (!item || !item.linha) return;
@@ -1292,14 +1297,16 @@ function _cruzConsolidarESalvar() {
     } else if (idsVendas[id]) {
       resultados.push({ linha: item.linha, veroStatus: '🟢 Vendas' });
     } else if (_cruzEhStatusVenda(item.status)) {
+      if (mesVigente && _cruzMesAnoCRM(item.dataAtiv) !== mesVigente) return;
       resultados.push({ linha: item.linha, veroStatus: '🟡' });
     }
   });
 
-  if (!resultados.length) return;
+  // Modo wipe-and-replace: escreve a coluna inteira em uma operacao,
+  // limpando residuos de imports anteriores.
   google.script.run
     .withSuccessHandler(function() {})
     .withFailureHandler(function() {})
-    .salvarResultadoCruzamento(resultados);
+    .aplicarVeroStatusCompleto(resultados);
 }
 </script>

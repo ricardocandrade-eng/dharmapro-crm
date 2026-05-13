@@ -897,6 +897,8 @@ function getContratosParaCruzamento() {
   }
 }
 
+// Modo legado (parcial): grava apenas as linhas em `resultados`.
+// Mantido para compatibilidade — wipe-and-replace e' a chamada nova.
 function salvarResultadoCruzamento(resultados) {
   if (!resultados || !resultados.length) return { sucesso: true, atualizados: 0 };
   var sheet = _getSheet();
@@ -911,6 +913,40 @@ function salvarResultadoCruzamento(resultados) {
     SpreadsheetApp.flush();
     _limparCache();
     return { sucesso: true, atualizados: resultados.length };
+  } catch(e) {
+    return { sucesso: false, mensagem: e.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Modo wipe-and-replace: escreve a coluna VERO_STATUS inteira em um unico
+// setValues — qualquer linha fora de `resultados` fica em branco.
+// Usado pelo pipeline de import (Gmail auto + botao na UI) para refletir
+// SEMPRE o estado do ultimo relatorio Vero, sem residuos de imports anteriores.
+function aplicarVeroStatusCompleto(resultados) {
+  var sheet = _getSheet();
+  var col = CONFIG.COLUNAS.VERO_STATUS + 1;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 3) return { sucesso: true, atualizados: 0 };
+
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(15000); } catch(e) { return { sucesso: false, mensagem: 'Sistema ocupado' }; }
+  try {
+    var totalLinhas = lastRow - 2; // linhas 3..lastRow
+    var valores = new Array(totalLinhas);
+    for (var i = 0; i < totalLinhas; i++) valores[i] = [''];
+
+    (resultados || []).forEach(function(r) {
+      if (!r || !r.linha || r.linha < 3 || r.linha > lastRow) return;
+      var idx = r.linha - 3;
+      valores[idx] = [r.veroStatus || ''];
+    });
+
+    sheet.getRange(3, col, totalLinhas, 1).setValues(valores);
+    SpreadsheetApp.flush();
+    _limparCache();
+    return { sucesso: true, atualizados: (resultados || []).length, linhasTotais: totalLinhas };
   } catch(e) {
     return { sucesso: false, mensagem: e.message };
   } finally {

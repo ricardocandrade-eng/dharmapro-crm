@@ -47,6 +47,16 @@ function testarBuscarVeroAgora() {
   return res;
 }
 
+// Forca o dialogo OAuth para o escopo gmail.readonly.
+// Roda uma chamada GmailApp diretamente nesta funcao para que o
+// analisador estatico do editor detecte a dependencia e dispare a
+// reautorizacao quando o usuario clicar em Executar.
+function forcarAutorizacaoGmail() {
+  var n = GmailApp.search('in:inbox', 0, 1).length;
+  Logger.log('OK — Gmail acessivel. Threads retornados na busca de teste: ' + n);
+  return n;
+}
+
 function limparUltimoThreadProcessadoVero() {
   PropertiesService.getScriptProperties().deleteProperty('CRUZ_VERO_LAST_THREAD');
   Logger.log('CRUZ_VERO_LAST_THREAD removido. Proxima execucao processara o ultimo e-mail mesmo se for o mesmo thread.');
