@@ -363,6 +363,108 @@ function excluirLeadMetaAds(linha) {
 // getPainelAdsData() está definida abaixo, junto ao Bridge.
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * Agrega leads da aba "Leads Meta Ads" dentro do período [since, until]
+ * (formato yyyy-MM-dd) e produz os 4 cards de Inteligência Comercial:
+ * melhor cidade, melhor oferta (utm_campaign), pior público (utm_medium)
+ * e pior criativo (utm_ad). Substitui o pipeline Node.js (Claude Ads Bridge)
+ * que foi removido em 28/04/2026.
+ *
+ * Shape de cada card (consumido por _paIntelligenceCard em PainelAds.html):
+ * { key, leads, sales, qualification_rate_percent,
+ *   lead_to_sale_rate_percent, disqualification_rate_percent }
+ */
+function _buildInteligenciaComercialFromLeads_(since, until) {
+  try {
+    var ss = _getSpreadsheet_();
+    var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+    if (!aba) return {};
+    var ult = aba.getLastRow();
+    if (ult < 2) return {};
+    var raw = aba.getRange(2, 1, ult - 1, 12).getValues();
+
+    var sinceDate = since ? new Date(since + 'T00:00:00') : null;
+    var untilDate = until ? new Date(until + 'T23:59:59') : null;
+
+    var porCidade = {}, porCampaign = {}, porMedium = {}, porAd = {};
+
+    function bump(map, key, statusFinal) {
+      var k = String(key || '').trim();
+      if (!k) k = '(sem dado)';
+      if (!map[k]) map[k] = { key: k, leads: 0, sales: 0, qual: 0, disq: 0 };
+      map[k].leads++;
+      if (statusFinal === 'Converteu') {
+        map[k].sales++;
+        map[k].qual++;
+      } else if (statusFinal === 'Qualificado') {
+        map[k].qual++;
+      } else if (statusFinal === 'Desqualificado') {
+        map[k].disq++;
+      }
+    }
+
+    for (var i = 0; i < raw.length; i++) {
+      var r = raw[i];
+      if (!r[0]) continue;
+      var dt = r[0] instanceof Date ? r[0] : new Date(r[0]);
+      if (!dt || isNaN(dt.getTime())) continue;
+      if (sinceDate && dt < sinceDate) continue;
+      if (untilDate && dt > untilDate) continue;
+
+      var sf = String(r[8] || '').trim();
+      bump(porCidade,   r[3], sf);
+      bump(porCampaign, r[5], sf);
+      bump(porMedium,   r[7], sf);
+      bump(porAd,       r[6], sf);
+    }
+
+    function finalize(item) {
+      var n = item.leads;
+      item.qualification_rate_percent    = n > 0 ? (item.qual / n) * 100 : 0;
+      item.lead_to_sale_rate_percent     = n > 0 ? (item.sales / n) * 100 : 0;
+      item.disqualification_rate_percent = n > 0 ? (item.disq / n) * 100 : 0;
+      return item;
+    }
+
+    function toArr(map) {
+      return Object.keys(map).map(function(k) { return finalize(map[k]); });
+    }
+
+    function bestByConversion(arr) {
+      if (!arr.length) return {};
+      arr.sort(function(a, b) {
+        if (b.sales !== a.sales) return b.sales - a.sales;
+        if (b.lead_to_sale_rate_percent !== a.lead_to_sale_rate_percent)
+          return b.lead_to_sale_rate_percent - a.lead_to_sale_rate_percent;
+        return b.leads - a.leads;
+      });
+      return arr[0];
+    }
+
+    function worstByDisq(arr) {
+      if (!arr.length) return {};
+      arr.sort(function(a, b) {
+        if (b.disqualification_rate_percent !== a.disqualification_rate_percent)
+          return b.disqualification_rate_percent - a.disqualification_rate_percent;
+        return b.leads - a.leads;
+      });
+      // só vale destacar se houver pelo menos 1 desqualificado no público/criativo
+      if (arr[0].disq === 0) return {};
+      return arr[0];
+    }
+
+    return {
+      melhor_cidade: bestByConversion(toArr(porCidade)),
+      melhor_oferta: bestByConversion(toArr(porCampaign)),
+      pior_publico:  worstByDisq(toArr(porMedium)),
+      pior_criativo: worstByDisq(toArr(porAd))
+    };
+  } catch (e) {
+    Logger.log('_buildInteligenciaComercialFromLeads_ falhou: ' + e.message);
+    return {};
+  }
+}
+
 function _getClaudeAdsBridgeData_() {
   var props = PropertiesService.getScriptProperties();
   var bridgeJson = props.getProperty('CLAUDE_ADS_BRIDGE_JSON');
@@ -771,7 +873,7 @@ function getPainelAdsData(periodo) {
           fila_prioritaria: filaPrioritaria,
           approval_summary: _buildClaudeAdsActionDecisionSummary_(filaPrioritaria)
         },
-        inteligencia_comercial: {},
+        inteligencia_comercial: _buildInteligenciaComercialFromLeads_(since, until),
         experimentos: { total: 0, prioritarios: [] }
       }
     };
