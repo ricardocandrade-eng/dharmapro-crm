@@ -1,4 +1,4 @@
-<!-- dharmapro-crm | CLAUDE.md | 12/05/2026 -->
+<!-- dharmapro-crm | CLAUDE.md | 13/05/2026 -->
 
 # dharmapro-crm
 
@@ -149,6 +149,52 @@ no schema (v562) após a Vero formalizar dois clusters de preço lado a lado na 
   evitando edição manual divergente.
 - **Rev4 do JSON executado** no editor (42 linhas, 9373 bytes no Drive).
 
+Em 13/05/2026 o `Cruzamento Vero` passou a ter **import automático via Gmail** (v599–v601).
+Pipeline end-to-end sem interação humana:
+
+- **Origem**: e-mail `Relatório de Vendas - SNIPER MOBILE` da Vero
+  (`coordenacao_sis@verointernet.com.br`), redirecionado do Outlook para o Gmail
+  do Ricardo via regra do Outlook; filtro Gmail `subject:(SNIPER MOBILE) has:attachment`
+  aplica label `vero-sniper`.
+- **Backend `CruzamentoAutoAPI.js`**:
+  - `_buscarThreadVeroMaisRecente_` faz 5 queries em cascata (label → from+subject →
+    subject → filename exato → filename:SNIPER) — tolera diferentes pipelines de
+    entrega e configuração do filtro Gmail.
+  - `_xlsxParaSheetsTemp_` converte o XLSX em Google Sheets temporário via Drive REST
+    API (`UrlFetchApp` + `ScriptApp.getOAuthToken()` em multipart). **Sem dependência
+    do Advanced Drive Service** — usa o escopo `drive` já existente.
+  - `_extrairAbasVero_` lê abas VENDAS, INSTALACOES, CANCELAMENTO/CHURN, MOVEL com
+    `SpreadsheetApp.openById`, normalizando datas para `DD/MM/YYYY`.
+  - `_cruzConsolidarServer_` aplica prioridade `INSTALAÇÕES > VENDAS > 🟡`, com
+    **filtro mensal no 🟡**: usa `_cruzMesVigenteServer_` sobre `DATA_CADASTRO` da aba
+    VENDAS — só marca 🟡 contratos do CRM cujo `dataAtiv` cai no mesmo mês/ano
+    (evita marcar todo histórico como "falta no Vero" em relatórios diários).
+  - Sheets temporário apagado no `finally`. Idempotência via Script Property
+    `CRUZ_VERO_LAST_THREAD` (último threadId processado).
+- **Gravação wipe-and-replace**: nova função `aplicarVeroStatusCompleto` em `Code.js`
+  escreve a coluna `VERO_STATUS` inteira em uma operação `setValues`, limpando
+  resíduos de imports anteriores. `salvarResultadoCruzamento` (modo aditivo legado)
+  mantida para compat.
+- **Entradas públicas**:
+  - `buscarEImportarVero(usuario)` — alvo do botão `📧 Buscar último da Vero`
+    no toolbar da página Cruzamento.
+  - `importarRelatorioVeroAutomatico()` — alvo do trigger diário 09h BRT.
+- **Escopo OAuth** `gmail.readonly` adicionado em `appsscript.json`.
+- **One-shots em `_cruzAutoSetup.js`** (executar via editor):
+  - `configurarTriggerCruzamentoVeroDiario` — agenda trigger 09h (idempotente).
+  - `removerTriggerCruzamentoVeroDiario` — desliga.
+  - `forcarAutorizacaoGmail` — chama `GmailApp.search` direto para forçar o
+    diálogo OAuth quando o GAS não detecta o novo escopo automaticamente
+    (quirk conhecido: manifest atualizado via clasp não invalida a sessão
+    autorizada — chamada transitiva não dispara diálogo, só chamada direta).
+  - `testarBuscarVeroAgora` — roda o pipeline manualmente.
+  - `limparUltimoThreadProcessadoVero` — descarta marca de idempotência para
+    forçar reprocessamento do último thread.
+- **Validação E2E** (13/05/2026 12:55): 1 thread encontrado via query #1,
+  parseou 16 vendas + 12 instalações + 11 cancelamentos + 10 móvel da aba
+  Vero contra 3927 contratos CRM, gravou 13 🟢 Instalações + 5 🟢 Vendas +
+  1 🟡 em ~25s.
+
 ---
 
 ## Stack
@@ -243,6 +289,8 @@ Estao funcionando:
 - `Funil de Instalacoes`
 - `Cruzamento Vero` com normalizacao de `ID Contrato` e leitura de `CHURN`
 - `Cruzamento Vero` com aba dedicada para `Movel`
+- `Cruzamento Vero` import automático via Gmail (botão `📧 Buscar último da Vero` +
+  trigger diário 09h `importarRelatorioVeroAutomatico`)
 - `Leads Meta Ads` — rastreamento automatico via Botconversa webhook (testado 28/04/2026)
 - `Painel Ads` — UX redesenhado (v461, 27/04/2026): workflow bar 3 passos, fila de decisão,
   cards com "O que acontece se aprovar/rejeitar", interpretação de campanha e funil.
@@ -529,6 +577,7 @@ preservado no JSON. Atualizar manualmente quando preços móvel mudarem.
 - `MetaAdsAPI.js`
 - `DisparosAPI.js`
 - `ParceirosAPI.js`
+- `CruzamentoAutoAPI.js` — import automático do relatório Vero via Gmail (botão + trigger 09h)
 - `_arquivo.js` (em `.claspignore`) — funções provisórias/one-shot que **nunca devem ir para Code.js**
 
 ### Frontend principal
@@ -560,6 +609,7 @@ Propriedades GAS específicas deste projeto:
 - `N8N_WA_DESPACHO_URL` — pendente (Fase 3): URL do webhook n8n para iniciar o despacho de uma campanha WA Pessoal
 - `PERFIS_MENUS_JSON` — permissões por perfil editadas via CRM; se ausente, usa `Config.js`
 - `pwd_<usuario>` — hash SHA-256 de senha alterada pelo usuário ou pelo admin
+- `CRUZ_VERO_LAST_THREAD` — threadId do último e-mail Vero processado pelo import auto (idempotência); apagar via `limparUltimoThreadProcessadoVero` para forçar reprocessamento
 
 Para restaurar permissões padrão: deletar `PERFIS_MENUS_JSON` nas propriedades do script.
 
@@ -619,6 +669,9 @@ AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw
 
 | Data/hora | Versão GAS | O que mudou |
 |---|---|---|
+| 13/05/2026 12:47 | v601 | **fix(cruzamento): escopo mensal no 🟡 + wipe-and-replace na coluna VERO_STATUS.** Primeira execução do v599 marcou 3027 contratos históricos do CRM como 🟡 ("falta no Vero") porque a consolidação server-side comparava o relatório Vero diário (16 vendas) contra TODO o CRM (3927 contratos), sem o filtro de mês vigente que existe no `_cruzRenderVendas` do client. `_cruzConsolidarServer_` e `_cruzConsolidarESalvar` (client) agora calculam `mesVigente` da aba VENDAS via `DATA_CADASTRO` e só marcam 🟡 contratos cujo `dataAtiv` cai no mesmo mês/ano. Nova função `aplicarVeroStatusCompleto` em `Code.js` escreve a coluna VERO_STATUS inteira via `setValues`, limpando resíduos de imports anteriores — pipelines de import (Gmail auto + botão manual) usam ela no lugar de `salvarResultadoCruzamento` (mantida para compat). Validação E2E: 13 🟢 Instalações + 5 🟢 Vendas + 1 🟡 (vs. 3027 amarelos antes). |
+| 13/05/2026 12:15 | v599 | **feat(cruzamento): import automático do relatório Vero via Gmail.** Novo módulo `CruzamentoAutoAPI.js` busca o último e-mail "SNIPER MOBILE" (5 queries em cascata: label `vero-sniper` → from+subject → subject → filename exato → filename:SNIPER), baixa o anexo `.xlsx`, converte para Google Sheets temporário via Drive REST API (UrlFetchApp + OAuth token, sem Advanced Drive Service), lê as abas com SpreadsheetApp, cruza com o CRM aplicando a prioridade `INSTALAÇÕES > VENDAS > 🟡` e grava na coluna VERO_STATUS. Sheets temporário apagado no `finally`; idempotência via Script Property `CRUZ_VERO_LAST_THREAD`. Botão `📧 Buscar último da Vero` na página Cruzamento aciona o pipeline sob demanda; trigger diário 09h `importarRelatorioVeroAutomatico` faz o mesmo automaticamente. One-shots em `_cruzAutoSetup.js`: `configurarTriggerCruzamentoVeroDiario`, `removerTriggerCruzamentoVeroDiario`, `forcarAutorizacaoGmail` (força diálogo OAuth quando GAS não detecta o novo escopo automaticamente após `clasp push`), `testarBuscarVeroAgora`, `limparUltimoThreadProcessadoVero`. Escopo `gmail.readonly` adicionado em `appsscript.json`. |
+| 13/05/2026 11:11 | v597 | **fix(cruzamento): INSTALAÇÕES sobrepõe VENDAS no rótulo VERO_STATUS.** A persistência do nome da aba só rodava no render de Vendas, então todo contrato instalado acabava marcado como `🟢 Vendas`. Nova função `_cruzConsolidarESalvar` (client) é chamada após carga do CRM e antes do `_cruzRenderizar`: percorre `_cruzDados.vendas` e `_cruzDados.instalacoes` cruzando com `_cruzDadosCRM` com prioridade `INSTALAÇÕES > VENDAS > 🟡`. Save redundante removido de `_cruzRenderVendas`. |
 | 24/04/2026 | v325–v378 | Recuperação completa do CRM; Painel Ads; WABA Monitor; Gerenciar Usuários |
 | 28/04/2026 | v462–v470 | Painel Ads v461 (workflow 3 passos); webhook Botconversa + DharmaPro; fix criativo A2; campanhas ativas |
 | 29/04/2026 19:18 | v471 | Botão "✦ Diagnosticar agora" no Painel Ads — consulta Meta + CRM + Claude API em tempo real |
