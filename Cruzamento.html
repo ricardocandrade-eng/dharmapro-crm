@@ -368,6 +368,7 @@
     <h2>Cruzamento Vero</h2>
     <label class="cruz-upload-btn" for="cruzInputFile">Importar relatorio XLS</label>
     <input type="file" id="cruzInputFile" accept=".xlsx,.xls" onchange="_cruzamentoImportar(this)">
+    <button class="btn btn-ghost btn-sm" onclick="_cruzamentoBuscarGmail()" id="cruzBtnGmail">📧 Buscar último da Vero</button>
     <span class="cruz-status" id="cruzStatus">Nenhum arquivo importado</span>
     <button class="btn btn-ghost btn-sm" onclick="_cruzamentoLimpar()" id="cruzBtnLimpar" style="display:none">Limpar</button>
   </div>
@@ -1226,6 +1227,43 @@ function _cruzSalvarResultados(bateu, soCRM, nomeAba) {
     .withSuccessHandler(function() {})
     .withFailureHandler(function() {})
     .salvarResultadoCruzamento(resultados);
+}
+
+function _cruzamentoBuscarGmail() {
+  var btn = document.getElementById('cruzBtnGmail');
+  if (btn) { btn.disabled = true; btn.textContent = '📧 Buscando...'; }
+  _cruzSetStatus('Buscando ultimo relatorio da Vero no Gmail...', '');
+
+  if (typeof google === 'undefined' || !google.script || !google.script.run) {
+    _cruzSetStatus('Ambiente sem google.script.run.', 'err');
+    if (btn) { btn.disabled = false; btn.textContent = '📧 Buscar último da Vero'; }
+    return;
+  }
+
+  var usuario = (typeof AppState !== 'undefined' && AppState.get) ? (AppState.get('nomeUsuario') || '') : '';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (btn) { btn.disabled = false; btn.textContent = '📧 Buscar último da Vero'; }
+      if (!res || !res.sucesso) {
+        _cruzSetStatus('Erro: ' + ((res && res.mensagem) || 'falha desconhecida'), 'err');
+        return;
+      }
+      var c = res.contagem || {};
+      var msg = 'Importado ' + (res.anexo || 'anexo Vero') +
+                ' (recebido ' + (res.recebidoEm || '?') + '). ' +
+                'Vendas:' + (c.vendas || 0) + ' · Instal:' + (c.instalacoes || 0) +
+                ' · Cancel:' + (c.cancelamentos || 0) + ' · Movel:' + (c.movel || 0) +
+                ' · CRM marcados: 🟢 ' + (c.verde_instalacoes || 0) + '+' + (c.verde_vendas || 0) +
+                ' / 🟡 ' + (c.amarelos || 0) + '.';
+      _cruzSetStatus(msg, 'ok');
+    })
+    .withFailureHandler(function(err) {
+      if (btn) { btn.disabled = false; btn.textContent = '📧 Buscar último da Vero'; }
+      var m = (err && err.message) ? err.message : 'tente novamente';
+      _cruzSetStatus('Falha ao buscar do Gmail: ' + m, 'err');
+    })
+    .buscarEImportarVero(usuario);
 }
 
 function _cruzConsolidarESalvar() {
