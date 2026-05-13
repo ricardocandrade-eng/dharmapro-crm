@@ -457,6 +457,7 @@ function _cruzamentoImportar(inputEl) {
             document.getElementById('cruzTabs').style.display = 'flex';
             document.getElementById('cruzBtnLimpar').style.display = '';
             _cruzSetStatus(file.name + ' importado com sucesso. CRM: ' + _cruzDadosCRM.length + ' contratos.', 'ok');
+            _cruzConsolidarESalvar();
             _cruzRenderizar();
           })
           .withFailureHandler(function(err) {
@@ -819,7 +820,6 @@ function _cruzRenderVendas() {
   });
 
   _cruzAtualizarIconesLista(bateu, soVero, soCRM);
-  _cruzSalvarResultados(bateu, soCRM, 'Vendas');
 
   var html =
     _cruzResumoPainel({
@@ -1221,6 +1221,43 @@ function _cruzSalvarResultados(bateu, soCRM, nomeAba) {
   (soCRM || []).forEach(function(item) {
     if (item.linha) resultados.push({ linha: item.linha, veroStatus: '🟡' });
   });
+  if (!resultados.length) return;
+  google.script.run
+    .withSuccessHandler(function() {})
+    .withFailureHandler(function() {})
+    .salvarResultadoCruzamento(resultados);
+}
+
+function _cruzConsolidarESalvar() {
+  if (typeof google === 'undefined' || !google.script || !google.script.run) return;
+  if (!_cruzDados || !_cruzDadosCRM || !_cruzDadosCRM.length) return;
+
+  var idsVendas = {};
+  (_cruzDados.vendas || []).forEach(function(row) {
+    var id = _cruzNormId(row.ID_CONTRATO || row.CONTRATO || row.Contrato);
+    if (id) idsVendas[id] = true;
+  });
+
+  var idsInstal = {};
+  (_cruzDados.instalacoes || []).forEach(function(row) {
+    var id = _cruzNormId(row.ID_CONTRATO || row.CONTRATO || row.Contrato);
+    if (id) idsInstal[id] = true;
+  });
+
+  var resultados = [];
+  _cruzDadosCRM.forEach(function(item) {
+    if (!item || !item.linha) return;
+    var id = _cruzNormId(item.contrato);
+    if (!id) return;
+    if (idsInstal[id]) {
+      resultados.push({ linha: item.linha, veroStatus: '🟢 Instalações' });
+    } else if (idsVendas[id]) {
+      resultados.push({ linha: item.linha, veroStatus: '🟢 Vendas' });
+    } else if (_cruzEhStatusVenda(item.status)) {
+      resultados.push({ linha: item.linha, veroStatus: '🟡' });
+    }
+  });
+
   if (!resultados.length) return;
   google.script.run
     .withSuccessHandler(function() {})
