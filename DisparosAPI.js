@@ -42,9 +42,13 @@ function _sbFetch_(method, path, body) {
 }
 
 // ── HELPER META API ────────────────────────────────────────────────────────────
-function _metaToken_() {
-  var token = PropertiesService.getScriptProperties().getProperty('META_ACCESS_TOKEN');
-  if (!token) throw new Error('META_ACCESS_TOKEN não configurado nas propriedades do script.');
+// Atenção: endpoints WABA (/{WABA_ID}/message_templates, /phone_numbers etc) exigem
+// token com scope `whatsapp_business_management`. O META_ACCESS_TOKEN do projeto é
+// um token de Meta Ads (sem esse scope) — usamos SYSTEM_USER_TOKEN (mesmo do n8n
+// disparo-massa). Configurar via `_setSystemUserToken()` em `_systemUserTokenSetup.js`.
+function _wabaToken_() {
+  var token = PropertiesService.getScriptProperties().getProperty('SYSTEM_USER_TOKEN');
+  if (!token) throw new Error('SYSTEM_USER_TOKEN não configurado nas propriedades do script. Rode _setSystemUserToken() no editor.');
   return token;
 }
 
@@ -60,7 +64,7 @@ function getDisparosHtml() {
  * Não exige registro manual no Supabase — o auto-registro ocorre em criarCampanhaDisparo().
  */
 function listarTemplatesDisparo() {
-  var token = _metaToken_();
+  var token = _wabaToken_();
   // Graph API v20 não aceita filter `?status=APPROVED` em /message_templates — trata como
   // campo desconhecido e devolve erro #100. Pedimos `status` no fields e filtramos client-side.
   var url = CFG_DISPAROS.META_GRAPH + '/' + CFG_DISPAROS.META_WABA_ID +
