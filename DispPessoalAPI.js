@@ -720,28 +720,38 @@ function criarCampanha(usuario, dados) {
 
     var shCamps = _waSheet_(CFG_WA_PESSOAL.ABA_CAMPANHAS);
     var shDisp  = _waSheet_(CFG_WA_PESSOAL.ABA_DISPAROS);
+    var imagemUrl = String(dados.imagem_url || '').trim();
 
-    // 1. Linha em WA Campanhas
+    // 1. Monta linhas de WA Disparos com dedup por telefone normalizado.
+    //    Telefone repetido no mailing vira UMA linha só. Sem dedup, cada duplicata
+    //    é um disparo real e os updates de status por (campanha,phone) se espalham
+    //    entre as linhas irmãs — inflando total_enviado/total_respondeu.
+    var instance = _instanceNameFromUser_(usuario);
+    var vistosFone = {};
+    var rowsDisp = [];
+    (dados.contatos || []).forEach(function(c) {
+      var phone = String(c.phone || '').replace(/\D/g, '');
+      if (phone && !phone.startsWith('55')) phone = '55' + phone;
+      if (!phone) return;
+      var chave = _normalizePhoneBR_(phone);
+      if (vistosFone[chave]) return;
+      vistosFone[chave] = true;
+      rowsDisp.push([camp_id, String(c.nome || '').trim() || 'Cliente', phone,
+                     'pendente', new Date(), '', '', '', 0, instance]);
+    });
+    if (!rowsDisp.length) throw new Error('Nenhum telefone válido na lista de contatos.');
+
+    // 2. Linha em WA Campanhas (total_contatos = nº já deduplicado)
     //    col M = variacoes_json (via _addColunaVariacoes)
     //    col N = imagem_url (via _addColunaImagemUrl)
-    var imagemUrl = String(dados.imagem_url || '').trim();
     shCamps.appendRow([
       camp_id, usuario, dados.nome, new Date(), 'ativa',
-      dados.contatos.length, 0, 0, 0, dados.template_msg, delay_min, delay_max,
+      rowsDisp.length, 0, 0, 0, dados.template_msg, delay_min, delay_max,
       variacoesJson, imagemUrl
     ]);
 
-    // 2. Linhas em WA Disparos (lote)
-    var instance = _instanceNameFromUser_(usuario);
-    var rowsDisp = dados.contatos.map(function(c) {
-      var phone = String(c.phone || '').replace(/\D/g, '');
-      if (phone && !phone.startsWith('55')) phone = '55' + phone;
-      return [camp_id, String(c.nome || '').trim() || 'Cliente', phone,
-              'pendente', new Date(), '', '', '', 0, instance];
-    });
-    if (rowsDisp.length) {
-      shDisp.getRange(shDisp.getLastRow() + 1, 1, rowsDisp.length, rowsDisp[0].length).setValues(rowsDisp);
-    }
+    // 3. Linhas em WA Disparos (lote)
+    shDisp.getRange(shDisp.getLastRow() + 1, 1, rowsDisp.length, rowsDisp[0].length).setValues(rowsDisp);
 
     // 3. Webhook n8n (best-effort: não falha a campanha se webhook estiver fora)
     var n8nUrl = PropertiesService.getScriptProperties().getProperty(CFG_WA_PESSOAL.N8N_DESPACHO_URL_PROP)
@@ -757,7 +767,8 @@ function criarCampanha(usuario, dados) {
       } catch (e) { Logger.log('Webhook n8n falhou: ' + e.message); }
     }
 
-    return { ok: true, campanha_id: camp_id, total: dados.contatos.length };
+    return { ok: true, campanha_id: camp_id, total: rowsDisp.length,
+             recebidos: (dados.contatos || []).length };
   } finally {
     lock.releaseLock();
   }
@@ -799,10 +810,17 @@ function gerarVariacoesMensagem(usuario, template_msg) {
     }
     manterLinhas.push('- Tom amigável e direto, em português brasileiro');
     manterLinhas.push('- Tamanho similar (até 25% maior ou menor que o original)');
+    manterLinhas.push('- TODOS os nomes próprios e marcas EXATAMENTE como no original '
+      + '(ex.: se diz "Nio", mantenha "Nio"; se diz "Vero", mantenha "Vero"). '
+      + 'NUNCA troque uma marca por outra nem "corrija" o nome de uma empresa — '
+      + 'a campanha pode citar marcas diferentes de propósito');
 
     var prompt = [
       'Você está gerando variações de mensagem de WhatsApp para uma campanha de vendas',
-      'da Mobile Digital, revenda da Vero Internet em Juiz de Fora, MG.',
+      'da Mobile Digital, operação de internet em Juiz de Fora, MG. A mensagem pode',
+      'citar marcas específicas (Vero, Nio, etc.) — reproduza-as exatamente como',
+      'estão, sem trocar nem "corrigir", pois a campanha pode ser sobre migração',
+      'entre marcas.',
       '',
       'Mensagem original:',
       '"""',
