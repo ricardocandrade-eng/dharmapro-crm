@@ -1420,6 +1420,56 @@ function getDashboardWaPessoal(usuario, usuarioAlvo) {
  *   { action: 'wa_pessoal_update',
  *     delivery_update: true, message_id, delivery_status: 'DELIVERY_ACK'|'READ' }
  */
+// ── LOOKUP RÁPIDO em WA Disparos ───────────────────────────────────────────────
+// A aba WA Disparos tem dezenas de milhares de linhas (mailings de 30k+). Ler a
+// planilha inteira (_waLerLinhas_) a cada webhook custa 10-15s e estoura timeout —
+// foi o que quebrou o rastreamento de entrega. Estes helpers usam TextFinder
+// (busca server-side) pra achar só as linhas que importam.
+
+// Acha linhas de WA Disparos onde nomeColuna == valor (match de célula inteira).
+// Retorna [{row, valores[]}]. soPrimeiro=true para no primeiro hit.
+function _waAcharLinhasDisparo_(sh, header, nomeColuna, valor, soPrimeiro) {
+  var idx = _waColIdx_(header, nomeColuna);
+  if (idx < 0) return [];
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  var finder = sh.getRange(2, idx + 1, lastRow - 1, 1)
+    .createTextFinder(String(valor)).matchEntireCell(true).matchCase(false);
+  var ranges;
+  if (soPrimeiro) { var r = finder.findNext(); ranges = r ? [r] : []; }
+  else { ranges = finder.findAll(); }
+  return ranges.map(function(rg) {
+    var row = rg.getRow();
+    return { row: row, valores: sh.getRange(row, 1, 1, header.length).getValues()[0] };
+  });
+}
+
+// Ajuste incremental dos totais da campanha — evita recontar as 70k+ linhas de
+// WA Disparos a cada envio/resposta. WA Campanhas é pequeno, lookup do id é barato.
+// Para recontagem do zero (reparo manual) use _recalcularTotaisCampanha_.
+function _ajustarTotaisCampanha_(campanhaId, dEnv, dResp, dErr) {
+  if (!dEnv && !dResp && !dErr) return;
+  var sh = _waSheet_(CFG_WA_PESSOAL.ABA_CAMPANHAS);
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return;
+  var header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var idxId   = _waColIdx_(header, 'id');
+  var idxEnv  = _waColIdx_(header, 'total_enviado');
+  var idxResp = _waColIdx_(header, 'total_respondeu');
+  var idxErr  = _waColIdx_(header, 'total_erro');
+  var r = sh.getRange(2, idxId + 1, lastRow - 1, 1)
+    .createTextFinder(String(campanhaId)).matchEntireCell(true).findNext();
+  if (!r) return;
+  var row = r.getRow();
+  var ini = Math.min(idxEnv, idxResp, idxErr);
+  var span = Math.max(idxEnv, idxResp, idxErr) - ini + 1;
+  var vals = sh.getRange(row, ini + 1, 1, span).getValues()[0];
+  if (dEnv)  vals[idxEnv  - ini] = Math.max(0, (Number(vals[idxEnv  - ini]) || 0) + dEnv);
+  if (dResp) vals[idxResp - ini] = Math.max(0, (Number(vals[idxResp - ini]) || 0) + dResp);
+  if (dErr)  vals[idxErr  - ini] = Math.max(0, (Number(vals[idxErr  - ini]) || 0) + dErr);
+  sh.getRange(row, ini + 1, 1, span).setValues([vals]);
+}
+
 function _handleWaPessoalUpdate_(payload) {
   if (payload && payload.delivery_update === true) {
     return _handleWaPessoalDeliveryUpdate_(payload);
@@ -1434,25 +1484,29 @@ function _handleWaPessoalUpdate_(payload) {
   try {
     var phoneNorm = String(payload.phone).replace(/\D/g, '');
     var shDisp = _waSheet_(CFG_WA_PESSOAL.ABA_DISPAROS);
-    var data = _waLerLinhas_(shDisp);
-    var idxCamp = _waColIdx_(data.header, 'campanha_id');
-    var idxFone = _waColIdx_(data.header, 'contato_phone');
-    var idxStatus = _waColIdx_(data.header, 'status');
-    var idxEnv   = _waColIdx_(data.header, 'enviado_em');
-    var idxResp  = _waColIdx_(data.header, 'respondeu_em');
-    var idxErro  = _waColIdx_(data.header, 'erro_msg');
-    var idxTent  = _waColIdx_(data.header, 'tentativas');
-    var idxMsg   = _waColIdx_(data.header, 'mensagem_enviada'); // -1 se col não existe
-    var idxMsgId = _waColIdx_(data.header, 'message_id');       // -1 se col não existe
-    var rowIdx = -1;
-    for (var i = 0; i < data.linhas.length; i++) {
-      if (data.linhas[i][idxCamp] === payload.campanha_id &&
-          String(data.linhas[i][idxFone]).replace(/\D/g, '') === phoneNorm) {
-        rowIdx = i; break;
+    var header = shDisp.getRange(1, 1, 1, shDisp.getLastColumn()).getValues()[0];
+    var idxCamp = _waColIdx_(header, 'campanha_id');
+    var idxFone = _waColIdx_(header, 'contato_phone');
+    var idxStatus = _waColIdx_(header, 'status');
+    var idxEnv   = _waColIdx_(header, 'enviado_em');
+    var idxResp  = _waColIdx_(header, 'respondeu_em');
+    var idxErro  = _waColIdx_(header, 'erro_msg');
+    var idxTent  = _waColIdx_(header, 'tentativas');
+    var idxMsg   = _waColIdx_(header, 'mensagem_enviada'); // -1 se col não existe
+    var idxMsgId = _waColIdx_(header, 'message_id');       // -1 se col não existe
+
+    // Lookup rápido via TextFinder: acha as linhas do telefone, filtra pela campanha.
+    var candidatos = _waAcharLinhasDisparo_(shDisp, header, 'contato_phone', phoneNorm, false);
+    var alvo = null;
+    for (var c = 0; c < candidatos.length; c++) {
+      if (String(candidatos[c].valores[idxCamp]) === String(payload.campanha_id)) {
+        alvo = candidatos[c]; break;
       }
     }
-    if (rowIdx < 0) return { ok: false, mensagem: 'Disparo não encontrado.' };
-    var linha = data.linhas[rowIdx];
+    if (!alvo) return { ok: false, mensagem: 'Disparo não encontrado.' };
+
+    var linha = alvo.valores;
+    var statusAntigo = String(linha[idxStatus] || '').toLowerCase();
     linha[idxStatus] = payload.novo_status;
     if (payload.novo_status === 'enviado')   linha[idxEnv]  = new Date();
     if (payload.novo_status === 'respondeu') linha[idxResp] = new Date();
@@ -1464,10 +1518,15 @@ function _handleWaPessoalUpdate_(payload) {
       if (idxMsg   >= 0 && payload.mensagem_enviada) linha[idxMsg]   = String(payload.mensagem_enviada);
       if (idxMsgId >= 0 && payload.message_id)       linha[idxMsgId] = String(payload.message_id);
     }
-    shDisp.getRange(rowIdx + 2, 1, 1, linha.length).setValues([linha]);
+    shDisp.getRange(alvo.row, 1, 1, linha.length).setValues([linha]);
 
-    // Atualiza totais na campanha
-    _recalcularTotaisCampanha_(payload.campanha_id);
+    // Totais incrementais (não recontar a planilha inteira a cada envio).
+    var contavaEnv = (statusAntigo === 'enviado' || statusAntigo === 'respondeu');
+    var contaEnv   = (payload.novo_status === 'enviado' || payload.novo_status === 'respondeu');
+    _ajustarTotaisCampanha_(payload.campanha_id,
+      (contaEnv ? 1 : 0) - (contavaEnv ? 1 : 0),
+      (payload.novo_status === 'respondeu' ? 1 : 0) - (statusAntigo === 'respondeu' ? 1 : 0),
+      (payload.novo_status === 'erro' ? 1 : 0) - (statusAntigo === 'erro' ? 1 : 0));
 
     // Incrementa daily_count se for envio
     if (payload.increment_daily) {
@@ -1533,27 +1592,25 @@ function _handleWaPessoalMarkRespondeu_(payload) {
   var phoneNorm = _normalizePhoneBR_(payload.phone);
 
   var sh = _waSheet_(CFG_WA_PESSOAL.ABA_DISPAROS);
-  var data = _waLerLinhas_(sh);
-  var idxStatus = _waColIdx_(data.header, 'status');
-  var idxInstance = _waColIdx_(data.header, 'instance_id');
-  var idxFone = _waColIdx_(data.header, 'contato_phone');
-  var idxEnvEm = _waColIdx_(data.header, 'enviado_em');
-  var idxResp = _waColIdx_(data.header, 'respondeu_em');
-  var idxCamp = _waColIdx_(data.header, 'campanha_id');
+  var header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var idxStatus = _waColIdx_(header, 'status');
+  var idxInstance = _waColIdx_(header, 'instance_id');
+  var idxFone = _waColIdx_(header, 'contato_phone');
+  var idxEnvEm = _waColIdx_(header, 'enviado_em');
+  var idxResp = _waColIdx_(header, 'respondeu_em');
+  var idxCamp = _waColIdx_(header, 'campanha_id');
 
-  // Disparos enviados da instância
-  var candidates = [];
-  for (var i = 0; i < data.linhas.length; i++) {
-    var row = data.linhas[i];
-    if (payload.instance && String(row[idxInstance]) !== String(payload.instance)) continue;
-    if (String(row[idxStatus] || '').toLowerCase() !== 'enviado') continue;
-    candidates.push({ i: i, row: row });
-  }
+  // Só os disparos com status='enviado' (TextFinder — dezenas de linhas, não as
+  // 70k da planilha), depois filtra por instância.
+  var enviados = _waAcharLinhasDisparo_(sh, header, 'status', 'enviado', false);
+  var candidates = enviados.filter(function(it) {
+    return !payload.instance || String(it.valores[idxInstance]) === String(payload.instance);
+  });
 
   // Match exato por phone normalizado
-  var match = null;
+  var match = null, viaLid = false;
   for (var k = 0; k < candidates.length; k++) {
-    if (_normalizePhoneBR_(candidates[k].row[idxFone]) === phoneNorm) {
+    if (_normalizePhoneBR_(candidates[k].valores[idxFone]) === phoneNorm) {
       match = candidates[k]; break;
     }
   }
@@ -1561,30 +1618,31 @@ function _handleWaPessoalMarkRespondeu_(payload) {
   // Fallback heurística LID: pega mais recente por enviado_em (apenas se sender veio LID)
   if (!match && payload.isLid && candidates.length) {
     candidates.sort(function(a, b) {
-      var da = a.row[idxEnvEm] ? new Date(a.row[idxEnvEm]).getTime() : 0;
-      var db = b.row[idxEnvEm] ? new Date(b.row[idxEnvEm]).getTime() : 0;
+      var da = a.valores[idxEnvEm] ? new Date(a.valores[idxEnvEm]).getTime() : 0;
+      var db = b.valores[idxEnvEm] ? new Date(b.valores[idxEnvEm]).getTime() : 0;
       return db - da;
     });
-    match = candidates[0];
+    match = candidates[0]; viaLid = true;
   }
 
   if (!match) return { ok: true, matched: false, motivo: 'nenhum disparo enviado bateu com phone ' + phoneNorm };
 
   // Marca respondeu
-  var row = match.row;
-  row[idxStatus] = 'respondeu';
-  row[idxResp] = new Date();
-  sh.getRange(match.i + 2, 1, 1, row.length).setValues([row]);
+  var linha = match.valores;
+  linha[idxStatus] = 'respondeu';
+  linha[idxResp] = new Date();
+  sh.getRange(match.row, 1, 1, linha.length).setValues([linha]);
 
   // Blacklist (opt-out)
   if (payload.isOptOut) {
     var shBl = _waSheet_(CFG_WA_PESSOAL.ABA_BLACKLIST);
-    shBl.appendRow([_normalizePhoneBR_(row[idxFone]), new Date(), 'opt-out na resposta: ' + (payload.texto || '').slice(0, 100)]);
+    shBl.appendRow([_normalizePhoneBR_(linha[idxFone]), new Date(), 'opt-out na resposta: ' + (payload.texto || '').slice(0, 100)]);
   }
 
-  _recalcularTotaisCampanha_(row[idxCamp]);
+  // enviado → respondeu: total_enviado inalterado (conta os dois), total_respondeu +1
+  _ajustarTotaisCampanha_(linha[idxCamp], 0, 1, 0);
 
-  return { ok: true, matched: true, campanha_id: row[idxCamp], phone: String(row[idxFone]), via: match.viaLid ? 'lid' : 'phone' };
+  return { ok: true, matched: true, campanha_id: linha[idxCamp], phone: String(linha[idxFone]), via: viaLid ? 'lid' : 'phone' };
 }
 
 /**
@@ -1605,20 +1663,30 @@ function _handleWaPessoalMarkRespondeu_(payload) {
 function _handleWaPessoalNextPending_(payload) {
   if (!payload.campanha_id) return { ok: false, mensagem: 'campanha_id obrigatório.' };
   var sh = _waSheet_(CFG_WA_PESSOAL.ABA_DISPAROS);
-  var data = _waLerLinhas_(sh);
-  var idxCamp = _waColIdx_(data.header, 'campanha_id');
-  var idxStatus = _waColIdx_(data.header, 'status');
-  for (var i = 0; i < data.linhas.length; i++) {
-    if (String(data.linhas[i][idxCamp]) !== String(payload.campanha_id)) continue;
-    if (String(data.linhas[i][idxStatus]).trim().toLowerCase() !== 'pendente') continue;
-    // Claim: marcar status='enviando' antes de retornar
-    sh.getRange(i + 2, idxStatus + 1).setValue('enviando');
-    SpreadsheetApp.flush(); // garante commit imediato pra que outras chamadas vejam
-    var disparo = {};
-    data.header.forEach(function(h, j) { disparo[h] = data.linhas[i][j]; });
-    disparo.status = 'enviando';
-    disparo._row = i + 2;
-    return { ok: true, disparo: _waNormalizarParaCliente_(disparo) };
+  var lastRow = sh.getLastRow();
+  var fullWidth = sh.getLastColumn();
+  var header = sh.getRange(1, 1, 1, fullWidth).getValues()[0];
+  var idxCamp = _waColIdx_(header, 'campanha_id');
+  var idxStatus = _waColIdx_(header, 'status');
+  if (lastRow >= 2) {
+    // Lê só até a coluna de status (não as ~14 colunas inteiras) — a planilha tem
+    // dezenas de milhares de linhas e ler tudo custa 10s+ por chamada.
+    var scanWidth = Math.max(idxCamp, idxStatus) + 1;
+    var scan = sh.getRange(2, 1, lastRow - 1, scanWidth).getValues();
+    for (var i = 0; i < scan.length; i++) {
+      if (String(scan[i][idxCamp]) !== String(payload.campanha_id)) continue;
+      if (String(scan[i][idxStatus]).trim().toLowerCase() !== 'pendente') continue;
+      var row = i + 2;
+      // Claim: marcar status='enviando' antes de retornar
+      sh.getRange(row, idxStatus + 1).setValue('enviando');
+      SpreadsheetApp.flush(); // commit imediato pra que outras chamadas vejam
+      var valores = sh.getRange(row, 1, 1, fullWidth).getValues()[0];
+      var disparo = {};
+      header.forEach(function(h, j) { disparo[h] = valores[j]; });
+      disparo.status = 'enviando';
+      disparo._row = row;
+      return { ok: true, disparo: _waNormalizarParaCliente_(disparo) };
+    }
   }
   // Sem pendentes → marca campanha como concluída (se ainda estiver 'ativa')
   var concluiu = _concluirCampanhaSeAtiva_(payload.campanha_id);
@@ -1666,34 +1734,30 @@ function _handleWaPessoalDeliveryUpdate_(payload) {
   // outras chamadas GAS na mesma chain. ScriptLock causaria timeout cascateado.
   try {
     var shDisp = _waSheet_(CFG_WA_PESSOAL.ABA_DISPAROS);
-    var data = _waLerLinhas_(shDisp);
-    var idxMsgId = _waColIdx_(data.header, 'message_id');
-    var idxEntr  = _waColIdx_(data.header, 'entregue_em');
-    var idxLido  = _waColIdx_(data.header, 'lido_em');
-    if (idxMsgId < 0 || idxEntr < 0 || idxLido < 0) {
+    var header = shDisp.getRange(1, 1, 1, shDisp.getLastColumn()).getValues()[0];
+    var idxEntr = _waColIdx_(header, 'entregue_em');
+    var idxLido = _waColIdx_(header, 'lido_em');
+    if (idxEntr < 0 || idxLido < 0) {
       return { ok: false, mensagem: 'Colunas de rastreamento ausentes em WA Disparos. Rode _addColunasRastreamentoWaDisparos.' };
     }
-    var rowIdx = -1;
-    for (var i = 0; i < data.linhas.length; i++) {
-      if (String(data.linhas[i][idxMsgId]) === String(payload.message_id)) {
-        rowIdx = i; break;
-      }
-    }
-    if (rowIdx < 0) return { ok: false, mensagem: 'message_id não encontrado.' };
+    // Lookup rápido por message_id via TextFinder — sem ler as 70k+ linhas.
+    var linhas = _waAcharLinhasDisparo_(shDisp, header, 'message_id', payload.message_id, false);
+    if (!linhas.length) return { ok: true, matched: false, motivo: 'message_id não encontrado' };
 
-    var linha = data.linhas[rowIdx];
     var agora = new Date();
-    var alterou = false;
-    if (status === 'DELIVERY_ACK') {
-      if (!linha[idxEntr]) { linha[idxEntr] = agora; alterou = true; }
-    } else if (status === 'READ') {
-      if (!linha[idxLido]) { linha[idxLido] = agora; alterou = true; }
-      if (!linha[idxEntr]) { linha[idxEntr] = agora; alterou = true; } // read implica entregue
-    }
-    if (alterou) {
-      shDisp.getRange(rowIdx + 2, 1, 1, linha.length).setValues([linha]);
-    }
-    return { ok: true, alterou: alterou };
+    var alterou = 0;
+    linhas.forEach(function(it) {
+      var linha = it.valores;
+      var mud = false;
+      if (status === 'DELIVERY_ACK') {
+        if (!linha[idxEntr]) { linha[idxEntr] = agora; mud = true; }
+      } else { // READ
+        if (!linha[idxLido]) { linha[idxLido] = agora; mud = true; }
+        if (!linha[idxEntr]) { linha[idxEntr] = agora; mud = true; } // read implica entregue
+      }
+      if (mud) { shDisp.getRange(it.row, 1, 1, linha.length).setValues([linha]); alterou++; }
+    });
+    return { ok: true, alterou: alterou, linhas: linhas.length };
   } catch (e) {
     return { ok: false, mensagem: e.message };
   }
