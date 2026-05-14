@@ -244,7 +244,7 @@ function getMinhaInstancia(usuario, usuarioAlvo) {
     };
 
     if (!info || !info.instance) {
-      return resp;
+      return _waNormalizarParaCliente_(resp);
     }
 
     var state = (info.instance.state || info.state || '').toLowerCase();
@@ -316,7 +316,12 @@ function deletarInstancia(usuario) {
     _assertWaUser_(usuario);
     var instance = _instanceNameFromUser_(usuario);
     try { _evolutionFetch_('DELETE', '/instance/logout/' + encodeURIComponent(instance), null); } catch (e) {}
-    _evolutionFetch_('DELETE', '/instance/delete/' + encodeURIComponent(instance), null);
+    try {
+      _evolutionFetch_('DELETE', '/instance/delete/' + encodeURIComponent(instance), null);
+    } catch (e) {
+      // HTTP 404 = instância já não existe → o objetivo (remover) já está cumprido
+      if (String(e.message || '').indexOf('HTTP 404') < 0) throw e;
+    }
     _waUpsertInstanciaLinha_(usuario, { status: 'desconectado', phone_display: '' });
     return { ok: true };
   } catch (e) {
