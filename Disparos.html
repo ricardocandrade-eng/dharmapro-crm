@@ -1,7 +1,11 @@
-<!-- dharmapro-crm | Disparos.html | 24/04/2026 16:30
-     View Disparos em Massa — Monitor de Campanhas + Nova Campanha
+<!-- dharmapro-crm | Disparos.html | 13/05/2026
+     View Disparos WABA — Monitor de Campanhas + Nova Campanha
+     v2: templates via Meta API; destinatários por upload de planilha (CSV/XLSX)
      Requer: DisparosAPI.js (listarCampanhasDisparo, listarTemplatesDisparo,
-             criarCampanhaDisparo, atualizarStatusCampanhaDisparo, contarLeadsParaDisparo) -->
+             criarCampanhaDisparo, atualizarStatusCampanhaDisparo, parsearPlanilhaDisparo) -->
+
+<!-- SheetJS para parse de XLSX no client -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
 /* ─── DISPAROS PAGE — CSS escopado em #disparosPage ──────────────────────── */
@@ -51,9 +55,7 @@
   font-family: 'Sora', sans-serif; cursor: pointer; border: none;
   transition: all .2s; white-space: nowrap;
 }
-.dp-btn-primary {
-  background: var(--accent, #e63e6d); color: #fff;
-}
+.dp-btn-primary  { background: var(--accent, #e63e6d); color: #fff; }
 .dp-btn-primary:hover { background: #c9335b; }
 .dp-btn-secondary {
   background: rgba(230,62,109,.08); border: 1.5px solid rgba(230,62,109,.3);
@@ -68,13 +70,11 @@
 .dp-btn:disabled { opacity: .4; cursor: not-allowed; }
 .dp-btn-sm { padding: 5px 10px; font-size: 11px; }
 .dp-btn-green {
-  background: rgba(39,195,119,.1); border: 1.5px solid rgba(39,195,119,.35);
-  color: #27c377;
+  background: rgba(39,195,119,.1); border: 1.5px solid rgba(39,195,119,.35); color: #27c377;
 }
 .dp-btn-green:hover { background: rgba(39,195,119,.2); }
 .dp-btn-yellow {
-  background: rgba(247,162,59,.1); border: 1.5px solid rgba(247,162,59,.35);
-  color: #f7a23b;
+  background: rgba(247,162,59,.1); border: 1.5px solid rgba(247,162,59,.35); color: #f7a23b;
 }
 .dp-btn-yellow:hover { background: rgba(247,162,59,.2); }
 
@@ -85,14 +85,14 @@
   font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 700;
   letter-spacing: .5px; text-transform: uppercase; white-space: nowrap;
 }
-.dp-badge-draft    { background: rgba(122,130,160,.12); color: var(--muted, #7a82a0); border: 1px solid rgba(122,130,160,.2); }
-.dp-badge-running  { background: rgba(39,195,119,.12); color: #27c377; border: 1px solid rgba(39,195,119,.25); }
-.dp-badge-paused   { background: rgba(247,162,59,.12); color: #f7a23b; border: 1px solid rgba(247,162,59,.25); }
-.dp-badge-completed{ background: rgba(99,120,230,.12); color: #6378e6; border: 1px solid rgba(99,120,230,.25); }
-.dp-badge-cancelled{ background: rgba(230,62,109,.12); color: var(--accent,#e63e6d); border: 1px solid rgba(230,62,109,.2); }
-.dp-badge-green    { background: rgba(39,195,119,.12); color: #27c377; border: 1px solid rgba(39,195,119,.25); }
-.dp-badge-yellow   { background: rgba(247,162,59,.12); color: #f7a23b; border: 1px solid rgba(247,162,59,.25); }
-.dp-badge-red      { background: rgba(230,62,109,.12); color: var(--accent,#e63e6d); border: 1px solid rgba(230,62,109,.2); }
+.dp-badge-draft    { background: rgba(122,130,160,.12); color: var(--muted,#7a82a0); border: 1px solid rgba(122,130,160,.2); }
+.dp-badge-running  { background: rgba(39,195,119,.12);  color: #27c377; border: 1px solid rgba(39,195,119,.25); }
+.dp-badge-paused   { background: rgba(247,162,59,.12);  color: #f7a23b; border: 1px solid rgba(247,162,59,.25); }
+.dp-badge-completed{ background: rgba(99,120,230,.12);  color: #6378e6; border: 1px solid rgba(99,120,230,.25); }
+.dp-badge-cancelled{ background: rgba(230,62,109,.12);  color: var(--accent,#e63e6d); border: 1px solid rgba(230,62,109,.2); }
+.dp-badge-green    { background: rgba(39,195,119,.12);  color: #27c377; border: 1px solid rgba(39,195,119,.25); }
+.dp-badge-yellow   { background: rgba(247,162,59,.12);  color: #f7a23b; border: 1px solid rgba(247,162,59,.25); }
+.dp-badge-red      { background: rgba(230,62,109,.12);  color: var(--accent,#e63e6d); border: 1px solid rgba(230,62,109,.2); }
 
 /* ── Cards de resumo ── */
 .dp-stats-row {
@@ -108,7 +108,7 @@
   text-transform: uppercase; color: var(--muted, #7a82a0); margin-bottom: 6px;
 }
 .dp-stat-value { font-size: 26px; font-weight: 800; }
-.dp-stat-value.green { color: #27c377; }
+.dp-stat-value.green  { color: #27c377; }
 .dp-stat-value.yellow { color: #f7a23b; }
 .dp-stat-value.accent { color: var(--accent, #e63e6d); }
 .dp-stat-sub { font-size: 11px; color: var(--muted, #7a82a0); margin-top: 3px; }
@@ -155,32 +155,26 @@
 .dp-actions-cell { white-space: nowrap; }
 
 /* ── Progress bar inline ── */
-.dp-prog-wrap {
-  display: flex; flex-direction: column; gap: 2px; min-width: 90px;
-}
-.dp-prog-bar {
-  height: 4px; background: var(--surface2, #1c2030);
-  border-radius: 2px; overflow: hidden;
-}
+.dp-prog-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 90px; }
+.dp-prog-bar  { height: 4px; background: var(--surface2, #1c2030); border-radius: 2px; overflow: hidden; }
 .dp-prog-fill { height: 100%; border-radius: 2px; transition: width .3s; }
-.dp-prog-fill.running { background: #27c377; }
-.dp-prog-fill.paused  { background: #f7a23b; }
+.dp-prog-fill.running   { background: #27c377; }
+.dp-prog-fill.paused    { background: #f7a23b; }
 .dp-prog-fill.completed { background: #6378e6; }
-.dp-prog-fill.draft   { background: var(--muted, #7a82a0); }
+.dp-prog-fill.draft     { background: var(--muted, #7a82a0); }
 .dp-prog-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted, #7a82a0); }
 
-/* ── Empty/loading states ── */
+/* ── Empty / loading states ── */
 .dp-empty, .dp-loading {
   display: flex; flex-direction: column; align-items: center;
   justify-content: center; min-height: 300px; gap: 14px; text-align: center;
 }
 .dp-empty-icon { font-size: 48px; opacity: .5; }
 .dp-empty h3 { font-size: 16px; font-weight: 700; margin: 0; }
-.dp-empty p { color: var(--muted, #7a82a0); font-size: 13px; margin: 0; }
+.dp-empty p  { color: var(--muted, #7a82a0); font-size: 13px; margin: 0; }
 .dp-spinner {
   width: 36px; height: 36px;
-  border: 3px solid var(--border2, #353d58);
-  border-top-color: var(--accent, #e63e6d);
+  border: 3px solid var(--border2, #353d58); border-top-color: var(--accent, #e63e6d);
   border-radius: 50%; animation: dpSpin .8s linear infinite;
 }
 @keyframes dpSpin { to { transform: rotate(360deg); } }
@@ -192,15 +186,13 @@
   padding: 12px 16px; border-radius: 10px; font-size: 13px;
   margin-bottom: 16px; animation: dpToastIn .2s ease;
 }
-@keyframes dpToastIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
-.dp-toast-ok   { background: rgba(39,195,119,.1); border: 1px solid rgba(39,195,119,.25); color: #27c377; }
-.dp-toast-err  { background: rgba(230,62,109,.1); border: 1px solid rgba(230,62,109,.25); color: var(--accent,#e63e6d); }
-.dp-toast-info { background: rgba(99,120,230,.1); border: 1px solid rgba(99,120,230,.25); color: #6378e6; }
+@keyframes dpToastIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+.dp-toast-ok   { background: rgba(39,195,119,.1);  border: 1px solid rgba(39,195,119,.25);  color: #27c377; }
+.dp-toast-err  { background: rgba(230,62,109,.1);  border: 1px solid rgba(230,62,109,.25);  color: var(--accent,#e63e6d); }
+.dp-toast-info { background: rgba(99,120,230,.1);  border: 1px solid rgba(99,120,230,.25);  color: #6378e6; }
 
 /* ── NOVA CAMPANHA — Formulário ── */
-.dp-form-wrap {
-  max-width: 580px;
-}
+.dp-form-wrap { max-width: 580px; }
 .dp-form-section {
   font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: .25em;
   text-transform: uppercase; color: var(--muted, #7a82a0);
@@ -210,8 +202,8 @@
   content: ''; flex: 1; height: 1px;
   background: linear-gradient(90deg, var(--border, #252a3a) 0%, transparent 100%);
 }
-.dp-field { margin-bottom: 16px; }
-.dp-label {
+.dp-field  { margin-bottom: 16px; }
+.dp-label  {
   display: block; font-size: 11px; font-weight: 700;
   color: var(--muted, #7a82a0); margin-bottom: 7px; letter-spacing: .03em;
 }
@@ -226,24 +218,6 @@
 .dp-input::placeholder { color: var(--muted, #7a82a0); }
 .dp-select option { background: #1c2030; }
 
-/* ── Preview de leads ── */
-.dp-leads-preview {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 8px 14px; border-radius: 9px; margin-top: 8px;
-  background: var(--surface, #141720); border: 1px solid var(--border, #252a3a);
-}
-.dp-leads-preview .dp-leads-count {
-  font-family: 'DM Mono', monospace; font-size: 18px; font-weight: 800;
-  color: var(--accent, #e63e6d);
-}
-.dp-leads-preview .dp-leads-label { font-size: 12px; color: var(--muted, #7a82a0); }
-.dp-leads-preview .dp-leads-spinner {
-  width: 16px; height: 16px;
-  border: 2px solid var(--border2, #353d58);
-  border-top-color: var(--accent, #e63e6d);
-  border-radius: 50%; animation: dpSpin .8s linear infinite;
-}
-
 /* ── Template card preview ── */
 .dp-tmpl-preview {
   margin-top: 8px; padding: 12px 16px;
@@ -254,6 +228,84 @@
 .dp-tmpl-preview-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .dp-tmpl-preview-name { font-size: 12px; font-weight: 700; }
 .dp-tmpl-preview-cat  { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted,#7a82a0); }
+
+/* ── Drop Zone ── */
+.dp-drop-zone {
+  border: 2px dashed var(--border2, #353d58);
+  border-radius: 12px; padding: 32px 20px;
+  text-align: center; cursor: pointer;
+  transition: border-color .2s, background .2s;
+  background: var(--surface, #141720);
+}
+.dp-drop-zone:hover, .dp-drop-zone.drag-over {
+  border-color: var(--accent, #e63e6d);
+  background: rgba(230,62,109,.04);
+}
+.dp-drop-icon { font-size: 32px; margin-bottom: 10px; opacity: .7; }
+.dp-drop-zone p {
+  margin: 0 0 4px; font-size: 13px; color: var(--text, #e4e8f5);
+}
+.dp-drop-zone p strong { color: var(--accent, #e63e6d); }
+.dp-drop-hint {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  color: var(--muted, #7a82a0) !important;
+}
+
+/* ── Mailing preview ── */
+.dp-mailing-box {
+  margin-top: 12px; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--border, #252a3a);
+}
+.dp-mailing-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; background: var(--surface, #141720);
+  border-bottom: 1px solid var(--border, #252a3a);
+}
+.dp-mailing-count {
+  font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 800;
+  color: var(--accent, #e63e6d);
+}
+.dp-mailing-label { font-size: 12px; color: var(--muted, #7a82a0); flex: 1; }
+.dp-mailing-filename {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  color: var(--muted, #7a82a0); max-width: 160px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.dp-mailing-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.dp-mailing-table th {
+  padding: 7px 14px; text-align: left; font-size: 9px; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--muted, #7a82a0); font-weight: 700;
+  font-family: 'DM Mono', monospace;
+  border-bottom: 1px solid var(--border, #252a3a);
+  background: var(--surface, #141720);
+}
+.dp-mailing-table td {
+  padding: 8px 14px; border-bottom: 1px solid rgba(37,42,58,.4);
+  color: var(--text, #e4e8f5);
+}
+.dp-mailing-table tr:last-child td { border-bottom: none; }
+.dp-mailing-more {
+  padding: 8px 14px; font-size: 11px;
+  color: var(--muted, #7a82a0); font-style: italic;
+  background: var(--surface, #141720);
+  border-top: 1px solid var(--border, #252a3a);
+}
+.dp-mailing-erro {
+  margin-top: 10px; padding: 10px 14px; border-radius: 9px;
+  background: rgba(230,62,109,.08); border: 1px solid rgba(230,62,109,.2);
+  color: var(--accent, #e63e6d); font-size: 12px;
+}
+.dp-processing {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 10px; padding: 10px 14px; border-radius: 9px;
+  background: rgba(99,120,230,.08); border: 1px solid rgba(99,120,230,.2);
+  color: #6378e6; font-size: 12px;
+}
+.dp-processing .dp-mini-spin {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid rgba(99,120,230,.3); border-top-color: #6378e6;
+  animation: dpSpin .8s linear infinite; flex-shrink: 0;
+}
 </style>
 
 <!-- ══════════════════════════════════════════════════════════════════ -->
@@ -276,16 +328,15 @@
   <!-- Tabs -->
   <div class="dp-tabs">
     <div class="dp-tab ativo" id="dpTabMonitor" onclick="dpMudarTab('monitor')">📋 Monitor</div>
-    <div class="dp-tab" id="dpTabNova"    onclick="dpMudarTab('nova')">🚀 Nova Campanha</div>
+    <div class="dp-tab"       id="dpTabNova"    onclick="dpMudarTab('nova')">🚀 Nova Campanha</div>
   </div>
 
   <!-- ── ABA: MONITOR ─────────────────────────────────────────── -->
   <div id="dpPanelMonitor" class="dp-tab-panel ativo">
 
-    <!-- Notificação -->
     <div id="dpToastMonitor" style="display:none"></div>
 
-    <!-- Stats row -->
+    <!-- Stats -->
     <div class="dp-stats-row" id="dpStatsRow">
       <div class="dp-stat-card">
         <div class="dp-stat-label">Total de Campanhas</div>
@@ -305,7 +356,7 @@
       </div>
     </div>
 
-    <!-- Tabela de campanhas -->
+    <!-- Tabela -->
     <div class="dp-table-wrap">
       <div class="dp-table-toolbar">
         <span class="dp-table-toolbar-title">Campanhas (últimas 50)</span>
@@ -323,7 +374,6 @@
   <!-- ── ABA: NOVA CAMPANHA ──────────────────────────────────── -->
   <div id="dpPanelNova" class="dp-tab-panel">
 
-    <!-- Notificação -->
     <div id="dpToastNova" style="display:none"></div>
 
     <div class="dp-form-wrap">
@@ -333,16 +383,15 @@
       <div class="dp-field">
         <label class="dp-label" for="dpNomeCampanha">Nome da campanha</label>
         <input id="dpNomeCampanha" class="dp-input" type="text"
-               placeholder="Ex.: Leads inativos — Abril 2026" maxlength="100"
+               placeholder="Ex.: Leads inativos — Maio 2026" maxlength="100"
                oninput="dpValidarFormCampanha()">
       </div>
 
       <!-- Template -->
       <div class="dp-field">
         <label class="dp-label" for="dpSelectTemplate">Template WhatsApp</label>
-        <select id="dpSelectTemplate" class="dp-select"
-                onchange="dpAoMudarTemplate()">
-          <option value="">— Selecione um template —</option>
+        <select id="dpSelectTemplate" class="dp-select" onchange="dpAoMudarTemplate()">
+          <option value="">— Carregando templates aprovados… —</option>
         </select>
         <div class="dp-tmpl-preview" id="dpTmplPreview">
           <div class="dp-tmpl-preview-row">
@@ -353,31 +402,61 @@
         </div>
       </div>
 
-      <!-- Público -->
-      <div class="dp-form-section">Segmentação do Público</div>
+      <!-- Mailing -->
+      <div class="dp-form-section">Mailing · Destinatários</div>
 
       <div class="dp-field">
-        <label class="dp-label" for="dpSelectFiltro">Público-alvo</label>
-        <select id="dpSelectFiltro" class="dp-select"
-                onchange="dpContarLeads()">
-          <option value="todos">Todos os leads com WhatsApp</option>
-          <option value="sem_resposta_7d">Sem resposta há mais de 7 dias</option>
-          <option value="sem_resposta_30d">Sem resposta há mais de 30 dias</option>
-          <option value="sem_venda">Sem venda concluída</option>
-        </select>
+        <label class="dp-label">Planilha de contatos</label>
 
-        <div class="dp-leads-preview" id="dpLeadsPreview">
-          <div class="dp-leads-spinner" id="dpLeadsSpinner" style="display:none"></div>
-          <span class="dp-leads-count" id="dpLeadsCount">—</span>
-          <span class="dp-leads-label">leads serão incluídos</span>
+        <!-- Drop zone -->
+        <div id="dpDropZone" class="dp-drop-zone"
+             onclick="document.getElementById('dpFileInput').click()"
+             ondragover="dpDragOver(event)"
+             ondragleave="dpDragLeave(event)"
+             ondrop="dpDrop(event)">
+          <input type="file" id="dpFileInput" accept=".csv,.xlsx,.xls"
+                 style="display:none" onchange="dpAoSelecionarArquivo(event)">
+          <div class="dp-drop-icon">📂</div>
+          <p>Arraste um arquivo ou <strong>clique para selecionar</strong></p>
+          <p class="dp-drop-hint">CSV ou Excel (.xlsx) · Precisa ter coluna com o telefone</p>
+        </div>
+
+        <!-- Processando -->
+        <div id="dpMailingProcessando" class="dp-processing" style="display:none">
+          <div class="dp-mini-spin"></div>
+          <span id="dpMailingProcessMsg">Processando arquivo…</span>
+        </div>
+
+        <!-- Erro -->
+        <div id="dpMailingErro" class="dp-mailing-erro" style="display:none"></div>
+
+        <!-- Preview dos contatos -->
+        <div id="dpMailingBox" class="dp-mailing-box" style="display:none">
+          <div class="dp-mailing-header">
+            <span class="dp-mailing-count" id="dpMailingCount">0</span>
+            <span class="dp-mailing-label">contatos carregados</span>
+            <span class="dp-mailing-filename" id="dpMailingFilename"></span>
+            <button class="dp-btn dp-btn-sm dp-btn-ghost" onclick="dpLimparMailing()">✕ Remover</button>
+          </div>
+          <table class="dp-mailing-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Telefone</th>
+              </tr>
+            </thead>
+            <tbody id="dpMailingPreviewRows"></tbody>
+          </table>
+          <div id="dpMailingMore" class="dp-mailing-more" style="display:none"></div>
         </div>
       </div>
 
-      <!-- Resumo antes de criar -->
+      <!-- Criar -->
       <div class="dp-form-section">Criar Campanha</div>
       <p style="font-size:12px;color:var(--muted,#7a82a0);line-height:1.6;margin-bottom:16px;">
         A campanha será criada com status <strong style="color:var(--text)">rascunho (draft)</strong>.
-        Para iniciar o disparo, volte ao <strong style="color:var(--text)">Monitor</strong> e clique em <strong style="color:#27c377">▶ Iniciar</strong>.
+        Para iniciar o disparo, volte ao <strong style="color:var(--text)">Monitor</strong> e clique em
+        <strong style="color:#27c377">▶ Iniciar</strong>.
       </p>
 
       <button id="dpBtnCriar" class="dp-btn dp-btn-primary" onclick="dpCriarCampanha()" disabled>
@@ -397,17 +476,17 @@ var _dp = {
   templates:  [],
   tabAtual:   'monitor',
   criando:    false,
-  contando:   false,
+  mailing:    [],       // [{nome, phone}] do arquivo carregado
+  mailingFile: null,    // nome do arquivo
 };
 
-// ── Inicialização (chamada pelo JS.html após injetar o HTML) ─────────
+// ── Inicialização ────────────────────────────────────────────────────
 function disparosInit() {
   dpCarregarTemplates();
   dpCarregarCampanhas();
-  dpContarLeads();
 }
 
-// ── Tabs ─────────────────────────────────────────────────────────────
+// ── Tabs ──────────────────────────────────────────────────────────────
 function dpMudarTab(tab) {
   _dp.tabAtual = tab;
   ['monitor','nova'].forEach(function(t) {
@@ -418,10 +497,9 @@ function dpMudarTab(tab) {
     else           { btn.classList.remove('ativo'); pnl.classList.remove('ativo'); }
   });
 }
-
 function dpIrParaNovaCampanha() { dpMudarTab('nova'); }
 
-// ── Carregar campanhas ────────────────────────────────────────────────
+// ── Carregar campanhas ─────────────────────────────────────────────────
 function dpCarregarCampanhas() {
   var wrap = document.getElementById('dpTabelaCampanhasWrap');
   if (!wrap) return;
@@ -439,16 +517,13 @@ function dpCarregarCampanhas() {
     .listarCampanhasDisparo();
 }
 
-function dpAtualizarMonitor() {
-  dpCarregarCampanhas();
-}
+function dpAtualizarMonitor() { dpCarregarCampanhas(); }
 
 function dpRenderCampanhas() {
   var lista = _dp.campanhas;
   var wrap  = document.getElementById('dpTabelaCampanhasWrap');
   if (!wrap) return;
 
-  // Atualizar stats
   var stats = { total: lista.length, running: 0, paused: 0, completed: 0 };
   lista.forEach(function(c) {
     if (c.status === 'running')   stats.running++;
@@ -472,10 +547,10 @@ function dpRenderCampanhas() {
   }
 
   var rows = lista.map(function(c) {
-    var pct  = c.total_recipients > 0 ? Math.round((c.sent_count / c.total_recipients) * 100) : 0;
-    var badge = dpStatusBadge(c.status);
+    var pct       = c.total_recipients > 0 ? Math.round((c.sent_count / c.total_recipients) * 100) : 0;
+    var badge     = dpStatusBadge(c.status);
     var tmplBadge = c.template_quality ? dpQualityBadge(c.template_quality) : '';
-    var acoes = dpAcoes(c);
+    var acoes     = dpAcoes(c);
     return '<tr>' +
       '<td class="dp-name-cell">' +
         '<span class="dp-camp-name" title="' + dpEsc(c.name) + '">' + dpEsc(c.name) + '</span>' +
@@ -497,37 +572,25 @@ function dpRenderCampanhas() {
   }).join('');
 
   wrap.innerHTML =
-    '<table class="dp-table">' +
-    '<thead><tr>' +
-      '<th>Campanha / Template</th>' +
-      '<th>Status</th>' +
-      '<th>Progresso</th>' +
-      '<th style="text-align:right">Entregues</th>' +
-      '<th style="text-align:right">Lidas</th>' +
-      '<th style="text-align:right">Falhas</th>' +
-      '<th>Atualizado</th>' +
-      '<th>Ações</th>' +
-    '</tr></thead>' +
-    '<tbody>' + rows + '</tbody>' +
-    '</table>';
+    '<table class="dp-table"><thead><tr>' +
+    '<th>Campanha / Template</th><th>Status</th><th>Progresso</th>' +
+    '<th style="text-align:right">Entregues</th><th style="text-align:right">Lidas</th>' +
+    '<th style="text-align:right">Falhas</th><th>Atualizado</th><th>Ações</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table>';
 }
 
-// ── Ações de campanha ─────────────────────────────────────────────────
+// ── Ações de campanha ──────────────────────────────────────────────────
 function dpAcoes(c) {
   var btns = '';
-  if (c.status === 'draft' || c.status === 'paused') {
-    btns += '<button class="dp-btn dp-btn-sm dp-btn-green" onclick="dpMudarStatus(\'' + c.id + '\',\'running\')" title="Iniciar campanha">▶ Iniciar</button> ';
-  }
-  if (c.status === 'running') {
-    btns += '<button class="dp-btn dp-btn-sm dp-btn-yellow" onclick="dpMudarStatus(\'' + c.id + '\',\'paused\')" title="Pausar campanha">⏸ Pausar</button> ';
-  }
+  if (c.status === 'draft' || c.status === 'paused')
+    btns += '<button class="dp-btn dp-btn-sm dp-btn-green" onclick="dpMudarStatus(\'' + c.id + '\',\'running\')">▶ Iniciar</button> ';
+  if (c.status === 'running')
+    btns += '<button class="dp-btn dp-btn-sm dp-btn-yellow" onclick="dpMudarStatus(\'' + c.id + '\',\'paused\')">⏸ Pausar</button> ';
   return btns || '<span style="color:var(--muted);font-size:11px">—</span>';
 }
 
 function dpMudarStatus(id, novoStatus) {
-  var label = novoStatus === 'running' ? 'iniciando' : 'pausando';
-  dpShowToast('monitor', 'info', '⏳ ' + label.charAt(0).toUpperCase() + label.slice(1) + ' campanha…');
-
+  dpShowToast('monitor', 'info', '⏳ ' + (novoStatus === 'running' ? 'Iniciando' : 'Pausando') + ' campanha…');
   google.script.run
     .withSuccessHandler(function() {
       dpShowToast('monitor', 'ok', '✓ Campanha ' + (novoStatus === 'running' ? 'iniciada' : 'pausada') + ' com sucesso.');
@@ -539,23 +602,32 @@ function dpMudarStatus(id, novoStatus) {
     .atualizarStatusCampanhaDisparo(id, novoStatus);
 }
 
-// ── Carregar templates (para o formulário) ───────────────────────────
+// ── Carregar templates da Meta API ─────────────────────────────────────
 function dpCarregarTemplates() {
   var sel = document.getElementById('dpSelectTemplate');
   if (!sel) return;
+  sel.innerHTML = '<option value="">— Carregando templates aprovados… —</option>';
 
   google.script.run
     .withSuccessHandler(function(lista) {
       _dp.templates = lista || [];
       sel.innerHTML = '<option value="">— Selecione um template —</option>';
+      if (lista.length === 0) {
+        sel.innerHTML += '<option value="" disabled>Nenhum template aprovado encontrado</option>';
+        return;
+      }
       lista.forEach(function(t) {
         var paused = t.is_paused ? ' ⚠ pausado' : '';
-        sel.innerHTML += '<option value="' + t.id + '" data-name="' + dpEsc(t.meta_template_name) +
-          '" data-quality="' + (t.quality||'') + '" data-cat="' + (t.category||'') + '">' +
+        sel.innerHTML += '<option value="' + dpEsc(t.meta_template_name) + '"' +
+          ' data-cat="'     + dpEsc(t.category || '') + '"' +
+          ' data-quality="' + dpEsc(t.quality  || '') + '"' +
+          ' data-lang="'    + dpEsc(t.language  || '') + '">' +
           t.meta_template_name + paused + '</option>';
       });
     })
-    .withFailureHandler(function() { /* silencioso */ })
+    .withFailureHandler(function(e) {
+      sel.innerHTML = '<option value="">⚠ Erro ao carregar: ' + dpEsc(e.message || String(e)) + '</option>';
+    })
     .listarTemplatesDisparo();
 }
 
@@ -563,71 +635,255 @@ function dpAoMudarTemplate() {
   var sel  = document.getElementById('dpSelectTemplate');
   var prev = document.getElementById('dpTmplPreview');
   if (!sel || !prev) return;
-  var opt  = sel.options[sel.selectedIndex];
+  var opt = sel.options[sel.selectedIndex];
   if (!opt || !opt.value) { prev.classList.remove('visivel'); dpValidarFormCampanha(); return; }
-
-  var nome    = opt.getAttribute('data-name') || opt.text;
-  var quality = opt.getAttribute('data-quality') || '';
-  var cat     = opt.getAttribute('data-cat') || '';
 
   var nomeEl = document.getElementById('dpTmplNome');
   var qualEl = document.getElementById('dpTmplQuality');
   var catEl  = document.getElementById('dpTmplCat');
-  if (nomeEl) nomeEl.textContent = nome;
-  if (qualEl) qualEl.innerHTML   = quality ? dpQualityBadge(quality) : '';
-  if (catEl)  catEl.textContent  = cat;
+  if (nomeEl) nomeEl.textContent = opt.value;
+  if (qualEl) qualEl.innerHTML   = opt.getAttribute('data-quality') ? dpQualityBadge(opt.getAttribute('data-quality')) : '';
+  if (catEl)  catEl.textContent  = opt.getAttribute('data-cat') || '';
   prev.classList.add('visivel');
   dpValidarFormCampanha();
 }
 
-// ── Contar leads ──────────────────────────────────────────────────────
-function dpContarLeads() {
-  if (_dp.contando) return;
-  _dp.contando = true;
-  var filtro   = (document.getElementById('dpSelectFiltro') || {}).value || 'todos';
-  var countEl  = document.getElementById('dpLeadsCount');
-  var spinEl   = document.getElementById('dpLeadsSpinner');
-  if (countEl) countEl.textContent = '…';
-  if (spinEl)  spinEl.style.display = 'block';
-
-  google.script.run
-    .withSuccessHandler(function(res) {
-      _dp.contando = false;
-      if (countEl) countEl.textContent = dpNum(res.total);
-      if (spinEl)  spinEl.style.display = 'none';
-      dpValidarFormCampanha();
-    })
-    .withFailureHandler(function() {
-      _dp.contando = false;
-      if (countEl) countEl.textContent = '?';
-      if (spinEl)  spinEl.style.display = 'none';
-    })
-    .contarLeadsParaDisparo(filtro);
+// ── Upload de planilha ─────────────────────────────────────────────────
+function dpDragOver(e)  { e.preventDefault(); document.getElementById('dpDropZone').classList.add('drag-over'); }
+function dpDragLeave(e) { document.getElementById('dpDropZone').classList.remove('drag-over'); }
+function dpDrop(e) {
+  e.preventDefault();
+  document.getElementById('dpDropZone').classList.remove('drag-over');
+  var file = e.dataTransfer.files[0];
+  if (file) dpProcessarArquivo(file);
+}
+function dpAoSelecionarArquivo(e) {
+  var file = e.target.files[0];
+  if (file) dpProcessarArquivo(file);
+  e.target.value = ''; // reset para permitir reselecionar o mesmo arquivo
 }
 
-// ── Validar e criar campanha ─────────────────────────────────────────
+function dpProcessarArquivo(file) {
+  dpEsconderMailingPreview();
+  document.getElementById('dpMailingErro').style.display = 'none';
+
+  var ext = file.name.split('.').pop().toLowerCase();
+  if (ext !== 'csv' && ext !== 'xlsx' && ext !== 'xls') {
+    dpMostrarErroPlanilha('Formato não suportado. Use CSV ou Excel (.xlsx).');
+    return;
+  }
+
+  dpMostrarProcessando('Lendo arquivo…');
+
+  if (ext === 'csv') {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        dpMostrarProcessando('Identificando colunas…');
+        var linhas = dpParsearCSV(e.target.result);
+        dpProcessarLinhas(linhas, file.name);
+      } catch (err) {
+        dpEsconderProcessando();
+        dpMostrarErroPlanilha(err.message || String(err));
+      }
+    };
+    reader.onerror = function() { dpEsconderProcessando(); dpMostrarErroPlanilha('Erro ao ler o arquivo.'); };
+    reader.readAsText(file, 'UTF-8');
+  } else {
+    // XLSX — tenta SheetJS client-side, fallback para servidor
+    if (typeof XLSX !== 'undefined') {
+      var reader2 = new FileReader();
+      reader2.onload = function(e) {
+        try {
+          dpMostrarProcessando('Convertendo planilha…');
+          var wb    = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+          var ws    = wb.Sheets[wb.SheetNames[0]];
+          var linhas = XLSX.utils.sheet_to_json(ws, { header: 1 });
+          dpProcessarLinhas(linhas, file.name);
+        } catch (err) {
+          dpEsconderProcessando();
+          dpMostrarErroPlanilha('Erro ao ler XLSX: ' + (err.message || String(err)));
+        }
+      };
+      reader2.onerror = function() { dpEsconderProcessando(); dpMostrarErroPlanilha('Erro ao ler o arquivo.'); };
+      reader2.readAsArrayBuffer(file);
+    } else {
+      // Fallback: enviar base64 para o servidor parsear via Drive API
+      dpMostrarProcessando('Enviando para processamento no servidor…');
+      var reader3 = new FileReader();
+      reader3.onload = function(e) {
+        var base64 = btoa(String.fromCharCode.apply(null, new Uint8Array(e.target.result)));
+        google.script.run
+          .withSuccessHandler(function(contatos) {
+            dpEsconderProcessando();
+            _dp.mailing     = contatos;
+            _dp.mailingFile = file.name;
+            dpRenderMailingPreview();
+            dpValidarFormCampanha();
+          })
+          .withFailureHandler(function(err) {
+            dpEsconderProcessando();
+            dpMostrarErroPlanilha(err.message || String(err));
+          })
+          .parsearPlanilhaDisparo(base64, file.name);
+      };
+      reader3.readAsArrayBuffer(file);
+    }
+  }
+}
+
+function dpParsearCSV(texto) {
+  // Detecta separador e quebra de linha
+  var sep = (texto.indexOf(';') > texto.indexOf(',')) ? ';' : ',';
+  return texto.split(/\r?\n/).map(function(linha) {
+    return linha.split(sep).map(function(c) {
+      return c.replace(/^["']|["']$/g, '').trim();
+    });
+  });
+}
+
+function dpProcessarLinhas(rows, filename) {
+  if (!rows || rows.length < 2) {
+    dpEsconderProcessando();
+    dpMostrarErroPlanilha('Arquivo vazio ou sem dados suficientes.');
+    return;
+  }
+
+  var header = rows[0].map(function(h) { return String(h).toLowerCase().trim(); });
+
+  var telCands = ['telefone','whatsapp','fone','celular','phone','cel','numero','número','tel'];
+  var nomCands = ['nome','name','cliente','contato'];
+
+  var idxTel = -1, idxNome = -1;
+  header.forEach(function(h, i) {
+    if (idxTel < 0)  telCands.forEach(function(c) { if (h.indexOf(c) >= 0) idxTel  = i; });
+    if (idxNome < 0) nomCands.forEach(function(c) { if (h.indexOf(c) >= 0) idxNome = i; });
+  });
+
+  if (idxTel < 0) {
+    dpEsconderProcessando();
+    dpMostrarErroPlanilha('Coluna de telefone não encontrada. Use um cabeçalho como: telefone, whatsapp, celular ou phone.');
+    return;
+  }
+
+  var vistos   = {};
+  var contatos = [];
+
+  for (var r = 1; r < rows.length; r++) {
+    var row = rows[r];
+    if (!row || row.length === 0 || !row[idxTel]) continue;
+    var tel = String(row[idxTel]).replace(/\D/g, '');
+    if (tel.length < 10) continue;
+    if (tel.indexOf('55') !== 0) tel = '55' + tel;
+    var phone = '+' + tel;
+    if (vistos[phone]) continue;
+    vistos[phone] = true;
+    var nome = idxNome >= 0 ? String(row[idxNome] || '').trim() : '';
+    contatos.push({ phone: phone, nome: nome || 'Cliente' });
+  }
+
+  dpEsconderProcessando();
+
+  if (contatos.length === 0) {
+    dpMostrarErroPlanilha('Nenhum telefone válido encontrado. Verifique se a coluna de telefone contém números com DDD.');
+    return;
+  }
+
+  _dp.mailing     = contatos;
+  _dp.mailingFile = filename;
+  dpRenderMailingPreview();
+  dpValidarFormCampanha();
+}
+
+function dpRenderMailingPreview() {
+  var box = document.getElementById('dpMailingBox');
+  if (!box) return;
+
+  var contatos = _dp.mailing;
+  document.getElementById('dpMailingCount').textContent    = dpNum(contatos.length);
+  document.getElementById('dpMailingFilename').textContent = _dp.mailingFile || '';
+
+  var MAX_PREVIEW = 5;
+  var rows = contatos.slice(0, MAX_PREVIEW).map(function(c) {
+    return '<tr><td>' + dpEsc(c.nome) + '</td><td style="font-family:\'DM Mono\',monospace">' + dpEsc(c.phone) + '</td></tr>';
+  }).join('');
+  document.getElementById('dpMailingPreviewRows').innerHTML = rows;
+
+  var moreEl = document.getElementById('dpMailingMore');
+  if (contatos.length > MAX_PREVIEW) {
+    moreEl.textContent  = '+ ' + dpNum(contatos.length - MAX_PREVIEW) + ' contatos adicionais…';
+    moreEl.style.display = 'block';
+  } else {
+    moreEl.style.display = 'none';
+  }
+
+  box.style.display = 'block';
+}
+
+function dpLimparMailing() {
+  _dp.mailing     = [];
+  _dp.mailingFile = null;
+  dpEsconderMailingPreview();
+  dpValidarFormCampanha();
+}
+
+function dpEsconderMailingPreview() {
+  var box = document.getElementById('dpMailingBox');
+  if (box) box.style.display = 'none';
+}
+
+function dpMostrarProcessando(msg) {
+  var el = document.getElementById('dpMailingProcessando');
+  var msgEl = document.getElementById('dpMailingProcessMsg');
+  if (el)    el.style.display    = 'flex';
+  if (msgEl) msgEl.textContent   = msg || 'Processando arquivo…';
+}
+function dpEsconderProcessando() {
+  var el = document.getElementById('dpMailingProcessando');
+  if (el) el.style.display = 'none';
+}
+function dpMostrarErroPlanilha(msg) {
+  var el = document.getElementById('dpMailingErro');
+  if (!el) return;
+  el.textContent  = '⚠ ' + msg;
+  el.style.display = 'block';
+}
+
+// ── Validar e criar campanha ───────────────────────────────────────────
 function dpValidarFormCampanha() {
-  var nome  = (document.getElementById('dpNomeCampanha') || {}).value || '';
+  var nome  = (document.getElementById('dpNomeCampanha')   || {}).value || '';
   var tmpl  = (document.getElementById('dpSelectTemplate') || {}).value || '';
   var btn   = document.getElementById('dpBtnCriar');
-  if (btn) btn.disabled = !(nome.trim().length > 2 && tmpl);
+  var ok    = nome.trim().length > 2 && tmpl && _dp.mailing.length > 0;
+  if (btn) btn.disabled = !ok;
 }
 
 function dpCriarCampanha() {
   if (_dp.criando) return;
-  var nome   = (document.getElementById('dpNomeCampanha')   || {}).value || '';
-  var tmplId = (document.getElementById('dpSelectTemplate') || {}).value || '';
-  var filtro = (document.getElementById('dpSelectFiltro')   || {}).value || 'todos';
 
-  if (!nome.trim() || !tmplId) {
-    dpShowToast('nova', 'err', '✗ Preencha o nome e selecione um template.');
+  var nome   = (document.getElementById('dpNomeCampanha')   || {}).value || '';
+  var sel    = document.getElementById('dpSelectTemplate');
+  var tmpl   = sel ? sel.value : '';
+  var opt    = sel ? sel.options[sel.selectedIndex] : null;
+
+  if (!nome.trim() || !tmpl || _dp.mailing.length === 0) {
+    dpShowToast('nova', 'err', '✗ Preencha o nome, selecione um template e faça upload do mailing.');
     return;
   }
 
   _dp.criando = true;
   var btn = document.getElementById('dpBtnCriar');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Criando…'; }
-  dpShowToast('nova', 'info', '⏳ Criando campanha e populando destinatários…');
+  dpShowToast('nova', 'info', '⏳ Criando campanha com ' + dpNum(_dp.mailing.length) + ' destinatários…');
+
+  var params = {
+    nome:             nome.trim(),
+    templateName:     tmpl,
+    templateCategory: opt ? (opt.getAttribute('data-cat')     || 'MARKETING') : 'MARKETING',
+    templateQuality:  opt ? (opt.getAttribute('data-quality') || 'GREEN')     : 'GREEN',
+    templateLanguage: opt ? (opt.getAttribute('data-lang')    || 'pt_BR')     : 'pt_BR',
+    recipients:       _dp.mailing,
+  };
 
   google.script.run
     .withSuccessHandler(function(res) {
@@ -642,24 +898,19 @@ function dpCriarCampanha() {
       // Limpar formulário
       var ni = document.getElementById('dpNomeCampanha');
       var si = document.getElementById('dpSelectTemplate');
-      var sf = document.getElementById('dpSelectFiltro');
       if (ni) ni.value = '';
       if (si) { si.value = ''; dpAoMudarTemplate(); }
-      if (sf) sf.value = 'todos';
+      dpLimparMailing();
       dpValidarFormCampanha();
-      dpContarLeads();
-      // Ir pro monitor e recarregar
-      setTimeout(function() {
-        dpMudarTab('monitor');
-        dpCarregarCampanhas();
-      }, 1500);
+      // Ir para o Monitor
+      setTimeout(function() { dpMudarTab('monitor'); dpCarregarCampanhas(); }, 1500);
     })
     .withFailureHandler(function(e) {
       _dp.criando = false;
       if (btn) { btn.disabled = false; btn.textContent = '＋ Criar Campanha'; }
       dpShowToast('nova', 'err', '✗ ' + (e.message || String(e)));
     })
-    .criarCampanhaDisparo({ nome: nome.trim(), templateId: tmplId, filtro: filtro });
+    .criarCampanhaDisparo(params);
 }
 
 // ── Helpers de UI ─────────────────────────────────────────────────────
@@ -668,7 +919,7 @@ function dpShowToast(area, tipo, msg) {
   var el = document.getElementById(id);
   if (!el) return;
   var cls = tipo === 'ok' ? 'dp-toast-ok' : tipo === 'err' ? 'dp-toast-err' : 'dp-toast-info';
-  el.className = 'dp-toast ' + cls;
+  el.className  = 'dp-toast ' + cls;
   el.textContent = msg;
   el.style.display = 'flex';
   if (tipo !== 'info') {
@@ -678,22 +929,18 @@ function dpShowToast(area, tipo, msg) {
 }
 
 function dpStatusBadge(status) {
-  var labels = { draft: 'Rascunho', running: 'Executando', paused: 'Pausada', completed: 'Concluída', cancelled: 'Cancelada' };
-  var dots   = { running: '● ', paused: '● ', draft: '', completed: '', cancelled: '' };
+  var labels = { draft:'Rascunho', running:'Executando', paused:'Pausada', completed:'Concluída', cancelled:'Cancelada' };
+  var dots   = { running:'● ', paused:'● ', draft:'', completed:'', cancelled:'' };
   return '<span class="dp-badge dp-badge-' + status + '">' + (dots[status]||'') + (labels[status]||status) + '</span>';
 }
-
 function dpQualityBadge(q) {
   var cls = q === 'GREEN' ? 'green' : q === 'YELLOW' ? 'yellow' : q === 'RED' ? 'red' : 'draft';
   return '<span class="dp-badge dp-badge-' + cls + '">' + q + '</span>';
 }
 
-function dpNum(v) { return v == null ? '0' : Number(v).toLocaleString('pt-BR'); }
-function dpEsc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
-function dpHora() {
-  var d = new Date();
-  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-}
+function dpNum(v)  { return v == null ? '0' : Number(v).toLocaleString('pt-BR'); }
+function dpEsc(s)  { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+function dpHora()  { var d = new Date(); return d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }); }
 function dpDataCurta(iso) {
   if (!iso) return '—';
   try {

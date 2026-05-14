@@ -1,14 +1,12 @@
-// dharmapro-crm | DisparosAPI.js | 24/04/2026 16:30
-// Backend GAS — Módulo Disparos em Massa (integração Supabase disparo-massa)
-// Configurar em Extensões → Apps Script → Propriedades do script:
-//   Opcao 1 (legado): SUPABASE_SERVICE_ROLE = <service_role JWT>
-//   Opcao 2 (recomendada): SUPABASE_SECRET_KEY = <sb_secret_...>
-//   Opcional com chave nova: SUPABASE_PUBLISHABLE_KEY = <sb_publishable_...>
+// dharmapro-crm | DisparosAPI.js | 13/05/2026
+// Backend GAS — Módulo Disparos WABA
+// v2: templates lidos direto da Meta API; destinatários por mailing (upload de planilha)
 
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
 var CFG_DISPAROS = {
   SUPABASE_URL: 'https://zfunugupwvktcggvicuk.supabase.co/rest/v1',
-  ABA_VENDAS:   '1 - Vendas',
+  META_WABA_ID: '1266532332108897',
+  META_GRAPH:   'https://graph.facebook.com/v20.0',
 };
 
 // ── HELPERS SUPABASE ───────────────────────────────────────────────────────────
@@ -43,6 +41,13 @@ function _sbFetch_(method, path, body) {
   return txt ? JSON.parse(txt) : [];
 }
 
+// ── HELPER META API ────────────────────────────────────────────────────────────
+function _metaToken_() {
+  var token = PropertiesService.getScriptProperties().getProperty('META_ACCESS_TOKEN');
+  if (!token) throw new Error('META_ACCESS_TOKEN não configurado nas propriedades do script.');
+  return token;
+}
+
 // ── FUNÇÕES PÚBLICAS ───────────────────────────────────────────────────────────
 
 /** Retorna o HTML da view Disparos.html */
@@ -50,9 +55,112 @@ function getDisparosHtml() {
   return HtmlService.createHtmlOutputFromFile('Disparos').getContent();
 }
 
-/** Lista templates cadastrados no Supabase */
+/**
+ * Lista templates APROVADOS direto da Meta API.
+ * Não exige registro manual no Supabase — o auto-registro ocorre em criarCampanhaDisparo().
+ */
 function listarTemplatesDisparo() {
-  return _sbFetch_('GET', '/campaign_templates?order=meta_template_name&select=id,meta_template_name,category,quality,is_paused');
+  var token = _metaToken_();
+  var url = CFG_DISPAROS.META_GRAPH + '/' + CFG_DISPAROS.META_WABA_ID +
+    '/message_templates?status=APPROVED&fields=name,category,quality_score,language&limit=100';
+
+  var resp = UrlFetchApp.fetch(url, {
+    headers:            { 'Authorization': 'Bearer ' + token },
+    muteHttpExceptions: true,
+  });
+
+  var code = resp.getResponseCode();
+  if (code >= 400)
+    throw new Error('Meta API → HTTP ' + code + ': ' + resp.getContentText());
+
+  var data = JSON.parse(resp.getContentText()).data || [];
+
+  return data.map(function(t) {
+    return {
+      meta_template_name: t.name,
+      category:           t.category  || 'MARKETING',
+      quality:            (t.quality_score || {}).score || 'GREEN',
+      language:           t.language  || 'pt_BR',
+      is_paused:          false,
+    };
+  });
+}
+
+/**
+ * Garante que o template existe na tabela campaign_templates do Supabase.
+ * Cria automaticamente na primeira vez que uma campanha o utiliza.
+ * Retorna o id do registro.
+ */
+function _garantirTemplateSupabase_(templateName, category, quality, language) {
+  var existing = _sbFetch_('GET',
+    '/campaign_templates?meta_template_name=eq.' + encodeURIComponent(templateName) +
+    '&select=id&limit=1');
+
+  if (existing && existing.length > 0) return existing[0].id;
+
+  var inserted = _sbFetch_('POST', '/campaign_templates', {
+    meta_template_name: templateName,
+    category:           category  || 'MARKETING',
+    quality:            quality   || 'GREEN',
+    language:           language  || 'pt_BR',
+    is_paused:          false,
+  });
+  return inserted[0].id;
+}
+
+/**
+ * Cria campanha draft + insere destinatários do mailing.
+ *
+ * params: {
+ *   nome:             string,
+ *   templateName:     string,        // meta_template_name
+ *   templateCategory: string,
+ *   templateQuality:  string,
+ *   templateLanguage: string,
+ *   recipients:       [{nome, phone}] // lista vinda do upload de planilha
+ * }
+ */
+function criarCampanhaDisparo(params) {
+  if (!params.nome)
+    throw new Error('Nome da campanha obrigatório.');
+  if (!params.templateName)
+    throw new Error('Template obrigatório.');
+  if (!params.recipients || params.recipients.length === 0)
+    throw new Error('Nenhum destinatário no mailing. Faça o upload de uma planilha com contatos.');
+
+  // 1. Garantir template no Supabase (auto-registra se for a primeira vez)
+  var templateId = _garantirTemplateSupabase_(
+    params.templateName,
+    params.templateCategory,
+    params.templateQuality,
+    params.templateLanguage
+  );
+
+  // 2. Criar campanha
+  var campanha = _sbFetch_('POST', '/campaigns', {
+    name:               params.nome,
+    template_id:        templateId,
+    status:             'draft',
+    current_batch_size: 100,
+  });
+  var campanhaId = campanha[0].id;
+
+  // 3. Inserir destinatários em lotes de 200
+  var recipients = params.recipients.map(function(r) {
+    return {
+      campaign_id:     campanhaId,
+      phone_e164:      r.phone,
+      name:            r.nome || 'Cliente',
+      decision_status: 'queued',
+    };
+  });
+
+  var LOTE = 200;
+  for (var i = 0; i < recipients.length; i += LOTE) {
+    _sbFetch_('POST', '/campaign_recipients', recipients.slice(i, i + LOTE));
+  }
+
+  return { sucesso: true, campanhaId: campanhaId, total: recipients.length };
 }
 
 /** Lista campanhas com stats (view v_campaign_stats) */
@@ -69,120 +177,102 @@ function atualizarStatusCampanhaDisparo(id, status) {
 }
 
 /**
- * Conta leads que serão incluídos num disparo conforme filtro.
- * Filtros: 'todos' | 'sem_resposta_7d' | 'sem_resposta_30d' | 'sem_venda'
+ * Processa planilha XLSX enviada como base64 do client.
+ * Fallback server-side para quando o SheetJS não carregou no browser.
+ * Retorna [{nome, phone}] prontos para uso.
  */
-function contarLeadsParaDisparo(filtro) {
-  var leads = _buscarLeadsDisparo_(filtro);
-  return { total: leads.length };
+function parsearPlanilhaDisparo(base64Content, filename) {
+  var token = ScriptApp.getOAuthToken();
+
+  // 1. Upload para o Drive convertendo para Google Sheets
+  var blob = Utilities.newBlob(
+    Utilities.base64Decode(base64Content),
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    filename
+  );
+
+  var boundary = '-------disparos314159265';
+  var metadata = JSON.stringify({
+    name:     filename,
+    mimeType: 'application/vnd.google-apps.spreadsheet',
+  });
+
+  var bodyParts = '--' + boundary + '\r\n' +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' + metadata + '\r\n' +
+    '--' + boundary + '\r\n' +
+    'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n';
+
+  var payload = Utilities.newBlob(bodyParts).getBytes()
+    .concat(blob.getBytes())
+    .concat(Utilities.newBlob('\r\n--' + boundary + '--').getBytes());
+
+  var uploadResp = UrlFetchApp.fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+    {
+      method:  'POST',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type':  'multipart/related; boundary="' + boundary + '"',
+      },
+      payload:            Utilities.newBlob(payload).getBytes(),
+      muteHttpExceptions: true,
+    }
+  );
+
+  if (uploadResp.getResponseCode() >= 400)
+    throw new Error('Erro ao converter planilha no Drive: ' + uploadResp.getContentText());
+
+  var fileId = JSON.parse(uploadResp.getContentText()).id;
+
+  try {
+    var ss    = SpreadsheetApp.openById(fileId);
+    var sheet = ss.getSheets()[0];
+    var dados = sheet.getDataRange().getValues();
+    return _extrairContatosPlanilha_(dados);
+  } finally {
+    try { DriveApp.getFileById(fileId).setTrashed(true); } catch (e) { /* ignora */ }
+  }
 }
 
-/**
- * Cria campanha draft + popula campaign_recipients.
- * params: { nome, templateId, filtro }
- */
-function criarCampanhaDisparo(params) {
-  if (!params.nome)       throw new Error('Nome da campanha obrigatório.');
-  if (!params.templateId) throw new Error('Template obrigatório.');
+// ── HELPER: extrai [{nome, phone}] de matriz com header na linha 0 ─────────────
+function _extrairContatosPlanilha_(dados) {
+  if (!dados || dados.length < 2)
+    throw new Error('Arquivo vazio ou sem dados suficientes.');
 
-  // 1. Criar campanha
-  var campanha = _sbFetch_('POST', '/campaigns', {
-    name:               params.nome,
-    template_id:        params.templateId,
-    status:             'draft',
-    current_batch_size: 100,
-  });
-  var campanhaId = campanha[0].id;
+  var header  = dados[0].map(function(h) { return String(h).toLowerCase().trim(); });
+  var idxTel  = _findColDisp_(header, ['telefone','whatsapp','fone','celular','phone','cel','numero','número','tel']);
+  var idxNome = _findColDisp_(header, ['nome','name','cliente','contato']);
 
-  // 2. Buscar leads
-  var leads = _buscarLeadsDisparo_(params.filtro || 'todos');
-  if (leads.length === 0) {
-    // Rollback: deletar campanha criada
-    _sbFetch_('DELETE', '/campaigns?id=eq.' + campanhaId, null);
-    return { sucesso: false, erro: 'Nenhum lead encontrado para o filtro selecionado.' };
-  }
+  if (idxTel < 0)
+    throw new Error('Coluna de telefone não encontrada. Use um cabeçalho como: telefone, whatsapp, celular ou phone.');
 
-  // 3. Inserir destinatários em lotes de 200
-  var recipients = leads.map(function(l) {
-    return { campaign_id: campanhaId, phone_e164: l.phone, name: l.nome, decision_status: 'queued' };
-  });
-  var LOTE = 200;
-  for (var i = 0; i < recipients.length; i += LOTE) {
-    _sbFetch_('POST', '/campaign_recipients', recipients.slice(i, i + LOTE));
-  }
-
-  return { sucesso: true, campanhaId: campanhaId, total: leads.length };
-}
-
-// ── HELPER: busca leads da planilha ───────────────────────────────────────────
-function _buscarLeadsDisparo_(filtro) {
-  var ss   = _getSpreadsheet_();
-  var aba  = ss.getSheetByName(CFG_DISPAROS.ABA_VENDAS);
-  if (!aba) return [];
-
-  var dados  = aba.getDataRange().getValues();
-  var header = dados[0].map(function(h) { return String(h).toLowerCase().trim(); });
-
-  // Detecta colunas por nome (tolerante a variações)
-  var idxNome   = _findCol_(header, ['nome', 'cliente', 'name']);
-  var idxTel    = _findCol_(header, ['whatsapp', 'fone', 'telef', 'cel', 'phone']);
-  var idxStatus = _findCol_(header, ['status', 'etapa', 'situacao']);
-  var idxData   = _findCol_(header, ['data atualiz', 'ult contato', 'data contato', 'data', 'atualiz']);
-
-  if (idxTel < 0) return []; // Coluna de telefone não encontrada
-
-  var agora    = new Date();
-  var ms7d     = 7  * 24 * 3600 * 1000;
-  var ms30d    = 30 * 24 * 3600 * 1000;
-
-  var leads  = [];
-  var vistos = {};
+  var vistos   = {};
+  var contatos = [];
 
   for (var r = 1; r < dados.length; r++) {
-    var linha = dados[r];
+    var row = dados[r];
+    if (!row || !row[idxTel]) continue;
 
-    // Normaliza telefone → E.164
-    var tel = String(linha[idxTel] || '').replace(/\D/g, '');
+    var tel = String(row[idxTel]).replace(/\D/g, '');
     if (tel.length < 10) continue;
     if (!tel.startsWith('55')) tel = '55' + tel;
     var phone = '+' + tel;
-
-    // Deduplicar
     if (vistos[phone]) continue;
     vistos[phone] = true;
 
-    var nome = idxNome >= 0 ? String(linha[idxNome] || 'Cliente').trim() : 'Cliente';
-    if (!nome) nome = 'Cliente';
-
-    var statusVal = idxStatus >= 0 ? String(linha[idxStatus] || '').toLowerCase() : '';
-    var dataVal   = idxData   >= 0 ? linha[idxData] : null;
-
-    // Filtros
-    if (filtro === 'sem_venda') {
-      // Exclui registros com status que indicam venda concluída
-      var vendido = ['instalado', 'contrato', 'ativo', 'concluido', 'ganho'].some(function(s) { return statusVal.includes(s); });
-      if (vendido) continue;
-    }
-
-    if (filtro === 'sem_resposta_7d' || filtro === 'sem_resposta_30d') {
-      if (dataVal instanceof Date) {
-        var limite = filtro === 'sem_resposta_7d' ? ms7d : ms30d;
-        if ((agora - dataVal) < limite) continue; // Dentro do período → pular
-      }
-      // Se não tem data → inclui (lead antigo sem data)
-    }
-
-    leads.push({ phone: phone, nome: nome });
+    var nome = idxNome >= 0 ? String(row[idxNome] || '').trim() : '';
+    contatos.push({ phone: phone, nome: nome || 'Cliente' });
   }
 
-  return leads;
+  if (contatos.length === 0)
+    throw new Error('Nenhum telefone válido encontrado no arquivo.');
+
+  return contatos;
 }
 
-function _findCol_(header, candidates) {
-  for (var i = 0; i < header.length; i++) {
-    for (var j = 0; j < candidates.length; j++) {
+function _findColDisp_(header, candidates) {
+  for (var i = 0; i < header.length; i++)
+    for (var j = 0; j < candidates.length; j++)
       if (header[i].includes(candidates[j])) return i;
-    }
-  }
   return -1;
 }
