@@ -61,8 +61,10 @@ function getDisparosHtml() {
  */
 function listarTemplatesDisparo() {
   var token = _metaToken_();
+  // Graph API v20 não aceita filter `?status=APPROVED` em /message_templates — trata como
+  // campo desconhecido e devolve erro #100. Pedimos `status` no fields e filtramos client-side.
   var url = CFG_DISPAROS.META_GRAPH + '/' + CFG_DISPAROS.META_WABA_ID +
-    '/message_templates?status=APPROVED&fields=name,category,quality_score,language&limit=100';
+    '/message_templates?fields=name,status,category,quality_score,language&limit=100';
 
   var resp = UrlFetchApp.fetch(url, {
     headers:            { 'Authorization': 'Bearer ' + token },
@@ -75,15 +77,17 @@ function listarTemplatesDisparo() {
 
   var data = JSON.parse(resp.getContentText()).data || [];
 
-  return data.map(function(t) {
-    return {
-      meta_template_name: t.name,
-      category:           t.category  || 'MARKETING',
-      quality:            (t.quality_score || {}).score || 'GREEN',
-      language:           t.language  || 'pt_BR',
-      is_paused:          false,
-    };
-  });
+  return data
+    .filter(function(t) { return t.status === 'APPROVED'; })
+    .map(function(t) {
+      return {
+        meta_template_name: t.name,
+        category:           t.category  || 'MARKETING',
+        quality:            (t.quality_score || {}).score || 'GREEN',
+        language:           t.language  || 'pt_BR',
+        is_paused:          false,
+      };
+    });
 }
 
 /**
