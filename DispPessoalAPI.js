@@ -456,13 +456,57 @@ function _handleWaPessoalCheckDispatch_(payload) {
 }
 
 // ── CAMPANHAS ATIVAS (badge no menu) ───────────────────────────────────────────
+
+// Janela de disparo BRT (admin-config + bypass). Retorna { dentro, bypass }.
+function _waDentroDaJanela_() {
+  if (PropertiesService.getScriptProperties().getProperty(WA_PESSOAL_BYPASS_KEY) === 'true') {
+    return { dentro: true, bypass: true };
+  }
+  var cfg = _getCfgWaPessoal_();
+  var tz = 'America/Sao_Paulo';
+  var agora = new Date();
+  var hora = parseInt(Utilities.formatDate(agora, tz, 'H'), 10);
+  var u = parseInt(Utilities.formatDate(agora, tz, 'u'), 10);
+  var dow = (u === 7) ? 0 : u;
+  var dentro = cfg.dias_semana.indexOf(dow) >= 0 && hora >= cfg.hora_ini && hora < cfg.hora_fim;
+  return { dentro: dentro, bypass: false };
+}
+
+// Parse tolerante de célula de data do Sheets (Date, ISO string ou vazio).
+function _waParseData_(v) {
+  if (!v) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  var d = new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Mapa usuario -> nome (aba Usuarios, fallback Config.js).
+function _waMapaNomesUsuarios_() {
+  var lista = (typeof _getUsuariosSheet_ === 'function') ? _getUsuariosSheet_() : [];
+  if (!lista.length && typeof USUARIOS !== 'undefined') lista = USUARIOS;
+  var map = {};
+  (lista || []).forEach(function(x) { map[String(x.usuario)] = x.nome || x.usuario; });
+  return map;
+}
+
+var WA_DISPARO_SILENCIO_MS = 15 * 60 * 1000; // sem envio há +15min dentro da janela = campanha parada
+
 function temCampanhaAtivaWaPessoal(usuario, usuarioAlvo) {
   try {
-    var alvo = _resolveUsuarioAlvo_(usuario, usuarioAlvo);
-    var sh = _waSheet_(CFG_WA_PESSOAL.ABA_CAMPANHAS);
-    var data = _waLerLinhas_(sh);
+    var u = _assertWaUser_(usuario);
+    var isAdmin = u && String(u.perfil).toLowerCase() === 'admin';
+    var data = _waLerLinhas_(_waSheet_(CFG_WA_PESSOAL.ABA_CAMPANHAS));
     var idxUsr = _waColIdx_(data.header, 'usuario');
     var idxStatus = _waColIdx_(data.header, 'status');
+    var idxId = _waColIdx_(data.header, 'id');
+
+    // Admin sem alvo específico → visão global de todas as instâncias.
+    if (isAdmin && !usuarioAlvo) {
+      return _waResumoCampanhasGlobalAdmin_(data, idxUsr, idxStatus, idxId);
+    }
+
+    // Usuário comum (ou admin "visualizando como") → escopo de um usuário só.
+    var alvo = _resolveUsuarioAlvo_(usuario, usuarioAlvo);
     var ativas = 0;
     for (var i = 0; i < data.linhas.length; i++) {
       if (String(data.linhas[i][idxUsr]) !== alvo) continue;
@@ -470,6 +514,105 @@ function temCampanhaAtivaWaPessoal(usuario, usuarioAlvo) {
     }
     return { ok: true, ativas: ativas };
   } catch (e) { return { ok: false, mensagem: e.message, ativas: 0 }; }
+}
+
+/**
+ * Visão admin: todas as instâncias com campanha ativa + saúde de disparo.
+ * "Parada" = campanha ativa, com pendentes, dentro da janela, e sem envio
+ * (nem criação) nos últimos 15min — pega o caso da instância desconectada.
+ */
+function _waResumoCampanhasGlobalAdmin_(dataCamp, idxUsr, idxStatus, idxId) {
+  var idxNome = _waColIdx_(dataCamp.header, 'nome');
+  var idxCriado = _waColIdx_(dataCamp.header, 'criado_em');
+  var janela = _waDentroDaJanela_();
+
+  // 1. Campanhas ativas
+  var ativasCampanhas = [];
+  for (var i = 0; i < dataCamp.linhas.length; i++) {
+    var ln = dataCamp.linhas[i];
+    if (String(ln[idxStatus] || '').toLowerCase() !== 'ativa') continue;
+    ativasCampanhas.push({
+      id: String(ln[idxId]),
+      usuario: String(ln[idxUsr]),
+      nome: idxNome >= 0 ? String(ln[idxNome] || '') : '',
+      criadoEm: idxCriado >= 0 ? _waParseData_(ln[idxCriado]) : null
+    });
+  }
+  if (ativasCampanhas.length === 0) {
+    return { ok: true, admin: true, ativas: 0, instancias_ativas: 0,
+             travadas: 0, dentro_janela: janela.dentro, detalhe: [] };
+  }
+
+  // 2. Lê WA Disparos uma vez — só para os ids ativos
+  var idsAtivos = {};
+  ativasCampanhas.forEach(function(c) { idsAtivos[c.id] = true; });
+  var dataD = _waLerLinhas_(_waSheet_(CFG_WA_PESSOAL.ABA_DISPAROS));
+  var dIdxCamp = _waColIdx_(dataD.header, 'campanha_id');
+  var dIdxStatus = _waColIdx_(dataD.header, 'status');
+  var dIdxEnviado = _waColIdx_(dataD.header, 'enviado_em');
+
+  var AGORA = Date.now();
+  var porCamp = {};
+  ativasCampanhas.forEach(function(c) {
+    porCamp[c.id] = { ultimoEnvioMs: 0, enviadosRecentes: 0, temPendente: false };
+  });
+  for (var r = 0; r < dataD.linhas.length; r++) {
+    var row = dataD.linhas[r];
+    var cid = String(row[dIdxCamp]);
+    if (!idsAtivos[cid]) continue;
+    var st = String(row[dIdxStatus] || '').toLowerCase();
+    if (st === 'pendente' || st === 'enviando') porCamp[cid].temPendente = true;
+    var env = _waParseData_(row[dIdxEnviado]);
+    if (env) {
+      var ms = env.getTime();
+      if (ms > porCamp[cid].ultimoEnvioMs) porCamp[cid].ultimoEnvioMs = ms;
+      if (AGORA - ms <= WA_DISPARO_SILENCIO_MS) porCamp[cid].enviadosRecentes++;
+    }
+  }
+
+  // 3. Consolida por usuário + detecta paradas
+  var nomes = _waMapaNomesUsuarios_();
+  var porUsuario = {};
+  var totalTravadas = 0;
+  ativasCampanhas.forEach(function(c) {
+    var pc = porCamp[c.id];
+    var refMs = pc.ultimoEnvioMs || (c.criadoEm ? c.criadoEm.getTime() : AGORA);
+    var travada = janela.dentro && pc.temPendente && (AGORA - refMs > WA_DISPARO_SILENCIO_MS);
+    if (travada) totalTravadas++;
+    if (!porUsuario[c.usuario]) {
+      porUsuario[c.usuario] = { usuario: c.usuario, nome: nomes[c.usuario] || c.usuario,
+                                ativas: 0, enviadas_recentes: 0, ultimoEnvioMs: 0, travadas: 0 };
+    }
+    var pu = porUsuario[c.usuario];
+    pu.ativas++;
+    pu.enviadas_recentes += pc.enviadosRecentes;
+    if (pc.ultimoEnvioMs > pu.ultimoEnvioMs) pu.ultimoEnvioMs = pc.ultimoEnvioMs;
+    if (travada) pu.travadas++;
+  });
+
+  var detalhe = Object.keys(porUsuario).map(function(k) {
+    var pu = porUsuario[k];
+    return {
+      usuario: pu.usuario,
+      nome: pu.nome,
+      ativas: pu.ativas,
+      enviadas_recentes: pu.enviadas_recentes,
+      ultimo_envio: pu.ultimoEnvioMs
+        ? Utilities.formatDate(new Date(pu.ultimoEnvioMs), 'America/Sao_Paulo', 'dd/MM HH:mm')
+        : '',
+      travadas: pu.travadas
+    };
+  }).sort(function(a, b) { return (b.travadas - a.travadas) || (b.ativas - a.ativas); });
+
+  return {
+    ok: true,
+    admin: true,
+    ativas: ativasCampanhas.length,
+    instancias_ativas: detalhe.length,
+    travadas: totalTravadas,
+    dentro_janela: janela.dentro,
+    detalhe: detalhe
+  };
 }
 
 // ── UPLOAD DE IMAGEM (campanhas com mídia) ─────────────────────────────────────

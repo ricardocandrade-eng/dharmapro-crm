@@ -107,8 +107,9 @@
     .nav-badge.visivel { display: block; }
     @keyframes badge-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
     .nav-badge.pulsar { animation: badge-pulse 1.8s ease-in-out infinite; }
-    /* Variante "dot amarelo" pra indicar campanha WA Pessoal ativa */
+    /* Variante "dot" pra indicar campanha WA Pessoal ativa (amarelo=disparando, vermelho=parada) */
     .nav-badge.dot-amarelo { background: #f1c40f; box-shadow: 0 0 6px rgba(241,196,15,.55); min-width: 8px; width: 8px; height: 8px; padding: 0; border-radius: 50%; align-self: center; }
+    .nav-badge.dot-vermelho { background: #e74c3c; box-shadow: 0 0 6px rgba(231,76,60,.6); min-width: 8px; width: 8px; height: 8px; padding: 0; border-radius: 50%; align-self: center; }
     .rodape { position: fixed; bottom: 0; left: 230px; right: 0; height: 24px; background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: center; z-index: 50; }
     .rodape span { font-size: 10px; font-family: 'DM Mono', monospace; color: var(--muted); letter-spacing: .5px; opacity: .6; }
 

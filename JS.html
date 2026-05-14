@@ -940,17 +940,46 @@ function _lmaAtualizarBadge(n) {
   }
 }
 
-// Badge "WA Campanha" — bolinha amarela pulsando quando há campanha ativa
-function _waPessoalAtualizarBadge(ativas) {
+// Badge "WA Campanha" — bolinha pulsando quando há campanha ativa.
+// Usuário comum: amarela, conta as próprias campanhas.
+// Admin: visão global — amarela se tudo disparando, vermelha se há campanha parada.
+function _waPessoalAtualizarBadge(r) {
   var badge = document.getElementById('badgeWaPessoal');
   if (!badge) return;
-  if (ativas > 0) {
-    badge.textContent = '';
-    badge.classList.add('visivel', 'pulsar', 'dot-amarelo');
-    badge.title = ativas + ' campanha' + (ativas > 1 ? 's' : '') + ' ativa' + (ativas > 1 ? 's' : '');
+  var ativas = (r && r.ativas) || 0;
+  badge.classList.remove('visivel', 'pulsar', 'dot-amarelo', 'dot-vermelho');
+  badge.textContent = '';
+  if (ativas <= 0) { badge.title = ''; return; }
+
+  badge.classList.add('visivel', 'pulsar');
+
+  if (r && r.admin) {
+    var travadas = r.travadas || 0;
+    badge.classList.add(travadas > 0 ? 'dot-vermelho' : 'dot-amarelo');
+    var nInst = r.instancias_ativas || 0;
+    var cab = nInst + ' instância' + (nInst > 1 ? 's' : '') + ' com campanha ativa'
+            + ' (' + ativas + ' campanha' + (ativas > 1 ? 's' : '') + ')';
+    if (travadas > 0) {
+      cab = '⚠ ' + travadas + ' campanha' + (travadas > 1 ? 's' : '') + ' parada'
+          + (travadas > 1 ? 's' : '') + ' — ' + cab;
+    } else if (!r.dentro_janela) {
+      cab += ' · fora da janela de disparo';
+    }
+    var linhas = (r.detalhe || []).map(function(d) {
+      var s = '• ' + d.nome + ': ' + d.ativas + ' ativa' + (d.ativas > 1 ? 's' : '');
+      if (d.travadas > 0) {
+        s += ' ⚠ ' + d.travadas + ' parada' + (d.travadas > 1 ? 's' : '');
+      } else {
+        s += ' · ' + d.enviadas_recentes + ' enviada'
+           + (d.enviadas_recentes !== 1 ? 's' : '') + ' (15min)';
+      }
+      if (d.ultimo_envio) s += ' · últ. ' + d.ultimo_envio;
+      return s;
+    });
+    badge.title = cab + (linhas.length ? '\n' + linhas.join('\n') : '');
   } else {
-    badge.classList.remove('visivel', 'pulsar', 'dot-amarelo');
-    badge.title = '';
+    badge.classList.add('dot-amarelo');
+    badge.title = ativas + ' campanha' + (ativas > 1 ? 's' : '') + ' ativa' + (ativas > 1 ? 's' : '');
   }
 }
 
@@ -958,7 +987,7 @@ function _waPessoalCarregarBadge() {
   var usr = (typeof sessionStorage !== 'undefined') ? sessionStorage.getItem('crm_usuario') : '';
   if (!usr) return;
   google.script.run
-    .withSuccessHandler(function(r) { _waPessoalAtualizarBadge(r && r.ativas || 0); })
+    .withSuccessHandler(function(r) { _waPessoalAtualizarBadge(r); })
     .withFailureHandler(function() {})
     .temCampanhaAtivaWaPessoal(usr, null);
 }
