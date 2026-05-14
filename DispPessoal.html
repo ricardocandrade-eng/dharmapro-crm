@@ -92,6 +92,8 @@
   .wp-alerta.amarelo .wp-alerta-sug { color: #d4c389; }
   .wp-alerta.vermelho { background: rgba(230,62,109,.12); border: 1px solid rgba(230,62,109,.4); color: #ff8ea6; }
   .wp-alerta.vermelho .wp-alerta-sug { color: #d49aab; }
+  .wp-alerta.info { background: rgba(110,118,128,.12); border: 1px solid rgba(110,118,128,.4); color: #b8c0cc; }
+  .wp-alerta.info .wp-alerta-sug { color: #8a93a3; }
 
   /* Toggle switch (bypass admin) */
   .wp-switch { position: relative; display: inline-block; width: 50px; height: 26px; flex-shrink: 0; }
@@ -1224,7 +1226,7 @@
       }
     } else {
       alertasEl.innerHTML = s.alertas.map(function(a) {
-        var icone = a.nivel === 'vermelho' ? '🚨' : '⚠';
+        var icone = a.nivel === 'vermelho' ? '🚨' : (a.nivel === 'info' ? 'ℹ️' : '⚠');
         return '<div class="wp-alerta ' + a.nivel + '">'
           +   '<span class="wp-alerta-icon">' + icone + '</span>'
           +   '<div class="wp-alerta-body">'

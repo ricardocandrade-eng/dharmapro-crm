@@ -1123,7 +1123,9 @@ function getSaudeWaPessoal(usuario, usuarioAlvo) {
       var totalTry = bk.enviado + bk.erro;
       bk.pct_entregue     = bk.enviado  > 0 ? Math.round(bk.entregue     / bk.enviado  * 1000) / 10 : 0;
       bk.pct_lido         = bk.entregue > 0 ? Math.round(bk.lido         / bk.entregue * 1000) / 10 : 0;
-      bk.pct_lido_efetivo = bk.entregue > 0 ? Math.round(bk.lido_efetivo / bk.entregue * 1000) / 10 : 0;
+      // Engajamento sobre ENVIADO (não sobre entregue): entregue_em vem do webhook
+      // best-effort da Evolution — dividir por ele estoura 100% e mente. Enviado é confiável.
+      bk.pct_lido_efetivo = bk.enviado  > 0 ? Math.round(bk.lido_efetivo / bk.enviado  * 1000) / 10 : 0;
       bk.pct_respondeu    = bk.enviado  > 0 ? Math.round(bk.respondeu    / bk.enviado  * 1000) / 10 : 0;
       bk.pct_erro         = totalTry    > 0 ? Math.round(bk.erro         / totalTry    * 1000) / 10 : 0;
       return bk;
@@ -1156,18 +1158,28 @@ function getSaudeWaPessoal(usuario, usuarioAlvo) {
     // ── ALERTAS — thresholds absolutos + quedas relativas ─────────────────────
     var alertas = [];
 
-    // Vermelho: entrega <70% (probable shadowban)
-    if (bkHoje.enviado >= 5 && bkHoje.pct_entregue < 70) {
+    // Entrega: entregue_em vem do webhook `messages.update` da Evolution, que é
+    // BEST-EFFORT (dispara de forma intermitente). pct_entregue baixo não distingue
+    // "não entregou" de "Evolution não reportou" — só vira alerta de saúde quando
+    // há amostra mínima de receipts (ENTREGA_AMOSTRA_MIN).
+    var ENTREGA_AMOSTRA_MIN = 10;
+    if (bkHoje.entregue >= ENTREGA_AMOSTRA_MIN && bkHoje.pct_entregue < 70) {
       alertas.push({
         nivel: 'vermelho', kpi: 'entrega',
         mensagem: 'Entrega crítica: ' + bkHoje.pct_entregue + '% (' + bkHoje.entregue + '/' + bkHoje.enviado + ')',
-        sugestao: 'Pausar disparos AGORA. Entrega <70% é forte indício de shadowban — bloqueios em massa não estão entregando. Mande mensagens orgânicas pra contatos próximos por 24-48h.'
+        sugestao: 'Pausar disparos AGORA. Entrega <70% com amostra significativa é forte indício de shadowban — mande mensagens orgânicas pra contatos próximos por 24-48h.'
       });
-    } else if (bkHoje.enviado >= 5 && bkHoje.pct_entregue < 85) {
+    } else if (bkHoje.entregue >= ENTREGA_AMOSTRA_MIN && bkHoje.pct_entregue < 85) {
       alertas.push({
         nivel: 'amarelo', kpi: 'entrega',
         mensagem: 'Entrega abaixo do saudável: ' + bkHoje.pct_entregue + '%',
         sugestao: 'Reduzir ritmo. Considere aumentar delay min/max e cortar limite diário pela metade.'
+      });
+    } else if (bkHoje.enviado >= 20 && bkHoje.entregue < ENTREGA_AMOSTRA_MIN) {
+      alertas.push({
+        nivel: 'info', kpi: 'entrega',
+        mensagem: 'Confirmação de entrega indisponível hoje (' + bkHoje.entregue + '/' + bkHoje.enviado + ' com receipt)',
+        sugestao: 'O webhook de entrega da Evolution não está reportando — a % de entrega não é confiável. Use a taxa de erro e a de resposta como termômetro.'
       });
     }
 
@@ -1175,13 +1187,13 @@ function getSaudeWaPessoal(usuario, usuarioAlvo) {
     // desabilitados no Brasil — só consideramos crítico se TAMBÉM resposta
     // estiver baixa (< 3%). Se resposta tá ok, engajamento é evidente.
     var respostaSaudavel = bkHoje.pct_respondeu >= 3;
-    if (bkHoje.entregue >= 5 && bkHoje.pct_lido_efetivo < 10 && !respostaSaudavel) {
+    if (bkHoje.enviado >= 10 && bkHoje.pct_lido_efetivo < 10 && !respostaSaudavel) {
       alertas.push({
         nivel: 'vermelho', kpi: 'leitura',
         mensagem: 'Engajamento crítico: leitura ' + bkHoje.pct_lido_efetivo + '% + resposta ' + bkHoje.pct_respondeu + '%',
         sugestao: 'WhatsApp pode estar marcando como spam. Pause campanhas e envie mensagens orgânicas (chamadas, áudios, etc) por algumas horas pra reativar reputação.'
       });
-    } else if (bkHoje.entregue >= 5 && bkHoje.pct_lido_efetivo < 25 && !respostaSaudavel) {
+    } else if (bkHoje.enviado >= 10 && bkHoje.pct_lido_efetivo < 25 && !respostaSaudavel) {
       alertas.push({
         nivel: 'amarelo', kpi: 'leitura',
         mensagem: 'Engajamento baixo: leitura ' + bkHoje.pct_lido_efetivo + '% + resposta ' + bkHoje.pct_respondeu + '%',
@@ -1233,7 +1245,7 @@ function getSaudeWaPessoal(usuario, usuarioAlvo) {
 
     // Quedas relativas vs baseline (só com volume mínimo de 10 envios em ambos)
     if (bkHoje.enviado >= 10 && bk7d.enviado >= 10) {
-      if (deltas.entrega <= -15) {
+      if (deltas.entrega <= -15 && bkHoje.entregue >= ENTREGA_AMOSTRA_MIN) {
         alertas.push({
           nivel: 'amarelo', kpi: 'queda_entrega',
           mensagem: 'Entrega caiu ' + Math.abs(deltas.entrega) + '% vs baseline 7d',
