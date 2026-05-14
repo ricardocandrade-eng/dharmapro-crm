@@ -5,7 +5,7 @@
 // ── CONFIG ─────────────────────────────────────────────────────────────────────
 var CFG_DISPAROS = {
   SUPABASE_URL: 'https://zfunugupwvktcggvicuk.supabase.co/rest/v1',
-  META_WABA_ID: '1266532332108897',
+  META_WABA_ID: '1266532312108897',
   META_GRAPH:   'https://graph.facebook.com/v20.0',
 };
 
