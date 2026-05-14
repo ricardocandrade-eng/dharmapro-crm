@@ -77,6 +77,18 @@
     flex: 1;
   }
 
+  .cruz-lastsync {
+    width: 100%;
+    font-size: 10.5px;
+    font-family: "DM Mono", monospace;
+    color: var(--muted);
+    opacity: 0.7;
+  }
+
+  .cruz-lastsync.ok    { color: var(--green); opacity: 0.85; }
+  .cruz-lastsync.warn  { color: var(--yellow); opacity: 0.85; }
+  .cruz-lastsync.err   { color: var(--accent); opacity: 0.85; }
+
   .cruz-status.ok {
     color: var(--green);
   }
@@ -371,6 +383,7 @@
     <button class="btn btn-ghost btn-sm" onclick="_cruzamentoBuscarGmail()" id="cruzBtnGmail">📧 Buscar último da Vero</button>
     <span class="cruz-status" id="cruzStatus">Nenhum arquivo importado</span>
     <button class="btn btn-ghost btn-sm" onclick="_cruzamentoLimpar()" id="cruzBtnLimpar" style="display:none">Limpar</button>
+    <span class="cruz-lastsync" id="cruzLastSync"></span>
   </div>
 
   <div class="cruz-tabs" id="cruzTabs" style="display:none">
@@ -1229,6 +1242,43 @@ function _cruzSalvarResultados(bateu, soCRM, nomeAba) {
     .salvarResultadoCruzamento(resultados);
 }
 
+function _cruzCarregarUltimaSync() {
+  var el = document.getElementById('cruzLastSync');
+  if (!el) return;
+  if (typeof google === 'undefined' || !google.script || !google.script.run) return;
+
+  google.script.run
+    .withSuccessHandler(function(reg) {
+      if (!reg || !reg.quando) {
+        el.className = 'cruz-lastsync';
+        el.textContent = '🔄 Nenhuma sincronização automática registrada ainda.';
+        return;
+      }
+      var origem = reg.origem === 'auto' ? 'automática' : 'manual';
+      var txt = '🔄 Última sincronização: ' + reg.quando + ' (' + origem + ')';
+      var cls = 'cruz-lastsync';
+
+      if (reg.sucesso && reg.contagem) {
+        var c = reg.contagem;
+        var verdes = (c.verde_instalacoes || 0) + (c.verde_vendas || 0);
+        txt += ' — ' + (reg.anexo || 'relatório Vero');
+        if (reg.recebidoEm) txt += ' (recebido ' + reg.recebidoEm + ')';
+        txt += ' · 🟢 ' + verdes + ' / 🟡 ' + (c.amarelos || 0);
+        cls += ' ok';
+      } else if (reg.jaProcessado) {
+        txt += ' — sem novidade (e-mail já processado)';
+        cls += ' warn';
+      } else {
+        txt += ' — falhou: ' + (reg.mensagem || 'erro desconhecido');
+        cls += ' err';
+      }
+      el.className = cls;
+      el.textContent = txt;
+    })
+    .withFailureHandler(function() {})
+    .getUltimaSincronizacaoVero();
+}
+
 function _cruzamentoBuscarGmail() {
   var btn = document.getElementById('cruzBtnGmail');
   if (btn) { btn.disabled = true; btn.textContent = '📧 Buscando...'; }
@@ -1257,6 +1307,7 @@ function _cruzamentoBuscarGmail() {
                 ' · CRM marcados: 🟢 ' + (c.verde_instalacoes || 0) + '+' + (c.verde_vendas || 0) +
                 ' / 🟡 ' + (c.amarelos || 0) + '.';
       _cruzSetStatus(msg, 'ok');
+      _cruzCarregarUltimaSync();
     })
     .withFailureHandler(function(err) {
       if (btn) { btn.disabled = false; btn.textContent = '📧 Buscar último da Vero'; }

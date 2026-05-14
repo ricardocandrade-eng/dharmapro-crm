@@ -21,24 +21,59 @@ var CRUZ_VERO_PROP_LAST  = 'CRUZ_VERO_LAST_THREAD';
 
 // ── Entrada publica: botao na UI ─────────────────────────────────────────
 function buscarEImportarVero(usuario) {
+  var resultado;
   try {
-    var resultado = _importarRelatorioVero_({ forcar: true });
-    return resultado;
+    resultado = _importarRelatorioVero_({ forcar: true });
   } catch (e) {
     Logger.log('buscarEImportarVero ERRO: ' + e.message + ' | ' + e.stack);
-    return { sucesso: false, mensagem: e.message };
+    resultado = { sucesso: false, mensagem: e.message };
   }
+  _registrarSyncVero_('manual', usuario, resultado);
+  return resultado;
 }
 
 // ── Entrada publica: trigger diario ──────────────────────────────────────
 function importarRelatorioVeroAutomatico() {
+  var resultado;
   try {
-    var resultado = _importarRelatorioVero_({ forcar: false });
+    resultado = _importarRelatorioVero_({ forcar: false });
     Logger.log('importarRelatorioVeroAutomatico: ' + JSON.stringify(resultado));
-    return resultado;
   } catch (e) {
     Logger.log('importarRelatorioVeroAutomatico ERRO: ' + e.message + ' | ' + e.stack);
-    return { sucesso: false, mensagem: e.message };
+    resultado = { sucesso: false, mensagem: e.message };
+  }
+  _registrarSyncVero_('auto', '', resultado);
+  return resultado;
+}
+
+// ── Registro da ultima sincronizacao (Script Property) ───────────────────
+function _registrarSyncVero_(origem, usuario, resultado) {
+  try {
+    var registro = {
+      quando: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'),
+      origem: origem,                                          // 'auto' | 'manual'
+      usuario: usuario || '',
+      sucesso: !!(resultado && resultado.sucesso),
+      jaProcessado: !!(resultado && resultado.jaProcessado),
+      anexo: (resultado && resultado.anexo) || '',
+      recebidoEm: (resultado && resultado.recebidoEm) || '',
+      contagem: (resultado && resultado.contagem) || null,
+      mensagem: (resultado && resultado.mensagem) || ''
+    };
+    PropertiesService.getScriptProperties()
+      .setProperty('CRUZ_VERO_LAST_SYNC', JSON.stringify(registro));
+  } catch (e) {
+    Logger.log('_registrarSyncVero_ falhou: ' + e.message);
+  }
+}
+
+// Getter publico — consumido pelo frontend (Cruzamento.html) ao abrir a pagina.
+function getUltimaSincronizacaoVero() {
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty('CRUZ_VERO_LAST_SYNC');
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
   }
 }
 

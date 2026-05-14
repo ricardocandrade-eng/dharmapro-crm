@@ -4231,6 +4231,7 @@ function navegar(pagina) {
     document.getElementById('menuCruzamento').classList.add('ativo');
     document.getElementById('pageCruzamento').classList.add('ativa');
     document.getElementById('breadcrumbTexto').textContent = 'Cruzamento Vero';
+    if (typeof _cruzCarregarUltimaSync === 'function') _cruzCarregarUltimaSync();
 
   } else if (pagina === 'docs') {
     document.getElementById('menuDocs').classList.add('ativo');
