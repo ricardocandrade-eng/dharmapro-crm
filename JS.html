@@ -6327,8 +6327,8 @@ function _criarItemVenda(v, index) {
           '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
           '<button class="btn-popup" title="Disparar fluxo BotConversa para o Cliente" onclick="event.stopPropagation();abrirModalBotConversa(\'cliente\',' + index + ')">🤖</button>' +
           (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">🔍</button>' : '') +
-          (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
-          (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
+          (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
+          (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
           '<span class="venda-arrow">›</span>' +
         '</div>' +
 
@@ -8339,8 +8339,8 @@ function _dhpAcoesVenda(index, v) {
     (v.cpf ? '<button class="btn-popup" title="Consultar CPF Assertiva" onclick="event.stopPropagation();abrirModalAssertiva(\'' + esc(v.cpf.replace(/\D/g,'')) + '\')">👤</button>' : '') +
     '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
     (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">🔍</button>' : '') +
-    (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
-    (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
+    (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
+    (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
     '<span class="venda-arrow">›</span>' +
   '</div>';
 }
@@ -8509,8 +8509,8 @@ function _dhpAcoesVendaV3(index, v) {
     '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
     '<button class="btn-popup" title="Disparar fluxo BotConversa para o Cliente" onclick="event.stopPropagation();abrirModalBotConversa(\'cliente\',' + index + ')">🤖</button>' +
     (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">🔍</button>' : '') +
-    (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
-    (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
+    (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
+    (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
     '<span class="venda-arrow">›</span>' +
   '</div>';
 }

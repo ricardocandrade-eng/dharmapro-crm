@@ -609,7 +609,9 @@
       grid-row: auto;
       margin-top: 2px;
     }
-    .vi-bot-v6 .vi-actions { display: none !important; }
+    /* Cards v6: esconde apenas botões legados (👤📋🤖🔍); NG/AD ficam visíveis via .btn-popup--consulta */
+    .vi-bot-v6 .vi-actions > .btn-popup { display: none !important; }
+    .vi-bot-v6 .vi-actions > .btn-popup--consulta { display: inline-block !important; }
     .dhp-combo-plano-bloco {
       display: flex;
       flex-direction: column;
