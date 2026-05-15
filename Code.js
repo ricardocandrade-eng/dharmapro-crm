@@ -713,6 +713,44 @@ function atualizarVendaComNG(dados) {
 }
 
 
+// ── LOG DE CONSULTAS DE INSTALAÇÃO (Fase 1.0 — diagnóstico NG/Adapter) ────
+// Grava cada evento das consultas NG/Adapter na aba "Log Consultas Instalacao"
+// para análise de falhas. Fire-and-forget: erro no log nunca bloqueia a UX
+// da consulta (chamada pelo frontend é assíncrona sem handlers de falha).
+//
+// Eventos esperados: iniciado | sucesso | erro_extensao | timeout_frontend
+//                    | retry | sem_credenciais | erro_backend | popup_bloqueado
+// Categorias (quando há erro): auth | cpf_nao_encontrado | timeout_extensao
+//                              | timeout_frontend | http_4xx | http_5xx
+//                              | rede | popup_bloqueado | sem_credenciais
+//                              | outro
+function logConsultaInstalacao(dados) {
+  try {
+    if (!dados) return { sucesso: false, mensagem: 'Payload vazio.' };
+    var ss = _getSpreadsheet_();
+    if (!ss) return { sucesso: false, mensagem: 'Spreadsheet indisponivel.' };
+    var sheet = ss.getSheetByName('Log Consultas Instalacao');
+    if (!sheet) return { sucesso: false, mensagem: 'Aba de log nao existe — rodar _criarAbaLogConsultasInstalacao.' };
+
+    sheet.appendRow([
+      new Date(),                                       // Timestamp
+      String(dados.usuario   || ''),                    // Usuário
+      String(dados.sistema   || ''),                    // Sistema (NG/Adapter)
+      Number(dados.linha) || '',                        // Linha
+      String(dados.cpf       || ''),                    // CPF
+      String(dados.evento    || ''),                    // Evento
+      String(dados.categoria || ''),                    // Categoria
+      Number(dados.ms) || '',                           // Tempo (ms)
+      String(dados.mensagem  || '').substring(0, 500)   // Mensagem
+    ]);
+    return { sucesso: true };
+  } catch(e) {
+    Logger.log('logConsultaInstalacao falhou: ' + e.message);
+    return { sucesso: false, mensagem: e.message };
+  }
+}
+
+
 // ── SINCRONIZAÇÃO INICIAL — vendas p1 + contratos numa só chamada ─────────
 function getSincronizacaoInicial() {
   try {

@@ -1521,15 +1521,73 @@ function _consultarViabilidadeVenda(index) {
   }, 120000);
 }
 
+// ─── INSTRUMENTAÇÃO DE CONSULTAS NG/ADAPTER (Fase 1.0) ────────────────────
+// Helpers compartilhados pelas funções _consultarNGVenda e _consultarAdapterVenda.
+// Mantém telemetria, categorização de erros e mensagens humanas em um único lugar.
+
+// Telemetria fire-and-forget — nunca bloqueia a UX da consulta.
+// Falha de log é silenciosa por design (handlers vazios).
+function _logConsulta(dados) {
+  try {
+    if (!dados || typeof google === 'undefined' || !google.script) return;
+    dados.usuario = (typeof AppState !== 'undefined' && (AppState.get('nomeUsuario') || AppState.get('usuario'))) || '';
+    google.script.run
+      .withSuccessHandler(function() {})
+      .withFailureHandler(function() {})
+      .logConsultaInstalacao(dados);
+  } catch(e) {
+    // Silencioso: log nunca quebra a consulta.
+  }
+}
+
+// Categoriza a mensagem de erro vinda da extensão em buckets discretos
+// para análise estatística posterior. Match por regex em pt-BR/en.
+function _categorizarErroConsulta(msg) {
+  var m = String(msg || '');
+  if (/login falhou|HTTP 401|HTTP 403|n[aã]o autorizad|invalid.*credentia|usuari?o.*senha/i.test(m)) return 'auth';
+  if (/cpf.*(encontrad|cadastr)|n[aã]o encontrado|sem contrato/i.test(m))                            return 'cpf_nao_encontrado';
+  if (/timeout|tempo esgotado|aguardar/i.test(m))                                                    return 'timeout_extensao';
+  if (/HTTP 5\d\d|server error|internal/i.test(m))                                                   return 'http_5xx';
+  if (/HTTP 4\d\d/.test(m))                                                                          return 'http_4xx';
+  if (/network|failed to fetch|connection|net::err/i.test(m))                                        return 'rede';
+  if (/popup|blocked|bloqueado/i.test(m))                                                            return 'popup_bloqueado';
+  return 'outro';
+}
+
+// Converte categoria em mensagem humana acionável.
+// Retorna null se a categoria não tiver mapeamento — caller deve usar mensagem original.
+function _mensagemErroHumana(categoria, sistema) {
+  var sis = sistema === 'NG' ? 'NG' : 'Adapter';
+  switch (categoria) {
+    case 'auth':               return 'Usuário/senha do ' + sis + ' inválidos ou expirados. Atualize em Config.';
+    case 'cpf_nao_encontrado': return 'CPF não está cadastrado no Vero ainda.';
+    case 'timeout_extensao':   return 'Portal Vero não respondeu a tempo. Pode ser VPN ou portal lento. Tente em 30s.';
+    case 'timeout_frontend':   return 'A extensão não respondeu. Verifique se está instalada e se o popup não foi bloqueado.';
+    case 'http_5xx':           return 'Portal Vero está fora do ar. Tente daqui a pouco.';
+    case 'http_4xx':           return 'O portal recusou a chamada. Pode ser sessão expirada — atualize credenciais.';
+    case 'rede':               return 'Sem conexão com o portal Vero. Verifique a VPN.';
+    case 'popup_bloqueado':    return 'O popup foi bloqueado pelo navegador. Permita popups deste site e tente de novo.';
+    case 'sem_credenciais':    return 'Credenciais do ' + sis + ' não configuradas. Vá em Config e salve usuário/senha.';
+    default:                   return null;
+  }
+}
+
+
 // ─── CONSULTA NG BILLING ──────────────────────────────────────────────────
 
 var _ngDadosTemp = null;
 
-function _consultarNGVenda(index) {
+function _consultarNGVenda(index, _tentativa) {
+  _tentativa = _tentativa || 1;
   var v = _paginaAtual[index];
   if (!v || !v.cpf) { mostrarToast('Venda sem CPF.', 'error'); return; }
 
+  var _inicio = Date.now();
   _ngDadosTemp = { index: index, linha: v.linha };
+
+  if (_tentativa === 1) {
+    _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'iniciado' });
+  }
 
   var modal = document.getElementById('modalNG');
   document.getElementById('mng-info').textContent = v.cliente + ' | CPF: ' + v.cpf;
@@ -1539,22 +1597,40 @@ function _consultarNGVenda(index) {
   document.getElementById('mng-foot').style.display = 'none';
   modal.classList.add('ativo');
 
+  // Indicador visual de retry (segunda tentativa)
+  var _loadingP = document.querySelector('#mng-loading p');
+  if (_loadingP) _loadingP.textContent = _tentativa === 2 ? 'Tentando novamente (2/2)...' : 'Consultando NG...';
+
   // Listener para resultado da extensão via postMessage
   var _handler = function(e) {
     if (!e.data || e.data.type !== 'dhp_ng_result') return;
     window.removeEventListener('message', _handler);
     clearTimeout(_timeout);
-
-    document.getElementById('mng-loading').style.display = 'none';
+    var _ms = Date.now() - _inicio;
 
     if (e.data.erro) {
+      var _cat = _categorizarErroConsulta(e.data.erro);
+
+      // Retry transparente UMA vez em erros transitórios (timeout do portal, 5xx, rede)
+      if (_tentativa === 1 && (_cat === 'timeout_extensao' || _cat === 'http_5xx' || _cat === 'rede')) {
+        _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'retry', categoria: _cat, ms: _ms, mensagem: e.data.erro });
+        mostrarToast('Portal lento — tentando novamente em 5s...', 'warning');
+        setTimeout(function() { _consultarNGVenda(index, 2); }, 5000);
+        return;
+      }
+
+      _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'erro_extensao', categoria: _cat, ms: _ms, mensagem: e.data.erro });
+      document.getElementById('mng-loading').style.display = 'none';
       document.getElementById('mng-erro').style.display = 'block';
-      document.getElementById('mng-erro-msg').textContent = e.data.erro;
+      document.getElementById('mng-erro-msg').textContent = _mensagemErroHumana(_cat, 'NG') || e.data.erro;
       return;
     }
 
+    document.getElementById('mng-loading').style.display = 'none';
+
     var r = e.data;
     _ngDadosTemp.resultado = r;
+    _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'sucesso', ms: _ms, mensagem: r.resumo || '' });
 
     // Badge de status
     var badge = document.getElementById('mng-status-badge');
@@ -1603,18 +1679,32 @@ function _consultarNGVenda(index) {
 
   var _timeout = setTimeout(function() {
     window.removeEventListener('message', _handler);
+    var _ms = Date.now() - _inicio;
+
+    // Retry transparente UMA vez em timeout do frontend
+    if (_tentativa === 1) {
+      _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'retry', categoria: 'timeout_frontend', ms: _ms });
+      mostrarToast('Sem resposta da extensão — tentando novamente em 5s...', 'warning');
+      setTimeout(function() { _consultarNGVenda(index, 2); }, 5000);
+      return;
+    }
+
+    _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'timeout_frontend', categoria: 'timeout_frontend', ms: _ms });
     document.getElementById('mng-loading').style.display = 'none';
     document.getElementById('mng-erro').style.display = 'block';
-    document.getElementById('mng-erro-msg').textContent = 'Tempo esgotado. Verifique se:\n1. A extensão DharmaPro Connector está instalada\n2. A VPN está ativada';
+    document.getElementById('mng-erro-msg').textContent = _mensagemErroHumana('timeout_frontend', 'NG');
   }, 75000);
 
   // Buscar credenciais NG do backend
   google.script.run
     .withSuccessHandler(function(creds) {
       if (!creds.sucesso) {
+        clearTimeout(_timeout);
+        window.removeEventListener('message', _handler);
+        _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'sem_credenciais', categoria: 'sem_credenciais', ms: Date.now() - _inicio });
         document.getElementById('mng-loading').style.display = 'none';
         document.getElementById('mng-erro').style.display = 'block';
-        document.getElementById('mng-erro-msg').textContent = 'Credenciais do NG não configuradas. Vá em Config e salve usuário/senha do NG.';
+        document.getElementById('mng-erro-msg').textContent = _mensagemErroHumana('sem_credenciais', 'NG');
         return;
       }
 
@@ -1623,9 +1713,22 @@ function _consultarNGVenda(index) {
       var _hash = '#dhp?cpf=' + encodeURIComponent(cpfLimpo) +
                   '&user='    + encodeURIComponent(creds.user) +
                   '&pass='    + encodeURIComponent(creds.pass);
-      window.open('https://ng.vero.objective.com.br/' + _hash, 'dhp_ng', 'width=400,height=300,left=0,top=0');
+      var _popup = window.open('https://ng.vero.objective.com.br/' + _hash, 'dhp_ng', 'width=400,height=300,left=0,top=0');
+
+      // Detecta popup bloqueado pelo navegador
+      if (!_popup || _popup.closed || typeof _popup.closed === 'undefined') {
+        clearTimeout(_timeout);
+        window.removeEventListener('message', _handler);
+        _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'erro_extensao', categoria: 'popup_bloqueado', ms: Date.now() - _inicio, mensagem: 'window.open retornou null/closed' });
+        document.getElementById('mng-loading').style.display = 'none';
+        document.getElementById('mng-erro').style.display = 'block';
+        document.getElementById('mng-erro-msg').textContent = _mensagemErroHumana('popup_bloqueado', 'NG');
+      }
     })
     .withFailureHandler(function(err) {
+      clearTimeout(_timeout);
+      window.removeEventListener('message', _handler);
+      _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'erro_backend', ms: Date.now() - _inicio, mensagem: 'getCredenciaisNG: ' + (err.message || String(err)) });
       document.getElementById('mng-loading').style.display = 'none';
       document.getElementById('mng-erro').style.display = 'block';
       document.getElementById('mng-erro-msg').textContent = 'Erro ao buscar credenciais NG: ' + (err.message || String(err));
@@ -1722,11 +1825,17 @@ function _verificarNGConfig() {
 var _adapterDadosTemp = null;
 
 // ── Consulta Adapter via extensao Chrome (content script no popup) ────────
-function _consultarAdapterVenda(index) {
+function _consultarAdapterVenda(index, _tentativa) {
+  _tentativa = _tentativa || 1;
   var v = _paginaAtual[index];
   if (!v || !v.cpf) { mostrarToast('Venda sem CPF.', 'error'); return; }
 
+  var _inicio = Date.now();
   _adapterDadosTemp = { index: index, linha: v.linha };
+
+  if (_tentativa === 1) {
+    _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'iniciado' });
+  }
 
   var modal = document.getElementById('modalAdapter');
   document.getElementById('madp-info').textContent = v.cliente + ' | CPF: ' + v.cpf;
@@ -1736,13 +1845,18 @@ function _consultarAdapterVenda(index) {
   document.getElementById('madp-foot').style.display = 'none';
   modal.classList.add('ativo');
 
+  // Indicador visual de retry (segunda tentativa)
+  var _loadingP = document.querySelector('#madp-loading p');
+  if (_loadingP) _loadingP.textContent = _tentativa === 2 ? 'Tentando novamente (2/2)...' : 'Consultando Adapter...';
+
   // Buscar credenciais do backend
   google.script.run
     .withSuccessHandler(function(creds) {
       if (!creds.sucesso) {
+        _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'sem_credenciais', categoria: 'sem_credenciais', ms: Date.now() - _inicio });
         document.getElementById('madp-loading').style.display = 'none';
         document.getElementById('madp-erro').style.display = 'block';
-        document.getElementById('madp-erro-msg').textContent = 'Credenciais do Adapter nao configuradas. Va em Config e salve usuario/senha.';
+        document.getElementById('madp-erro-msg').textContent = _mensagemErroHumana('sem_credenciais', 'Adapter');
         return;
       }
 
@@ -1751,17 +1865,31 @@ function _consultarAdapterVenda(index) {
         if (!e.data || e.data.type !== 'dhp_adapter_result') return;
         window.removeEventListener('message', _handler);
         clearTimeout(_timeout);
-
-        document.getElementById('madp-loading').style.display = 'none';
+        var _ms = Date.now() - _inicio;
 
         if (e.data.erro) {
+          var _cat = _categorizarErroConsulta(e.data.erro);
+
+          // Retry transparente UMA vez em erros transitórios
+          if (_tentativa === 1 && (_cat === 'timeout_extensao' || _cat === 'http_5xx' || _cat === 'rede')) {
+            _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'retry', categoria: _cat, ms: _ms, mensagem: e.data.erro });
+            mostrarToast('Portal lento — tentando novamente em 5s...', 'warning');
+            setTimeout(function() { _consultarAdapterVenda(index, 2); }, 5000);
+            return;
+          }
+
+          _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'erro_extensao', categoria: _cat, ms: _ms, mensagem: e.data.erro });
+          document.getElementById('madp-loading').style.display = 'none';
           document.getElementById('madp-erro').style.display = 'block';
-          document.getElementById('madp-erro-msg').textContent = e.data.erro;
+          document.getElementById('madp-erro-msg').textContent = _mensagemErroHumana(_cat, 'Adapter') || e.data.erro;
           return;
         }
 
+        document.getElementById('madp-loading').style.display = 'none';
+
         var r = e.data;
         _adapterDadosTemp.resultado = r;
+        _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'sucesso', ms: _ms, mensagem: r.resumo || '' });
 
         // Badge de status
         var badge = document.getElementById('madp-status-badge');
@@ -1810,18 +1938,40 @@ function _consultarAdapterVenda(index) {
 
       var _timeout = setTimeout(function() {
         window.removeEventListener('message', _handler);
+        var _ms = Date.now() - _inicio;
+
+        // Retry transparente UMA vez em timeout do frontend
+        if (_tentativa === 1) {
+          _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'retry', categoria: 'timeout_frontend', ms: _ms });
+          mostrarToast('Sem resposta da extensão — tentando novamente em 5s...', 'warning');
+          setTimeout(function() { _consultarAdapterVenda(index, 2); }, 5000);
+          return;
+        }
+
+        _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'timeout_frontend', categoria: 'timeout_frontend', ms: _ms });
         document.getElementById('madp-loading').style.display = 'none';
         document.getElementById('madp-erro').style.display = 'block';
-        document.getElementById('madp-erro-msg').textContent = 'Tempo esgotado. Verifique se a extensao DharmaPro Connector esta instalada e a VPN esta ativada.';
+        document.getElementById('madp-erro-msg').textContent = _mensagemErroHumana('timeout_frontend', 'Adapter');
       }, 30000);
 
       // Abrir popup no Adapter com dados no hash (servidor nao recebe o hash)
       var _hash = '#dhp?cpf=' + encodeURIComponent(v.cpf.replace(/\D/g, '')) +
                   '&user='    + encodeURIComponent(creds.user) +
                   '&pass='    + encodeURIComponent(creds.pass);
-      window.open('https://adapter.veronet.com.br/adapter/' + _hash, 'dhp_adapter', 'width=1,height=1,left=-100,top=-100');
+      var _popup = window.open('https://adapter.veronet.com.br/adapter/' + _hash, 'dhp_adapter', 'width=1,height=1,left=-100,top=-100');
+
+      // Detecta popup bloqueado pelo navegador
+      if (!_popup || _popup.closed || typeof _popup.closed === 'undefined') {
+        clearTimeout(_timeout);
+        window.removeEventListener('message', _handler);
+        _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'erro_extensao', categoria: 'popup_bloqueado', ms: Date.now() - _inicio, mensagem: 'window.open retornou null/closed' });
+        document.getElementById('madp-loading').style.display = 'none';
+        document.getElementById('madp-erro').style.display = 'block';
+        document.getElementById('madp-erro-msg').textContent = _mensagemErroHumana('popup_bloqueado', 'Adapter');
+      }
     })
     .withFailureHandler(function(err) {
+      _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'erro_backend', ms: Date.now() - _inicio, mensagem: 'getCredenciaisAdapter: ' + (err.message || String(err)) });
       document.getElementById('madp-loading').style.display = 'none';
       document.getElementById('madp-erro').style.display = 'block';
       document.getElementById('madp-erro-msg').textContent = 'Erro ao buscar credenciais: ' + (err.message || String(err));
