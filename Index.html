@@ -3555,7 +3555,7 @@
       <!-- Configuração -->
       <div class="modal-body" id="varredura-config">
         <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5;">
-          Roda consultas em sequência sobre as vendas carregadas nesta página. Cada consulta passa pelas funções já instrumentadas e gera linhas na aba <strong>Log Consultas Instalacao</strong>. Filtre a lista antes se quiser escopo menor.
+          Busca vendas direto do servidor (toda a base, não só as carregadas na lista) e roda consultas em sequência. Cada consulta gera linhas na aba <strong>Log Consultas Instalacao</strong>.
         </p>
 
         <div style="margin-bottom:14px;">
@@ -3577,14 +3577,14 @@
             <input type="checkbox" name="varr-status" value="2" checked onchange="_varreduraAtualizarContador()"> 2 (Aguardando)
           </label>
           <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;">
-            <input type="checkbox" name="varr-status" value="3" onchange="_varreduraAtualizarContador()"> 3 (Finalizada/Instalada — auditoria)
+            <input type="checkbox" name="varr-status" value="3" checked onchange="_varreduraAtualizarContador()"> 3 (Finalizada/Instalada — auditoria)
           </label>
         </div>
 
         <div style="display:flex;gap:14px;margin-bottom:14px;">
           <div style="flex:1;">
             <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;">Máximo</label>
-            <input type="number" id="varr-maximo" value="30" min="1" max="100" style="width:100%;padding:7px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);">
+            <input type="number" id="varr-maximo" value="30" min="1" max="500" style="width:100%;padding:7px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);">
           </div>
           <div style="flex:1;">
             <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;">Pausa entre (s)</label>
@@ -3593,7 +3593,7 @@
         </div>
 
         <p style="font-size:13px;color:var(--text);margin:0;">
-          Disponíveis com esses filtros: <strong id="varr-disponiveis">0</strong>
+          Total: <strong id="varr-disponiveis">— (busca no servidor ao rodar)</strong>
         </p>
       </div>
 

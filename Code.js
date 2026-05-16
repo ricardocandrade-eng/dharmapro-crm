@@ -724,6 +724,66 @@ function atualizarVendaComNG(dados) {
 //                              | timeout_frontend | http_4xx | http_5xx
 //                              | rede | popup_bloqueado | sem_credenciais
 //                              | outro
+// ── BUSCA DE VENDAS PARA O MODO VARREDURA ─────────────────────────────────
+// Retorna lista enxuta de vendas que se qualificam pra diagnóstico em lote
+// das consultas NG/Adapter. Vai direto na planilha (sem passar pela paginação
+// do frontend), permitindo varrer base maior que as 500 mais recentes.
+//
+// Filtros aceitos:
+//   sistemas: array ['NG', 'Adapter', 'ambos'] — match após normalização de SISTEMA
+//   statuses: array de strings ('2','3', etc) — match no primeiro caractere de STATUS
+//   max:      número, default 100, cap 500
+//
+// Já filtra CPF válido (11 dígitos) — vendas com CNPJ/lixo não voltam.
+// Ordem: mais recentes primeiro (de trás pra frente na planilha).
+function getVendasParaVarredura(filtros) {
+  try {
+    filtros = filtros || {};
+    var sistemas = (filtros.sistemas && filtros.sistemas.length) ? filtros.sistemas : ['ambos'];
+    var statuses = (filtros.statuses && filtros.statuses.length) ? filtros.statuses.map(String) : ['2'];
+    var max      = Math.max(1, Math.min(500, Number(filtros.max) || 100));
+
+    var sheet = _getSheet();
+    var c = CONFIG.COLUNAS;
+    var ultima = sheet.getLastRow();
+    var total  = ultima - 2;
+    if (total <= 0) return { vendas: [], total: 0 };
+
+    var raw = sheet.getRange(3, 1, total, CONFIG.TOTAL_COLUNAS).getValues();
+    var resultado = [];
+    var aceitaAmbos = sistemas.indexOf('ambos') !== -1;
+
+    for (var i = raw.length - 1; i >= 0 && resultado.length < max; i--) {
+      var row = raw[i];
+      var cpf = String(row[c.CPF] || '').trim();
+      if (!cpf) continue;
+      var cpfDigitos = cpf.replace(/\D/g, '');
+      if (cpfDigitos.length !== 11) continue;
+
+      var statusStr = String(row[c.STATUS] || '').trim();
+      if (statuses.indexOf(statusStr.charAt(0)) === -1) continue;
+
+      var sistemaRaw = String(row[c.SISTEMA] || '').trim().toUpperCase();
+      var sistema = sistemaRaw === 'NG' ? 'NG' : 'Adapter';
+      if (!aceitaAmbos && sistemas.indexOf(sistema) === -1) continue;
+
+      resultado.push({
+        linha:   i + 3,
+        cpf:     cpf,
+        sistema: sistema,
+        status:  statusStr,
+        cliente: String(row[c.CLIENTE] || '').trim()
+      });
+    }
+
+    return { vendas: resultado, total: resultado.length };
+  } catch(e) {
+    Logger.log('getVendasParaVarredura: ' + e.message);
+    return { vendas: [], total: 0, erro: e.message };
+  }
+}
+
+
 function logConsultaInstalacao(dados) {
   try {
     if (!dados) return { sucesso: false, mensagem: 'Payload vazio.' };

@@ -2108,13 +2108,14 @@ function _verificarAdapterConfig() {
 // gerando linhas na aba "Log Consultas Instalacao" naturalmente.
 // Detecta conclusão observando o DOM dos modais (loading↓ + resultado/erro↑).
 
-var _varreduraQueue      = [];
-var _varreduraTotal      = 0;
-var _varreduraResultados = [];
-var _varreduraAtiva      = false;
-var _varreduraCancelar   = false;
-var _varreduraAtual      = null;
-var _varreduraConfig     = { delayMs: 5000 };
+var _varreduraQueue        = [];
+var _varreduraTotal        = 0;
+var _varreduraResultados   = [];
+var _varreduraAtiva        = false;
+var _varreduraCancelar     = false;
+var _varreduraAtual        = null;
+var _varreduraConfig       = { delayMs: 5000 };
+var _paginaAtualOriginal   = null;  // backup p/ swap durante varredura server-side
 
 function _varreduraAbrir() {
   if (AppState.get('perfil') !== 'admin') {
@@ -2138,6 +2139,9 @@ function _varreduraFechar() {
   if (_varreduraAtiva) {
     if (!confirm('Varredura em andamento. Cancelar?')) return;
     _varreduraCancelar = true;
+  } else {
+    // Garante restauração mesmo se fechou após conclusão
+    _varreduraRestaurarPaginaAtual();
   }
   document.getElementById('modalVarredura').classList.remove('ativo');
 }
@@ -2164,12 +2168,11 @@ function _varreduraFiltrar(sistema, statuses) {
 }
 
 function _varreduraAtualizarContador() {
-  var sistemaSel = document.querySelector('input[name="varr-sistema"]:checked');
-  if (!sistemaSel) return;
-  var statusSel = Array.prototype.slice.call(document.querySelectorAll('input[name="varr-status"]:checked')).map(function(c) { return c.value; });
-  var filtrados = _varreduraFiltrar(sistemaSel.value, statusSel);
+  // Como agora a busca é server-side, o contador real só é conhecido após Rodar.
+  // Mantemos o handler pra evitar referencias quebradas no HTML, mas indicamos
+  // que o valor será buscado.
   var el = document.getElementById('varr-disponiveis');
-  if (el) el.textContent = filtrados.length;
+  if (el) el.textContent = '— (busca no servidor ao rodar)';
 }
 
 function _varreduraIniciar() {
@@ -2180,33 +2183,68 @@ function _varreduraIniciar() {
     mostrarToast('Selecione ao menos um status.', 'warning');
     return;
   }
-  var maximo    = Math.max(1, Math.min(100, parseInt(document.getElementById('varr-maximo').value, 10) || 30));
+  var maximo    = Math.max(1, Math.min(500, parseInt(document.getElementById('varr-maximo').value, 10) || 30));
   var delaySegs = Math.max(1, Math.min(60,  parseInt(document.getElementById('varr-delay').value,  10) || 5));
 
-  var fila = _varreduraFiltrar(sistemaSel.value, statusSel).slice(0, maximo);
-  if (!fila.length) {
-    mostrarToast('Nenhuma venda elegível com esses filtros.', 'warning');
-    return;
+  // Trava o botão e indica busca em curso
+  var btnRodar = document.getElementById('varr-btn-rodar');
+  btnRodar.disabled = true;
+  var disponEl = document.getElementById('varr-disponiveis');
+  if (disponEl) disponEl.textContent = 'buscando do servidor...';
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      btnRodar.disabled = false;
+      var vendas = (res && res.vendas) || [];
+      if (!vendas.length) {
+        if (disponEl) disponEl.textContent = '0';
+        mostrarToast('Nenhuma venda elegível no servidor com esses filtros.', 'warning');
+        return;
+      }
+
+      // Swap _paginaAtual pra que _consultar*Venda(index) encontre os vendas via index 0..N-1
+      _paginaAtualOriginal = _paginaAtual;
+      _paginaAtual         = vendas;
+
+      _varreduraQueue = vendas.map(function(v, idx) {
+        return { index: idx, linha: v.linha, cpf: v.cpf, sistema: v.sistema };
+      });
+      _varreduraTotal      = _varreduraQueue.length;
+      _varreduraResultados = [];
+      _varreduraCancelar   = false;
+      _varreduraAtiva      = true;
+      _varreduraConfig     = { delayMs: delaySegs * 1000 };
+
+      document.getElementById('varredura-config').style.display    = 'none';
+      document.getElementById('varredura-progress').style.display  = 'block';
+      document.getElementById('varredura-concluido').style.display = 'none';
+      document.getElementById('varr-total').textContent       = _varreduraTotal;
+      document.getElementById('varr-processadas').textContent = 0;
+      document.getElementById('varr-bar').style.width         = '0%';
+      document.getElementById('varr-atual').textContent       = '—';
+      document.getElementById('varr-btn-rodar').style.display = 'none';
+      document.getElementById('varr-btn-parar').style.display = 'inline-block';
+
+      _varreduraProximo();
+    })
+    .withFailureHandler(function(err) {
+      btnRodar.disabled = false;
+      if (disponEl) disponEl.textContent = '—';
+      mostrarToast('Erro ao buscar vendas: ' + (err && err.message ? err.message : err), 'error');
+    })
+    .getVendasParaVarredura({
+      sistemas: [sistemaSel.value],
+      statuses: statusSel,
+      max:      maximo
+    });
+}
+
+// Helper que restaura _paginaAtual após swap da varredura
+function _varreduraRestaurarPaginaAtual() {
+  if (_paginaAtualOriginal !== null) {
+    _paginaAtual = _paginaAtualOriginal;
+    _paginaAtualOriginal = null;
   }
-
-  _varreduraQueue      = fila;
-  _varreduraTotal      = fila.length;
-  _varreduraResultados = [];
-  _varreduraCancelar   = false;
-  _varreduraAtiva      = true;
-  _varreduraConfig     = { delayMs: delaySegs * 1000 };
-
-  document.getElementById('varredura-config').style.display    = 'none';
-  document.getElementById('varredura-progress').style.display  = 'block';
-  document.getElementById('varredura-concluido').style.display = 'none';
-  document.getElementById('varr-total').textContent       = _varreduraTotal;
-  document.getElementById('varr-processadas').textContent = 0;
-  document.getElementById('varr-bar').style.width         = '0%';
-  document.getElementById('varr-atual').textContent       = '—';
-  document.getElementById('varr-btn-rodar').style.display = 'none';
-  document.getElementById('varr-btn-parar').style.display = 'inline-block';
-
-  _varreduraProximo();
 }
 
 function _varreduraProximo() {
@@ -2287,6 +2325,7 @@ function _varreduraParar() {
 function _varreduraConcluir() {
   _varreduraAtiva = false;
   _varreduraAtual = null;
+  _varreduraRestaurarPaginaAtual();
 
   var sucessos = 0, erros = 0, timeouts = 0, cancelados = 0;
   for (var i = 0; i < _varreduraResultados.length; i++) {
