@@ -453,25 +453,52 @@
 
     console.log('[DHP-NG] Clicou Visualizar, aguardando dados...');
 
-    // Aguardar dados carregarem — aceitar controllers OU dados visíveis no DOM
+    // Fase 1: aguardar Pessoa (nome) carregar — sinal de que a tela Visualizar abriu
     await aguardar(function() {
       var instances = Wing.session.controllerManager.instances;
-      // Controllers do fluxo Visualizar
-      var pessoaCtrl   = findCtrlByType(instances, 'Atend360TabPessoaFisicaWComp');
-      var contratoCtrl = findCtrlByType(instances, 'Atend360ContratoTipoFisicoCardWComp');
-      var mainCtrl     = findCtrlByType(instances, 'Atend360WMC');
-      if (pessoaCtrl || contratoCtrl || mainCtrl) return true;
+      var pessoaCtrl = findCtrlByType(instances, 'Atend360TabPessoaFisicaWComp');
+      var mainCtrl   = findCtrlByType(instances, 'Atend360WMC');
+      if (pessoaCtrl || mainCtrl) return true;
 
-      // Fallback DOM: verificar se a seção "Dados do cliente" apareceu
+      // Fallback DOM
       var headers = document.querySelectorAll('span, div, h2, h3');
       for (var h = 0; h < headers.length; h++) {
         if (headers[h].textContent.trim() === 'Dados do cliente') return true;
       }
       return null;
-    }, 25000, 500, 'Dados do cliente após Visualizar');
+    }, 25000, 500, 'Pessoa após Visualizar');
 
-    // Pausa para controllers/DOM terminarem de popular
-    await new Promise(function(r) { setTimeout(r, 2000); });
+    // Fase 2: pausa fixa de 6s pros controllers de contrato carregarem.
+    // Wing renderiza Pessoa rápido, mas o card de Contrato (ContratoTipoFisicoCardWComp)
+    // e OS Externa demoram mais. Sem essa pausa o lerResultados roda antes do contrato
+    // existir e retorna falso "Sem contrato ativo".
+    console.log('[DHP-NG] Pessoa carregada, pausando 6s para contrato...');
+    await new Promise(function(r) { setTimeout(r, 6000); });
+
+    // Fase 3: aguarda especificamente o card de Contrato OU sinal DOM "Dados do contrato"
+    // OU sinal claro de "sem contrato". Catch silencioso — se esgotar, prossegue.
+    try {
+      await aguardar(function() {
+        var instances = Wing.session.controllerManager.instances;
+        if (findCtrlByType(instances, 'Atend360ContratoTipoFisicoCardWComp')) return true;
+        if (findCtrlByType(instances, 'CasoCriacaoDeContratoWComp')) return true;
+
+        // Sinal DOM de "tem contrato"
+        var spans = document.querySelectorAll('span, div, label, h2, h3');
+        for (var i = 0; i < spans.length; i++) {
+          var t = spans[i].textContent.trim();
+          if (t === 'Dados do contrato' || t === 'Instalado em' || t === 'Tipo de contrato') return true;
+        }
+
+        // Sinal DOM de "sem contrato" — encerra cedo
+        var bodyTxt = document.body ? document.body.textContent : '';
+        if (/Nenhum contrato|Sem contrato|Contratos\s*\(\s*0\s*\)/i.test(bodyTxt)) return 'sem-contrato';
+
+        return null;
+      }, 10000, 500, 'Card de Contrato (ou confirmação ausência)');
+    } catch(e) {
+      console.warn('[DHP-NG] Confirmação de contrato esgotou, prosseguindo:', e.message);
+    }
   }
 
   // ── Ler resultados dos controllers Wing + fallback DOM ──────────────
