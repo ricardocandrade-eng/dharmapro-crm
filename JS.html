@@ -1709,7 +1709,7 @@ function _consultarNGVenda(index, _tentativa) {
     document.getElementById('mng-loading').style.display = 'none';
     document.getElementById('mng-erro').style.display = 'block';
     document.getElementById('mng-erro-msg').textContent = _mensagemErroHumana('timeout_frontend', 'NG');
-  }, 75000);
+  }, 120000); // Bumped de 75s pra 120s — Wing precisa de mais tempo quando faz login do zero
 
   // Buscar credenciais NG do backend
   google.script.run
@@ -2219,8 +2219,8 @@ function _varreduraProximo() {
   _varreduraAtualizarUI();
 
   var modalId = item.sistema === 'NG' ? 'modalNG' : 'modalAdapter';
-  // Budget máximo por consulta: NG é mais lento (até 75s + 10s retry + 75s = 160s).
-  var maxMs   = item.sistema === 'NG' ? 200000 : 90000;
+  // Budget máximo por consulta: NG é mais lento (até 120s + 10s retry + 120s ≈ 250s).
+  var maxMs   = item.sistema === 'NG' ? 280000 : 90000;
 
   if (item.sistema === 'NG') {
     _consultarNGVenda(item.index);
