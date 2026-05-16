@@ -2531,7 +2531,10 @@
             </div>
             <div class="filtro-chips" id="filtroChipsAtivos"></div>
           </div>
-          <div class="list-meta"><span id="totalRegistros">—</span></div>
+          <div class="list-meta">
+            <span id="totalRegistros">—</span>
+            <button id="btnVarredura" class="btn btn-ghost btn-sm" style="display:none;margin-left:12px;font-size:11px;" onclick="_varreduraAbrir()" title="Modo Varredura (admin)">🔍 Varredura</button>
+          </div>
           <div class="lista-scroll" id="listaVendas">
             <div class="empty"><div class="empty-icon">📋</div><h3>Carregando...</h3></div>
           </div>
@@ -3537,6 +3540,86 @@
       <div class="modal-foot" id="mng-foot" style="display:none;">
         <button class="btn btn-ghost" onclick="_fecharModalNG()">Cancelar</button>
         <button class="btn" id="mng-btn-confirmar" onclick="_confirmarNG()">Atualizar venda</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── MODO VARREDURA — diagnóstico em lote NG/Adapter (admin only) ─── -->
+  <div class="modal-overlay" id="modalVarredura">
+    <div class="modal-box" style="max-width:560px;">
+      <div class="modal-head">
+        <h3>🔍 Modo Varredura — diagnóstico em lote NG/Adapter</h3>
+        <button class="modal-close" onclick="_varreduraFechar()">✕</button>
+      </div>
+
+      <!-- Configuração -->
+      <div class="modal-body" id="varredura-config">
+        <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5;">
+          Roda consultas em sequência sobre as vendas carregadas nesta página. Cada consulta passa pelas funções já instrumentadas e gera linhas na aba <strong>Log Consultas Instalacao</strong>. Filtre a lista antes se quiser escopo menor.
+        </p>
+
+        <div style="margin-bottom:14px;">
+          <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;">Sistema</label>
+          <label style="display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:13px;">
+            <input type="radio" name="varr-sistema" value="ambos" checked onchange="_varreduraAtualizarContador()"> Ambos
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:13px;">
+            <input type="radio" name="varr-sistema" value="NG" onchange="_varreduraAtualizarContador()"> NG
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;">
+            <input type="radio" name="varr-sistema" value="Adapter" onchange="_varreduraAtualizarContador()"> Adapter
+          </label>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;">Status (1º caractere)</label>
+          <label style="display:inline-flex;align-items:center;gap:6px;margin-right:14px;font-size:13px;">
+            <input type="checkbox" name="varr-status" value="1" checked onchange="_varreduraAtualizarContador()"> 1 (Conferência)
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;">
+            <input type="checkbox" name="varr-status" value="2" checked onchange="_varreduraAtualizarContador()"> 2 (Aguardando)
+          </label>
+        </div>
+
+        <div style="display:flex;gap:14px;margin-bottom:14px;">
+          <div style="flex:1;">
+            <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;">Máximo</label>
+            <input type="number" id="varr-maximo" value="30" min="1" max="100" style="width:100%;padding:7px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);">
+          </div>
+          <div style="flex:1;">
+            <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;">Pausa entre (s)</label>
+            <input type="number" id="varr-delay" value="5" min="1" max="60" style="width:100%;padding:7px;border-radius:6px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);">
+          </div>
+        </div>
+
+        <p style="font-size:13px;color:var(--text);margin:0;">
+          Disponíveis com esses filtros: <strong id="varr-disponiveis">0</strong>
+        </p>
+      </div>
+
+      <!-- Progresso -->
+      <div class="modal-body" id="varredura-progress" style="display:none;">
+        <p style="font-size:13px;color:var(--text);margin-bottom:10px;">
+          Consulta atual: <strong id="varr-atual">—</strong>
+        </p>
+        <div style="height:14px;background:var(--surface2);border-radius:7px;overflow:hidden;margin-bottom:8px;">
+          <div id="varr-bar" style="height:100%;background:linear-gradient(90deg,#28a745,#4f9eff);width:0%;transition:width .3s;"></div>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:0;">
+          <strong id="varr-processadas">0</strong> de <strong id="varr-total">0</strong> processadas
+        </p>
+      </div>
+
+      <!-- Concluído -->
+      <div class="modal-body" id="varredura-concluido" style="display:none;">
+        <p id="varr-final-msg" style="font-size:14px;line-height:1.6;margin-bottom:8px;"></p>
+        <p style="font-size:12px;color:var(--muted);margin:0;">Para análise detalhada, abra a aba <strong>Log Consultas Instalacao</strong> da planilha.</p>
+      </div>
+
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="_varreduraFechar()">Fechar</button>
+        <button class="btn btn-ghost" id="varr-btn-parar" style="display:none;color:#dc3545;" onclick="_varreduraParar()">Parar</button>
+        <button class="btn" id="varr-btn-rodar" onclick="_varreduraIniciar()">Rodar varredura</button>
       </div>
     </div>
   </div>

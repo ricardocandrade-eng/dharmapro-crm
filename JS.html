@@ -1582,7 +1582,19 @@ function _consultarNGVenda(index, _tentativa) {
   var v = _paginaAtual[index];
   if (!v || !v.cpf) { mostrarToast('Venda sem CPF.', 'error'); return; }
 
+  // Validação prévia: CPF tem que ser 11 dígitos (rejeita CNPJ, lixo, etc)
+  var _cpfDigitos = String(v.cpf).replace(/\D/g, '');
+  if (_cpfDigitos.length !== 11) {
+    var _msgCpf = _cpfDigitos.length === 14
+      ? 'Esta venda tem CNPJ. Consulta NG funciona só com CPF de pessoa física.'
+      : 'CPF inválido (' + _cpfDigitos.length + ' dígitos — esperado 11). Verifique o cadastro.';
+    _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'cpf_invalido', categoria: 'cpf_invalido', mensagem: _cpfDigitos.length + ' digitos' });
+    mostrarToast(_msgCpf, 'error');
+    return;
+  }
+
   var _inicio = Date.now();
+  var _popup = null; // escopo da função pra permitir fechar antes do retry
   _ngDadosTemp = { index: index, linha: v.linha };
 
   if (_tentativa === 1) {
@@ -1614,8 +1626,9 @@ function _consultarNGVenda(index, _tentativa) {
       // Retry transparente UMA vez em erros transitórios (timeout do portal, 5xx, rede)
       if (_tentativa === 1 && (_cat === 'timeout_extensao' || _cat === 'http_5xx' || _cat === 'rede')) {
         _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'retry', categoria: _cat, ms: _ms, mensagem: e.data.erro });
-        mostrarToast('Portal lento — tentando novamente em 5s...', 'warning');
-        setTimeout(function() { _consultarNGVenda(index, 2); }, 5000);
+        if (_popup && !_popup.closed) { try { _popup.close(); } catch(x) {} }
+        mostrarToast('Portal lento — tentando novamente em 10s...', 'warning');
+        setTimeout(function() { _consultarNGVenda(index, 2); }, 10000);
         return;
       }
 
@@ -1684,8 +1697,9 @@ function _consultarNGVenda(index, _tentativa) {
     // Retry transparente UMA vez em timeout do frontend
     if (_tentativa === 1) {
       _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'retry', categoria: 'timeout_frontend', ms: _ms });
-      mostrarToast('Sem resposta da extensão — tentando novamente em 5s...', 'warning');
-      setTimeout(function() { _consultarNGVenda(index, 2); }, 5000);
+      if (_popup && !_popup.closed) { try { _popup.close(); } catch(x) {} }
+      mostrarToast('Sem resposta da extensão — tentando novamente em 10s...', 'warning');
+      setTimeout(function() { _consultarNGVenda(index, 2); }, 10000);
       return;
     }
 
@@ -1709,11 +1723,10 @@ function _consultarNGVenda(index, _tentativa) {
       }
 
       // Abrir popup no domínio NG com CPF + credenciais no hash
-      var cpfLimpo = v.cpf.replace(/\D/g, '');
-      var _hash = '#dhp?cpf=' + encodeURIComponent(cpfLimpo) +
+      var _hash = '#dhp?cpf=' + encodeURIComponent(_cpfDigitos) +
                   '&user='    + encodeURIComponent(creds.user) +
                   '&pass='    + encodeURIComponent(creds.pass);
-      var _popup = window.open('https://ng.vero.objective.com.br/' + _hash, 'dhp_ng', 'width=400,height=300,left=0,top=0');
+      _popup = window.open('https://ng.vero.objective.com.br/' + _hash, 'dhp_ng', 'width=400,height=300,left=0,top=0');
 
       // Detecta popup bloqueado pelo navegador
       if (!_popup || _popup.closed || typeof _popup.closed === 'undefined') {
@@ -1830,7 +1843,19 @@ function _consultarAdapterVenda(index, _tentativa) {
   var v = _paginaAtual[index];
   if (!v || !v.cpf) { mostrarToast('Venda sem CPF.', 'error'); return; }
 
+  // Validação prévia: CPF tem que ser 11 dígitos (rejeita CNPJ, lixo, etc)
+  var _cpfDigitos = String(v.cpf).replace(/\D/g, '');
+  if (_cpfDigitos.length !== 11) {
+    var _msgCpf = _cpfDigitos.length === 14
+      ? 'Esta venda tem CNPJ. Consulta Adapter funciona só com CPF de pessoa física.'
+      : 'CPF inválido (' + _cpfDigitos.length + ' dígitos — esperado 11). Verifique o cadastro.';
+    _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'cpf_invalido', categoria: 'cpf_invalido', mensagem: _cpfDigitos.length + ' digitos' });
+    mostrarToast(_msgCpf, 'error');
+    return;
+  }
+
   var _inicio = Date.now();
+  var _popup = null; // escopo da função pra permitir fechar antes do retry
   _adapterDadosTemp = { index: index, linha: v.linha };
 
   if (_tentativa === 1) {
@@ -1873,8 +1898,9 @@ function _consultarAdapterVenda(index, _tentativa) {
           // Retry transparente UMA vez em erros transitórios
           if (_tentativa === 1 && (_cat === 'timeout_extensao' || _cat === 'http_5xx' || _cat === 'rede')) {
             _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'retry', categoria: _cat, ms: _ms, mensagem: e.data.erro });
-            mostrarToast('Portal lento — tentando novamente em 5s...', 'warning');
-            setTimeout(function() { _consultarAdapterVenda(index, 2); }, 5000);
+            if (_popup && !_popup.closed) { try { _popup.close(); } catch(x) {} }
+            mostrarToast('Portal lento — tentando novamente em 10s...', 'warning');
+            setTimeout(function() { _consultarAdapterVenda(index, 2); }, 10000);
             return;
           }
 
@@ -1943,8 +1969,9 @@ function _consultarAdapterVenda(index, _tentativa) {
         // Retry transparente UMA vez em timeout do frontend
         if (_tentativa === 1) {
           _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'retry', categoria: 'timeout_frontend', ms: _ms });
-          mostrarToast('Sem resposta da extensão — tentando novamente em 5s...', 'warning');
-          setTimeout(function() { _consultarAdapterVenda(index, 2); }, 5000);
+          if (_popup && !_popup.closed) { try { _popup.close(); } catch(x) {} }
+          mostrarToast('Sem resposta da extensão — tentando novamente em 10s...', 'warning');
+          setTimeout(function() { _consultarAdapterVenda(index, 2); }, 10000);
           return;
         }
 
@@ -1955,10 +1982,10 @@ function _consultarAdapterVenda(index, _tentativa) {
       }, 30000);
 
       // Abrir popup no Adapter com dados no hash (servidor nao recebe o hash)
-      var _hash = '#dhp?cpf=' + encodeURIComponent(v.cpf.replace(/\D/g, '')) +
+      var _hash = '#dhp?cpf=' + encodeURIComponent(_cpfDigitos) +
                   '&user='    + encodeURIComponent(creds.user) +
                   '&pass='    + encodeURIComponent(creds.pass);
-      var _popup = window.open('https://adapter.veronet.com.br/adapter/' + _hash, 'dhp_adapter', 'width=1,height=1,left=-100,top=-100');
+      _popup = window.open('https://adapter.veronet.com.br/adapter/' + _hash, 'dhp_adapter', 'width=1,height=1,left=-100,top=-100');
 
       // Detecta popup bloqueado pelo navegador
       if (!_popup || _popup.closed || typeof _popup.closed === 'undefined') {
@@ -2062,6 +2089,238 @@ function _verificarAdapterConfig() {
     })
     .getCredenciaisAdapter();
 }
+
+
+// ─── MODO VARREDURA — diagnóstico em lote NG/Adapter (admin only) ─────────
+// Roda consultas em sequência sobre as vendas carregadas em _paginaAtual.
+// Cada consulta passa pelas funções existentes (_consultarNGVenda/Adapter),
+// gerando linhas na aba "Log Consultas Instalacao" naturalmente.
+// Detecta conclusão observando o DOM dos modais (loading↓ + resultado/erro↑).
+
+var _varreduraQueue      = [];
+var _varreduraTotal      = 0;
+var _varreduraResultados = [];
+var _varreduraAtiva      = false;
+var _varreduraCancelar   = false;
+var _varreduraAtual      = null;
+var _varreduraConfig     = { delayMs: 5000 };
+
+function _varreduraAbrir() {
+  if (AppState.get('perfil') !== 'admin') {
+    mostrarToast('Modo Varredura disponível apenas para admin.', 'warning');
+    return;
+  }
+  var modal = document.getElementById('modalVarredura');
+  if (!modal) return;
+
+  document.getElementById('varredura-config').style.display    = 'block';
+  document.getElementById('varredura-progress').style.display  = 'none';
+  document.getElementById('varredura-concluido').style.display = 'none';
+  document.getElementById('varr-btn-rodar').style.display      = 'inline-block';
+  document.getElementById('varr-btn-parar').style.display      = 'none';
+
+  _varreduraAtualizarContador();
+  modal.classList.add('ativo');
+}
+
+function _varreduraFechar() {
+  if (_varreduraAtiva) {
+    if (!confirm('Varredura em andamento. Cancelar?')) return;
+    _varreduraCancelar = true;
+  }
+  document.getElementById('modalVarredura').classList.remove('ativo');
+}
+
+// Filtra _paginaAtual respeitando sistema/status escolhidos pelo usuário.
+// Rejeita vendas sem CPF válido (11 dígitos) já no filtro pra não desperdiçar consulta.
+function _varreduraFiltrar(sistema, statuses) {
+  var lista = [];
+  for (var i = 0; i < _paginaAtual.length; i++) {
+    var v = _paginaAtual[i];
+    if (!v || !v.cpf) continue;
+    var cpfDigitos = String(v.cpf).replace(/\D/g, '');
+    if (cpfDigitos.length !== 11) continue;
+
+    var sis = (v.sistema || '').toUpperCase() === 'NG' ? 'NG' : 'Adapter';
+    if (sistema !== 'ambos' && sistema !== sis) continue;
+
+    var statusFirstChar = String(v.status || '').charAt(0);
+    if (statuses.indexOf(statusFirstChar) === -1) continue;
+
+    lista.push({ index: i, linha: v.linha, cpf: v.cpf, sistema: sis });
+  }
+  return lista;
+}
+
+function _varreduraAtualizarContador() {
+  var sistemaSel = document.querySelector('input[name="varr-sistema"]:checked');
+  if (!sistemaSel) return;
+  var statusSel = Array.prototype.slice.call(document.querySelectorAll('input[name="varr-status"]:checked')).map(function(c) { return c.value; });
+  var filtrados = _varreduraFiltrar(sistemaSel.value, statusSel);
+  var el = document.getElementById('varr-disponiveis');
+  if (el) el.textContent = filtrados.length;
+}
+
+function _varreduraIniciar() {
+  var sistemaSel = document.querySelector('input[name="varr-sistema"]:checked');
+  if (!sistemaSel) return;
+  var statusSel = Array.prototype.slice.call(document.querySelectorAll('input[name="varr-status"]:checked')).map(function(c) { return c.value; });
+  if (!statusSel.length) {
+    mostrarToast('Selecione ao menos um status.', 'warning');
+    return;
+  }
+  var maximo    = Math.max(1, Math.min(100, parseInt(document.getElementById('varr-maximo').value, 10) || 30));
+  var delaySegs = Math.max(1, Math.min(60,  parseInt(document.getElementById('varr-delay').value,  10) || 5));
+
+  var fila = _varreduraFiltrar(sistemaSel.value, statusSel).slice(0, maximo);
+  if (!fila.length) {
+    mostrarToast('Nenhuma venda elegível com esses filtros.', 'warning');
+    return;
+  }
+
+  _varreduraQueue      = fila;
+  _varreduraTotal      = fila.length;
+  _varreduraResultados = [];
+  _varreduraCancelar   = false;
+  _varreduraAtiva      = true;
+  _varreduraConfig     = { delayMs: delaySegs * 1000 };
+
+  document.getElementById('varredura-config').style.display    = 'none';
+  document.getElementById('varredura-progress').style.display  = 'block';
+  document.getElementById('varredura-concluido').style.display = 'none';
+  document.getElementById('varr-total').textContent       = _varreduraTotal;
+  document.getElementById('varr-processadas').textContent = 0;
+  document.getElementById('varr-bar').style.width         = '0%';
+  document.getElementById('varr-atual').textContent       = '—';
+  document.getElementById('varr-btn-rodar').style.display = 'none';
+  document.getElementById('varr-btn-parar').style.display = 'inline-block';
+
+  _varreduraProximo();
+}
+
+function _varreduraProximo() {
+  if (_varreduraCancelar || !_varreduraQueue.length) {
+    _varreduraConcluir();
+    return;
+  }
+  var item = _varreduraQueue.shift();
+  _varreduraAtual = item;
+  _varreduraAtualizarUI();
+
+  var modalId = item.sistema === 'NG' ? 'modalNG' : 'modalAdapter';
+  // Budget máximo por consulta: NG é mais lento (até 75s + 10s retry + 75s = 160s).
+  var maxMs   = item.sistema === 'NG' ? 200000 : 90000;
+
+  if (item.sistema === 'NG') {
+    _consultarNGVenda(item.index);
+  } else {
+    _consultarAdapterVenda(item.index);
+  }
+
+  _varreduraEsperarConclusao(modalId, maxMs, function(resultado) {
+    _varreduraResultados.push({
+      linha:    item.linha,
+      cpf:      item.cpf,
+      sistema:  item.sistema,
+      resultado: resultado
+    });
+    // Força fechar o modal de consulta pra liberar o próximo ciclo.
+    var m = document.getElementById(modalId);
+    if (m) m.classList.remove('ativo');
+    _varreduraAtualizarUI();
+
+    if (_varreduraCancelar) {
+      _varreduraConcluir();
+      return;
+    }
+    setTimeout(_varreduraProximo, _varreduraConfig.delayMs);
+  });
+}
+
+// Polling no DOM dos modais existentes — não invade as funções de consulta.
+// Conclusão = loading sumiu E (resultado ou erro visível).
+function _varreduraEsperarConclusao(modalId, maxMs, cb) {
+  var loadingId   = modalId === 'modalNG' ? 'mng-loading'   : 'madp-loading';
+  var resultadoId = modalId === 'modalNG' ? 'mng-resultado' : 'madp-resultado';
+  var erroId      = modalId === 'modalNG' ? 'mng-erro'      : 'madp-erro';
+
+  var inicio = Date.now();
+  function _check() {
+    if (_varreduraCancelar) return cb('cancelado');
+
+    var loading   = document.getElementById(loadingId);
+    var resultado = document.getElementById(resultadoId);
+    var erro      = document.getElementById(erroId);
+
+    var loadingVisivel   = loading   && loading.style.display   && loading.style.display   !== 'none';
+    var resultadoVisivel = resultado && resultado.style.display && resultado.style.display !== 'none';
+    var erroVisivel      = erro      && erro.style.display      && erro.style.display      !== 'none';
+
+    if (!loadingVisivel && (resultadoVisivel || erroVisivel)) {
+      return cb(erroVisivel ? 'erro' : 'sucesso');
+    }
+    if (Date.now() - inicio > maxMs) {
+      return cb('timeout_varredura');
+    }
+    setTimeout(_check, 500);
+  }
+  _check();
+}
+
+function _varreduraParar() {
+  if (!_varreduraAtiva) return;
+  _varreduraCancelar = true;
+  mostrarToast('Vou parar após a consulta atual terminar.', 'warning');
+}
+
+function _varreduraConcluir() {
+  _varreduraAtiva = false;
+  _varreduraAtual = null;
+
+  var sucessos = 0, erros = 0, timeouts = 0, cancelados = 0;
+  for (var i = 0; i < _varreduraResultados.length; i++) {
+    var r = _varreduraResultados[i].resultado;
+    if      (r === 'sucesso')           sucessos++;
+    else if (r === 'erro')              erros++;
+    else if (r === 'timeout_varredura') timeouts++;
+    else if (r === 'cancelado')         cancelados++;
+  }
+
+  document.getElementById('varredura-progress').style.display  = 'none';
+  document.getElementById('varredura-concluido').style.display = 'block';
+  document.getElementById('varr-btn-rodar').style.display      = 'none';
+  document.getElementById('varr-btn-parar').style.display      = 'none';
+
+  document.getElementById('varr-final-msg').innerHTML =
+    '<strong>' + (_varreduraCancelar ? 'Cancelado' : 'Concluído') + '</strong> — ' +
+    _varreduraResultados.length + ' / ' + _varreduraTotal + ' processadas.<br><br>' +
+    '<span style="color:#28a745;">✓ Sucessos: ' + sucessos + '</span> · ' +
+    '<span style="color:#dc3545;">✗ Erros: ' + erros + '</span>' +
+    (timeouts ? ' · <span style="color:#ffc107;">⏳ Travadas: ' + timeouts + '</span>' : '');
+}
+
+function _varreduraAtualizarUI() {
+  if (_varreduraAtual) {
+    var a = _varreduraAtual;
+    var el = document.getElementById('varr-atual');
+    if (el) el.textContent = a.sistema + ' · CPF ' + a.cpf + ' · Linha ' + a.linha;
+  }
+  var elProc = document.getElementById('varr-processadas');
+  if (elProc) elProc.textContent = _varreduraResultados.length;
+  var pct = _varreduraTotal ? Math.round(100 * _varreduraResultados.length / _varreduraTotal) : 0;
+  var elBar = document.getElementById('varr-bar');
+  if (elBar) elBar.style.width = pct + '%';
+}
+
+// Toggle de visibilidade do botão — admin only. Chamado por _renderizarLista.
+function _varreduraInitBotao() {
+  try {
+    var btn = document.getElementById('btnVarredura');
+    if (!btn) return;
+    btn.style.display = (AppState.get('perfil') === 'admin') ? 'inline-block' : 'none';
+  } catch(e) {}
+}
+
 
 'use strict';
 'use strict';
@@ -5379,6 +5638,9 @@ function _carregarMaisDoServidor(pagina) {
 function _renderizarLista(res) {
   // Guarda dados da página para o painel lateral
   _paginaAtual = res.dados || [];
+
+  // Mostra botão "Varredura" pros admins (hook leve, idempotente)
+  if (typeof _varreduraInitBotao === 'function') _varreduraInitBotao();
 
   var container = document.getElementById('listaVendas');
 
