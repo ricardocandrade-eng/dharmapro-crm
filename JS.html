@@ -1654,10 +1654,13 @@ function _consultarNGVenda(index, _tentativa) {
       if (Array.isArray(r.debug.controllers)) dbg.push('ctrls=' + r.debug.controllers.length);
       if (Array.isArray(r.contratos))       dbg.push('contratos=' + r.contratos.length);
       if (r.nome)                            dbg.push('nome=ok');
-      if (r.debug.contrato)                  dbg.push('cn=' + r.debug.contrato);
-      if (r.debug.osExterna)                 dbg.push('os=' + String(r.debug.osExterna).substring(0, 60));
-      if (r.debug.taxaHabilitacao)           dbg.push('taxa=' + String(r.debug.taxaHabilitacao).substring(0, 40));
-      if (r.debug.analiseCredito)            dbg.push('cred=' + String(r.debug.analiseCredito).substring(0, 40));
+      if (r.debug.lidoContrato)              dbg.push('lC=' + r.debug.lidoContrato);
+      if (r.debug.lidoInstaladoEm !== undefined) dbg.push('lI="' + r.debug.lidoInstaladoEm + '"');
+      if (r.debug.lidoCanceladoEm !== undefined) dbg.push('lCa="' + r.debug.lidoCanceladoEm + '"');
+      if (r.debug.lidoStatus !== undefined)  dbg.push('lS="' + r.debug.lidoStatus + '"');
+      if (r.debug.osExterna)                 dbg.push('os=' + String(r.debug.osExterna).substring(0, 40));
+      if (r.debug.taxaHabilitacao)           dbg.push('taxa=' + String(r.debug.taxaHabilitacao).substring(0, 30));
+      if (r.debug.analiseCredito)            dbg.push('cred=' + String(r.debug.analiseCredito).substring(0, 20));
       if (dbg.length) msgNg += ' | ' + dbg.join(' ');
     }
     _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'sucesso', ms: _ms, mensagem: msgNg });

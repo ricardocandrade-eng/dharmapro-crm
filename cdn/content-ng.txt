@@ -480,9 +480,9 @@
     }, 30000, 500, 'Cabeçalho Contratos (N) após Atender');
 
     // Pausa para renderização do card de contrato (Wing pinta a estrutura primeiro,
-    // depois popula os campos)
-    console.log('[DHP-NG] Painel Contratos carregou, pausando 3s para card renderizar...');
-    await new Promise(function(r) { setTimeout(r, 3000); });
+    // depois popula os campos — 5s tolera multi-contract e pages mais pesadas)
+    console.log('[DHP-NG] Painel Contratos carregou, pausando 5s para card renderizar...');
+    await new Promise(function(r) { setTimeout(r, 5000); });
   }
 
   // ── Ler resultados dos controllers Wing + fallback DOM ──────────────
@@ -623,26 +623,37 @@
   // ── Fallback: ler dados diretamente do DOM ────────────────────────────
 
   function lerDadosDom(r) {
-    // Utilitário: busca texto do label seguinte a um rótulo
+    // Utilitário: busca texto do label seguinte a um rótulo.
+    // Estratégia prioritária: nextElementSibling (irmão imediato — bem mais preciso
+    // que varrer filhos do pai, que pode incluir labels e valores de outros campos
+    // na mesma row e retornar o valor errado).
     function lerCampoDOM(rotulo) {
       var spans = document.querySelectorAll('span, div, label, p');
       for (var i = 0; i < spans.length; i++) {
         var txt = spans[i].textContent.trim();
         if (txt === rotulo) {
-          // O valor costuma estar no próximo irmão ou no pai/próximo elemento
+          // Estratégia 1 (preferida): irmão imediato
+          var next = spans[i].nextElementSibling;
+          if (next) {
+            var val2 = next.textContent.trim();
+            if (val2 && val2 !== rotulo) return val2;
+          }
+          // Estratégia 2 (fallback): irmão do pai (caso label esteja embrulhado)
+          if (spans[i].parentElement) {
+            var parentNext = spans[i].parentElement.nextElementSibling;
+            if (parentNext) {
+              var val3 = parentNext.textContent.trim();
+              if (val3 && val3 !== rotulo) return val3;
+            }
+          }
+          // Estratégia 3 (último recurso): varrer filhos do pai
           var parent = spans[i].parentElement;
           if (parent) {
             var filhos = parent.querySelectorAll('span, div');
             for (var j = 0; j < filhos.length; j++) {
               var val = filhos[j].textContent.trim();
-              if (val && val !== rotulo && val.length > 0) return val;
+              if (val && val !== rotulo && val.length > 0 && val.length < 100) return val;
             }
-          }
-          // Tentar próximo irmão
-          var next = spans[i].nextElementSibling;
-          if (next) {
-            var val2 = next.textContent.trim();
-            if (val2 && val2 !== rotulo) return val2;
           }
         }
       }
@@ -679,6 +690,12 @@
       var bairro      = lerCampoDOM('Bairro');
       var modalidade  = lerCampoDOM('Modalidade');
       var statusCtr   = lerCampoDOM('Status');
+
+      // Captura valores brutos lidos do DOM pra diagnosticar parser quando der pau
+      r.debug.lidoContrato     = numContrato;
+      r.debug.lidoInstaladoEm  = dataInst;
+      r.debug.lidoCanceladoEm  = cancelEm;
+      r.debug.lidoStatus       = statusCtr;
 
       if (numContrato) {
         r.contratos.push({
