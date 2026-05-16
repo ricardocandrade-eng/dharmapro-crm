@@ -1645,7 +1645,22 @@ function _consultarNGVenda(index, _tentativa) {
 
     var r = e.data;
     _ngDadosTemp.resultado = r;
-    _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'sucesso', ms: _ms, mensagem: r.resumo || '' });
+
+    // Anexa debug do content-ng.js ao log de sucesso pra diagnosticar falsos negativos
+    var msgNg = r.resumo || '';
+    if (r.debug && typeof r.debug === 'object') {
+      var dbg = [];
+      if (r.debug.fonte)                    dbg.push('fonte=' + r.debug.fonte);
+      if (Array.isArray(r.debug.controllers)) dbg.push('ctrls=' + r.debug.controllers.length);
+      if (Array.isArray(r.contratos))       dbg.push('contratos=' + r.contratos.length);
+      if (r.nome)                            dbg.push('nome=ok');
+      if (r.debug.contrato)                  dbg.push('cn=' + r.debug.contrato);
+      if (r.debug.osExterna)                 dbg.push('os=' + String(r.debug.osExterna).substring(0, 60));
+      if (r.debug.taxaHabilitacao)           dbg.push('taxa=' + String(r.debug.taxaHabilitacao).substring(0, 40));
+      if (r.debug.analiseCredito)            dbg.push('cred=' + String(r.debug.analiseCredito).substring(0, 40));
+      if (dbg.length) msgNg += ' | ' + dbg.join(' ');
+    }
+    _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'sucesso', ms: _ms, mensagem: msgNg });
 
     // Badge de status
     var badge = document.getElementById('mng-status-badge');
