@@ -1576,6 +1576,8 @@ function _mensagemErroHumana(categoria, sistema) {
 // ─── CONSULTA NG BILLING ──────────────────────────────────────────────────
 
 var _ngDadosTemp = null;
+var _ngPopupAtual = null;       // handle do último popup NG aberto
+var _adapterPopupAtual = null;  // handle do último popup Adapter aberto
 
 function _consultarNGVenda(index, _tentativa) {
   _tentativa = _tentativa || 1;
@@ -1722,11 +1724,16 @@ function _consultarNGVenda(index, _tentativa) {
         return;
       }
 
-      // Abrir popup no domínio NG com CPF + credenciais no hash
+      // Fecha popup NG anterior se ainda aberto (evita reuso de janela com hash novo
+      // sem reload — bug onde content-ng.js não roda porque só o hash mudou).
+      if (_ngPopupAtual && !_ngPopupAtual.closed) { try { _ngPopupAtual.close(); } catch(x) {} }
+
+      // Abrir popup no domínio NG com CPF + credenciais no hash + nome único por consulta
       var _hash = '#dhp?cpf=' + encodeURIComponent(_cpfDigitos) +
                   '&user='    + encodeURIComponent(creds.user) +
                   '&pass='    + encodeURIComponent(creds.pass);
-      _popup = window.open('https://ng.vero.objective.com.br/' + _hash, 'dhp_ng', 'width=400,height=300,left=0,top=0');
+      _popup = window.open('https://ng.vero.objective.com.br/' + _hash, 'dhp_ng_' + Date.now(), 'width=400,height=300,left=0,top=0');
+      _ngPopupAtual = _popup;
 
       // Detecta popup bloqueado pelo navegador
       if (!_popup || _popup.closed || typeof _popup.closed === 'undefined') {
@@ -1981,11 +1988,15 @@ function _consultarAdapterVenda(index, _tentativa) {
         document.getElementById('madp-erro-msg').textContent = _mensagemErroHumana('timeout_frontend', 'Adapter');
       }, 30000);
 
-      // Abrir popup no Adapter com dados no hash (servidor nao recebe o hash)
+      // Fecha popup Adapter anterior se ainda aberto (mesmo motivo do NG)
+      if (_adapterPopupAtual && !_adapterPopupAtual.closed) { try { _adapterPopupAtual.close(); } catch(x) {} }
+
+      // Abrir popup no Adapter com dados no hash + nome único por consulta
       var _hash = '#dhp?cpf=' + encodeURIComponent(_cpfDigitos) +
                   '&user='    + encodeURIComponent(creds.user) +
                   '&pass='    + encodeURIComponent(creds.pass);
-      _popup = window.open('https://adapter.veronet.com.br/adapter/' + _hash, 'dhp_adapter', 'width=1,height=1,left=-100,top=-100');
+      _popup = window.open('https://adapter.veronet.com.br/adapter/' + _hash, 'dhp_adapter_' + Date.now(), 'width=1,height=1,left=-100,top=-100');
+      _adapterPopupAtual = _popup;
 
       // Detecta popup bloqueado pelo navegador
       if (!_popup || _popup.closed || typeof _popup.closed === 'undefined') {
