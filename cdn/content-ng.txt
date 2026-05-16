@@ -386,16 +386,11 @@
     input.dispatchEvent(new Event('input', { bubbles: true }));
     simularDigitacao(input, cpfLimpo);
 
-    // Clicar no botão de pesquisa (mais confiável que Enter)
-    var pesquisaBtn = buscaCtrl.ctrl.items.pesquisaB;
-    if (pesquisaBtn && pesquisaBtn.element) {
-      console.log('[DHP-NG] Clicando botão pesquisaB');
-      pesquisaBtn.element.click();
-    } else {
-      // Fallback: pressionar Enter
-      console.log('[DHP-NG] pesquisaB não encontrado, usando Enter');
-      simularEnter(input);
-    }
+    // Pressionar Enter — é o caminho "natural" do Wing pra disparar busca.
+    // Clique no botão pesquisaB às vezes dispara uma rota interna diferente que
+    // causa timeout em "Resultado busca CPF". Enter é mais confiável.
+    console.log('[DHP-NG] Disparando busca via Enter');
+    simularEnter(input);
 
     console.log('[DHP-NG] Digitou CPF e Enter, aguardando resultado...');
 
@@ -420,85 +415,74 @@
     }
   }
 
-  // ── Clicar em Visualizar ──────────────────────────────────────────────
-
+  // ── Clicar em Atender (NÃO Visualizar) ────────────────────────────────
+  // CORRETO: "Atender" abre a tela do Atendimento com o painel Contratos.
+  // ERRADO: "Visualizar" (visualizaPessoaB) abre só um modal de edição de Pessoa,
+  // sem nenhum dado de contrato — caminho que estava sendo usado e gerava
+  // 100% de falso "Sem contrato ativo".
   async function clicarVisualizar() {
-    // Estratégia 1: buscar botão Visualizar via controller Wing (visualizaPessoaB)
     var cardCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360CardRetornoBuscaWComp');
     var btnClicado = false;
 
+    // DEBUG: lista os items disponíveis (vai pro r.debug.cardItems)
     if (cardCtrl && cardCtrl.ctrl.items) {
-      var btnItem = cardCtrl.ctrl.items.visualizaPessoaB;
-      if (btnItem && btnItem.element) {
-        console.log('[DHP-NG] Botão via controller: visualizaPessoaB');
-        btnItem.element.click();
-        btnClicado = true;
+      var itemsKeys = Object.keys(cardCtrl.ctrl.items);
+      console.log('[DHP-NG] cardCtrl items:', itemsKeys.join(', '));
+      window.__dhpCardItems = itemsKeys;
+    }
+
+    // Estratégia 1: clicar via Wing items que casem com "atender" (descartando Pessoa)
+    if (cardCtrl && cardCtrl.ctrl.items) {
+      var items = cardCtrl.ctrl.items;
+      var keys = Object.keys(items);
+      var keysAtender = keys.filter(function(k) {
+        if (/pessoa/i.test(k)) return false;
+        return /atend(e|er|imento)/i.test(k);
+      });
+
+      for (var ka = 0; ka < keysAtender.length && !btnClicado; ka++) {
+        var item = items[keysAtender[ka]];
+        if (item && item.element) {
+          console.log('[DHP-NG] Clicando Atender via item Wing:', keysAtender[ka]);
+          try { item.element.click(); btnClicado = true; }
+          catch(e) { console.warn('[DHP-NG] Falha em ' + keysAtender[ka] + ':', e.message); }
+        }
       }
     }
 
-    // Estratégia 2: fallback — buscar botão "Visualizar" por texto no DOM
+    // Estratégia 2: fallback DOM — botão com texto "Atender"
     if (!btnClicado) {
-      var btnVis = await aguardar(function() {
+      var btnAt = await aguardar(function() {
         var buttons = document.querySelectorAll('button');
         for (var i = 0; i < buttons.length; i++) {
           var txt = buttons[i].textContent.trim();
-          if (txt === 'Visualizar') return buttons[i];
+          if (txt === 'Atender') return buttons[i];
         }
         return null;
-      }, 10000, 300, 'Botão Visualizar');
+      }, 10000, 300, 'Botão Atender (DOM)');
 
-      console.log('[DHP-NG] Botão via DOM: "' + btnVis.textContent.trim() + '"');
-      btnVis.click();
+      console.log('[DHP-NG] Clicando Atender via DOM');
+      btnAt.click();
+      btnClicado = true;
     }
 
-    console.log('[DHP-NG] Clicou Visualizar, aguardando dados...');
+    console.log('[DHP-NG] Clicou Atender, aguardando tela Atendimento + painel Contratos...');
 
-    // Fase 1: aguardar Pessoa (nome) carregar — sinal de que a tela Visualizar abriu
+    // Aguardar cabeçalho "Contratos (N)" aparecer — sinal de que o painel esquerdo carregou
     await aguardar(function() {
-      var instances = Wing.session.controllerManager.instances;
-      var pessoaCtrl = findCtrlByType(instances, 'Atend360TabPessoaFisicaWComp');
-      var mainCtrl   = findCtrlByType(instances, 'Atend360WMC');
-      if (pessoaCtrl || mainCtrl) return true;
-
-      // Fallback DOM
-      var headers = document.querySelectorAll('span, div, h2, h3');
-      for (var h = 0; h < headers.length; h++) {
-        if (headers[h].textContent.trim() === 'Dados do cliente') return true;
+      var els = document.querySelectorAll('span, div, h2, h3, h4');
+      for (var h = 0; h < els.length; h++) {
+        var t = els[h].textContent.trim();
+        // "Contratos (1)", "Contratos (0)", "Contratos (3)" etc
+        if (/^Contratos\s*\(\s*\d+\s*\)$/.test(t)) return true;
       }
       return null;
-    }, 25000, 500, 'Pessoa após Visualizar');
+    }, 30000, 500, 'Cabeçalho Contratos (N) após Atender');
 
-    // Fase 2: pausa fixa de 6s pros controllers de contrato carregarem.
-    // Wing renderiza Pessoa rápido, mas o card de Contrato (ContratoTipoFisicoCardWComp)
-    // e OS Externa demoram mais. Sem essa pausa o lerResultados roda antes do contrato
-    // existir e retorna falso "Sem contrato ativo".
-    console.log('[DHP-NG] Pessoa carregada, pausando 6s para contrato...');
-    await new Promise(function(r) { setTimeout(r, 6000); });
-
-    // Fase 3: aguarda especificamente o card de Contrato OU sinal DOM "Dados do contrato"
-    // OU sinal claro de "sem contrato". Catch silencioso — se esgotar, prossegue.
-    try {
-      await aguardar(function() {
-        var instances = Wing.session.controllerManager.instances;
-        if (findCtrlByType(instances, 'Atend360ContratoTipoFisicoCardWComp')) return true;
-        if (findCtrlByType(instances, 'CasoCriacaoDeContratoWComp')) return true;
-
-        // Sinal DOM de "tem contrato"
-        var spans = document.querySelectorAll('span, div, label, h2, h3');
-        for (var i = 0; i < spans.length; i++) {
-          var t = spans[i].textContent.trim();
-          if (t === 'Dados do contrato' || t === 'Instalado em' || t === 'Tipo de contrato') return true;
-        }
-
-        // Sinal DOM de "sem contrato" — encerra cedo
-        var bodyTxt = document.body ? document.body.textContent : '';
-        if (/Nenhum contrato|Sem contrato|Contratos\s*\(\s*0\s*\)/i.test(bodyTxt)) return 'sem-contrato';
-
-        return null;
-      }, 10000, 500, 'Card de Contrato (ou confirmação ausência)');
-    } catch(e) {
-      console.warn('[DHP-NG] Confirmação de contrato esgotou, prosseguindo:', e.message);
-    }
+    // Pausa para renderização do card de contrato (Wing pinta a estrutura primeiro,
+    // depois popula os campos)
+    console.log('[DHP-NG] Painel Contratos carregou, pausando 3s para card renderizar...');
+    await new Promise(function(r) { setTimeout(r, 3000); });
   }
 
   // ── Ler resultados dos controllers Wing + fallback DOM ──────────────
@@ -671,26 +655,62 @@
       if (r.nome) console.log('[DHP-NG] DOM nome:', r.nome);
     }
 
-    // Contrato (painel esquerdo: "Contrato", "Instalado em", etc.)
+    // Detectar "Contratos (0)" — sinal explícito de cliente sem contrato
     if (r.contratos.length === 0) {
+      var headers = document.querySelectorAll('span, div, h2, h3, h4');
+      for (var hh = 0; hh < headers.length; hh++) {
+        var ht = headers[hh].textContent.trim();
+        if (/^Contratos\s*\(\s*0\s*\)$/.test(ht)) {
+          r.debug.semContratoConfirmado = true;
+          console.log('[DHP-NG] DOM confirma: Contratos (0)');
+          break;
+        }
+      }
+    }
+
+    // Contrato (card no painel esquerdo: "Contrato", "Tipo de contrato",
+    // "Instalado em", "Cancelado em", "Endereço", "Bairro", "Modalidade", etc.)
+    if (r.contratos.length === 0 && !r.debug.semContratoConfirmado) {
       var numContrato = lerCampoDOM('Contrato');
-      var dataInst = lerCampoDOM('Instalado em');
-      var tipoContr = lerCampoDOM('Tipo de contrato');
-      var endereco = lerCampoDOM('Endereço');
-      var bairro = lerCampoDOM('Bairro');
+      var dataInst    = lerCampoDOM('Instalado em');
+      var cancelEm    = lerCampoDOM('Cancelado em');
+      var tipoContr   = lerCampoDOM('Tipo de contrato');
+      var endereco    = lerCampoDOM('Endereço');
+      var bairro      = lerCampoDOM('Bairro');
+      var modalidade  = lerCampoDOM('Modalidade');
+      var statusCtr   = lerCampoDOM('Status');
 
       if (numContrato) {
         r.contratos.push({
           numero: numContrato,
           tipo: tipoContr || '',
           dataInstalacao: dataInst || '',
+          canceladoEm: cancelEm || '',
           endereco: endereco || '',
-          bairro: bairro || ''
+          bairro: bairro || '',
+          modalidade: modalidade || '',
+          status: statusCtr || ''
         });
         r.debug.fonte = 'DOM';
-        console.log('[DHP-NG] DOM contrato:', numContrato, 'instalado:', dataInst);
+        r.debug.contratoCancelado = (cancelEm && cancelEm !== '-' && cancelEm !== '') ? cancelEm : '';
+        if (statusCtr) r.debug.statusContrato = statusCtr;
 
-        if (dataInst && dataInst !== '-') {
+        console.log('[DHP-NG] DOM contrato:', numContrato, '| instalado:', dataInst,
+                    '| cancelado:', cancelEm, '| status:', statusCtr);
+
+        // Lógica de status:
+        // - Cancelado em tem data válida → contrato cancelado → não instalada
+        // - Status "Habilitado" no DOM → instalada
+        // - Tem data de instalação + Cancelado em é "-" ou vazio → instalada
+        var foiCancelado = cancelEm && cancelEm !== '-' && cancelEm !== '';
+        if (foiCancelado) {
+          r.instalada = false;
+          r.resumo = 'Contrato cancelado em ' + cancelEm;
+        } else if (statusCtr && /habilitad/i.test(statusCtr)) {
+          r.instalada = true;
+          if (dataInst && dataInst !== '-') r.dataInstalacao = dataInst;
+        } else if (dataInst && dataInst !== '-') {
+          r.instalada = true;
           r.dataInstalacao = dataInst;
         }
       }
