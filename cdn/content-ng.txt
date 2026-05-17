@@ -399,12 +399,19 @@
       var cardCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360CardRetornoBuscaWComp');
       if (cardCtrl) return 'encontrado';
 
-      // Verificar se "Resultado: 0"
+      // Verificar se "Resultado: 0" (Wing antigo)
       var buscaItems = buscaCtrl.ctrl.items;
       if (buscaItems.resultadoTotalSl) {
         var label = lerItemTexto(buscaItems.resultadoTotalSl);
         if (label.indexOf(': 0') > -1 || label === 'Resultado: 0') return 'nao_encontrado';
       }
+
+      // Detectar "Nenhum resultado para mostrar" no DOM (Wing novo)
+      // Wing atualizou a UI — em vez de "Resultado: 0" mostra essa mensagem.
+      // Sem essa detecção, busca de CPF inexistente timeoutava em 15s.
+      var bodyTxt = document.body ? document.body.textContent : '';
+      if (/Nenhum resultado para mostrar/i.test(bodyTxt)) return 'nao_encontrado';
+
       return null;
     }, 15000, 300, 'Resultado busca CPF');
 
@@ -613,6 +620,14 @@
       r.resumo = 'Agendada para ' + r.dataAgendamento;
     } else if (r.aguardando) {
       r.resumo = 'Aguardando Instalação (sem agendamento)';
+    } else if (r.contratos && r.contratos.length > 0 && r.debug.taxaHabilitacao && !r.debug.contratoCancelado) {
+      // Pré-instalação: contrato existe + taxa aplicada + crédito processado,
+      // mas Wing não tem dataInstalacao ainda. Estado real e legítimo.
+      var taxaMsg = String(r.debug.taxaHabilitacao || '');
+      var mTaxa = taxaMsg.match(/(\d{2}\/\d{2}\/\d{4})/);
+      r.resumo = mTaxa
+        ? 'Aguardando instalação (taxa aplicada em ' + mTaxa[1] + ')'
+        : 'Aguardando instalação (taxa aplicada)';
     } else {
       r.resumo = 'Status não identificado (ver debug)';
     }

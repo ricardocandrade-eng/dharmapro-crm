@@ -1625,6 +1625,18 @@ function _consultarNGVenda(index, _tentativa) {
     if (e.data.erro) {
       var _cat = _categorizarErroConsulta(e.data.erro);
 
+      // Auto-fallback NG → Adapter: cidade ambígua (rede neutra MG/GO), cliente
+      // pode estar no Adapter. Só dispara na 1ª tentativa pra evitar loop.
+      var _fallback = (v.sistemaFallback || '').toString().toUpperCase();
+      if (_tentativa === 1 && _cat === 'cpf_nao_encontrado' && _fallback === 'ADAPTER') {
+        _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'fallback_para_adapter', categoria: 'cpf_nao_encontrado', ms: _ms, mensagem: 'Cidade ambigua — tentando Adapter' });
+        if (_popup && !_popup.closed) { try { _popup.close(); } catch(x) {} }
+        mostrarToast('Não encontrado no NG. Tentando no Adapter (cidade aceita ambos)...', 'info');
+        document.getElementById('modalNG').classList.remove('ativo');
+        setTimeout(function() { _consultarAdapterVenda(index); }, 1500);
+        return;
+      }
+
       // Retry transparente UMA vez em erros transitórios (timeout do portal, 5xx, rede)
       if (_tentativa === 1 && (_cat === 'timeout_extensao' || _cat === 'http_5xx' || _cat === 'rede')) {
         _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'retry', categoria: _cat, ms: _ms, mensagem: e.data.erro });
@@ -1919,6 +1931,17 @@ function _consultarAdapterVenda(index, _tentativa) {
 
         if (e.data.erro) {
           var _cat = _categorizarErroConsulta(e.data.erro);
+
+          // Auto-fallback Adapter → NG: cidade ambígua, cliente pode estar no NG
+          var _fallback = (v.sistemaFallback || '').toString().toUpperCase();
+          if (_tentativa === 1 && _cat === 'cpf_nao_encontrado' && _fallback === 'NG') {
+            _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'fallback_para_ng', categoria: 'cpf_nao_encontrado', ms: _ms, mensagem: 'Cidade ambigua — tentando NG' });
+            if (_popup && !_popup.closed) { try { _popup.close(); } catch(x) {} }
+            mostrarToast('Não encontrado no Adapter. Tentando no NG (cidade aceita ambos)...', 'info');
+            document.getElementById('modalAdapter').classList.remove('ativo');
+            setTimeout(function() { _consultarNGVenda(index); }, 1500);
+            return;
+          }
 
           // Retry transparente UMA vez em erros transitórios
           if (_tentativa === 1 && (_cat === 'timeout_extensao' || _cat === 'http_5xx' || _cat === 'rede')) {

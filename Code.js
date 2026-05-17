@@ -28,6 +28,7 @@ var CONFIG = {
   MAX_RESULTS:     50,
   TOTAL_COLUNAS:   46,          // A (0) até AT (45) — sem buracos
   TABELA_JSON_FILE_ID: '1wB9jncB_eBhGnBE-OpiZZ5UfVnvmv-ro',  // _getTabela() lê deste JSON no Drive (substitui aba TABELA)
+  CIDADES_JSON_FILE_ID: '',  // _getCidadesJson() — preencher após upload do cidades_vero.json no Drive (substitui aba CIDADES)
   COLUNAS: {
     // ── Bloco 1: Venda (A–G) ────────────────────────────────────────
     CANAL:              0,  // A  - Canal de venda (PAP, META ADS, INDICAÇÃO, ATIVO, GOOGLE ADS)
@@ -764,13 +765,33 @@ function getVendasParaVarredura(filtros) {
       if (statuses.indexOf(statusStr.charAt(0)) === -1) continue;
 
       var sistemaRaw = String(row[c.SISTEMA] || '').trim().toUpperCase();
-      var sistema = sistemaRaw === 'NG' ? 'NG' : 'Adapter';
-      if (!aceitaAmbos && sistemas.indexOf(sistema) === -1) continue;
+      // Normaliza: qualquer coisa que comece com "NG" vira NG; senão Adapter
+      var sistema = sistemaRaw.indexOf('NG') === 0 ? 'NG' : 'Adapter';
+
+      // Lookup do fallback via cidade (rede neutra → ambos sistemas operam)
+      var cidade = String(row[c.CIDADE] || '').trim();
+      var sistemaFallback = null;
+      try {
+        if (cidade) sistemaFallback = getSistemaFallbackPorCidade(cidade);
+      } catch(e) {}
+
+      // Filtro de sistema: inclui se:
+      //   - filtro=ambos → sempre
+      //   - filtro=NG    → sistema=NG OU sistema=Adapter com fallback=NG (ambígua)
+      //   - filtro=Adapter → sistema=Adapter OU sistema=NG com fallback=Adapter (ambígua)
+      if (!aceitaAmbos) {
+        var passa = false;
+        if (sistemas.indexOf(sistema) !== -1) passa = true;
+        else if (sistemaFallback && sistemas.indexOf(sistemaFallback) !== -1) passa = true;
+        if (!passa) continue;
+      }
 
       resultado.push({
         linha:   i + 3,
         cpf:     cpf,
         sistema: sistema,
+        sistemaFallback: sistemaFallback, // null se cidade não é ambígua
+        cidade:  cidade,
         status:  statusStr,
         cliente: String(row[c.CLIENTE] || '').trim()
       });
@@ -2831,6 +2852,11 @@ function buscarSomenteEndereco(cep) {
 // ============================================================================
 function getSistemaPorCidade(cidade) {
   try {
+    // Fonte primária: JSON no Drive (cidades_vero.json)
+    var c = _acharCidadeJson(cidade);
+    if (c && c.sistema) return c.sistema;
+
+    // Fallback: aba CIDADES do Sheets (legado, até CIDADES_JSON_FILE_ID estar configurado)
     var cidNorm = _normalizarTexto(cidade);
     var rows    = _getCidades();
     for (var i = 0; i < rows.length; i++) {
@@ -2843,6 +2869,19 @@ function getSistemaPorCidade(cidade) {
   }
 }
 
+// Sistema secundário (fallback) — só retorna pra cidades em rede neutra com
+// presença confirmada em ambos sistemas (NG + Adapter). Caso contrário, null.
+// Usado pelo auto-fallback nas consultas NG/Adapter no frontend.
+function getSistemaFallbackPorCidade(cidade) {
+  try {
+    var c = _acharCidadeJson(cidade);
+    return (c && c.sistemaFallback) ? c.sistemaFallback : null;
+  } catch(e) {
+    Logger.log('getSistemaFallbackPorCidade erro: ' + e);
+    return null;
+  }
+}
+
 // ─── NOVA VENDA — serve o HTML do formulário standalone ───────────────────
 function getNovaVendaHtml() {
   return HtmlService.createHtmlOutputFromFile('Nova_venda').getContent();
@@ -2852,6 +2891,11 @@ function getNovaVendaHtml() {
 // Retorna a segmentação (col AA) com base na cidade (aba CIDADES, col[3])
 function getSegmentacaoPorCidade(cidade) {
   try {
+    // Fonte primária: JSON no Drive
+    var c = _acharCidadeJson(cidade);
+    if (c && c.segmentacao) return c.segmentacao;
+
+    // Fallback: aba CIDADES do Sheets
     var cidNorm = _normalizarTexto(cidade);
     var rows    = _getCidades();
     for (var i = 0; i < rows.length; i++) {
@@ -3193,6 +3237,47 @@ function _getCidades() {
     if (json.length < 95000) cache.put(key, json, 600);
   } catch(e) {}
   return rows;
+}
+
+// ── Nova fonte de verdade: cidades_vero.json no Drive ─────────────────────
+// Gerado a partir das abas B2C_REDE_VERO/EPON/NEUTRA da planilha mestra
+// "TABELA_DE_PREÇOS_PORTFÓLIO_B2C.xlsx". Substitui a aba CIDADES do Sheets.
+// Schema: { geradoEm, totalCidades, cidades: [{nome, sistema, sistemaFallback,
+//          segmentacao, regional, cluster, territorio, redes, rawSistema}] }
+function _getCidadesJson() {
+  if (!CONFIG.CIDADES_JSON_FILE_ID) return null; // sem JSON configurado → caller usa fallback
+  var cache = CacheService.getScriptCache();
+  var key   = CONFIG.CACHE_PREFIX + 'cidades_json_v1';
+  try {
+    var hit = cache.get(key);
+    if (hit) return JSON.parse(hit);
+  } catch(e) {}
+  try {
+    var file = DriveApp.getFileById(CONFIG.CIDADES_JSON_FILE_ID);
+    var data = JSON.parse(file.getBlob().getDataAsString());
+    // Indexa por nome normalizado pra lookups rápidos
+    var indexed = { _gerado: data.geradoEm, _total: data.totalCidades, _byNome: {} };
+    var lista = data.cidades || [];
+    for (var i = 0; i < lista.length; i++) {
+      var c = lista[i];
+      indexed._byNome[_normalizarTexto(c.nome)] = c;
+    }
+    try {
+      var json = JSON.stringify(indexed);
+      if (json.length < 95000) cache.put(key, json, 600);
+    } catch(e) {}
+    return indexed;
+  } catch(e) {
+    Logger.log('_getCidadesJson erro: ' + e.message);
+    return null;
+  }
+}
+
+// Acha entrada da cidade no JSON (case-insensitive, ignora acentos)
+function _acharCidadeJson(cidade) {
+  var idx = _getCidadesJson();
+  if (!idx) return null;
+  return idx._byNome[_normalizarTexto(cidade)] || null;
 }
 
 function _getTabela() {
@@ -4840,6 +4925,13 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     cidade:      row[c.CIDADE]       || '',
     uf:          row[c.UF]           || '',
     sistema:     row[c.SISTEMA]      || '',
+    sistemaFallback: (function() {
+      try {
+        var cid = row[c.CIDADE];
+        if (!cid) return null;
+        return getSistemaFallbackPorCidade(String(cid).trim()) || null;
+      } catch(e) { return null; }
+    })(),
     venc:        row[c.VENC]         || '',
     fat:         row[c.FAT]          || '',
     plano:       row[c.PLANO]        || '',
@@ -4913,6 +5005,13 @@ function _mapearLinha(row, numeroLinha) {
     cidade:      row[c.CIDADE]       || '',
     uf:          row[c.UF]           || '',
     sistema:     row[c.SISTEMA]      || '',
+    sistemaFallback: (function() {
+      try {
+        var cid = row[c.CIDADE];
+        if (!cid) return null;
+        return getSistemaFallbackPorCidade(String(cid).trim()) || null;
+      } catch(e) { return null; }
+    })(),
     venc:        row[c.VENC]         || '',
     fat:         row[c.FAT]          || '',
     plano:       row[c.PLANO]        || '',
