@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>DharmaPro — Teste PinG</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font: 14px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif; background: #1a1d24; color: #e8ecf3; margin: 0; padding: 20px; }
+    h1 { font-size: 18px; margin: 0 0 6px; }
+    h2 { font-size: 13px; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: 0.06em; color: #8b95a8; }
+    .row { display: flex; gap: 8px; margin: 4px 0; flex-wrap: wrap; }
+    input, button { font: inherit; padding: 6px 10px; border-radius: 4px; border: 1px solid #3a4150; background: #232733; color: #e8ecf3; }
+    button { background: #2d57b8; border-color: #3a6cc7; cursor: pointer; }
+    button:hover { background: #366ad0; }
+    button.b-secondary { background: #3a4150; }
+    button.b-danger { background: #b8312d; border-color: #c73a3a; }
+    pre { background: #11141a; border: 1px solid #3a4150; padding: 12px; border-radius: 4px; max-height: 60vh; overflow: auto; font: 12px/1.45 "JetBrains Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+    .status { padding: 6px 10px; border-radius: 4px; display: inline-block; font-weight: 600; }
+    .s-ok { background: #1e3a26; color: #5ee08a; }
+    .s-warn { background: #3a3320; color: #e8c25e; }
+    .s-err { background: #3a1f1f; color: #ff6b6b; }
+    label { font-size: 12px; color: #8b95a8; display: block; margin-top: 8px; }
+    input[type="text"], input[type="number"] { min-width: 220px; }
+    .help { font-size: 12px; color: #8b95a8; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h1>DharmaPro Connector — Teste PinG</h1>
+  <div id="banner" class="status s-warn">checando…</div>
+
+  <h2>1. Health (verifica aba do PinG aberta + autenticada)</h2>
+  <div class="row"><button id="btnHealth">▶ Rodar health</button></div>
+
+  <h2>2. Autocomplete</h2>
+  <label>Texto de busca</label>
+  <div class="row">
+    <input id="acInput" type="text" value="rua quinze de novembro" />
+    <input id="acLat"   type="text" placeholder="latitude (opcional)" />
+    <input id="acLng"   type="text" placeholder="longitude (opcional)" />
+    <button id="btnAutocomplete">▶ Buscar sugestões</button>
+  </div>
+
+  <h2>3. Detalhes Número (consulta unitária)</h2>
+  <label>string_query / número / cidade / lat / long</label>
+  <div class="row">
+    <input id="dnSq"  type="text" value="Rua Quinze de Novembro, Balneário, Florianópolis - SC" style="min-width:360px" />
+    <input id="dnNum" type="number" value="100" style="min-width:80px" />
+    <input id="dnCid" type="text" value="Florianópolis" />
+    <input id="dnLat" type="text" value="-27.5796994" />
+    <input id="dnLng" type="text" value="-48.5769198" />
+    <button id="btnDetalhes">▶ Consultar</button>
+  </div>
+
+  <h2>4. Coverage Area (polígonos forbidden)</h2>
+  <label>Cidade (chave de cache) + params livres do bbox</label>
+  <div class="row">
+    <input id="caCid"     type="text" value="Florianópolis" />
+    <input id="caParams"  type="text" placeholder="JSON dos params, ex: {&quot;south_west_lat&quot;:-27.6,...}" style="min-width:360px" />
+    <button id="btnCoverage">▶ Buscar polígonos</button>
+  </div>
+
+  <h2>5. Cache</h2>
+  <div class="row"><button id="btnCacheClear" class="b-danger">🗑 Limpar cache PinG</button></div>
+
+  <h2>Resposta crua</h2>
+  <pre id="out">(nada ainda)</pre>
+
+  <p class="help">
+    Pré-requisitos: <strong>extensão instalada</strong> (esta página só carrega via
+    <code>chrome-extension://&lt;ID&gt;/test-ping.html</code>) e <strong>aba do PinG aberta e logada</strong>
+    (<a href="https://ping.veronet.com.br/" target="_blank" rel="noreferrer">https://ping.veronet.com.br</a>).
+    O ID da extensão aparece em <code>chrome://extensions</code> (modo desenvolvedor).
+  </p>
+
+  <script>
+    var out = document.getElementById('out');
+    var banner = document.getElementById('banner');
+
+    function escrever(obj) {
+      try { out.textContent = JSON.stringify(obj, null, 2); }
+      catch (e) { out.textContent = String(obj); }
+    }
+
+    function enviar(msg) {
+      return new Promise(function (resolve) {
+        try {
+          chrome.runtime.sendMessage(msg, function (resp) {
+            if (chrome.runtime.lastError) {
+              resolve({ ok: false, erro: 'EXTENSAO_RUNTIME_ERRO', msg: chrome.runtime.lastError.message });
+              return;
+            }
+            resolve(resp);
+          });
+        } catch (e) {
+          resolve({ ok: false, erro: 'EXTENSAO_NAO_DISPONIVEL', msg: String(e && e.message || e) });
+        }
+      });
+    }
+
+    async function rodarHealth() {
+      var r = await enviar({ action: 'viabilidade.health', usuario: 'teste' });
+      escrever(r);
+      atualizarBanner(r);
+    }
+
+    function atualizarBanner(r) {
+      banner.className = 'status';
+      if (!r) { banner.classList.add('s-err'); banner.textContent = 'sem resposta'; return; }
+      if (r.ok && r.autenticado) { banner.classList.add('s-ok'); banner.textContent = '✓ PinG OK e autenticado'; return; }
+      if (r.erro === 'PING_TAB_AUSENTE') { banner.classList.add('s-warn'); banner.textContent = '⚠ Abra uma aba em ping.veronet.com.br e refaça login'; return; }
+      if (r.erro === 'PING_NAO_AUTENTICADO') { banner.classList.add('s-warn'); banner.textContent = '⚠ Sessão expirou — refaça login no PinG'; return; }
+      banner.classList.add('s-err'); banner.textContent = '✗ ' + (r.erro || 'erro') + (r.msg ? ' — ' + r.msg : '');
+    }
+
+    document.getElementById('btnHealth').onclick = rodarHealth;
+
+    document.getElementById('btnAutocomplete').onclick = async function () {
+      var msg = {
+        action: 'viabilidade.autocomplete',
+        usuario: 'teste',
+        input: document.getElementById('acInput').value,
+        latitude:  document.getElementById('acLat').value || null,
+        longitude: document.getElementById('acLng').value || null
+      };
+      escrever(await enviar(msg));
+    };
+
+    document.getElementById('btnDetalhes').onclick = async function () {
+      var msg = {
+        action: 'viabilidade.detalhesNumero',
+        usuario: 'teste',
+        string_query: document.getElementById('dnSq').value,
+        numero: Number(document.getElementById('dnNum').value),
+        cidade: document.getElementById('dnCid').value,
+        lat:  Number(document.getElementById('dnLat').value),
+        long: Number(document.getElementById('dnLng').value)
+      };
+      escrever(await enviar(msg));
+    };
+
+    document.getElementById('btnCoverage').onclick = async function () {
+      var raw = document.getElementById('caParams').value.trim();
+      var params = {};
+      if (raw) { try { params = JSON.parse(raw); } catch (e) { return escrever({ ok: false, erro: 'JSON_INVALIDO', msg: e.message }); } }
+      var msg = {
+        action: 'viabilidade.coverageArea',
+        usuario: 'teste',
+        cidade: document.getElementById('caCid').value,
+        params: params
+      };
+      escrever(await enviar(msg));
+    };
+
+    document.getElementById('btnCacheClear').onclick = async function () {
+      escrever(await enviar({ action: 'viabilidade.cacheClear' }));
+    };
+
+    // Health on load
+    rodarHealth();
+  </script>
+</body>
+</html>

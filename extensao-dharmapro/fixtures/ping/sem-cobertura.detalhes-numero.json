@@ -1,0 +1,120 @@
+{
+  "meta": {
+    "state": "SEM_COBERTURA",
+    "address": "Rua das Flôres, 100 — Compensa, Manaus — AM",
+    "capturedAt": "2026-05-17T04:42:24.461Z",
+    "endpoint": "GET /api/cep/detalhes-numero",
+    "expectedParserResult": "SEM_COBERTURA",
+    "note": "disponibilidade.disponibilidade='no coverage' (com espaço), tipo='no_coverage' (com underscore), ctos=[]."
+  },
+  "response": {
+    "latitude": -3.1109075,
+    "longitude": -60.06265560000001,
+    "coordenadas": {
+      "lat": -3.1109075,
+      "lng": -60.06265560000001
+    },
+    "numero": "100",
+    "numero_encontrada_google": true,
+    "rua_encontrada_google": true,
+    "resultado_google": {
+      "address_components": [
+        {
+          "long_name": "100",
+          "short_name": "100",
+          "types": [
+            "street_number"
+          ]
+        },
+        {
+          "long_name": "Rua das Flôres",
+          "short_name": "R. das Flôres",
+          "types": [
+            "route"
+          ]
+        },
+        {
+          "long_name": "Compensa",
+          "short_name": "Compensa",
+          "types": [
+            "political",
+            "sublocality",
+            "sublocality_level_1"
+          ]
+        },
+        {
+          "long_name": "Manaus",
+          "short_name": "Manaus",
+          "types": [
+            "administrative_area_level_2",
+            "political"
+          ]
+        },
+        {
+          "long_name": "Amazonas",
+          "short_name": "AM",
+          "types": [
+            "administrative_area_level_1",
+            "political"
+          ]
+        },
+        {
+          "long_name": "Brazil",
+          "short_name": "BR",
+          "types": [
+            "country",
+            "political"
+          ]
+        },
+        {
+          "long_name": "69035-180",
+          "short_name": "69035-180",
+          "types": [
+            "postal_code"
+          ]
+        }
+      ],
+      "formatted_address": "R. das Flôres, 100 - Compensa, Manaus - AM, 69035-180, Brazil",
+      "geometry": {
+        "location": {
+          "lat": -3.1109075,
+          "lng": -60.06265560000001
+        },
+        "location_type": "RANGE_INTERPOLATED",
+        "viewport": {
+          "northeast": {
+            "lat": -3.109557869708498,
+            "lng": -60.0613479697085
+          },
+          "southwest": {
+            "lat": -3.112255830291502,
+            "lng": -60.06404593029151
+          }
+        }
+      },
+      "navigation_points": [
+        {
+          "location": {
+            "latitude": -3.1109064,
+            "longitude": -60.0627293
+          }
+        }
+      ],
+      "place_id": "Ej5SLiBkYXMgRmzDtHJlcywgMTAwIC0gQ29tcGVuc2EsIE1hbmF1cyAtIEFNLCA2OTAzNS0xODAsIEJyYXppbCIwEi4KFAoSCYu2yPDQD2ySEQ4OQTtrS4NJEGQqFAoSCTfMapzWD2ySEV6eMRZ2RlWt",
+      "types": [
+        "street_address"
+      ]
+    },
+    "completo": "R. das Flôres, 100 - Compensa, Manaus - AM, 69035-180, Brazil",
+    "cache": false,
+    "disponibilidade": {
+      "disponibilidade": "no coverage",
+      "tipo_disponibilidade": "no_coverage",
+      "forbidden_areas": [],
+      "ctos_within_range": [],
+      "blocked": false,
+      "lat": -3.1109075,
+      "long": -60.06265560000001
+    }
+  }
+}

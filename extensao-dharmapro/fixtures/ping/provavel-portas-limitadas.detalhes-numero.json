@@ -1,0 +1,512 @@
+{
+  "meta": {
+    "state": "PROVAVEL_PORTAS_LIMITADAS",
+    "address": "Rua Halfeld, 200 — Centro, Juiz de Fora — MG",
+    "capturedAt": "2026-05-17T04:41:20.697Z",
+    "endpoint": "GET /api/cep/detalhes-numero",
+    "expectedParserResult": "PROVAVEL",
+    "note": "Top-level disponibilidade=available, mas 1ª CTO tem availability_status=available_few_ports (7/8 ocupadas)."
+  },
+  "response": {
+    "latitude": -21.7597883,
+    "longitude": -43.3435974,
+    "coordenadas": {
+      "lat": -21.7597883,
+      "lng": -43.3435974
+    },
+    "numero": "200",
+    "numero_encontrada_google": true,
+    "rua_encontrada_google": true,
+    "resultado_google": {
+      "address_components": [
+        {
+          "long_name": "200",
+          "short_name": "200",
+          "types": [
+            "street_number"
+          ]
+        },
+        {
+          "long_name": "Rua Halfeld",
+          "short_name": "R. Halfeld",
+          "types": [
+            "route"
+          ]
+        },
+        {
+          "long_name": "Centro",
+          "short_name": "Centro",
+          "types": [
+            "political",
+            "sublocality",
+            "sublocality_level_1"
+          ]
+        },
+        {
+          "long_name": "Juiz de Fora",
+          "short_name": "Juiz de Fora",
+          "types": [
+            "administrative_area_level_2",
+            "political"
+          ]
+        },
+        {
+          "long_name": "Minas Gerais",
+          "short_name": "MG",
+          "types": [
+            "administrative_area_level_1",
+            "political"
+          ]
+        },
+        {
+          "long_name": "Brazil",
+          "short_name": "BR",
+          "types": [
+            "country",
+            "political"
+          ]
+        },
+        {
+          "long_name": "36013",
+          "short_name": "36013",
+          "types": [
+            "postal_code",
+            "postal_code_prefix"
+          ]
+        }
+      ],
+      "formatted_address": "R. Halfeld, 200 - Centro, Juiz de Fora - MG, 36013, Brazil",
+      "geometry": {
+        "location": {
+          "lat": -21.7597883,
+          "lng": -43.3435974
+        },
+        "location_type": "RANGE_INTERPOLATED",
+        "viewport": {
+          "northeast": {
+            "lat": -21.7585089197085,
+            "lng": -43.3422279197085
+          },
+          "southwest": {
+            "lat": -21.7612068802915,
+            "lng": -43.3449258802915
+          }
+        }
+      },
+      "navigation_points": [
+        {
+          "location": {
+            "latitude": -21.7599189,
+            "longitude": -43.3435589
+          }
+        }
+      ],
+      "place_id": "EjpSLiBIYWxmZWxkLCAyMDAgLSBDZW50cm8sIEp1aXogZGUgRm9yYSAtIE1HLCAzNjAxMywgQnJhemlsIjESLwoUChIJp1hUraacmAARTkMumF_Ch-IQyAEqFAoSCfs9bSegnJgAEecb_KZnrF2s",
+      "types": [
+        "street_address"
+      ]
+    },
+    "completo": "R. Halfeld, 200 - Centro, Juiz de Fora - MG, 36013, Brazil",
+    "cache": false,
+    "disponibilidade": {
+      "disponibilidade": "available",
+      "tipo_disponibilidade": "available",
+      "forbidden_areas": [],
+      "ctos_within_range": [
+        {
+          "id": 274054,
+          "name": "JF07-026-3-2",
+          "description": "VERIFICADO 25/03/26 AF Ticket: #198542  JFA.07 - JFA - POCO RICO-VLAN 7xx  6/4",
+          "provider": 126,
+          "project": 53,
+          "cto_type": "street",
+          "polygon": [
+            [
+              [
+                -43.343878,
+                -21.761375
+              ],
+              [
+                -43.343767,
+                -21.760949
+              ],
+              [
+                -43.343205,
+                -21.760342
+              ],
+              [
+                -43.343997,
+                -21.75969
+              ],
+              [
+                -43.343965,
+                -21.759352
+              ],
+              [
+                -43.343836,
+                -21.759233
+              ],
+              [
+                -43.343632,
+                -21.759192
+              ],
+              [
+                -43.342503,
+                -21.759955
+              ],
+              [
+                -43.342349,
+                -21.760346
+              ],
+              [
+                -43.342459,
+                -21.760604
+              ],
+              [
+                -43.343151,
+                -21.761339
+              ],
+              [
+                -43.343127,
+                -21.761782
+              ],
+              [
+                -43.34327,
+                -21.762018
+              ],
+              [
+                -43.343537,
+                -21.762084
+              ],
+              [
+                -43.343751,
+                -21.761969
+              ],
+              [
+                -43.343864,
+                -21.761688
+              ],
+              [
+                -43.343878,
+                -21.761375
+              ]
+            ]
+          ],
+          "coordinates": [
+            -43.34297297772987,
+            -21.76046564215128
+          ],
+          "technology": "GPON",
+          "architecture": "FTTx",
+          "city": "Juiz de Fora",
+          "ports": 8,
+          "street": "",
+          "number": "",
+          "complement": "",
+          "neighborhood": "",
+          "reference_point": "",
+          "building_name": "",
+          "tower": "",
+          "block": "",
+          "floor": "",
+          "room": "",
+          "additional_info": null,
+          "created_at": "2024-02-12T10:42:03.961887-03:00",
+          "updated_at": "2026-04-29T00:38:42.028446-03:00",
+          "created_by": 21,
+          "updated_by": 3069,
+          "occupied_ports": 7,
+          "occupation_color": "red",
+          "ibge": 3136702,
+          "max_drop_distance": 300,
+          "cto_validation": "valid",
+          "validated_at": "2025-05-27T10:44:42.141129-03:00",
+          "validated_by": null,
+          "olt_port": null,
+          "olt_port_slug": null,
+          "olt_technology": null,
+          "olt_vendor": null,
+          "olt_model": null,
+          "olt_name": null,
+          "installed_at": null,
+          "network_container_uuid": "bfb2ea07-94fa-48bd-be25-9046cab95688",
+          "provider_id": 126,
+          "project_name": "MG",
+          "provider_name": "MG MG Z MATA",
+          "provider_color": "#c2d4ac",
+          "has_def_avail_response": false,
+          "def_avail_resp_status": "unknown",
+          "def_avail_resp_status_display": "verificar ferramenta XPTO",
+          "def_avail_resp_description": "Rede externa, não é possível verificar a disponibilidade internamente. Consultar ferramenta externa X.",
+          "def_avail_resp_color": "black",
+          "default_hide_ctos": false,
+          "provider_overlap_mode": "show_default",
+          "olt_slot": null,
+          "olt_pon_port": null,
+          "available_ports": 8,
+          "provider_first_sort": 2,
+          "distance": 167.5012274283124,
+          "routing_polyline": [
+            [
+              -43.34297297772987,
+              -21.76046564215128
+            ],
+            [
+              -43.34289,
+              -21.760535
+            ],
+            [
+              -43.342745,
+              -21.760385
+            ],
+            [
+              -43.342706,
+              -21.760299
+            ],
+            [
+              -43.342743,
+              -21.760224
+            ],
+            [
+              -43.342799,
+              -21.760174
+            ],
+            [
+              -43.343257,
+              -21.759881
+            ],
+            [
+              -43.3435,
+              -21.759685
+            ],
+            [
+              -43.3435974,
+              -21.7597883
+            ]
+          ],
+          "availability_status": "available_few_ports"
+        },
+        {
+          "id": 268708,
+          "name": "JF07-0401-4",
+          "description": "VERIFICADA 05-08-2025 TS JFA07-4-1  Ticket #142721",
+          "provider": 126,
+          "project": 53,
+          "cto_type": "street",
+          "polygon": [
+            [
+              [
+                -43.346735,
+                -21.758233
+              ],
+              [
+                -43.346094,
+                -21.758051
+              ],
+              [
+                -43.346647,
+                -21.7576
+              ],
+              [
+                -43.346747,
+                -21.757416
+              ],
+              [
+                -43.346729,
+                -21.757208
+              ],
+              [
+                -43.346626,
+                -21.757067
+              ],
+              [
+                -43.346433,
+                -21.756985
+              ],
+              [
+                -43.34626,
+                -21.757009
+              ],
+              [
+                -43.343026,
+                -21.759608
+              ],
+              [
+                -43.342921,
+                -21.759827
+              ],
+              [
+                -43.342961,
+                -21.760032
+              ],
+              [
+                -43.343077,
+                -21.760162
+              ],
+              [
+                -43.343242,
+                -21.760222
+              ],
+              [
+                -43.343539,
+                -21.760117
+              ],
+              [
+                -43.343518,
+                -21.760354
+              ],
+              [
+                -43.343622,
+                -21.760536
+              ],
+              [
+                -43.343809,
+                -21.760629
+              ],
+              [
+                -43.344016,
+                -21.760603
+              ],
+              [
+                -43.344205,
+                -21.760402
+              ],
+              [
+                -43.344415,
+                -21.75964
+              ],
+              [
+                -43.345418,
+                -21.759849
+              ],
+              [
+                -43.345589,
+                -21.759809
+              ],
+              [
+                -43.34572,
+                -21.759694
+              ],
+              [
+                -43.345783,
+                -21.75946
+              ],
+              [
+                -43.345657,
+                -21.759214
+              ],
+              [
+                -43.344904,
+                -21.759008
+              ],
+              [
+                -43.345398,
+                -21.758611
+              ],
+              [
+                -43.346671,
+                -21.758961
+              ],
+              [
+                -43.346967,
+                -21.758879
+              ],
+              [
+                -43.347079,
+                -21.758702
+              ],
+              [
+                -43.347074,
+                -21.758493
+              ],
+              [
+                -43.346953,
+                -21.758322
+              ],
+              [
+                -43.346735,
+                -21.758233
+              ]
+            ]
+          ],
+          "coordinates": [
+            -43.34492,
+            -21.75869
+          ],
+          "technology": "GPON",
+          "architecture": "FTTx",
+          "city": "Juiz de Fora",
+          "ports": 16,
+          "street": null,
+          "number": null,
+          "complement": null,
+          "neighborhood": null,
+          "reference_point": null,
+          "building_name": null,
+          "tower": null,
+          "block": null,
+          "floor": null,
+          "room": null,
+          "additional_info": null,
+          "created_at": "2024-02-12T10:41:49.148796-03:00",
+          "updated_at": "2026-04-29T00:31:14.050602-03:00",
+          "created_by": 21,
+          "updated_by": 6740,
+          "occupied_ports": 6,
+          "occupation_color": "yellow",
+          "ibge": 3136702,
+          "max_drop_distance": 300,
+          "cto_validation": "valid",
+          "validated_at": "2025-08-05T09:23:45.046574-03:00",
+          "validated_by": null,
+          "olt_port": null,
+          "olt_port_slug": null,
+          "olt_technology": null,
+          "olt_vendor": null,
+          "olt_model": null,
+          "olt_name": null,
+          "installed_at": null,
+          "network_container_uuid": "3ed558cc-0fa8-4b4a-be87-e6d73cd30568",
+          "provider_id": 126,
+          "project_name": "MG",
+          "provider_name": "MG MG Z MATA",
+          "provider_color": "#c2d4ac",
+          "has_def_avail_response": false,
+          "def_avail_resp_status": "unknown",
+          "def_avail_resp_status_display": "verificar ferramenta XPTO",
+          "def_avail_resp_description": "Rede externa, não é possível verificar a disponibilidade internamente. Consultar ferramenta externa X.",
+          "def_avail_resp_color": "black",
+          "default_hide_ctos": false,
+          "provider_overlap_mode": "show_default",
+          "olt_slot": null,
+          "olt_pon_port": null,
+          "available_ports": 16,
+          "provider_first_sort": 2,
+          "distance": 211.81444148612314,
+          "routing_polyline": [
+            [
+              -43.3435974,
+              -21.7597883
+            ],
+            [
+              -43.3435,
+              -21.759685
+            ],
+            [
+              -43.344835,
+              -21.7586
+            ],
+            [
+              -43.34492,
+              -21.75869
+            ]
+          ],
+          "availability_status": "available"
+        }
+      ],
+      "blocked": false,
+      "lat": -21.7597883,
+      "long": -43.3435974
+    }
+  }
+}
