@@ -1,0 +1,577 @@
+<style>
+:root {
+  --via-bg:        #1a1d24;
+  --via-surface1:  #232733;
+  --via-surface2:  #2d323f;
+  --via-border:    #3a4150;
+  --via-text:      #e8ecf3;
+  --via-muted:     #8b95a8;
+  --via-accent:    #2d57b8;
+  --via-verde:     #1e3a26;
+  --via-verdeFg:   #5ee08a;
+  --via-amarelo:   #3a3320;
+  --via-amareloFg: #e8c25e;
+  --via-cinza:     #2a2d36;
+  --via-cinzaFg:   #b5bdc8;
+  --via-vermelho:  #3a1f1f;
+  --via-vermelhoFg:#ff6b6b;
+  --via-azul:      #1e2d3a;
+  --via-azulFg:    #4fa8e0;
+}
+
+.via-wrap { padding: 20px; max-width: 980px; margin: 0 auto; color: var(--via-text); font: 14px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif; }
+.via-titulo { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
+.via-sub { font-size: 12px; color: var(--via-muted); margin: 0 0 14px; }
+
+.via-banner { padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; font-size: 13px; display: flex; align-items: center; gap: 10px; min-height: 38px; box-sizing: border-box; }
+.via-banner.bn-ok      { background: var(--via-verde);    color: var(--via-verdeFg); display: none; }
+.via-banner.bn-warn    { background: var(--via-amarelo);  color: var(--via-amareloFg); }
+.via-banner.bn-laranja { background: #3a2820;             color: #e09a5e; }
+.via-banner.bn-err     { background: var(--via-vermelho); color: var(--via-vermelhoFg); }
+.via-banner button { margin-left: auto; padding: 4px 10px; border-radius: 4px; border: 1px solid currentColor; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+
+.via-card { background: var(--via-surface1); border: 1px solid var(--via-border); border-radius: 8px; padding: 16px; margin-bottom: 14px; }
+.via-card h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--via-muted); margin: 0 0 10px; font-weight: 600; }
+
+.via-input-row { display: flex; gap: 8px; align-items: center; }
+.via-input { flex: 1; padding: 8px 12px; border-radius: 4px; border: 1px solid var(--via-border); background: var(--via-bg); color: var(--via-text); font: inherit; }
+.via-input:focus { outline: none; border-color: var(--via-accent); }
+.via-input[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+.via-btn { padding: 8px 14px; border-radius: 4px; border: 1px solid var(--via-accent); background: var(--via-accent); color: white; font: inherit; cursor: pointer; }
+.via-btn:hover { background: #366ad0; }
+.via-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.via-btn.btn-ghost { background: transparent; border-color: var(--via-border); color: var(--via-text); }
+.via-btn.btn-ghost:hover { background: var(--via-surface2); }
+.via-btn.btn-small { padding: 4px 10px; font-size: 12px; }
+
+.via-sugestoes { margin-top: 8px; max-height: 280px; overflow-y: auto; border: 1px solid var(--via-border); border-radius: 4px; }
+.via-sug-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--via-border); font-size: 13px; }
+.via-sug-item:last-child { border-bottom: none; }
+.via-sug-item:hover { background: var(--via-surface2); }
+.via-sug-item .sug-cidade { color: var(--via-muted); font-size: 12px; }
+.via-sug-vazio { padding: 12px; color: var(--via-muted); text-align: center; font-size: 12px; }
+
+.via-numero-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.via-numero-row label { color: var(--via-muted); font-size: 13px; }
+.via-numero-row input { width: 110px; }
+
+.via-resultado-card { border-left: 3px solid; padding: 14px 16px; margin-bottom: 14px; }
+.via-resultado-card.r-DISPONIVEL    { background: var(--via-verde);    border-color: var(--via-verdeFg); }
+.via-resultado-card.r-PROVAVEL      { background: var(--via-amarelo);  border-color: var(--via-amareloFg); }
+.via-resultado-card.r-SEM_COBERTURA { background: var(--via-cinza);    border-color: var(--via-cinzaFg); }
+.via-resultado-card.r-AREA_PROIBIDA { background: var(--via-vermelho); border-color: var(--via-vermelhoFg); }
+.via-resultado-card.r-INDETERMINADO { background: var(--via-azul);     border-color: var(--via-azulFg); }
+.via-badge-grande { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.via-endereco { font-size: 13px; opacity: 0.85; margin-bottom: 12px; }
+.via-motivo { font-size: 13px; opacity: 0.75; margin-bottom: 10px; }
+.via-meta { font-size: 11px; color: var(--via-muted); display: flex; gap: 12px; flex-wrap: wrap; }
+
+.via-cto-lista { margin-top: 10px; }
+.via-cto-item { background: rgba(0,0,0,0.18); border-radius: 4px; padding: 8px 12px; margin-bottom: 6px; font-size: 12px; }
+.via-cto-nome { font-weight: 600; }
+.via-cto-status-DISPONIVEL { color: var(--via-verdeFg); }
+.via-cto-status-PROVAVEL_PORTAS_LIMITADAS { color: var(--via-amareloFg); }
+.via-cto-status-PROVAVEL { color: var(--via-amareloFg); }
+.via-cto-status-INDISPONIVEL { color: var(--via-vermelhoFg); }
+.via-cto-info { color: var(--via-muted); margin-top: 2px; }
+.via-cto-portas { display: inline-block; padding: 1px 6px; border-radius: 3px; background: rgba(255,255,255,0.07); margin-right: 4px; font-family: "JetBrains Mono", Consolas, monospace; }
+
+.via-historico-item { display: flex; gap: 10px; padding: 6px 8px; font-size: 12px; border-bottom: 1px solid var(--via-border); }
+.via-historico-item:last-child { border-bottom: none; }
+.via-historico-emoji { width: 18px; text-align: center; }
+.via-historico-resultado { font-weight: 600; min-width: 100px; }
+.via-historico-meta { color: var(--via-muted); flex: 1; }
+.via-historico-ts { color: var(--via-muted); font-family: "JetBrains Mono", Consolas, monospace; }
+.via-vazio { color: var(--via-muted); font-size: 12px; padding: 8px 0; text-align: center; }
+
+.via-spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: via-spin 0.7s linear infinite; vertical-align: middle; }
+@keyframes via-spin { to { transform: rotate(360deg); } }
+</style>
+
+<div class="via-wrap">
+  <h1 class="via-titulo">Consulta de Viabilidade — PinG</h1>
+  <p class="via-sub">Endereço hashed em log (LGPD). Sem CTO encontrada não é falha — pode estar fora da rede.</p>
+
+  <div id="viaBanner" class="via-banner bn-warn">⏳ checando extensão e PinG…</div>
+
+  <div class="via-card">
+    <h3>1. Endereço</h3>
+    <div class="via-input-row">
+      <input id="viaInput" type="text" class="via-input" placeholder="Rua, bairro, cidade — UF (digite ao menos 3 caracteres)" autocomplete="off" disabled />
+      <button id="viaBtnIA" class="via-btn btn-ghost" disabled title="Normalizar endereço bagunçado com IA">🧹 Limpar com IA</button>
+    </div>
+    <div id="viaSugestoes" class="via-sugestoes" style="display:none"></div>
+    <div class="via-numero-row" id="viaNumeroRow" style="display:none">
+      <label for="viaNumero">Número:</label>
+      <input id="viaNumero" type="number" class="via-input" min="1" placeholder="ex: 100" />
+      <button id="viaBtnConsultar" class="via-btn">Consultar</button>
+      <button id="viaBtnLimpar" class="via-btn btn-ghost btn-small">Nova consulta</button>
+    </div>
+  </div>
+
+  <div id="viaResultado"></div>
+
+  <div class="via-card">
+    <h3>Histórico (últimas 10 consultas da sessão)</h3>
+    <div id="viaHistorico"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  var DEBOUNCE_AUTOCOMPLETE_MS = 350;
+  var POLL_HEALTH_MS = 30000;
+  var MAX_HISTORICO = 10;
+
+  var state = {
+    extensionId: '',
+    usuario:    (typeof AppState !== 'undefined' && AppState.get) ? (AppState.get('usuario') || 'anon') : 'anon',
+    sugSelecionada: null,
+    historico:  [],
+    consultando: false,
+    healthTimer: null,
+    debounceTimer: null
+  };
+
+  // ── DOM refs
+  var $banner = document.getElementById('viaBanner');
+  var $input  = document.getElementById('viaInput');
+  var $btnIA  = document.getElementById('viaBtnIA');
+  var $sugs   = document.getElementById('viaSugestoes');
+  var $numeroRow = document.getElementById('viaNumeroRow');
+  var $numero = document.getElementById('viaNumero');
+  var $btnCon = document.getElementById('viaBtnConsultar');
+  var $btnLim = document.getElementById('viaBtnLimpar');
+  var $resultado = document.getElementById('viaResultado');
+  var $historico = document.getElementById('viaHistorico');
+
+  // ── Init: carrega config do GAS, depois roda health, depois inicia polling
+  google.script.run
+    .withSuccessHandler(function(cfg) {
+      if (!cfg || !cfg.ativo) {
+        setBanner('err', '✗ Módulo desativado pelo admin.', null);
+        return;
+      }
+      state.extensionId = cfg.extensionId || '';
+      state.usuario     = cfg.usuario || state.usuario;
+      if (!state.extensionId) {
+        setBanner('err', '✗ EXTENSION_ID não configurado. Rode <code>_setViabilidadeExtensionId("&lt;ID&gt;")</code> no editor.', null);
+        return;
+      }
+      rodarHealth();
+      state.healthTimer = setInterval(rodarHealth, POLL_HEALTH_MS);
+    })
+    .withFailureHandler(function(e) {
+      setBanner('err', '✗ Falha ao carregar config: ' + (e && e.message), null);
+    })
+    .getViabilidadeConfig(state.usuario);
+
+  // ── Health check
+  function rodarHealth() {
+    sendMsg({ action: 'viabilidade.health', usuario: state.usuario }, function(r) {
+      if (!r) return setBanner('err', '✗ Extensão não detectada — instale o DharmaPro Connector v2.2+', null);
+      if (r.ok && r.autenticado) {
+        setBanner('ok', '✓ Conectado ao PinG', null);
+        habilitarInputs(true);
+        return;
+      }
+      if (r.erro === 'PING_TAB_AUSENTE') {
+        setBanner('laranja', '⚠ Abra o PinG numa aba e mantenha logado.',
+          { texto: 'Abrir PinG', cb: function(){ window.open('https://ping.veronet.com.br/', '_blank'); }});
+        habilitarInputs(false);
+        return;
+      }
+      if (r.erro === 'PING_NAO_AUTENTICADO') {
+        setBanner('warn', '⚠ Sessão do PinG expirou — refaça login.',
+          { texto: 'Abrir PinG', cb: function(){ window.open('https://ping.veronet.com.br/', '_blank'); }});
+        habilitarInputs(false);
+        return;
+      }
+      if (r.erro === 'EXTENSAO_NAO_DISPONIVEL' || r.erro === 'EXTENSAO_RUNTIME_ERRO') {
+        setBanner('err', '✗ Extensão não detectada — instale o DharmaPro Connector v2.2+', null);
+        habilitarInputs(false);
+        return;
+      }
+      setBanner('warn', '⚠ ' + (r.erro || 'erro') + (r.msg ? ' — ' + r.msg : ''), null);
+      habilitarInputs(false);
+    });
+  }
+
+  function setBanner(tipo, texto, action) {
+    $banner.className = 'via-banner bn-' + tipo;
+    $banner.innerHTML = '';
+    var span = document.createElement('span');
+    span.innerHTML = texto;
+    $banner.appendChild(span);
+    if (action && action.texto && typeof action.cb === 'function') {
+      var btn = document.createElement('button');
+      btn.textContent = action.texto;
+      btn.onclick = action.cb;
+      $banner.appendChild(btn);
+    }
+    if (tipo === 'ok') {
+      // Mostra o banner verde por 2s e depois esconde
+      $banner.style.display = 'flex';
+      setTimeout(function() { $banner.style.display = 'none'; }, 2000);
+    } else {
+      $banner.style.display = 'flex';
+    }
+  }
+
+  function habilitarInputs(ativo) {
+    $input.disabled = !ativo;
+    $btnIA.disabled = !ativo || $input.value.trim().length < 10;
+  }
+
+  // ── Bridge pra extensão
+  function sendMsg(msg, cb) {
+    try {
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+        return cb({ ok: false, erro: 'EXTENSAO_NAO_DISPONIVEL' });
+      }
+      chrome.runtime.sendMessage(state.extensionId, msg, function(resp) {
+        if (chrome.runtime.lastError) {
+          return cb({ ok: false, erro: 'EXTENSAO_RUNTIME_ERRO', msg: chrome.runtime.lastError.message });
+        }
+        cb(resp);
+      });
+    } catch (e) {
+      cb({ ok: false, erro: 'EXTENSAO_NAO_DISPONIVEL', msg: String(e && e.message || e) });
+    }
+  }
+
+  // ── Autocomplete
+  $input.addEventListener('input', function() {
+    var v = ($input.value || '').trim();
+    $btnIA.disabled = v.length < 10;
+    state.sugSelecionada = null;
+    $numeroRow.style.display = 'none';
+    if (state.debounceTimer) clearTimeout(state.debounceTimer);
+    if (v.length < 3) { $sugs.style.display = 'none'; $sugs.innerHTML = ''; return; }
+    state.debounceTimer = setTimeout(function() { buscarSugestoes(v); }, DEBOUNCE_AUTOCOMPLETE_MS);
+  });
+
+  function buscarSugestoes(q) {
+    $sugs.innerHTML = '<div class="via-sug-vazio">Buscando…</div>';
+    $sugs.style.display = 'block';
+    sendMsg({ action: 'viabilidade.autocomplete', usuario: state.usuario, input: q }, function(r) {
+      if (!r || !r.ok) {
+        $sugs.innerHTML = '<div class="via-sug-vazio">Erro: ' + ((r && r.erro) || 'sem resposta') + '</div>';
+        return;
+      }
+      var arr = (r.body || []).filter(function(s) {
+        return s && typeof s.latitude === 'number' && typeof s.longitude === 'number' &&
+               !(s.latitude === 0 && s.longitude === 0);
+      });
+      if (!arr.length) {
+        $sugs.innerHTML = '<div class="via-sug-vazio">Nenhuma sugestão.</div>';
+        return;
+      }
+      $sugs.innerHTML = '';
+      arr.slice(0, 10).forEach(function(sug) {
+        var div = document.createElement('div');
+        div.className = 'via-sug-item';
+        div.innerHTML = '<div>' + escapeHtml(sug.completo || '') + '</div>' +
+                        '<div class="sug-cidade">' + escapeHtml(sug.cidade || '') +
+                          (sug.marker_type === 'place' ? ' • <em>com número</em>' : '') + '</div>';
+        div.onclick = function() { selecionarSugestao(sug); };
+        $sugs.appendChild(div);
+      });
+    });
+  }
+
+  function selecionarSugestao(sug) {
+    state.sugSelecionada = sug;
+    $input.value = sug.completo || '';
+    $sugs.style.display = 'none';
+    if (sug.marker_type === 'place') {
+      // Já tem número embutido — pula a etapa de pedir número, consulta direto com numero=0
+      $numero.value = '';
+      $numeroRow.style.display = 'flex';
+      $btnCon.click();
+    } else {
+      $numeroRow.style.display = 'flex';
+      $numero.focus();
+    }
+  }
+
+  // ── Consulta unitária
+  $btnCon.addEventListener('click', function() {
+    if (state.consultando) return;
+    var sug = state.sugSelecionada;
+    if (!sug) return alert('Selecione uma sugestão antes de consultar.');
+    var numero = Number($numero.value);
+    if (sug.marker_type !== 'place' && (!numero || numero < 1)) {
+      $numero.focus();
+      return alert('Informe o número.');
+    }
+    state.consultando = true;
+    $btnCon.disabled = true;
+    $btnCon.innerHTML = '<span class="via-spinner"></span> consultando…';
+
+    sendMsg({
+      action: 'viabilidade.detalhesNumero',
+      usuario: state.usuario,
+      string_query: sug.completo,
+      numero: numero || 0,
+      cidade: sug.cidade,
+      lat: sug.latitude,
+      long: sug.longitude
+    }, function(r) {
+      state.consultando = false;
+      $btnCon.disabled = false;
+      $btnCon.textContent = 'Consultar';
+
+      if (!r || !r.ok) {
+        renderErro(r);
+        return;
+      }
+
+      // r.body é a response crua do gateway; o ViabilidadeParser do GAS normaliza
+      // (porém aqui no client não temos acesso ao módulo GAS — precisamos normalizar
+      // localmente. Reuso da função embutida na extensão seria ideal; por ora
+      // o parser roda no Apps Script via google.script.run.)
+      normalizarNoBackend(r.body, sug, r.cacheHit);
+    });
+  });
+
+  // Normalização: como ViabilidadeParser.js também está em GAS (globalThis.ViabilidadeParser
+  // após Sprint 1), criamos um endpoint passthrough — mas pra evitar round-trip extra,
+  // a aplicação prática é o frontend chamar o parser via google.script.run.
+  // O ViabilidadeParser exposto no GAS por enquanto NÃO tem wrapper públio.
+  // Solução pragmática: o cliente já recebe o body cru; renderizamos com o mínimo
+  // possível e gravamos o histórico cru. Sprint 3.1 pode adicionar passthrough GAS.
+  function normalizarNoBackend(bodyCru, sug, cacheHit) {
+    // Por enquanto: derivação simplificada no client espelhando ViabilidadeParser
+    var consulta = deriveConsulta(bodyCru, sug, cacheHit);
+    renderResultado(consulta);
+    salvarHistorico(consulta);
+  }
+
+  // Mini-parser (mirror simplificado do ViabilidadeParser.js — só o suficiente
+  // pra render. Sprint 3.1 substitui isto por chamada GAS unificada.)
+  function deriveConsulta(raw, sug, cacheHit) {
+    var disp = raw && raw.disponibilidade;
+    var ctosRaw = (disp && Array.isArray(disp.ctos_within_range)) ? disp.ctos_within_range : [];
+    var ctos = ctosRaw.map(function(c) {
+      var ports = +c.ports || 0, occ = +c.occupied_ports || 0;
+      var livres = Math.max(0, ports - occ);
+      var st = 'INDISPONIVEL';
+      if (c.availability_status === 'available') st = livres > 0 ? 'DISPONIVEL' : 'PROVAVEL_PORTAS_LIMITADAS';
+      else if (c.availability_status === 'available_few_ports') st = 'PROVAVEL_PORTAS_LIMITADAS';
+      else if (c.availability_status === 'probable') st = 'PROVAVEL';
+      return {
+        nome: c.name,
+        status: st,
+        tecnologia: c.technology,
+        arquitetura: (c.architecture != null ? c.architecture : undefined),
+        distanciaMetros: c.distance,
+        portasTotais: ports,
+        portasOcupadas: occ,
+        portasLivres: livres,
+        validada: c.cto_validation === 'valid',
+        provedor: c.provider_name
+      };
+    });
+
+    var resultado = 'INDETERMINADO';
+    var dispVal = disp && disp.disponibilidade;
+    if (dispVal === 'no coverage') resultado = 'SEM_COBERTURA';
+    else if (dispVal === 'forbidden') resultado = 'AREA_PROIBIDA';
+    else if (dispVal === 'probable') resultado = 'PROVAVEL';
+    else if (dispVal === 'available') {
+      if (ctos.length === 0) resultado = 'INDETERMINADO';
+      else {
+        switch (ctos[0].status) {
+          case 'DISPONIVEL': resultado = 'DISPONIVEL'; break;
+          case 'PROVAVEL_PORTAS_LIMITADAS':
+          case 'PROVAVEL':
+          case 'INDISPONIVEL': resultado = 'PROVAVEL'; break;
+          default: resultado = 'INDETERMINADO';
+        }
+      }
+    }
+
+    return {
+      resultado: resultado,
+      motivo: gerarMotivo(resultado, ctos),
+      endereco: {
+        completo: (raw && raw.completo) || sug.completo,
+        cidade:   sug.cidade,
+        uf:       extrairUf(raw),
+        lat:      (raw && raw.latitude) || sug.latitude,
+        lng:      (raw && raw.longitude) || sug.longitude,
+        numero:   (raw && raw.numero) ? parseInt(raw.numero, 10) : null
+      },
+      ctos: ctos,
+      cacheHit: !!cacheHit,
+      ping: { cache: !!(raw && raw.cache) }
+    };
+  }
+
+  function extrairUf(raw) {
+    try {
+      var comps = raw && raw.resultado_google && raw.resultado_google.address_components;
+      if (!Array.isArray(comps)) return '';
+      for (var i = 0; i < comps.length; i++) {
+        var c = comps[i];
+        if (c && c.types && c.types.indexOf('administrative_area_level_1') !== -1) return c.short_name || '';
+      }
+    } catch (e) {}
+    return '';
+  }
+
+  function gerarMotivo(resultado, ctos) {
+    var primeira = ctos[0];
+    if (resultado === 'DISPONIVEL') {
+      var d = primeira && typeof primeira.distanciaMetros === 'number' ? Math.round(primeira.distanciaMetros) : '?';
+      var l = primeira && typeof primeira.portasLivres === 'number' ? primeira.portasLivres : '?';
+      return 'Disponível — ' + ctos.length + ' CTO(s) no raio, mais próxima a ' + d + 'm com ' + l + ' portas livres';
+    }
+    if (resultado === 'PROVAVEL') {
+      if (primeira && primeira.status === 'PROVAVEL_PORTAS_LIMITADAS') {
+        return 'Cobertura provável — atenção a portas (CTO mais próxima com ' + primeira.portasLivres + ' livre(s) de ' + primeira.portasTotais + ')';
+      }
+      return 'Cobertura provável — confirmar com vistoria';
+    }
+    if (resultado === 'SEM_COBERTURA') return 'Endereço sem cobertura no PinG';
+    if (resultado === 'AREA_PROIBIDA') return 'Endereço dentro de área proibida';
+    return 'Resposta inconsistente do PinG';
+  }
+
+  // ── Render do resultado
+  function renderResultado(c) {
+    var emoji = ({ DISPONIVEL:'✅', PROVAVEL:'⚠️', SEM_COBERTURA:'❓', AREA_PROIBIDA:'⛔', INDETERMINADO:'⏱' })[c.resultado] || '⏱';
+    var html = '<div class="via-resultado-card r-' + c.resultado + '">' +
+      '<div class="via-badge-grande">' + emoji + ' ' + c.resultado.replace('_', ' ') + '</div>' +
+      '<div class="via-endereco">' + escapeHtml(c.endereco.completo || '') + '</div>' +
+      '<div class="via-motivo">' + escapeHtml(c.motivo) + '</div>' +
+      '<div class="via-meta">' +
+        (c.endereco.cidade ? '<span>📍 ' + escapeHtml(c.endereco.cidade) + (c.endereco.uf ? '/' + escapeHtml(c.endereco.uf) : '') + '</span>' : '') +
+        (c.ctos.length ? '<span>📡 ' + c.ctos.length + ' CTO(s)</span>' : '') +
+        (c.ping && c.ping.cache ? '<span>♻️ gateway cache</span>' : '') +
+        (c.cacheHit ? '<span>📦 local cache</span>' : '') +
+      '</div>';
+    if (c.ctos.length) {
+      html += '<div class="via-cto-lista">';
+      c.ctos.slice(0, 8).forEach(function(cto) {
+        var d = typeof cto.distanciaMetros === 'number' ? Math.round(cto.distanciaMetros) + 'm' : '—';
+        var arq = cto.arquitetura ? (' ' + cto.arquitetura) : '';
+        html += '<div class="via-cto-item">' +
+          '<span class="via-cto-nome via-cto-status-' + cto.status + '">' + escapeHtml(cto.nome || '?') + '</span> ' +
+          '<span class="via-cto-portas">' + cto.portasLivres + '/' + cto.portasTotais + ' livres</span> · ' +
+          '<span>' + escapeHtml(cto.tecnologia || '?') + arq + '</span>' +
+          (cto.provedor ? ' · <span>' + escapeHtml(cto.provedor) + '</span>' : '') +
+          (cto.validada ? ' · <span style="color:var(--via-verdeFg)">validada</span>' : '') +
+          '<div class="via-cto-info">distância: ' + d + '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+    $resultado.innerHTML = html;
+  }
+
+  function renderErro(r) {
+    var msg = (r && r.erro) ? r.erro + (r.msg ? ' — ' + r.msg : '') : 'sem resposta';
+    $resultado.innerHTML = '<div class="via-resultado-card r-INDETERMINADO">' +
+      '<div class="via-badge-grande">⏱ INDETERMINADO</div>' +
+      '<div class="via-motivo">' + escapeHtml(msg) + '</div></div>';
+    if (r && (r.erro === 'PING_NAO_AUTENTICADO' || r.erro === 'PING_TAB_AUSENTE')) rodarHealth();
+  }
+
+  // ── Histórico (memória da sessão + grava no Sheets via GAS)
+  function salvarHistorico(consulta) {
+    state.historico.unshift({
+      ts: new Date().toISOString(),
+      resultado: consulta.resultado,
+      endereco: consulta.endereco.completo,
+      cidade: consulta.endereco.cidade,
+      uf: consulta.endereco.uf,
+      ctosQtd: consulta.ctos.length
+    });
+    if (state.historico.length > MAX_HISTORICO) state.historico.length = MAX_HISTORICO;
+    renderHistorico();
+    // Backend (fire-and-forget — não bloqueia UX)
+    try {
+      google.script.run
+        .withSuccessHandler(function() {})
+        .withFailureHandler(function(e) { console.warn('salvarConsultaViabilidade falhou:', e); })
+        .salvarConsultaViabilidade(state.usuario, consulta);
+    } catch (e) {}
+  }
+
+  function renderHistorico() {
+    if (!state.historico.length) {
+      $historico.innerHTML = '<div class="via-vazio">(nenhuma consulta ainda nesta sessão)</div>';
+      return;
+    }
+    var emojiMap = { DISPONIVEL:'✅', PROVAVEL:'⚠️', SEM_COBERTURA:'❓', AREA_PROIBIDA:'⛔', INDETERMINADO:'⏱' };
+    var html = '';
+    state.historico.forEach(function(h) {
+      var hora = h.ts.substr(11, 5);
+      html += '<div class="via-historico-item">' +
+        '<span class="via-historico-emoji">' + (emojiMap[h.resultado] || '⏱') + '</span>' +
+        '<span class="via-historico-resultado">' + h.resultado + '</span>' +
+        '<span class="via-historico-meta">' + escapeHtml(h.endereco || '') + '</span>' +
+        '<span class="via-historico-ts">' + hora + '</span>' +
+      '</div>';
+    });
+    $historico.innerHTML = html;
+  }
+  renderHistorico();
+
+  // ── 🧹 Cleanup com IA
+  $btnIA.addEventListener('click', function() {
+    var txt = ($input.value || '').trim();
+    if (txt.length < 10) return;
+    $btnIA.disabled = true;
+    var origLbl = $btnIA.innerHTML;
+    $btnIA.innerHTML = '<span class="via-spinner"></span>';
+    google.script.run
+      .withSuccessHandler(function(r) {
+        $btnIA.innerHTML = origLbl;
+        $btnIA.disabled = false;
+        if (r && r.ok && r.logradouro) {
+          $input.value = r.logradouro;
+          $input.focus();
+          // Dispara autocomplete
+          $input.dispatchEvent(new Event('input'));
+        } else {
+          var msg = (r && (r.motivo || r.erro)) || 'falha';
+          if (typeof mostrarToast === 'function') mostrarToast('Não consegui normalizar: ' + msg, 'warning');
+          else alert('Não consegui normalizar: ' + msg);
+        }
+      })
+      .withFailureHandler(function(e) {
+        $btnIA.innerHTML = origLbl;
+        $btnIA.disabled = false;
+        if (typeof mostrarToast === 'function') mostrarToast('Erro IA: ' + e.message, 'error');
+        else alert('Erro IA: ' + e.message);
+      })
+      .getViabilidadeAddressCleanupBackend(txt, state.usuario);
+  });
+
+  // ── Limpar
+  $btnLim.addEventListener('click', function() {
+    state.sugSelecionada = null;
+    $input.value = '';
+    $numero.value = '';
+    $numeroRow.style.display = 'none';
+    $sugs.style.display = 'none';
+    $sugs.innerHTML = '';
+    $resultado.innerHTML = '';
+    $input.focus();
+  });
+
+  // ── Helper
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+})();
+</script>

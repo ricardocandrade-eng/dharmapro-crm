@@ -4595,7 +4595,7 @@ function _resetarTimerInatividade() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal','viabilidade']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -4614,7 +4614,8 @@ var _menuMap = {
   'config':      'menuConfig',
   'disparos':    'menuDisparos',
   'usuarios':    'menuUsuarios',
-  'waPessoal':   'menuWaPessoal'
+  'waPessoal':   'menuWaPessoal',
+  'viabilidade': 'menuViabilidade'
 };
 
 function _aplicarMenus(menus) {
@@ -4947,6 +4948,29 @@ function navegar(pagina) {
         })
         .getDispPessoalHtml();
     }
+
+  } else if (pagina === 'viabilidade') {
+    document.getElementById('menuViabilidade').classList.add('ativo');
+    document.getElementById('pageViabilidade').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Viabilidade — PinG';
+    var vbc = document.getElementById('viabilidadeContainer');
+    // Recarrega a cada visita pra refazer health check da extensão / PinG
+    vbc.removeAttribute('data-loaded');
+    vbc.setAttribute('data-loaded', '1');
+    google.script.run
+      .withSuccessHandler(function(html) {
+        vbc.innerHTML = html;
+        vbc.querySelectorAll('script').forEach(function(s) {
+          var ns = document.createElement('script');
+          ns.textContent = s.textContent;
+          document.body.appendChild(ns);
+        });
+      })
+      .withFailureHandler(function(e) {
+        vbc.removeAttribute('data-loaded');
+        vbc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Viabilidade: ' + e.message + '</div>';
+      })
+      .getViabilidadeHtml();
   }
 }
 
