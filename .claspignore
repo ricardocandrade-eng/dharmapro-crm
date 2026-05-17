@@ -7,5 +7,6 @@
 extensao-dharmapro/**
 _arquivo.js
 *.bak
+*.test.js
 prompt-refatoracao.md
 planos_vero.json
