@@ -1,6 +1,5 @@
 deploy.log
 .claude/
-extensao-dharmapro/
 
 # Funções one-shot — nunca commitar (pode conter dados sensíveis)
 _arquivo.js
