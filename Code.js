@@ -6000,6 +6000,8 @@ function getDispPessoalHtml() {
   return HtmlService.createHtmlOutputFromFile('DispPessoal').getContent();
 }
 
+// getViabilidadeHtml() vive em ViabilidadeAPI.js (Sprint 3 — feature flag VIABILIDADE_ATIVO em Script Properties)
+
 // Retorna HTML do dashboard já com dados embutidos — apenas 1 roundtrip
 // Suspeita: helper opcional sem uso claro na UI atual. Mantido por seguranca.
 function getDashboardComDados(mes, ano) {

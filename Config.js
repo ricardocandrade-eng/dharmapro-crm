@@ -52,9 +52,9 @@ var USUARIOS = [
 //                     indicacao, docs, cruzamento, tickets, novaVenda, extrato, config
 // ──────────────────────────────────────────────────────────────────────────
 var PERFIS_MENUS = {
-  'admin':      ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','painelads','disparos','usuarios','waPessoal'],
+  'admin':      ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','painelads','disparos','usuarios','waPessoal','viabilidade'],
   'supervisor': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','painelads','disparos','waPessoal'],
-  'backoffice': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','config','filaPAP','metaads','painelads','disparos']
+  'backoffice': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','config','filaPAP','metaads','painelads','disparos','viabilidade']
 };
 
 var DASHBOARD_CONFIG = {
