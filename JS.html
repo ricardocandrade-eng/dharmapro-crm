@@ -2208,12 +2208,65 @@ function _varreduraFiltrar(sistema, statuses) {
   return lista;
 }
 
+// Auto-preview: mostra a contagem + lista de vendas que efetivamente vão entrar
+// na varredura. Atualiza ao mudar filtros (debounced 300ms). Permite ao admin
+// validar visualmente se o filtro está correto antes de clicar "Rodar".
 function _varreduraAtualizarContador() {
-  // Como agora a busca é server-side, o contador real só é conhecido após Rodar.
-  // Mantemos o handler pra evitar referencias quebradas no HTML, mas indicamos
-  // que o valor será buscado.
   var el = document.getElementById('varr-disponiveis');
-  if (el) el.textContent = '— (busca no servidor ao rodar)';
+  if (!el) return;
+
+  var sistemaSel = document.querySelector('input[name="varr-sistema"]:checked');
+  var statusSel = Array.prototype.slice.call(document.querySelectorAll('input[name="varr-status"]:checked')).map(function(c) { return c.value; });
+
+  if (!sistemaSel || !statusSel.length) {
+    el.innerHTML = '<strong>0</strong> (selecione sistema e status)';
+    return;
+  }
+
+  el.innerHTML = '<em style="opacity:.6;">consultando…</em>';
+
+  clearTimeout(window._varreduraTimerContador);
+  window._varreduraTimerContador = setTimeout(function() {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        var vendas = (res && res.vendas) || [];
+        var maximo = Math.max(1, Math.min(500, parseInt(document.getElementById('varr-maximo').value, 10) || 30));
+
+        if (vendas.length === 0) {
+          el.innerHTML = '<strong>0</strong> (nenhuma venda satisfaz os filtros)';
+          return;
+        }
+
+        var resumo = '<strong>' + vendas.length + '</strong>';
+        if (vendas.length <= maximo) {
+          resumo += ' (todas serão consultadas)';
+        } else {
+          resumo += ' encontradas — primeiras <strong>' + maximo + '</strong> serão consultadas';
+        }
+
+        // Listagem expansível das primeiras 30
+        var amostra = vendas.slice(0, Math.min(30, vendas.length));
+        var lista = '<details style="margin-top:8px;font-size:11px;cursor:pointer;"><summary style="color:var(--accent);">Ver linhas que vão entrar (' + amostra.length + (vendas.length > amostra.length ? ' de ' + vendas.length : '') + ')</summary>'
+                  + '<ul style="margin:4px 0 0 0;padding-left:18px;font-family:DM Mono,monospace;max-height:200px;overflow-y:auto;">';
+        for (var i = 0; i < amostra.length; i++) {
+          var v = amostra[i];
+          var emoji = (v.sistema === 'NG') ? '🔵' : '🟢';
+          var cliente = String(v.cliente || '?').substring(0, 30);
+          lista += '<li>L<strong>' + v.linha + '</strong> · ' + emoji + ' ' + v.sistema + ' · ' + (v.cpf || '?') + ' · ' + cliente + '</li>';
+        }
+        lista += '</ul></details>';
+
+        el.innerHTML = resumo + lista;
+      })
+      .withFailureHandler(function(err) {
+        el.innerHTML = '<span style="color:var(--accent);">erro: ' + (err && err.message ? err.message : err) + '</span>';
+      })
+      .getVendasParaVarredura({
+        sistemas: [sistemaSel.value],
+        statuses: statusSel,
+        max: 500 // pega cap do backend só pra preview — não afeta a quantidade real consultada
+      });
+  }, 300);
 }
 
 function _varreduraIniciar() {
