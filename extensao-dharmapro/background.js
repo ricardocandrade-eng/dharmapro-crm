@@ -122,8 +122,10 @@ async function consultarAdapter(cpf, user, pass) {
   }
 }
 
-// Escuta mensagens do content script bridge
+// Escuta mensagens INTERNAS (content_scripts da extensão)
 chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+  try { console.log('[DHP-BG] onMessage action=' + (msg && msg.action) + ' type=' + (msg && msg.type)); } catch (e) {}
+
   if (msg && msg.type === 'dhp_adapter_consulta') {
     consultarAdapter(msg.cpf, msg.user, msg.pass).then(sendResponse);
     return true; // resposta assincrona
@@ -131,17 +133,40 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
 
   // Ping ready notification do content-ping (apenas log; não responde)
   if (msg && msg.from === 'ping' && msg.kind === 'ready') {
-    // sender.tab.id é a aba do PinG que ficou ready
     return false;
   }
 
   // Roteamento Viabilidade (PinG) — ações `viabilidade.*`
   if (msg && typeof msg.action === 'string' && msg.action.indexOf('viabilidade.') === 0) {
-    handleViabilidade(msg, sender).then(sendResponse, function (err) {
+    handleViabilidade(msg, sender).then(function(resp) {
+      try { console.log('[DHP-BG] resp action=' + msg.action + ' resp=', resp); } catch (e) {}
+      sendResponse(resp);
+    }, function (err) {
+      try { console.warn('[DHP-BG] ERRO action=' + msg.action + ' err=', err); } catch (e) {}
       sendResponse({ ok: false, erro: 'EXTENSAO_ERRO_INTERNO', msg: String(err && err.message || err) });
     });
     return true;
   }
+});
+
+// Escuta mensagens EXTERNAS (pages com origin matching externally_connectable)
+// Sem este listener, chrome.runtime.sendMessage(EXT_ID, ...) da página falha com
+// "Could not establish connection. Receiving end does not exist."
+chrome.runtime.onMessageExternal.addListener(function(msg, sender, sendResponse) {
+  try { console.log('[DHP-BG] onMessageExternal action=' + (msg && msg.action) + ' origem=' + (sender && sender.origin)); } catch (e) {}
+
+  if (msg && typeof msg.action === 'string' && msg.action.indexOf('viabilidade.') === 0) {
+    handleViabilidade(msg, sender).then(function(resp) {
+      try { console.log('[DHP-BG] respExternal action=' + msg.action + ' resp=', resp); } catch (e) {}
+      sendResponse(resp);
+    }, function (err) {
+      try { console.warn('[DHP-BG] ERRO externo action=' + msg.action + ' err=', err); } catch (e) {}
+      sendResponse({ ok: false, erro: 'EXTENSAO_ERRO_INTERNO', msg: String(err && err.message || err) });
+    });
+    return true;
+  }
+  // Ignora mensagens externas que não são viabilidade.*
+  return false;
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

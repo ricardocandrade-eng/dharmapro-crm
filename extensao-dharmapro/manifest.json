@@ -21,10 +21,6 @@
     {
       "resources": ["content-ng.js"],
       "matches": ["https://ng.vero.objective.com.br/*"]
-    },
-    {
-      "resources": ["ping-main-world.js"],
-      "matches": ["https://ping.veronet.com.br/*"]
     }
   ],
   "content_scripts": [
@@ -42,6 +38,19 @@
       "matches": ["https://ping.veronet.com.br/*"],
       "js": ["content-ping.js"],
       "run_at": "document_start"
+    },
+    {
+      "matches": ["https://ping.veronet.com.br/*"],
+      "js": ["ping-main-world.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://*.googleusercontent.com/*"],
+      "js": ["content-viabilidade-bridge.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "match_about_blank": true
     }
   ]
 }

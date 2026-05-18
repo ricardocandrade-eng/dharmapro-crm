@@ -23,40 +23,58 @@
   window.__dharmaPingMainInstalled = true;
 
   var GATEWAY = 'https://gateway.pi.ngtools.com.br';
-  var TIMEOUT_MS = 5000;
+  var TIMEOUT_MS = 8000;
 
-  // 1. Guarda o fetch original do SPA (com Authorization já injetado)
+  // Capturador de auth: o SPA do PinG injeta Authorization (provavelmente JWT)
+  // nas chamadas dele ao gateway. Vamos interceptar window.fetch passivamente,
+  // ler os headers das chamadas REAIS que ele faz, e reusar nos nossos fetches.
+  var lastSpaAuth = null;     // último Authorization observado
   var origFetch = window.fetch.bind(window);
 
-  // 2. Wrap passivo — útil pra debug; não loga query/body (LGPD)
   try {
-    window.fetch = function () {
-      var args = arguments;
-      var url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url);
-      var p = origFetch.apply(this, args);
-      if (url && url.indexOf(GATEWAY) === 0) {
-        Promise.resolve(p).then(function (resp) {
-          if (!resp || resp.status !== 200) return;
-          try {
-            var cloned = resp.clone();
-            cloned.text().then(function (text) {
-              try {
-                window.postMessage({
-                  __dharmaPing: true,
-                  kind: 'passive',
-                  path: new URL(url).pathname,
-                  status: resp.status,
-                  bodyLen: text ? text.length : 0
-                }, '*');
-              } catch (x) {}
-            }, function () {});
-          } catch (x) {}
-        }, function () {});
-      }
-      return p;
+    window.fetch = function (input, init) {
+      var url = typeof input === 'string' ? input : (input && input.url) || '';
+      try {
+        if (url && url.indexOf(GATEWAY) === 0) {
+          // Extrai headers — pode vir em init OU no Request (input)
+          var hdrs = null;
+          if (init && init.headers) hdrs = init.headers;
+          else if (input && input.headers) hdrs = input.headers;
+          var auth = null;
+          if (hdrs) {
+            if (typeof hdrs.get === 'function') auth = hdrs.get('Authorization') || hdrs.get('authorization');
+            else if (typeof hdrs === 'object') auth = hdrs.Authorization || hdrs.authorization;
+          }
+          if (auth) {
+            if (auth !== lastSpaAuth) {
+              console.log('[DHP-PING] capturou Authorization do SPA (' + auth.length + ' chars, prefix=' + auth.substring(0, 20) + '...)');
+            }
+            lastSpaAuth = auth;
+          } else {
+            console.log('[DHP-PING] SPA fez fetch ao gateway SEM Authorization header — path=' + new URL(url).pathname);
+          }
+        }
+      } catch (e) {}
+      return origFetch.apply(this, arguments);
     };
+    console.log('[DHP-PING] window.fetch wrap instalado (capturador de Authorization)');
   } catch (e) {
-    console.warn('[DHP-PING] fetch wrap falhou; seguindo sem observação passiva:', e);
+    console.warn('[DHP-PING] fetch wrap falhou:', e);
+  }
+
+  // Chama o gateway reusando o Authorization capturado (se houver). Sem auth,
+  // tenta mesmo assim — o gateway pode aceitar cookies puros pra algumas rotas.
+  function fetchAuth(url, opts) {
+    opts = opts || {};
+    opts.credentials = 'include';
+    opts.headers = opts.headers || {};
+    if (lastSpaAuth && !opts.headers.Authorization && !opts.headers.authorization) {
+      opts.headers.Authorization = lastSpaAuth;
+    }
+    if (!lastSpaAuth) {
+      console.warn('[DHP-PING] fetchAuth SEM Authorization (SPA ainda não chamou gateway nesta sessão) — url=' + url);
+    }
+    return origFetch(url, opts);
   }
 
   // 3. Listener de comandos do content-ping (isolated world)
@@ -96,7 +114,7 @@
       u.searchParams.set('input', 'a');
       u.searchParams.set('latitude', '0');
       u.searchParams.set('longitude', '0');
-      return done(origFetch(u.toString(), { credentials: 'include', signal: ctrl.signal })
+      return done(fetchAuth(u.toString(), { credentials: 'include', signal: ctrl.signal })
         .then(function (r) {
           return { ok: r.ok, status: r.status, autenticado: r.status !== 401 && r.status !== 403 };
         }, function (e) {
@@ -140,7 +158,7 @@
   }
 
   function fetchJson(url, ctrl) {
-    return origFetch(url, { credentials: 'include', signal: ctrl.signal })
+    return fetchAuth(url, { credentials: 'include', signal: ctrl.signal })
       .then(function (r) {
         var ct = (r.headers && r.headers.get && r.headers.get('content-type')) || '';
         if (r.status === 401 || r.status === 403) {

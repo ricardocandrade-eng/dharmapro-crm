@@ -148,6 +148,20 @@
   var $resultado = document.getElementById('viaResultado');
   var $historico = document.getElementById('viaHistorico');
 
+  // ── Diagnóstico de boot (loga 1× pra entender layout de frames + chrome API)
+  try {
+    console.log('[DHP-VIA-PAGE] boot diagnostic', {
+      href: window.location.href,
+      origin: window.location.origin,
+      isTop: window === window.top,
+      hasParent: window !== window.parent,
+      hasChrome: typeof chrome,
+      hasChromeRuntime: typeof chrome !== 'undefined' && typeof chrome.runtime,
+      hasSendMessage: typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage,
+      chromeRuntimeId: typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id || null
+    });
+  } catch (e) { console.warn('boot diag erro', e); }
+
   // ── Init: carrega config do GAS, depois roda health, depois inicia polling
   google.script.run
     .withSuccessHandler(function(cfg) {
@@ -226,21 +240,81 @@
     $btnIA.disabled = !ativo || $input.value.trim().length < 10;
   }
 
-  // ── Bridge pra extensão
+  // ── Bridge pra extensão — TRIPLA via paralela (1ª que responder vence):
+  //   A) chrome.runtime.sendMessage(EXT_ID, msg) — funciona se externally_connectable
+  //      expôs chrome.runtime no iframe do HtmlService
+  //   B) document.dispatchEvent(new CustomEvent('dhp-via-req',...)) — escapa do
+  //      dispatcher do GAS que dropa postMessage entre frames
+  //   C) window.postMessage — fallback que pode disparar a bridge se ela estiver
+  //      no mesmo frame que a página
+  // Bridge (content-viabilidade-bridge.js) ouve B e C; A vai direto pro background.
   function sendMsg(msg, cb) {
-    try {
-      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-        return cb({ ok: false, erro: 'EXTENSAO_NAO_DISPONIVEL' });
-      }
-      chrome.runtime.sendMessage(state.extensionId, msg, function(resp) {
-        if (chrome.runtime.lastError) {
-          return cb({ ok: false, erro: 'EXTENSAO_RUNTIME_ERRO', msg: chrome.runtime.lastError.message });
-        }
-        cb(resp);
-      });
-    } catch (e) {
-      cb({ ok: false, erro: 'EXTENSAO_NAO_DISPONIVEL', msg: String(e && e.message || e) });
+    var id = 'v-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+    var done = false;
+    function finish(resp, via) {
+      if (done) return;
+      done = true;
+      window.removeEventListener('message', msgHandler);
+      document.removeEventListener('dhp-via-res', docHandler);
+      clearTimeout(to);
+      try { console.log('[DHP-VIA-PAGE] response id=' + id + ' via=' + via + ' payload=', resp); } catch (e) {}
+      cb(resp);
     }
+    function msgHandler(ev) {
+      var d = ev && ev.data;
+      if (!d || d.__dharmaViabilidade !== true || d.kind !== 'response' || d.id !== id) return;
+      finish(d.payload, 'postMessage');
+    }
+    function docHandler(ev) {
+      var d = ev && ev.detail;
+      if (!d || d.id !== id) return;
+      finish(d.payload, 'CustomEvent');
+    }
+    var to = setTimeout(function() {
+      try { console.warn('[DHP-VIA-PAGE] TIMEOUT id=' + id + ' action=' + (msg && msg.action)); } catch (e) {}
+      finish({ ok: false, erro: 'EXTENSAO_NAO_DISPONIVEL',
+               msg: 'Nenhuma via respondeu em 7s — veja [DHP-VIA-*] no console.' }, 'TIMEOUT');
+    }, 7000);
+    window.addEventListener('message', msgHandler);
+    document.addEventListener('dhp-via-res', docHandler);
+
+    var envelope = { __dharmaViabilidade: true, kind: 'request', id: id, payload: msg };
+    var vias = [];
+
+    // ─── Via A: chrome.runtime.sendMessage direto ───────────────────────────
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage && state.extensionId) {
+        vias.push('A:chrome.runtime');
+        chrome.runtime.sendMessage(state.extensionId, msg, function(resp) {
+          var err = chrome.runtime && chrome.runtime.lastError;
+          if (err) {
+            try { console.warn('[DHP-VIA-PAGE] via A lastError:', err.message); } catch (e) {}
+            return; // não finalize — deixa as outras vias tentarem
+          }
+          finish(resp, 'chrome.runtime');
+        });
+      }
+    } catch (e) { try { console.warn('[DHP-VIA-PAGE] via A exceção:', e); } catch (e2) {} }
+
+    // ─── Via B: CustomEvent no document (cruza isolated/page world no mesmo frame) ──
+    try {
+      document.dispatchEvent(new CustomEvent('dhp-via-req', { detail: { id: id, payload: msg } }));
+      vias.push('B:CustomEvent');
+    } catch (e) { try { console.warn('[DHP-VIA-PAGE] via B falhou:', e); } catch (e2) {} }
+
+    // ─── Via C: window.postMessage em self+parent+top ───────────────────────
+    var alvos = [];
+    try { alvos.push(['self', window]); } catch (e) {}
+    try { if (window.parent && window.parent !== window) alvos.push(['parent', window.parent]); } catch (e) {}
+    try { if (window.top && window.top !== window && window.top !== window.parent) alvos.push(['top', window.top]); } catch (e) {}
+    alvos.forEach(function (par) {
+      try { par[1].postMessage(envelope, '*'); vias.push('C:pm.' + par[0]); }
+      catch (e) {}
+    });
+
+    try { console.log('[DHP-VIA-PAGE] postando id=' + id + ' action=' + (msg && msg.action) + ' vias=' + vias.join(',')); } catch (e) {}
+
+    if (!vias.length) finish({ ok: false, erro: 'EXTENSAO_NAO_DISPONIVEL', msg: 'Nenhuma via disponível' }, 'none');
   }
 
   // ── Autocomplete

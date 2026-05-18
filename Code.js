@@ -28,7 +28,7 @@ var CONFIG = {
   MAX_RESULTS:     50,
   TOTAL_COLUNAS:   46,          // A (0) até AT (45) — sem buracos
   TABELA_JSON_FILE_ID: '1wB9jncB_eBhGnBE-OpiZZ5UfVnvmv-ro',  // _getTabela() lê deste JSON no Drive (substitui aba TABELA)
-  CIDADES_JSON_FILE_ID: '',  // _getCidadesJson() — preencher após upload do cidades_vero.json no Drive (substitui aba CIDADES)
+  CIDADES_JSON_FILE_ID: '17CQ8KmZdyUtgQChPFC2b7pq2tsU6riV1',  // _getCidadesJson() lê do JSON no Drive (substitui aba CIDADES)
   COLUNAS: {
     // ── Bloco 1: Venda (A–G) ────────────────────────────────────────
     CANAL:              0,  // A  - Canal de venda (PAP, META ADS, INDICAÇÃO, ATIVO, GOOGLE ADS)

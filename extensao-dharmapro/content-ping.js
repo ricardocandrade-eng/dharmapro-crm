@@ -23,24 +23,8 @@
 (function () {
   'use strict';
 
-  // 1. Injeta main world (idempotente)
-  function injetarMainWorld() {
-    if (document.getElementById('dhp-ping-main-world-tag')) return;
-    var s = document.createElement('script');
-    s.id = 'dhp-ping-main-world-tag';
-    s.src = chrome.runtime.getURL('ping-main-world.js');
-    s.onload = function () { /* mantém no DOM pra debug */ };
-    s.onerror = function () { console.warn('[DHP-PING] falha ao injetar ping-main-world.js'); };
-    (document.head || document.documentElement).appendChild(s);
-  }
-  injetarMainWorld();
-
-  // Re-injeta se SPA fizer algo bizarro (defensivo)
-  document.addEventListener('readystatechange', function () {
-    if (document.readyState === 'interactive' || document.readyState === 'complete') {
-      injetarMainWorld();
-    }
-  });
+  // 1. Main world é injetado direto pelo Chrome via manifest (world: "MAIN").
+  //    Não precisa injetar via <script> — evita problema de CSP do SPA do PinG.
 
   // 2. Tabela de handlers pendentes (id → sendResponse)
   var pendentes = Object.create(null);
