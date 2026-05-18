@@ -2477,7 +2477,10 @@ function _varreduraIniciar() {
       _paginaAtual         = vendas;
 
       _varreduraQueue = vendas.map(function(v, idx) {
-        return { index: idx, linha: v.linha, cpf: v.cpf, sistema: v.sistema };
+        return {
+          index: idx, linha: v.linha, cpf: v.cpf, sistema: v.sistema,
+          statusAtual: v.status || '', cliente: v.cliente || ''
+        };
       });
       _varreduraTotal      = _varreduraQueue.length;
       _varreduraResultados = [];
@@ -2517,6 +2520,38 @@ function _varreduraRestaurarPaginaAtual() {
   }
 }
 
+// Compara resumo do Vero com status atual no DharmaPro pra detectar divergências
+// acionáveis. Retorna { tipo, ...campos } ou null quando não há divergência.
+//
+// Tipos atuais:
+//   - 'instalada':       Vero diz Instalada, DharmaPro NÃO está 3 - Finalizada/Instalada
+//   - 'cancelado':       Vero diz Cancelado, DharmaPro não está cancelado
+//   - 'agendada':        Vero diz Agendada DD/MM, DharmaPro AGENDA diferente (futuro)
+function _detectarDivergencia(resumo, statusAtual) {
+  var s = String(resumo || '');
+  var st = String(statusAtual || '').toLowerCase();
+
+  // Vero diz "Instalada em DD/MM/YYYY"
+  var mInst = s.match(/Instalada\s+em\s+(\d{2}\/\d{2}\/\d{4})/i);
+  if (mInst) {
+    var jaInstalada = st.indexOf('instalad') > -1 || st.indexOf('finalizad') > -1;
+    if (!jaInstalada) {
+      return { tipo: 'instalada', dataInstalacao: mInst[1] };
+    }
+  }
+
+  // Vero diz "Contrato cancelado em DD/MM/YYYY"
+  var mCanc = s.match(/[Cc]ancelad[oa]\s+em\s+(\d{2}\/\d{2}\/\d{4})/);
+  if (mCanc) {
+    var jaCancelado = st.indexOf('cancel') > -1;
+    if (!jaCancelado) {
+      return { tipo: 'cancelado', dataCancelamento: mCanc[1] };
+    }
+  }
+
+  return null;
+}
+
 function _varreduraProximo() {
   if (_varreduraCancelar || !_varreduraQueue.length) {
     _varreduraConcluir();
@@ -2539,11 +2574,14 @@ function _varreduraProximo() {
 
   _varreduraEsperarConclusao(modalId, maxMs, function(resultado, resumo) {
     _varreduraResultados.push({
-      linha:    item.linha,
-      cpf:      item.cpf,
-      sistema:  item.sistema,
-      resultado: resultado,
-      resumo:   resumo || ''
+      linha:       item.linha,
+      cpf:         item.cpf,
+      sistema:     item.sistema,
+      cliente:     item.cliente || '',
+      statusAtual: item.statusAtual || '',
+      resultado:   resultado,
+      resumo:      resumo || '',
+      divergencia: _detectarDivergencia(resumo || '', item.statusAtual || '')
     });
     // Força fechar o modal de consulta pra liberar o próximo ciclo.
     var m = document.getElementById(modalId);
@@ -2631,13 +2669,45 @@ function _varreduraConcluir() {
     '<span style="color:#dc3545;">✗ Erros: ' + erros + '</span>' +
     (timeouts ? ' · <span style="color:#ffc107;">⏳ Travadas: ' + timeouts + '</span>' : '');
 
+  // Identifica divergências acionáveis (Vero ≠ DharmaPro)
+  var divergencias = _varreduraResultados.filter(function(rr) { return rr.divergencia; });
+
   // Listagem detalhada das consultas processadas
   var listaEl = document.getElementById('varr-final-lista');
   if (listaEl) {
     if (!_varreduraResultados.length) {
       listaEl.innerHTML = '';
     } else {
-      var html = '<ul style="margin:0;padding-left:18px;line-height:1.5;">';
+      var html = '';
+
+      // ─── Seção de divergências (se houver) ─────────────────────────────
+      if (divergencias.length > 0) {
+        html += '<div style="margin-bottom:14px;padding:10px 12px;background:rgba(255,193,7,0.08);border:1px solid rgba(255,193,7,0.35);border-radius:8px;">'
+              + '<div style="font-size:12px;color:#ffc107;font-weight:700;margin-bottom:8px;font-family:Inter,sans-serif;">'
+              + '⚠ <strong>' + divergencias.length + '</strong> diverg' + (divergencias.length === 1 ? 'ência' : 'ências') + ' detectada' + (divergencias.length === 1 ? '' : 's') + ' (Vero ≠ DharmaPro)'
+              + '</div>'
+              + '<ul style="margin:0 0 10px 0;padding-left:6px;list-style:none;">';
+        for (var d = 0; d < divergencias.length; d++) {
+          var dv = divergencias[d];
+          var dvEmoji = (dv.sistema === 'NG') ? '🔵' : '🟢';
+          var dvAcao = '';
+          if (dv.divergencia.tipo === 'instalada')      dvAcao = 'marcar como Instalada em ' + dv.divergencia.dataInstalacao;
+          else if (dv.divergencia.tipo === 'cancelado') dvAcao = 'marcar como Cancelado (' + dv.divergencia.dataCancelamento + ')';
+          html += '<li style="margin-bottom:6px;">'
+                + '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;">'
+                + '<input type="checkbox" class="varr-div-chk" data-idx="' + _varreduraResultados.indexOf(dv) + '" checked style="margin-top:3px;">'
+                + '<span>L<strong>' + dv.linha + '</strong> · ' + dvEmoji + ' ' + dv.sistema + ' · ' + (dv.cliente || dv.cpf) + ' → <em>' + dvAcao + '</em></span>'
+                + '</label></li>';
+        }
+        html += '</ul>'
+              + '<button id="varr-btn-atualizar-div" onclick="_varreduraAtualizarDivergencias()" style="padding:6px 12px;border-radius:6px;border:1px solid #ffc107;background:rgba(255,193,7,0.15);color:#ffc107;font-size:11px;font-weight:700;cursor:pointer;">↑ Atualizar selecionadas no DharmaPro</button>'
+              + '</div>';
+      }
+
+      // ─── Lista detalhada de todas processadas ──────────────────────────
+      html += '<details ' + (divergencias.length > 0 ? '' : 'open') + ' style="font-size:11px;">'
+            + '<summary style="cursor:pointer;color:var(--muted);margin-bottom:6px;">Detalhe das ' + _varreduraResultados.length + ' consultas</summary>'
+            + '<ul style="margin:0;padding-left:18px;line-height:1.5;">';
       for (var k = 0; k < _varreduraResultados.length; k++) {
         var rr = _varreduraResultados[k];
         var corIcon, icon;
@@ -2648,17 +2718,89 @@ function _varreduraConcluir() {
 
         var emoji = (rr.sistema === 'NG') ? '🔵' : '🟢';
         var resumoTrunc = String(rr.resumo || '').substring(0, 80);
+        var marcadorDiv = rr.divergencia ? ' <span style="color:#ffc107;">⚠</span>' : '';
         html += '<li><span style="color:' + corIcon + ';font-weight:700;">' + icon + '</span>'
               + ' L<strong>' + rr.linha + '</strong>'
               + ' · ' + emoji + ' ' + rr.sistema
               + ' · ' + (rr.cpf || '?')
               + (resumoTrunc ? ' — <span style="color:var(--text);">' + resumoTrunc + '</span>' : '')
+              + marcadorDiv
               + '</li>';
       }
-      html += '</ul>';
+      html += '</ul></details>';
+
       listaEl.innerHTML = html;
     }
   }
+}
+
+// Aplica as atualizações marcadas (chamado pelo botão da seção de divergências)
+function _varreduraAtualizarDivergencias() {
+  var chks = document.querySelectorAll('.varr-div-chk:checked');
+  if (!chks.length) {
+    mostrarToast('Nenhuma divergência selecionada.', 'warning');
+    return;
+  }
+  if (!confirm('Atualizar ' + chks.length + ' venda(s) no DharmaPro?')) return;
+
+  var btn = document.getElementById('varr-btn-atualizar-div');
+  if (btn) { btn.disabled = true; btn.textContent = 'Atualizando…'; }
+
+  var pendentes = chks.length;
+  var sucessos = 0, falhas = 0;
+
+  for (var i = 0; i < chks.length; i++) {
+    var idx = parseInt(chks[i].getAttribute('data-idx'), 10);
+    var r = _varreduraResultados[idx];
+    if (!r || !r.divergencia) { pendentes--; continue; }
+
+    var dv = r.divergencia;
+    var dados = { linha: r.linha };
+    var fn = r.sistema === 'NG' ? 'atualizarVendaComNG' : 'atualizarVendaComAdapter';
+
+    if (dv.tipo === 'instalada') {
+      dados.instalada = true;
+      dados.dataInstalacao = dv.dataInstalacao;
+    } else if (dv.tipo === 'cancelado') {
+      // Para "cancelado" o GAS atual não tem update direto; logamos no toast
+      // e pulamos (até implementarmos a rota correspondente)
+      falhas++;
+      pendentes--;
+      if (pendentes === 0) _varreduraFinalizarUpdate(sucessos, falhas, btn);
+      continue;
+    }
+
+    (function(idxClosure, chkEl) {
+      google.script.run
+        .withSuccessHandler(function(resp) {
+          if (resp && resp.sucesso) {
+            sucessos++;
+            chkEl.parentNode.style.opacity = '0.5';
+            chkEl.disabled = true;
+            chkEl.parentNode.insertAdjacentHTML('beforeend', ' <span style="color:#28a745;">✓ atualizada</span>');
+          } else {
+            falhas++;
+          }
+          pendentes--;
+          if (pendentes === 0) _varreduraFinalizarUpdate(sucessos, falhas, btn);
+        })
+        .withFailureHandler(function() {
+          falhas++;
+          pendentes--;
+          if (pendentes === 0) _varreduraFinalizarUpdate(sucessos, falhas, btn);
+        })
+        [fn](dados);
+    })(idx, chks[i]);
+  }
+}
+
+function _varreduraFinalizarUpdate(sucessos, falhas, btn) {
+  var msg = '✓ ' + sucessos + ' venda(s) atualizada(s).';
+  if (falhas > 0) msg += ' · ✗ ' + falhas + ' falha(s).';
+  mostrarToast(msg, falhas > 0 ? 'warning' : 'success');
+  if (btn) { btn.disabled = false; btn.textContent = '↑ Atualizar selecionadas no DharmaPro'; }
+  // Atualiza a Lista de Vendas pra refletir mudanças
+  try { _limparCacheELoadarLista && _limparCacheELoadarLista(); } catch(e) {}
 }
 
 function _varreduraAtualizarUI() {
