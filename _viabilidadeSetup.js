@@ -20,9 +20,18 @@
 //  a constante abaixo.
 // ══════════════════════════════════════════════════════════════════════════════
 
-// EXTENSION_ID da extensao-dharmapro carregada em chrome://extensions na máquina
-// do Ricardo (G:\Meu Drive\Projetos Claude\dharmapro-crm\extensao-dharmapro\).
-var _VIABILIDADE_EXTENSION_ID_HARDCODED = 'mikdfeacogcdcamoekipafammdfhlmcb';
+// EXTENSION_ID(s) da extensao-dharmapro. Extensões "unpacked" geram ID por path
+// local — então cada máquina tem ID diferente. Para o health check funcionar em
+// QUALQUER máquina, gravamos a lista completa (separada por vírgula). O frontend
+// tenta cada um na Via A (chrome.runtime.sendMessage direto).
+//
+// IDs conhecidos:
+//   - Ricardo (G:\Meu Drive\Projetos Claude\dharmapro-crm\extensao-dharmapro\): mikdfeacogcdcamoekipafammdfhlmcb
+//   - BKO Joysse (Tom Sat \\Dados\\Sistemas\\dharmapro\\extensao-dharmapro\\): bocahgafjihhbojfeeikafglbonpmdff
+//
+// Adicionar novos IDs separando por vírgula. O 1º da lista é o "primário"
+// (back-compat com callers que leem só `extensionId` singular).
+var _VIABILIDADE_EXTENSION_ID_HARDCODED = 'mikdfeacogcdcamoekipafammdfhlmcb,bocahgafjihhbojfeeikafglbonpmdff';
 
 // ─── ONE-SHOT MASTER ─────────────────────────────────────────────────────────
 function _setupViabilidadeCompleto() {
@@ -121,16 +130,27 @@ function _desligarViabilidade() {
 }
 
 // Sem parâmetros — pega da constante no topo do arquivo (Editor Apps Script
-// não passa args via dropdown "Executar"). Para mudar o ID: editar a const
+// não passa args via dropdown "Executar"). Para mudar o(s) ID(s): editar a const
 // _VIABILIDADE_EXTENSION_ID_HARDCODED no topo deste arquivo + clasp push.
+//
+// Aceita 1 ID OU lista separada por vírgula. Cada ID é validado individualmente
+// no formato 32 chars a-p (formato canônico Chrome).
 function _setViabilidadeExtensionId() {
   var s = String(_VIABILIDADE_EXTENSION_ID_HARDCODED || '').trim();
-  if (!/^[a-p]{32}$/.test(s)) {
-    Logger.log('AVISO: ID "' + s + '" não bate com formato esperado (32 chars a-p). Gravando mesmo assim.');
+  var ids = s.split(/[,;\s]+/).map(function(x){ return x.trim(); }).filter(Boolean);
+  if (!ids.length) {
+    Logger.log('ERRO: nenhum ID em _VIABILIDADE_EXTENSION_ID_HARDCODED.');
+    return { ok: false, motivo: 'lista vazia' };
   }
-  PropertiesService.getScriptProperties().setProperty('VIABILIDADE_EXTENSION_ID', s);
-  Logger.log('OK — VIABILIDADE_EXTENSION_ID gravado: ' + s);
-  return { ok: true, extensionId: s };
+  ids.forEach(function(id) {
+    if (!/^[a-p]{32}$/.test(id)) {
+      Logger.log('AVISO: ID "' + id + '" não bate com formato esperado (32 chars a-p). Gravando mesmo assim.');
+    }
+  });
+  var valor = ids.join(',');
+  PropertiesService.getScriptProperties().setProperty('VIABILIDADE_EXTENSION_ID', valor);
+  Logger.log('OK — VIABILIDADE_EXTENSION_ID gravado com ' + ids.length + ' ID(s): ' + valor);
+  return { ok: true, extensionIds: ids };
 }
 
 function _checarConfigViabilidade() {
@@ -140,9 +160,14 @@ function _checarConfigViabilidade() {
   var key   = props.getProperty('CLAUDE_API_KEY');
   var sheet = null;
   try { sheet = _getSpreadsheet_().getSheetByName('Consultas Viabilidade'); } catch (e) {}
+  var idsResumo = '(não setado)';
+  if (extId) {
+    var lista = extId.split(/[,;\s]+/).map(function(s){return s.trim();}).filter(Boolean);
+    idsResumo = lista.length + ' ID(s): ' + lista.map(function(id){ return id.substr(0,8) + '...'; }).join(', ');
+  }
   var info = {
     VIABILIDADE_ATIVO:        ativo || '(não setado)',
-    VIABILIDADE_EXTENSION_ID: extId ? (extId.substr(0,8) + '... (' + extId.length + ' chars)') : '(não setado)',
+    VIABILIDADE_EXTENSION_ID: idsResumo,
     CLAUDE_API_KEY:           key ? '✓ presente' : '✗ AUSENTE (cleanup IA não vai funcionar)',
     aba_consultas_viabilidade: sheet ? '✓ existe (id ' + sheet.getSheetId() + ', ' + sheet.getLastRow() + ' linhas)' : '✗ AUSENTE — rodar _criarAbaViabilidade()'
   };

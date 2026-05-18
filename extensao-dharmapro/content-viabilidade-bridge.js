@@ -24,7 +24,23 @@
 
   try { console.log('[DHP-VIA-BRIDGE] instalado em', window.location.href); } catch (e) {}
 
+  // IDs já vistos (request OU response) — evita reprocessar / loop entre frames
+  var visto = Object.create(null);
+  function jaViu(id, kind) {
+    var key = kind + ':' + id;
+    if (visto[key]) return true;
+    visto[key] = Date.now();
+    // GC simples
+    var keys = Object.keys(visto);
+    if (keys.length > 200) {
+      var corte = Date.now() - 60000;
+      for (var i = 0; i < keys.length; i++) if (visto[keys[i]] < corte) delete visto[keys[i]];
+    }
+    return false;
+  }
+
   function processar(id, payload, via) {
+    if (jaViu(id, 'req')) return;
     try { console.log('[DHP-VIA-BRIDGE] request id=' + id + ' via=' + via + ' action=' + (payload && payload.action)); } catch (e) {}
     try {
       chrome.runtime.sendMessage(payload, function (resp) {
@@ -47,21 +63,50 @@
     }
   }
 
+  // Envia o envelope pra TODOS os frames descendentes a partir de window.top.
+  // Cada bridge instalado em outro frame irá disparar CustomEvent local ao
+  // receber kind:'response' — isso garante que o frame do CRM (que pode não
+  // ser o frame onde a request foi atendida) também veja a resposta.
+  function blastEntreFrames(envelope) {
+    var visitados = [];
+    function blast(w) {
+      if (!w) return;
+      for (var i = 0; i < visitados.length; i++) if (visitados[i] === w) return;
+      visitados.push(w);
+      try { w.postMessage(envelope, '*'); } catch (e) {}
+      try {
+        var fs = w.frames;
+        for (var j = 0; j < fs.length; j++) blast(fs[j]);
+      } catch (e) {}
+    }
+    try { blast(window.top); } catch (e) { blast(window); }
+  }
+
   function responder(id, payload) {
-    // Responde pelas DUAS vias — a página remove ambos os listeners no 1º que chegar
-    try {
-      window.postMessage({ __dharmaViabilidade: true, kind: 'response', id: id, payload: payload }, '*');
-    } catch (e) {}
+    var envelope = { __dharmaViabilidade: true, kind: 'response', id: id, payload: payload };
+    // CustomEvent local: pega caso o CRM esteja no MESMO frame deste bridge
     try {
       document.dispatchEvent(new CustomEvent('dhp-via-res', { detail: { id: id, payload: payload } }));
     } catch (e) {}
+    // Broadcast cross-frame: alcança o frame do CRM mesmo que a request tenha
+    // sido atendida por outra instância do bridge num frame irmão/parent
+    blastEntreFrames(envelope);
   }
 
-  // Via 1: window.postMessage
+  // Via 1: window.postMessage — request OU response vinda de outro bridge
   window.addEventListener('message', function (ev) {
     var d = ev && ev.data;
-    if (!d || d.__dharmaViabilidade !== true || d.kind !== 'request') return;
-    processar(d.id, d.payload || {}, 'postMessage');
+    if (!d || d.__dharmaViabilidade !== true) return;
+    if (d.kind === 'request') {
+      processar(d.id, d.payload || {}, 'postMessage');
+    } else if (d.kind === 'response') {
+      // Resposta veio de outro bridge (frame irmão/parent) — re-dispara CustomEvent
+      // local pra que o CRM no MESMO frame deste bridge possa capturar
+      if (jaViu(d.id, 'res')) return;
+      try {
+        document.dispatchEvent(new CustomEvent('dhp-via-res', { detail: { id: d.id, payload: d.payload } }));
+      } catch (e) {}
+    }
   });
 
   // Via 2: CustomEvent no document (escapa do dispatcher do HtmlService que dropa postMessage)

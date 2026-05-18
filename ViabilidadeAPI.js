@@ -17,7 +17,11 @@
 // ── Constantes ────────────────────────────────────────────────────────────────
 var VIABILIDADE_ABA            = 'Consultas Viabilidade';
 var VIABILIDADE_PROP_ATIVO     = 'VIABILIDADE_ATIVO';            // '1' = on; default '0'
-var VIABILIDADE_PROP_EXT_ID    = 'VIABILIDADE_EXTENSION_ID';     // ID da extensão Chrome (v2.2.0+)
+var VIABILIDADE_PROP_EXT_ID    = 'VIABILIDADE_EXTENSION_ID';     // ID(s) da extensão Chrome (v2.2.0+)
+                                                                  // Pode ser 1 ID OU vários separados por vírgula —
+                                                                  // necessário porque extensões "unpacked" geram ID
+                                                                  // por path local (diferente em cada máquina).
+                                                                  // Ex.: "abcde...,bocahgafjihhbojfeeikafglbonpmdff"
 var VIABILIDADE_MODEL_CLAUDE   = 'claude-haiku-4-5-20251001';
 var VIABILIDADE_CLEANUP_TIMEOUT = 8000;
 var VIABILIDADE_CLEANUP_MAX_HORA = 30;                           // throttle por usuario por hora
@@ -38,11 +42,15 @@ function getViabilidadeHtml() {
 // ── 2. Config (consumida pelo frontend no boot) ───────────────────────────────
 function getViabilidadeConfig(usuario) {
   var props = PropertiesService.getScriptProperties();
+  var raw = props.getProperty(VIABILIDADE_PROP_EXT_ID) || '';
+  // Aceita 1 ID OU lista separada por vírgula/ponto-e-vírgula
+  var ids = raw.split(/[,;\s]+/).map(function(s){ return s.trim(); }).filter(Boolean);
   return {
-    ok:          true,
-    ativo:       props.getProperty(VIABILIDADE_PROP_ATIVO) === '1',
-    extensionId: props.getProperty(VIABILIDADE_PROP_EXT_ID) || '',
-    usuario:     String(usuario || 'anon')
+    ok:           true,
+    ativo:        props.getProperty(VIABILIDADE_PROP_ATIVO) === '1',
+    extensionId:  ids[0] || '',  // back-compat: callers antigos leem só o primeiro
+    extensionIds: ids,           // lista completa pro health check (Via A tenta cada)
+    usuario:      String(usuario || 'anon')
   };
 }
 

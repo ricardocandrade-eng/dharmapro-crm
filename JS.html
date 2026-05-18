@@ -1536,7 +1536,9 @@ function _consultarViabilidadeVenda(index) {
 
 var _healthState = { vpn: 'desconhecido', ng: 'desconhecido', adapter: 'desconhecido', timestamp: 0 };
 var _healthPollingTimer = null;
-var _healthExtensionId = null; // preenchido via getViabilidadeConfig (mesma extensão)
+var _healthExtensionId  = null; // back-compat: ID primário (1ª entrada de _healthExtensionIds)
+var _healthExtensionIds = [];   // lista completa; Via A tenta cada (necessário p/ extensões unpacked
+                                 // — Chrome gera ID por path local, então BKO e Ricardo têm IDs distintos)
 
 function _verificarConexoes(manual) {
   var dots = {
@@ -1626,19 +1628,28 @@ function _healthSendMsg(msg, cb) {
   }
   var to = setTimeout(function() {
     finish({ ok: false, erro: 'EXTENSAO_NAO_DISPONIVEL' });
-  }, 7000);
+  }, 12000);
   window.addEventListener('message', msgHandler);
   document.addEventListener('dhp-via-res', docHandler);
 
   var envelope = { __dharmaViabilidade: true, kind: 'request', id: id, payload: msg };
 
-  // Via A: chrome.runtime.sendMessage direto (precisa de _healthExtensionId)
+  // Via A: chrome.runtime.sendMessage direto — tenta CADA ID conhecido
+  // (extensões unpacked geram ID por path local → Joysse e Ricardo têm IDs distintos;
+  //  o backend devolve a lista, o frontend tenta todas em paralelo)
   try {
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage && _healthExtensionId) {
-      chrome.runtime.sendMessage(_healthExtensionId, msg, function(resp) {
-        var err = chrome.runtime && chrome.runtime.lastError;
-        if (err) return; // deixa as outras vias responderem
-        finish(resp);
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+      var ids = (_healthExtensionIds && _healthExtensionIds.length)
+        ? _healthExtensionIds
+        : (_healthExtensionId ? [_healthExtensionId] : []);
+      ids.forEach(function(extId) {
+        try {
+          chrome.runtime.sendMessage(extId, msg, function(resp) {
+            var err = chrome.runtime && chrome.runtime.lastError;
+            if (err) return; // deixa as outras vias / outros IDs responderem
+            finish(resp);
+          });
+        } catch (e) {}
       });
     }
   } catch (e) {}
@@ -1658,11 +1669,12 @@ function _healthSendMsg(msg, cb) {
 function _iniciarPollingHealth() {
   if (_healthPollingTimer) clearInterval(_healthPollingTimer);
 
-  // Pega o EXTENSION_ID via getViabilidadeConfig (já existe no backend)
+  // Pega o EXTENSION_ID(s) via getViabilidadeConfig (já existe no backend)
   try {
     google.script.run
       .withSuccessHandler(function(cfg) {
-        if (cfg && cfg.extensionId) _healthExtensionId = cfg.extensionId;
+        if (cfg && cfg.extensionId)  _healthExtensionId  = cfg.extensionId;
+        if (cfg && cfg.extensionIds) _healthExtensionIds = cfg.extensionIds;
         _verificarConexoes(false);
         _healthPollingTimer = setInterval(function() { _verificarConexoes(false); }, 60000);
       })
