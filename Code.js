@@ -744,6 +744,18 @@ function getVendasParaVarredura(filtros) {
     var statuses = (filtros.statuses && filtros.statuses.length) ? filtros.statuses.map(String) : ['2'];
     var max      = Math.max(1, Math.min(500, Number(filtros.max) || 100));
 
+    // Mapping de filtros UI (chave curta) → status exato no Sheets.
+    // Necessário porque .charAt(0) === '2' pegava tanto '2- Aguardando Instalação'
+    // quanto '2- Aguardando Entrega' (este último é parte Móvel de combos, irrelevante
+    // pra consulta de instalação no NG/Adapter).
+    var _STATUS_VARREDURA_MAP = {
+      '2': '2- Aguardando Instalação',
+      '3': '3 - Finalizada/Instalada'
+    };
+    var statusesExatos = statuses.map(function(s) {
+      return _STATUS_VARREDURA_MAP[s] || s;
+    });
+
     var sheet = _getSheet();
     var c = CONFIG.COLUNAS;
     var ultima = sheet.getLastRow();
@@ -762,7 +774,8 @@ function getVendasParaVarredura(filtros) {
       if (cpfDigitos.length !== 11) continue;
 
       var statusStr = String(row[c.STATUS] || '').trim();
-      if (statuses.indexOf(statusStr.charAt(0)) === -1) continue;
+      // Match exato no nome do status — não mais por primeiro caractere
+      if (statusesExatos.indexOf(statusStr) === -1) continue;
 
       var sistemaRaw = String(row[c.SISTEMA] || '').trim().toUpperCase();
       // Normaliza: qualquer coisa que comece com "NG" vira NG; senão Adapter
