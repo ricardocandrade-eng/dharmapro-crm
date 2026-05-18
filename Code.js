@@ -2687,6 +2687,11 @@ function getOfertasCidade(cidade) {
     // (comportamento da Rev3, mantido como segurança até o JSON ser atualizado).
     var colIdxRec = cabecalho.indexOf(_normalizarTexto(segmentacao + '_REC'));
 
+    // PUBLICAR (col 8): planos com PUBLICAR=false ficam fora do Mapa de Ofertas
+    // (ex: planos Móvel internos, Oferta Verão descontinuada na Rev7). Compat:
+    // se a coluna não existir (Rev1 e anteriores), não aplica filtro.
+    var colPublicar = cabecalho.indexOf(_normalizarTexto('PUBLICAR'));
+
     // Monta grupos de categorias com seus planos (boleto + recorrente lado a lado)
     var grupos = [];
     var catAtual = null;
@@ -2703,6 +2708,16 @@ function getOfertasCidade(cidade) {
       var cat       = String(dadosTab[ti][1] || '').trim();
       var valRaw    = dadosTab[ti][colIdx];
       if (!nomePlano || valRaw === '' || valRaw === null || valRaw === 0) continue;
+
+      // Pular planos com PUBLICAR=false (mantém linha no JSON p/ histórico mas
+      // não exibe no Mapa de Ofertas). Rev7 (17/05/2026). Guard: ignorar para
+      // Móvel — esses planos têm PUBLICAR=false historicamente (semântica de
+      // "não publicar na LP"), mas devem aparecer no Mapa do CRM.
+      var ehMovelCat = cat.toUpperCase().indexOf('MOVEL') > -1 || cat.toUpperCase().indexOf('MÓVEL') > -1;
+      if (!ehMovelCat && colPublicar > -1) {
+        var pub = dadosTab[ti][colPublicar];
+        if (pub !== true && pub !== 'SIM') continue;
+      }
 
       var valBol = _parseValor_(valRaw);
       if (valBol === 0) continue;
@@ -3020,6 +3035,7 @@ function getPlanosPorCidadeProduto(cidade, produto) {
     // se o JSON ainda for Rev4 (sem essa coluna) — comportamento idêntico ao
     // que estava em produção antes do Rev5, preservando compatibilidade.
     var colProdutoTipo = cabecalho.indexOf(_normalizarTexto('PRODUTO_TIPO'));
+    var colPublicar    = cabecalho.indexOf(_normalizarTexto('PUBLICAR'));
     var produtoNorm    = String(produto || '').toUpperCase().trim();
 
     // Mapa produto-UI → PRODUTO_TIPO esperado no JSON
@@ -3044,6 +3060,17 @@ function getPlanosPorCidadeProduto(cidade, produto) {
       var cat    = String(dadosTab[ti][1]).trim();
       var valRaw = dadosTab[ti][colIdx];
       if (!nome || valRaw === '' || valRaw === null) continue;
+
+      // Pular planos com PUBLICAR=false (descontinuados — não aparecem no
+      // dropdown da Nova Venda). Rev7 (17/05/2026). getValorPlano continua
+      // achando o plano por nome — edição de venda histórica funciona normal.
+      // Guard: aplicar SOMENTE para Fibra (FIBRA_ALONE/COMBO). Planos Móvel
+      // têm PUBLICAR=false historicamente (semântica "não publicar na LP")
+      // mas devem aparecer no dropdown quando o operador escolhe Móvel.
+      if (colPublicar > -1 && tipoAlvo && tipoAlvo.indexOf('FIBRA') === 0) {
+        var pub = dadosTab[ti][colPublicar];
+        if (pub !== true && pub !== 'SIM') continue;
+      }
 
       if (colProdutoTipo > -1 && tipoAlvo) {
         // ── Filtro determinístico (Rev5+) ─────────────────────────────────
