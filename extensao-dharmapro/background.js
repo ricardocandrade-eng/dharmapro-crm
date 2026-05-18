@@ -122,6 +122,92 @@ async function consultarAdapter(cpf, user, pass) {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+//  Health Check — diagnóstico de conexões (VPN/NG/Adapter)
+//  Permite ao CRM detectar em tempo real se o usuário tem:
+//    - VPN conectada (alcança domínios internos da Vero)
+//    - Sessão NG ativa (Wing logado)
+//    - Sessão Adapter ativa (REST autenticado)
+//  Resultado: ponto verde/amarelo/vermelho no header do CRM.
+//  Arquitetura extensível — fácil adicionar PinG no futuro (mesmo padrão).
+// ══════════════════════════════════════════════════════════════════════════════
+async function realizarHealthCheck() {
+  var r = {
+    ok: true,
+    timestamp: Date.now(),
+    vpn:     'desconhecido',   // 'ok' | 'fora' | 'desconhecido'
+    ng:      'desconhecido',   // 'logado' | 'sem_sessao' | 'fora_de_alcance' | 'desconhecido'
+    adapter: 'desconhecido'    // idem
+  };
+
+  // ── NG check ──────────────────────────────────────────────────────────────
+  // Wing não tem rota REST clara pra "estou logado?". Heurística: fetch na raiz
+  // e analisa HTTP status + redirecionamento.
+  // - DNS falha / timeout → VPN fora
+  // - 200 + corpo do app → logado (raiz já redireciona pro app se autenticado)
+  // - 200 + corpo de login OU redirect 30x pra login → sem sessão
+  try {
+    var ctrl1 = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var to1 = ctrl1 ? setTimeout(function() { ctrl1.abort(); }, 5000) : null;
+    var ngResp = await fetch('https://ng.vero.objective.com.br/', {
+      method: 'GET',
+      credentials: 'include',
+      redirect: 'follow',
+      signal: ctrl1 ? ctrl1.signal : undefined
+    });
+    if (to1) clearTimeout(to1);
+    r.vpn = 'ok'; // alcançou — VPN está ativa
+    if (ngResp.status >= 200 && ngResp.status < 400) {
+      // Análise heurística do conteúdo
+      var ngHtml = '';
+      try { ngHtml = await ngResp.text(); } catch (e) {}
+      // Login screen geralmente tem input type=password ou "Iniciar sessão"
+      if (/type=["']password["']|Iniciar\s+sess/i.test(ngHtml) && !/Atend|Atendimento|menuManager/i.test(ngHtml)) {
+        r.ng = 'sem_sessao';
+      } else {
+        r.ng = 'logado';
+      }
+    } else if (ngResp.status === 401 || ngResp.status === 403) {
+      r.ng = 'sem_sessao';
+    } else {
+      r.ng = 'sem_sessao';
+    }
+  } catch (e) {
+    r.vpn = 'fora';
+    r.ng = 'fora_de_alcance';
+  }
+
+  // ── Adapter check ─────────────────────────────────────────────────────────
+  // Adapter é REST limpo — endpoint datatables retorna 200 se logado, 401/403 se não.
+  // Body mínimo pra não puxar dados desnecessários (length: 1).
+  try {
+    var ctrl2 = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var to2 = ctrl2 ? setTimeout(function() { ctrl2.abort(); }, 5000) : null;
+    var adapResp = await fetch('https://adapter.veronet.com.br/adapter/server/gateway/comercial/clientes/novo/datatables', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ draw: 1, start: 0, length: 1 }),
+      signal: ctrl2 ? ctrl2.signal : undefined
+    });
+    if (to2) clearTimeout(to2);
+    if (r.vpn !== 'ok') r.vpn = 'ok'; // alcançou Adapter — VPN OK mesmo se NG falhou por outro motivo
+    if (adapResp.status === 200) {
+      r.adapter = 'logado';
+    } else if (adapResp.status === 401 || adapResp.status === 403) {
+      r.adapter = 'sem_sessao';
+    } else {
+      r.adapter = 'sem_sessao';
+    }
+  } catch (e) {
+    // Só marca VPN fora se NG também falhou (evita falso negativo em caso de Adapter intermitente)
+    if (r.vpn === 'desconhecido') r.vpn = 'fora';
+    r.adapter = 'fora_de_alcance';
+  }
+
+  return r;
+}
+
 // Escuta mensagens INTERNAS (content_scripts da extensão)
 chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   try { console.log('[DHP-BG] onMessage action=' + (msg && msg.action) + ' type=' + (msg && msg.type)); } catch (e) {}
@@ -134,6 +220,14 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   // Ping ready notification do content-ping (apenas log; não responde)
   if (msg && msg.from === 'ping' && msg.kind === 'ready') {
     return false;
+  }
+
+  // Health check — ação `health.check`
+  if (msg && msg.action === 'health.check') {
+    realizarHealthCheck().then(sendResponse, function(err) {
+      sendResponse({ ok: false, erro: 'HEALTH_CHECK_ERRO', msg: String(err && err.message || err) });
+    });
+    return true;
   }
 
   // Roteamento Viabilidade (PinG) — ações `viabilidade.*`
@@ -155,6 +249,14 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
 chrome.runtime.onMessageExternal.addListener(function(msg, sender, sendResponse) {
   try { console.log('[DHP-BG] onMessageExternal action=' + (msg && msg.action) + ' origem=' + (sender && sender.origin)); } catch (e) {}
 
+  // Health check externo
+  if (msg && msg.action === 'health.check') {
+    realizarHealthCheck().then(sendResponse, function(err) {
+      sendResponse({ ok: false, erro: 'HEALTH_CHECK_ERRO', msg: String(err && err.message || err) });
+    });
+    return true;
+  }
+
   if (msg && typeof msg.action === 'string' && msg.action.indexOf('viabilidade.') === 0) {
     handleViabilidade(msg, sender).then(function(resp) {
       try { console.log('[DHP-BG] respExternal action=' + msg.action + ' resp=', resp); } catch (e) {}
@@ -165,7 +267,7 @@ chrome.runtime.onMessageExternal.addListener(function(msg, sender, sendResponse)
     });
     return true;
   }
-  // Ignora mensagens externas que não são viabilidade.*
+  // Ignora mensagens externas que não são health.* ou viabilidade.*
   return false;
 });
 

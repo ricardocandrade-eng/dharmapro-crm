@@ -1521,6 +1521,163 @@ function _consultarViabilidadeVenda(index) {
   }, 120000);
 }
 
+// ─── HEALTH CHECK — VPN / NG / Adapter ────────────────────────────────────
+// Widget no header indica em tempo real o estado das conexões dependentes
+// pra consulta NG/Adapter funcionar:
+//   - VPN conectada (alcança domínios internos da Vero)
+//   - NG logado (sessão Wing ativa)
+//   - Adapter logado (sessão REST ativa)
+// Estados visuais: verde (ok), amarelo (alcança mas sem sessão), vermelho (sem
+// alcance/extensão off), azul pulsante (consultando).
+//
+// Arquitetura: usa o bridge da extensão DharmaPro (mesmo padrão tripla via da
+// Viabilidade — A: chrome.runtime.sendMessage, B: CustomEvent, C: postMessage).
+// O background.js responde a action='health.check' chamando fetch nos domínios.
+
+var _healthState = { vpn: 'desconhecido', ng: 'desconhecido', adapter: 'desconhecido', timestamp: 0 };
+var _healthPollingTimer = null;
+var _healthExtensionId = null; // preenchido via getViabilidadeConfig (mesma extensão)
+
+function _verificarConexoes(manual) {
+  var dots = {
+    vpn: document.getElementById('healthDotVpn'),
+    ng: document.getElementById('healthDotNg'),
+    adapter: document.getElementById('healthDotAdapter')
+  };
+  if (!dots.vpn) return; // widget não existe ainda
+
+  // Pinta tudo como "verificando" (azul pulsante)
+  ['vpn', 'ng', 'adapter'].forEach(function(k) {
+    var d = dots[k];
+    if (d) d.className = 'health-dot health-dot--check';
+  });
+
+  _healthSendMsg({ action: 'health.check' }, function(resp) {
+    if (!resp || !resp.ok && resp.erro) {
+      // Extensão off ou erro — marca tudo vermelho
+      _healthState = { vpn: 'fora', ng: 'fora_de_alcance', adapter: 'fora_de_alcance', timestamp: Date.now(), motivo: resp && resp.erro };
+    } else {
+      _healthState = resp;
+    }
+    _atualizarHealthWidget();
+    if (manual) {
+      var status = _healthResumoTextual();
+      mostrarToast('Status conexões: ' + status, _healthOk() ? 'success' : 'warning');
+    }
+  });
+}
+
+function _healthOk() {
+  return _healthState.vpn === 'ok' && _healthState.ng === 'logado' && _healthState.adapter === 'logado';
+}
+
+function _healthResumoTextual() {
+  function lbl(v) {
+    if (v === 'ok' || v === 'logado') return '✓';
+    if (v === 'sem_sessao')            return '⚠ sem sessão';
+    if (v === 'fora_de_alcance' || v === 'fora') return '✗ fora';
+    return '?';
+  }
+  return 'VPN ' + lbl(_healthState.vpn) + ' · NG ' + lbl(_healthState.ng) + ' · Adapter ' + lbl(_healthState.adapter);
+}
+
+function _atualizarHealthWidget() {
+  function pintaDot(elId, valor) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    var classe = 'health-dot';
+    if (valor === 'ok' || valor === 'logado')      classe += ' health-dot--ok';
+    else if (valor === 'sem_sessao')                classe += ' health-dot--warn';
+    else if (valor === 'fora_de_alcance' || valor === 'fora') classe += ' health-dot--erro';
+    el.className = classe;
+    el.title = el.title.split(':')[0] + ': ' + valor;
+  }
+  pintaDot('healthDotVpn',     _healthState.vpn);
+  pintaDot('healthDotNg',      _healthState.ng);
+  pintaDot('healthDotAdapter', _healthState.adapter);
+
+  // Tooltip do widget inteiro
+  var w = document.getElementById('healthWidget');
+  if (w) w.title = _healthResumoTextual() + ' — clique pra atualizar';
+}
+
+// Envia mensagem pra extensão via tripla via (mesma estratégia do Viabilidade.html).
+// Returns 'ok' se algum caminho respondeu em ≤7s, ou 'erro' se nenhum.
+function _healthSendMsg(msg, cb) {
+  var id = 'h-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  var done = false;
+  function finish(resp) {
+    if (done) return;
+    done = true;
+    window.removeEventListener('message', msgHandler);
+    document.removeEventListener('dhp-via-res', docHandler);
+    clearTimeout(to);
+    cb(resp);
+  }
+  function msgHandler(ev) {
+    var d = ev && ev.data;
+    if (!d || d.__dharmaViabilidade !== true || d.kind !== 'response' || d.id !== id) return;
+    finish(d.payload);
+  }
+  function docHandler(ev) {
+    var d = ev && ev.detail;
+    if (!d || d.id !== id) return;
+    finish(d.payload);
+  }
+  var to = setTimeout(function() {
+    finish({ ok: false, erro: 'EXTENSAO_NAO_DISPONIVEL' });
+  }, 7000);
+  window.addEventListener('message', msgHandler);
+  document.addEventListener('dhp-via-res', docHandler);
+
+  var envelope = { __dharmaViabilidade: true, kind: 'request', id: id, payload: msg };
+
+  // Via A: chrome.runtime.sendMessage direto (precisa de _healthExtensionId)
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage && _healthExtensionId) {
+      chrome.runtime.sendMessage(_healthExtensionId, msg, function(resp) {
+        var err = chrome.runtime && chrome.runtime.lastError;
+        if (err) return; // deixa as outras vias responderem
+        finish(resp);
+      });
+    }
+  } catch (e) {}
+
+  // Via B: CustomEvent
+  try { document.dispatchEvent(new CustomEvent('dhp-via-req', { detail: { id: id, payload: msg } })); } catch (e) {}
+
+  // Via C: postMessage (self/parent/top)
+  var alvos = [];
+  try { alvos.push(window); } catch (e) {}
+  try { if (window.parent && window.parent !== window) alvos.push(window.parent); } catch (e) {}
+  try { if (window.top && window.top !== window && window.top !== window.parent) alvos.push(window.top); } catch (e) {}
+  alvos.forEach(function(w) { try { w.postMessage(envelope, '*'); } catch (e) {} });
+}
+
+// Polling: a cada 60s checa as conexões em background (sem toast)
+function _iniciarPollingHealth() {
+  if (_healthPollingTimer) clearInterval(_healthPollingTimer);
+
+  // Pega o EXTENSION_ID via getViabilidadeConfig (já existe no backend)
+  try {
+    google.script.run
+      .withSuccessHandler(function(cfg) {
+        if (cfg && cfg.extensionId) _healthExtensionId = cfg.extensionId;
+        _verificarConexoes(false);
+        _healthPollingTimer = setInterval(function() { _verificarConexoes(false); }, 60000);
+      })
+      .withFailureHandler(function() {
+        // Mesmo sem extensionId, ainda dá pra tentar as vias B e C
+        _verificarConexoes(false);
+        _healthPollingTimer = setInterval(function() { _verificarConexoes(false); }, 60000);
+      })
+      .getViabilidadeConfig(AppState.get('usuario') || '');
+  } catch (e) {
+    _verificarConexoes(false);
+  }
+}
+
+
 // ─── INSTRUMENTAÇÃO DE CONSULTAS NG/ADAPTER (Fase 1.0) ────────────────────
 // Helpers compartilhados pelas funções _consultarNGVenda e _consultarAdapterVenda.
 // Mantém telemetria, categorização de erros e mensagens humanas em um único lugar.
@@ -1583,6 +1740,16 @@ function _consultarNGVenda(index, _tentativa) {
   _tentativa = _tentativa || 1;
   var v = _paginaAtual[index];
   if (!v || !v.cpf) { mostrarToast('Venda sem CPF.', 'error'); return; }
+
+  // Aviso prévio se NG ou VPN estão off (health check). Só na 1ª tentativa
+  // (retry deve seguir mesmo com o aviso). Não bloqueia — só informa.
+  if (_tentativa === 1 && _healthState.timestamp > 0 && (Date.now() - _healthState.timestamp < 120000)) {
+    if (_healthState.vpn === 'fora') {
+      mostrarToast('⚠ VPN parece desconectada. Conecte a VPN antes de consultar.', 'warning');
+    } else if (_healthState.ng === 'sem_sessao') {
+      mostrarToast('⚠ NG sem sessão ativa. Vou tentar mesmo assim (talvez peça login).', 'warning');
+    }
+  }
 
   // Validação prévia: CPF tem que ser 11 dígitos (rejeita CNPJ, lixo, etc)
   var _cpfDigitos = String(v.cpf).replace(/\D/g, '');
@@ -1879,6 +2046,15 @@ function _consultarAdapterVenda(index, _tentativa) {
   _tentativa = _tentativa || 1;
   var v = _paginaAtual[index];
   if (!v || !v.cpf) { mostrarToast('Venda sem CPF.', 'error'); return; }
+
+  // Aviso prévio se Adapter ou VPN estão off (health check)
+  if (_tentativa === 1 && _healthState.timestamp > 0 && (Date.now() - _healthState.timestamp < 120000)) {
+    if (_healthState.vpn === 'fora') {
+      mostrarToast('⚠ VPN parece desconectada. Conecte a VPN antes de consultar.', 'warning');
+    } else if (_healthState.adapter === 'sem_sessao') {
+      mostrarToast('⚠ Adapter sem sessão ativa. Vou tentar mesmo assim (talvez peça login).', 'warning');
+    }
+  }
 
   // Validação prévia: CPF tem que ser 11 dígitos (rejeita CNPJ, lixo, etc)
   var _cpfDigitos = String(v.cpf).replace(/\D/g, '');
@@ -4609,6 +4785,9 @@ function fazerLogin() {
 
         // Badge campanha WA Pessoal ativa (bolinha amarela pulsando) + polling 60s
         _waPessoalIniciarPollingBadge();
+
+        // Health Check: pontinhos VPN/NG/Adapter no header + polling 60s
+        try { _iniciarPollingHealth(); } catch (e) { console.warn('Health check init falhou:', e); }
 
         // ─── Salva sessão para auto-login no F5 (nunca armazena a senha) ──
         try {

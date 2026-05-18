@@ -1,12 +1,14 @@
 {
   "manifest_version": 3,
   "name": "DharmaPro Connector",
-  "version": "2.2.0",
-  "description": "Integra DharmaPro CRM com Vero Adapter, NG Billing e PinG (viabilidade)",
+  "version": "2.3.0",
+  "description": "Integra DharmaPro CRM com Vero Adapter, NG Billing e PinG (viabilidade) + health check",
   "permissions": ["storage", "tabs"],
   "host_permissions": [
     "https://gateway.pi.ngtools.com.br/*",
-    "https://ping.veronet.com.br/*"
+    "https://ping.veronet.com.br/*",
+    "https://ng.vero.objective.com.br/*",
+    "https://adapter.veronet.com.br/*"
   ],
   "externally_connectable": {
     "matches": [

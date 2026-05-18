@@ -122,6 +122,25 @@
 
     /* ── Sino de Notificações ── */
     .notif-bell-wrap { position: fixed; right: 24px; top: 7px; z-index: 300; flex-shrink: 0; }
+
+    /* ── Health Check Widget (VPN/NG/Adapter) ─────────────────────────── */
+    .health-widget {
+      position: fixed; right: 78px; top: 14px; z-index: 300;
+      display: flex; align-items: center; gap: 5px;
+      padding: 5px 9px; border-radius: 999px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      cursor: pointer; transition: background .15s, border-color .15s;
+    }
+    .health-widget:hover { background: rgba(255,255,255,0.05); border-color: var(--accent); }
+    .health-dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: #555; transition: background .25s, box-shadow .25s;
+    }
+    .health-dot--ok      { background: #28a745; box-shadow: 0 0 4px rgba(40,167,69,.6); }
+    .health-dot--warn    { background: #ffc107; box-shadow: 0 0 4px rgba(255,193,7,.6); }
+    .health-dot--erro    { background: #dc3545; box-shadow: 0 0 4px rgba(220,53,69,.6); }
+    .health-dot--check   { background: #4f9eff; animation: healthCheckPulse 1s ease-in-out infinite; }
+    @keyframes healthCheckPulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
     .notif-bell-btn {
       width: 34px; height: 34px; border-radius: 8px;
       background: var(--surface2); border: 1.5px solid var(--border);
@@ -2215,6 +2234,13 @@
         <div class="msg-sistema" id="msgSistema" style="display:none">
           <span class="msg-sistema-dot"></span>
           <span class="msg-sistema-texto" id="msgSistemaTexto"></span>
+        </div>
+
+        <!-- ── Health Check Widget: VPN / NG / Adapter ── -->
+        <div class="health-widget" id="healthWidget" onclick="_verificarConexoes(true)" title="Verificar conexões NG / Adapter / VPN — clique pra refresh">
+          <span class="health-dot health-dot--vpn" id="healthDotVpn" title="VPN"></span>
+          <span class="health-dot health-dot--ng" id="healthDotNg" title="NG"></span>
+          <span class="health-dot health-dot--adapter" id="healthDotAdapter" title="Adapter"></span>
         </div>
 
         <!-- ── Sino de Notificações ── -->
