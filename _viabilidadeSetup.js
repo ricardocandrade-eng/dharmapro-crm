@@ -20,18 +20,26 @@
 //  a constante abaixo.
 // ══════════════════════════════════════════════════════════════════════════════
 
-// EXTENSION_ID(s) da extensao-dharmapro. Extensões "unpacked" geram ID por path
-// local — então cada máquina tem ID diferente. Para o health check funcionar em
-// QUALQUER máquina, gravamos a lista completa (separada por vírgula). O frontend
-// tenta cada um na Via A (chrome.runtime.sendMessage direto).
+// EXTENSION_ID(s) da extensao-dharmapro. Lista CSV — o frontend tenta cada um
+// na Via A (chrome.runtime.sendMessage direto). A lista existe pra cobrir
+// dois cenários simultâneos durante a migração pro ID fixo:
 //
-// IDs conhecidos:
-//   - Ricardo (G:\Meu Drive\Projetos Claude\dharmapro-crm\extensao-dharmapro\): mikdfeacogcdcamoekipafammdfhlmcb
-//   - BKO Joysse (Tom Sat \\Dados\\Sistemas\\dharmapro\\extensao-dharmapro\\): bocahgafjihhbojfeeikafglbonpmdff
+//   1) FIXO (ideal, daqui pra frente) — manifest.json v2.4.0+ traz o campo
+//      `key` (chave pública RSA pareada com extensao-dharmapro/.keys/
+//      dharma_ext_key.pem). Chrome deriva ID determinístico em qualquer
+//      máquina, qualquer path: olchhnpoahdnojbddelggipmclaefelk
 //
-// Adicionar novos IDs separando por vírgula. O 1º da lista é o "primário"
-// (back-compat com callers que leem só `extensionId` singular).
-var _VIABILIDADE_EXTENSION_ID_HARDCODED = 'mikdfeacogcdcamoekipafammdfhlmcb,bocahgafjihhbojfeeikafglbonpmdff';
+//   2) UNPACKED legado (transitório) — máquinas que carregaram a v2.3.0
+//      ou anterior (sem `key`) têm IDs derivados do path local:
+//        - Ricardo (G:\Meu Drive\Projetos Claude\dharmapro-crm\extensao-dharmapro\):
+//            mikdfeacogcdcamoekipafammdfhlmcb
+//        - BKO Joysse (Tom Sat \\Dados\\Sistemas\\dharmapro\\extensao-dharmapro\\):
+//            bocahgafjihhbojfeeikafglbonpmdff
+//
+// Quando TODAS as BKOs migrarem pra v2.4.0+ (reinstalando a extensão),
+// removemos os IDs unpacked legados e deixamos só o fixo. O 1º da lista é
+// o "primário" (back-compat com callers que leem só `extensionId` singular).
+var _VIABILIDADE_EXTENSION_ID_HARDCODED = 'olchhnpoahdnojbddelggipmclaefelk,mikdfeacogcdcamoekipafammdfhlmcb,bocahgafjihhbojfeeikafglbonpmdff';
 
 // ─── ONE-SHOT MASTER ─────────────────────────────────────────────────────────
 function _setupViabilidadeCompleto() {

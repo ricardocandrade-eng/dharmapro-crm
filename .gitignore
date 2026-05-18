@@ -10,6 +10,11 @@ dharmapro-cfe49b568d24.json
 *-credentials.json
 *-service-account.json
 
+# Chave RSA privada da extensão Chrome (pareada com `key` pública do manifest)
+# A pública pode ir no manifest (deriva o ID), a privada FICA OFFLINE
+*.pem
+**/.keys/
+
 # Arquivos de trabalho / rascunhos
 prompt-refatoracao.md
 patch_registro_manual_leads.md

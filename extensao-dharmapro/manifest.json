@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "DharmaPro Connector",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Integra DharmaPro CRM com Vero Adapter, NG Billing e PinG (viabilidade) + health check",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6r5mfXGd7y6SU2xmIfFMmIDoQQNaR4KC5n9f7bsUPYcYXYOq8BOYb5nOSxjDOx10URjSimehlwI85i+0kSw4uN6gryQcIWYkgRGeuUxqosKM5rVtbLy82NkALFx74BijIJlcq+lIGSRbsrPHRMUO1ajpYcL9EQ/BsOIMNJ+D99Fgd/Vs+CBDfrxg0gPHRltTLxZgM5xdyuAphIPsWRTrj1F8X30YFcF1xc+N+AU9KD5hGiz15P4MpCmncGclgSaR6hXVTOYxpPXP97H7C8rTJceWglkFhrrDsSO5gye84L/Hyr/j2IaFK23u3o+TeSMYji3+e/5tecSGUm8x8VPtRwIDAQAB",
   "permissions": ["storage", "tabs"],
   "host_permissions": [
     "https://gateway.pi.ngtools.com.br/*",
