@@ -178,33 +178,42 @@ async function realizarHealthCheck() {
   }
 
   // ── Adapter check ─────────────────────────────────────────────────────────
-  // Adapter é REST limpo — endpoint datatables retorna 200 se logado, 401/403 se não.
-  // Body mínimo pra não puxar dados desnecessários (length: 1).
+  // Adapter é REST. Testa GET na raiz (mais leve que POST) e analisa retorno.
+  // Strategy: qualquer status NÃO-401/403 = logado (relaxado pra evitar falsos
+  // sem_sessao causados por SameSite cookies não enviados pelo service worker).
   try {
     var ctrl2 = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var to2 = ctrl2 ? setTimeout(function() { ctrl2.abort(); }, 5000) : null;
-    var adapResp = await fetch('https://adapter.veronet.com.br/adapter/server/gateway/comercial/clientes/novo/datatables', {
-      method: 'POST',
+    var adapResp = await fetch('https://adapter.veronet.com.br/adapter/', {
+      method: 'GET',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ draw: 1, start: 0, length: 1 }),
+      redirect: 'follow',
       signal: ctrl2 ? ctrl2.signal : undefined
     });
     if (to2) clearTimeout(to2);
-    if (r.vpn !== 'ok') r.vpn = 'ok'; // alcançou Adapter — VPN OK mesmo se NG falhou por outro motivo
-    if (adapResp.status === 200) {
-      r.adapter = 'logado';
-    } else if (adapResp.status === 401 || adapResp.status === 403) {
+    if (r.vpn !== 'ok') r.vpn = 'ok'; // alcançou Adapter — VPN OK
+
+    try { console.log('[DHP-HEALTH] Adapter GET / status=' + adapResp.status + ' url=' + adapResp.url); } catch (e) {}
+
+    if (adapResp.status === 401 || adapResp.status === 403) {
       r.adapter = 'sem_sessao';
+    } else if (adapResp.status >= 200 && adapResp.status < 400) {
+      // Heurística secundária: se a URL final contém /login, é tela de login
+      if (/\/login/i.test(adapResp.url || '')) {
+        r.adapter = 'sem_sessao';
+      } else {
+        r.adapter = 'logado';
+      }
     } else {
       r.adapter = 'sem_sessao';
     }
   } catch (e) {
-    // Só marca VPN fora se NG também falhou (evita falso negativo em caso de Adapter intermitente)
+    try { console.warn('[DHP-HEALTH] Adapter erro:', e && e.message); } catch (er) {}
     if (r.vpn === 'desconhecido') r.vpn = 'fora';
     r.adapter = 'fora_de_alcance';
   }
 
+  try { console.log('[DHP-HEALTH] Resultado final:', JSON.stringify(r)); } catch (e) {}
   return r;
 }
 

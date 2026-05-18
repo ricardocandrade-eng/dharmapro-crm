@@ -395,9 +395,18 @@
     console.log('[DHP-NG] Digitou CPF e Enter, aguardando resultado...');
 
     // Aguardar resultado (CardRetornoBusca ou resultadoTotalSl com "0")
+    // Guarda inicio pra evitar falso positivo do detector "Nenhum resultado":
+    // Wing pode ter essa string no DOM em estados intermediários ANTES de
+    // processar a busca, fazendo o detector disparar prematuramente.
+    var _buscaInicio = Date.now();
     await aguardar(function() {
       var cardCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360CardRetornoBuscaWComp');
       if (cardCtrl) return 'encontrado';
+
+      // Só considera "nao_encontrado" após 4s — dá tempo do Wing processar
+      // a busca de verdade. Sem isso, falso positivo derruba CPFs válidos
+      // (vendas recém-criadas, cliente real mas Wing lento, etc).
+      if (Date.now() - _buscaInicio < 4000) return null;
 
       // Verificar se "Resultado: 0" (Wing antigo)
       var buscaItems = buscaCtrl.ctrl.items;
@@ -407,8 +416,6 @@
       }
 
       // Detectar "Nenhum resultado para mostrar" no DOM (Wing novo)
-      // Wing atualizou a UI — em vez de "Resultado: 0" mostra essa mensagem.
-      // Sem essa detecção, busca de CPF inexistente timeoutava em 15s.
       var bodyTxt = document.body ? document.body.textContent : '';
       if (/Nenhum resultado para mostrar/i.test(bodyTxt)) return 'nao_encontrado';
 
@@ -475,16 +482,17 @@
 
     console.log('[DHP-NG] Clicou Atender, aguardando tela Atendimento + painel Contratos...');
 
-    // Aguardar cabeçalho "Contratos (N)" aparecer — sinal de que o painel esquerdo carregou
+    // Aguardar cabeçalho "Contratos (N)" aparecer — sinal de que o painel esquerdo carregou.
+    // Bumped 30s→60s pra acomodar vendas recém-criadas (OS Interna do dia carrega mais)
+    // ou Wing mais lento em popup (sem foco, throttled).
     await aguardar(function() {
       var els = document.querySelectorAll('span, div, h2, h3, h4');
       for (var h = 0; h < els.length; h++) {
         var t = els[h].textContent.trim();
-        // "Contratos (1)", "Contratos (0)", "Contratos (3)" etc
         if (/^Contratos\s*\(\s*\d+\s*\)$/.test(t)) return true;
       }
       return null;
-    }, 30000, 500, 'Cabeçalho Contratos (N) após Atender');
+    }, 60000, 500, 'Cabeçalho Contratos (N) após Atender');
 
     // Pausa para renderização do card de contrato (Wing pinta a estrutura primeiro,
     // depois popula os campos — 5s tolera multi-contract e pages mais pesadas)

@@ -559,9 +559,14 @@
     console.log('[DHP-NG] Digitou CPF e Enter, aguardando resultado...');
 
     // Aguardar resultado (CardRetornoBusca ou resultadoTotalSl com "0")
+    // Evita falso positivo do detector "Nenhum resultado" em estados iniciais
+    var _buscaInicio = Date.now();
     await aguardar(function() {
       var cardCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360CardRetornoBuscaWComp');
       if (cardCtrl) return 'encontrado';
+
+      // Só considera "nao_encontrado" após 4s
+      if (Date.now() - _buscaInicio < 4000) return null;
 
       // Verificar se "Resultado: 0"
       var buscaItems = buscaCtrl.ctrl.items;
@@ -633,7 +638,8 @@
 
     console.log('[DHP-NG] Clicou Atender, aguardando painel Contratos...');
 
-    // Aguardar cabeçalho "Contratos (N)" no DOM
+    // Aguardar cabeçalho "Contratos (N)" no DOM. Bumped 30s→60s pra
+    // vendas recém-criadas / Wing throttled em popup sem foco.
     await aguardar(function() {
       var els = document.querySelectorAll('span, div, h2, h3, h4');
       for (var h = 0; h < els.length; h++) {
@@ -641,7 +647,7 @@
         if (/^Contratos\s*\(\s*\d+\s*\)$/.test(t)) return true;
       }
       return null;
-    }, 30000, 500, 'Cabeçalho Contratos (N) após Atender');
+    }, 60000, 500, 'Cabeçalho Contratos (N) após Atender');
 
     // Pausa para card renderizar completamente (5s tolera multi-contract)
     console.log('[DHP-NG] Painel Contratos carregou, pausando 5s para card renderizar...');

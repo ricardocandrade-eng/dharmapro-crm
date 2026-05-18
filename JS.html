@@ -2527,8 +2527,9 @@ function _varreduraProximo() {
   _varreduraAtualizarUI();
 
   var modalId = item.sistema === 'NG' ? 'modalNG' : 'modalAdapter';
-  // Budget máximo por consulta: NG é mais lento (até 120s + 10s retry + 120s ≈ 250s).
-  var maxMs   = item.sistema === 'NG' ? 280000 : 90000;
+  // Budget máximo por consulta. NG: 120s timeout frontend + 10s retry + 60s cabeçalho Contratos
+  // + 5s buffer ≈ 350s no pior caso (retry com Cabeçalho Contratos demorando).
+  var maxMs   = item.sistema === 'NG' ? 360000 : 90000;
 
   if (item.sistema === 'NG') {
     _consultarNGVenda(item.index);
