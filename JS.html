@@ -2360,12 +2360,13 @@ function _varreduraProximo() {
     _consultarAdapterVenda(item.index);
   }
 
-  _varreduraEsperarConclusao(modalId, maxMs, function(resultado) {
+  _varreduraEsperarConclusao(modalId, maxMs, function(resultado, resumo) {
     _varreduraResultados.push({
       linha:    item.linha,
       cpf:      item.cpf,
       sistema:  item.sistema,
-      resultado: resultado
+      resultado: resultado,
+      resumo:   resumo || ''
     });
     // Força fechar o modal de consulta pra liberar o próximo ciclo.
     var m = document.getElementById(modalId);
@@ -2383,13 +2384,15 @@ function _varreduraProximo() {
 // Polling no DOM dos modais existentes — não invade as funções de consulta.
 // Conclusão = loading sumiu E (resultado ou erro visível).
 function _varreduraEsperarConclusao(modalId, maxMs, cb) {
-  var loadingId   = modalId === 'modalNG' ? 'mng-loading'   : 'madp-loading';
-  var resultadoId = modalId === 'modalNG' ? 'mng-resultado' : 'madp-resultado';
-  var erroId      = modalId === 'modalNG' ? 'mng-erro'      : 'madp-erro';
+  var loadingId    = modalId === 'modalNG' ? 'mng-loading'      : 'madp-loading';
+  var resultadoId  = modalId === 'modalNG' ? 'mng-resultado'    : 'madp-resultado';
+  var erroId       = modalId === 'modalNG' ? 'mng-erro'         : 'madp-erro';
+  var badgeId      = modalId === 'modalNG' ? 'mng-status-badge' : 'madp-status-badge';
+  var erroMsgId    = modalId === 'modalNG' ? 'mng-erro-msg'     : 'madp-erro-msg';
 
   var inicio = Date.now();
   function _check() {
-    if (_varreduraCancelar) return cb('cancelado');
+    if (_varreduraCancelar) return cb('cancelado', '');
 
     var loading   = document.getElementById(loadingId);
     var resultado = document.getElementById(resultadoId);
@@ -2400,10 +2403,19 @@ function _varreduraEsperarConclusao(modalId, maxMs, cb) {
     var erroVisivel      = erro      && erro.style.display      && erro.style.display      !== 'none';
 
     if (!loadingVisivel && (resultadoVisivel || erroVisivel)) {
-      return cb(erroVisivel ? 'erro' : 'sucesso');
+      // Extrai o resumo visível no modal pra exibir no relatório final
+      var resumo = '';
+      if (erroVisivel) {
+        var erroMsgEl = document.getElementById(erroMsgId);
+        resumo = erroMsgEl ? erroMsgEl.textContent.trim() : '(erro)';
+      } else {
+        var badgeEl = document.getElementById(badgeId);
+        resumo = badgeEl ? badgeEl.textContent.trim() : '(sem resumo)';
+      }
+      return cb(erroVisivel ? 'erro' : 'sucesso', resumo);
     }
     if (Date.now() - inicio > maxMs) {
-      return cb('timeout_varredura');
+      return cb('timeout_varredura', 'Travou (sem resposta da extensão)');
     }
     setTimeout(_check, 500);
   }
@@ -2441,6 +2453,35 @@ function _varreduraConcluir() {
     '<span style="color:#28a745;">✓ Sucessos: ' + sucessos + '</span> · ' +
     '<span style="color:#dc3545;">✗ Erros: ' + erros + '</span>' +
     (timeouts ? ' · <span style="color:#ffc107;">⏳ Travadas: ' + timeouts + '</span>' : '');
+
+  // Listagem detalhada das consultas processadas
+  var listaEl = document.getElementById('varr-final-lista');
+  if (listaEl) {
+    if (!_varreduraResultados.length) {
+      listaEl.innerHTML = '';
+    } else {
+      var html = '<ul style="margin:0;padding-left:18px;line-height:1.5;">';
+      for (var k = 0; k < _varreduraResultados.length; k++) {
+        var rr = _varreduraResultados[k];
+        var corIcon, icon;
+        if (rr.resultado === 'sucesso') { icon = '✓'; corIcon = '#28a745'; }
+        else if (rr.resultado === 'erro') { icon = '✗'; corIcon = '#dc3545'; }
+        else if (rr.resultado === 'timeout_varredura') { icon = '⏳'; corIcon = '#ffc107'; }
+        else { icon = '◌'; corIcon = '#888'; }
+
+        var emoji = (rr.sistema === 'NG') ? '🔵' : '🟢';
+        var resumoTrunc = String(rr.resumo || '').substring(0, 80);
+        html += '<li><span style="color:' + corIcon + ';font-weight:700;">' + icon + '</span>'
+              + ' L<strong>' + rr.linha + '</strong>'
+              + ' · ' + emoji + ' ' + rr.sistema
+              + ' · ' + (rr.cpf || '?')
+              + (resumoTrunc ? ' — <span style="color:var(--text);">' + resumoTrunc + '</span>' : '')
+              + '</li>';
+      }
+      html += '</ul>';
+      listaEl.innerHTML = html;
+    }
+  }
 }
 
 function _varreduraAtualizarUI() {
