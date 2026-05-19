@@ -1124,6 +1124,20 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  // ── disparo-grupo: digest leads Meta (Alerta 8, schedule 12h/19h n8n) ─────
+  // Sem secret — agregados (total de leads + total de conversões hoje).
+  if (action === 'leads_meta_hoje') {
+    try {
+      return ContentService
+        .createTextOutput(JSON.stringify(_serveActionLeadsMetaHoje_()))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, erro: err && err.message || String(err) }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // ── disparo-grupo: resumo do tráfego pago (Alerta 7, schedule 8/14/20h n8n) ─
   // Sem secret — agregados públicos (gasto + impressões + leads + vendas).
   // Reusa MetaAdsAPI.getResumoTrafegoHoje() pra centralizar lógica Meta API.

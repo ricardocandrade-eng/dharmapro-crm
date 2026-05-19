@@ -348,10 +348,12 @@ function _disparoAlertaLeadMeta_(linhaNum, nomeLead) {
       ? ('💬 Novo Lead Meta: ' + nome + suf)
       : ('💬 Novo Lead Meta' + suf);
 
-    // Destinos: lê Script Property ALERTA5_DESTINOS (CSV); default 'default,agencia'.
-    // Permite ajustar sem deploy via PropertiesService.
+    // Destinos: lê Script Property ALERTA5_DESTINOS (CSV); fallback 'default'.
+    // Por padrão Alerta 5 vai só pro Mobile. Agência recebe via Alerta 8
+    // (digest 12h+19h com total do dia). Permite ajustar sem deploy via
+    // PropertiesService — ex: setar 'default,agencia' pra replicar pra ambos.
     var destinosRaw = PropertiesService.getScriptProperties().getProperty('ALERTA5_DESTINOS')
-      || 'default,agencia';
+      || 'default';
     var destinos = destinosRaw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
     var algumOk = false;
     var falhas = [];
@@ -376,6 +378,35 @@ function _disparoAlertaLeadMeta_(linhaNum, nomeLead) {
     }
   } catch (e) {
     Logger.log('_disparoAlertaLeadMeta_ erro: ' + (e && e.message || e));
+  }
+}
+
+/**
+ * Endpoint público `?action=leads_meta_hoje` (Alerta 8 — digest 12h/19h agência).
+ * Sem secret — agregados sem PII (apenas contadores).
+ *
+ * Schema:
+ * {
+ *   ok: true,
+ *   gerado_em: '2026-05-19T12:00:00-03:00',
+ *   leads: 12,
+ *   conversoes: 2
+ * }
+ */
+function _serveActionLeadsMetaHoje_() {
+  try {
+    var aba = _getSpreadsheet_().getSheetByName('Leads Meta Ads');
+    if (!aba) return { ok: false, erro: 'aba_nao_encontrada', leads: 0, conversoes: 0 };
+    // Reusa _contarLeadsEVendasHoje_ (MetaAdsAPI.js) — varre col A/I/K com TZ SP.
+    var lv = _contarLeadsEVendasHoje_();
+    return {
+      ok:        true,
+      gerado_em: _agoraISOBrt_(),
+      leads:     lv.leads_hoje,
+      conversoes: lv.vendas_hoje
+    };
+  } catch (e) {
+    return { ok: false, erro: e && e.message || String(e), leads: 0, conversoes: 0 };
   }
 }
 
