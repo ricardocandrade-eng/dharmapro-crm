@@ -341,11 +341,12 @@ function _disparoAlertaLeadMeta_(linhaNum, nomeLead) {
       return;
     }
     var nome = String(nomeLead || '').trim();
-    var linha1 = nome ? ('💬 Novo Lead Meta: ' + nome) : '💬 Novo Lead Meta';
     // Contador inclui o lead atual (que JÁ foi appended antes deste hook).
     var total = _contarLeadsMetaHoje_(aba);
-    var linha2 = total > 0 ? ('# ' + total + ' lead' + (total === 1 ? '' : 's') + ' hoje') : '';
-    var msg = linha2 ? (linha1 + '\n' + linha2) : linha1;
+    var suf = total > 0 ? (' (#' + total + ')') : '';
+    var msg = nome
+      ? ('💬 Novo Lead Meta: ' + nome + suf)
+      : ('💬 Novo Lead Meta' + suf);
     var ok = enviarParaGrupoWhatsApp(msg);
     if (ok) {
       aba.getRange(linhaNum, colMarker + 1).setValue(true);
