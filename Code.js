@@ -4342,10 +4342,15 @@ function salvarVenda(dados) {
           var linhaMvDados  = _construirLinhaDados(dadosMv);
           sheet.getRange(linhaMv, 1, 1, linhaMvDados.length).setValues([linhaMvDados]);
         } catch (eMv) {
-          // REVERSÃO: restaura a Fibra para o estado anterior à edição
+          // REVERSÃO: restaura a Fibra para o estado anterior à edição.
+          // (Nota: Móvel pode ter sido parcialmente alterado antes da falha —
+          //  reversão só cobre a Fibra. Bug pré-existente, não da Fase 5b.)
           try {
             sheet.getRange(linhaNum, 1, 1, linhaAtualSnapshot.length).setValues([linhaAtualSnapshot]);
-            _limparCache();
+            // Fase 5b: update fino no cache em vez de invalidação total.
+            _limparCacheSemLista();
+            _atualizarVendaNoCache_(linhaNum);
+            if (linhaMv >= 3) _atualizarVendaNoCache_(linhaMv); // estado pós-reversão do Móvel
             Logger.log('salvarVenda: Fibra revertida após falha do Móvel: ' + (eMv && eMv.message || eMv));
           } catch (eRev) {
             Logger.log('salvarVenda: FALHA AO REVERTER Fibra linha ' + linhaNum + ': ' + (eRev && eRev.message || eRev));
@@ -4361,7 +4366,11 @@ function salvarVenda(dados) {
       try { _propagarFibraParaMovelSeCombo_(sheet, linhaNum, dados); } catch (epm) {
         Logger.log('Falha ao propagar Fibra→Móvel: ' + (epm && epm.message ? epm.message : epm));
       }
-      _limparCache();
+      // Fase 5b: update fino no cache da Lista em vez de invalidação total.
+      // _atualizarVendaNoCache_ reconstrói vínculos da mãe + filhas, então
+      // alterações propagadas (cliente/endereço/contato) aparecem no card combo.
+      _limparCacheSemLista();
+      _atualizarVendaNoCache_(linhaNum);
       // Capturar linha para notificação PAP fora do lock
       if (dados.status === '2- Aguardando Instalação' || dados.status === '3 - Finalizada/Instalada') {
         _papLinha = linhaNum;
@@ -4408,7 +4417,9 @@ function salvarVenda(dados) {
       }
       Logger.log('salvarVenda: nova linha = ' + novaLinha + ' (lastRow=' + ultimaSheet + ')');
       sheet.getRange(novaLinha, 1, 1, linhaDados.length).setValues([linhaDados]);
-      _limparCache();
+      // Fase 5b: INSERT da nova venda no cache da Lista (não invalida o resto).
+      _limparCacheSemLista();
+      _atualizarVendaNoCache_(novaLinha);
       resultado = { sucesso: true, linha: novaLinha, mensagem: '✅ ' + dados.cliente.trim() + ' cadastrado com sucesso!' };
 
       // Cria Móvel Combo automaticamente (validação prévia já garantiu que
@@ -4445,6 +4456,8 @@ function salvarVenda(dados) {
           var msgErroMovel = erroMovel || (resMovel && resMovel.mensagem) || 'erro desconhecido';
           try {
             sheet.getRange(novaLinha, 1, 1, CONFIG.TOTAL_COLUNAS).clearContent();
+            // Fase 5b: mantém invalidação total — linha foi limpa via clearContent,
+            // update fino tentaria mapear uma linha vazia e degradar o cache.
             _limparCache();
             Logger.log('salvarVenda: Fibra revertida (linha ' + novaLinha + ') após falha no Móvel: ' + msgErroMovel);
           } catch (eRev) {
