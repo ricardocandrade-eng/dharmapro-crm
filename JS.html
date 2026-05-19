@@ -4898,6 +4898,7 @@ function _sincronizarAoLogar(nomeUsuario) {
           _dadosListaCache    = res.vendas.dados;
           _dadosListaTotal    = res.vendas.dados.length;
           _dadosTotalServidor = res.vendas.totalGeral || res.vendas.dados.length;
+          _listaCacheSalvarSS(); // Performance: prefetch também persiste
         }
       } catch(e) {}
     })
@@ -5163,18 +5164,16 @@ function navegar(pagina) {
     document.getElementById('menuLista').classList.add('ativo');
     document.getElementById('pageLista').classList.add('ativa');
     document.getElementById('breadcrumbTexto').textContent = 'Lista de Vendas';
+    // Performance (19/05/2026): tenta hidratar do sessionStorage antes do
+    // round-trip ao servidor. Se TTL válido, lista aparece em <100ms.
+    // O carregarVendas continua sendo chamado — se _dadosListaCache já está
+    // populado pelo SS, ele filtra/renderiza localmente sem round-trip.
+    if (!_dadosListaCache || _dadosListaCache.length === 0) {
+      _listaCacheCarregarSS();
+    }
     carregarVendas(1, '');
-    // Sincroniza etiquetas BotConversa em background (gate de 30 min no servidor)
-    google.script.run
-      .withSuccessHandler(function(res) {
-        if (res && res.sucesso && res.atualizados > 0) {
-          // Invalida cache local do JS para forçar busca fresca do servidor
-          _dadosListaCache = null;
-          _dadosListaTotal = 0;
-          carregarVendas(1, '');
-        }
-      })
-      .sincronizarTagsBotConversa(false);
+    // Performance (19/05/2026): sincronização BotConversa removida — era o
+    // maior gargalo (até 30s em paralelo + invalidação de cache forçando reload).
 
   } else if (pagina === 'funil') {
     document.getElementById('menuFunil').classList.add('ativo');
@@ -6056,6 +6055,42 @@ var _dadosListaTotal    = 0;
 var _dadosTotalServidor = 0;   // total de registros no servidor (inclui os ainda não carregados)
 var _listaNeedsReload   = false; // setado após salvar — força recarga do servidor na próxima carregarVendas
 
+// Performance (19/05/2026): persistência em sessionStorage. Sobrevive a F5 e
+// troca de aba dentro da mesma sessão. TTL curto (120s) pra equilibrar com
+// invalidações do servidor (cache de Lista no GAS tem TTL 300s).
+var _LISTA_SS_KEY  = 'dharmapro_lista_v1';
+var _LISTA_SS_TTL  = 120 * 1000; // 120s
+
+function _listaCacheSalvarSS() {
+  try {
+    if (!_dadosListaCache || !_dadosListaCache.length) return;
+    var payload = {
+      ts:           Date.now(),
+      dados:        _dadosListaCache,
+      totalServidor: _dadosTotalServidor
+    };
+    sessionStorage.setItem(_LISTA_SS_KEY, JSON.stringify(payload));
+  } catch(e) { /* quota excedida ou storage indisponível — silencia */ }
+}
+
+function _listaCacheCarregarSS() {
+  try {
+    var raw = sessionStorage.getItem(_LISTA_SS_KEY);
+    if (!raw) return false;
+    var p = JSON.parse(raw);
+    if (!p || !p.ts || !Array.isArray(p.dados)) return false;
+    if ((Date.now() - p.ts) > _LISTA_SS_TTL) { sessionStorage.removeItem(_LISTA_SS_KEY); return false; }
+    _dadosListaCache    = p.dados;
+    _dadosListaTotal    = p.dados.length;
+    _dadosTotalServidor = p.totalServidor || p.dados.length;
+    return true;
+  } catch(e) { return false; }
+}
+
+function _listaCacheLimparSS() {
+  try { sessionStorage.removeItem(_LISTA_SS_KEY); } catch(e) {}
+}
+
 // ── Filtra _dadosListaCache localmente (sem chamada ao servidor) ──────────
 function _filtrarLocalmente(dados, filtro, opcoes) {
   filtro = String(filtro || '').trim().toLowerCase();
@@ -6107,7 +6142,11 @@ function carregarVendas(pagina, filtro) {
   AppState.set('filtroAtual', filtro);
 
   // Após um save, invalida o cache local para garantir dado fresco do servidor
-  if (_listaNeedsReload) { _listaNeedsReload = false; _dadosListaCache = null; _dadosListaTotal = 0; _dadosTotalServidor = 0; }
+  if (_listaNeedsReload) {
+    _listaNeedsReload = false;
+    _dadosListaCache = null; _dadosListaTotal = 0; _dadosTotalServidor = 0;
+    _listaCacheLimparSS(); // Performance: limpa SS junto pra evitar dado obsoleto
+  }
 
   var opcoes = _coletarOpcoesFiltro();
 
@@ -6148,58 +6187,104 @@ function carregarVendas(pagina, filtro) {
     return;
   }
 
-  // ── CACHE VAZIO: vai ao servidor (primeiros 500 registros, os mais recentes) ──
+  // ── CACHE VAZIO: pipeline Lite (50) + Full (500) ── Performance 19/05/2026 ──
+  // Etapa 1: Lite retorna em ~2-3s e renderiza imediato.
+  // Etapa 2: Full (500) em background popula cache backend pra próximas sessões.
   document.getElementById('listaVendas').innerHTML =
     '<div class="empty"><div class="empty-icon" style="font-size:20px;animation:spin 1s linear infinite;display:inline-block;">⏳</div>' +
     '<p style="margin-top:10px;font-size:12px;">Carregando vendas...</p></div>';
 
+  function _renderListaCacheLocal() {
+    var opcoesFiltro   = _coletarOpcoesFiltro();
+    var filtroAtual    = AppState.get('filtroAtual') || '';
+    var paginaAtual    = AppState.get('paginaAtual') || pagina;
+    var dadosFiltrados = _filtrarLocalmente(_dadosListaCache || [], filtroAtual, opcoesFiltro);
+    var totalFiltrado  = dadosFiltrados.length;
+    var ini = (paginaAtual - 1) * CONFIG_JS.MAX_RESULTS;
+    var fim = ini + CONFIG_JS.MAX_RESULTS;
+    var temFiltroAtual = !!(filtroAtual ||
+      (opcoesFiltro.status    && opcoesFiltro.status.length) ||
+      (opcoesFiltro.preStatus && opcoesFiltro.preStatus.length) ||
+      (opcoesFiltro.produto   && opcoesFiltro.produto.length) ||
+      (opcoesFiltro.canal     && opcoesFiltro.canal.length) ||
+      (opcoesFiltro.resp      && opcoesFiltro.resp.length) ||
+      opcoesFiltro.verohub);
+    var temMaisLocal    = fim < totalFiltrado;
+    var temMaisServidor = !temFiltroAtual && _dadosTotalServidor > (_dadosListaCache ? _dadosListaCache.length : 0);
+    var totalExibir = (!temFiltroAtual && _dadosTotalServidor > 0) ? _dadosTotalServidor : totalFiltrado;
+    _renderizarLista({
+      dados:   dadosFiltrados.slice(ini, fim),
+      total:   totalExibir,
+      pagina:  paginaAtual,
+      temMais: temMaisLocal || (temMaisServidor && fim >= totalFiltrado)
+    });
+  }
+
+  function _erroListaHtml(msg) {
+    return '<div class="empty"><div class="empty-icon">⚠️</div>' +
+           '<h3>Erro ao carregar</h3><p style="font-family:monospace;font-size:11px;color:#ff4570">' + esc(msg) + '</p></div>';
+  }
+
+  // FALLBACK: chamada Full direta (caso Lite falhe)
+  function _carregarVendasFull() {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (!res || res.erro) {
+          var msg = (res && res.erro) ? res.erro : 'Resposta vazia do servidor.';
+          document.getElementById('listaVendas').innerHTML = _erroListaHtml(msg);
+          return;
+        }
+        if (res.dados && res.dados.length > 0) {
+          _dadosListaCache    = res.dados;
+          _dadosListaTotal    = res.dados.length;
+          _dadosTotalServidor = res.totalGeral || res.dados.length;
+          _listaCacheSalvarSS();
+        }
+        _renderListaCacheLocal();
+      })
+      .withFailureHandler(function(erro) {
+        document.getElementById('listaVendas').innerHTML =
+          _erroListaHtml(erro && erro.message ? erro.message : String(erro));
+      })
+      .getVendasPaginadas(1, '', JSON.stringify({ limite: 500, offset: 0 }));
+  }
+
+  // ETAPA 1 — Lite (50)
   google.script.run
-    .withSuccessHandler(function (res) {
-      if (!res) {
-        document.getElementById('listaVendas').innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><h3>Erro</h3><p>Resposta vazia do servidor.</p></div>';
-        return;
+    .withSuccessHandler(function(resLite) {
+      var liteOk = resLite && !resLite.erro && resLite.dados && resLite.dados.length > 0;
+      if (liteOk) {
+        _dadosListaCache    = resLite.dados;
+        _dadosListaTotal    = resLite.dados.length;
+        _dadosTotalServidor = resLite.totalGeral || resLite.dados.length;
+        _listaCacheSalvarSS();
+        _renderListaCacheLocal();
+
+        // ETAPA 2 — Full em background. Atualiza cache local e re-renderiza
+        // silenciosamente. Se o usuário já tiver paginado/filtrado, mantém estado.
+        google.script.run
+          .withSuccessHandler(function(resFull) {
+            if (!resFull || resFull.erro) return;
+            if (resFull.dados && resFull.dados.length > (_dadosListaCache ? _dadosListaCache.length : 0)) {
+              _dadosListaCache    = resFull.dados;
+              _dadosListaTotal    = resFull.dados.length;
+              _dadosTotalServidor = resFull.totalGeral || resFull.dados.length;
+              _listaCacheSalvarSS();
+              _renderListaCacheLocal();
+            }
+          })
+          .withFailureHandler(function() { /* silencioso — Lite já renderizou */ })
+          .getVendasPaginadas(1, '', JSON.stringify({ limite: 500, offset: 0 }));
+      } else {
+        // Lite vazio/erro → cai direto pro Full
+        _carregarVendasFull();
       }
-      if (res.erro) {
-        document.getElementById('listaVendas').innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><h3>Erro ao carregar</h3><p style="font-family:monospace;font-size:11px;color:#ff4570">' + esc(res.erro) + '</p></div>';
-        return;
-      }
-      // Popula cache local com os 500 registros mais recentes
-      if (res.dados && res.dados.length > 0) {
-        _dadosListaCache    = res.dados;
-        _dadosListaTotal    = res.dados.length;
-        _dadosTotalServidor = res.totalGeral || res.dados.length;
-      }
-      // Aplica filtros localmente (usuário pode já ter digitado algo enquanto carregava)
-      var opcoesFiltro   = _coletarOpcoesFiltro();
-      var filtroAtual    = AppState.get('filtroAtual') || '';
-      var dadosFiltrados = _filtrarLocalmente(_dadosListaCache || [], filtroAtual, opcoesFiltro);
-      var totalFiltrado  = dadosFiltrados.length;
-      var ini = (pagina - 1) * CONFIG_JS.MAX_RESULTS;
-      var fim = ini + CONFIG_JS.MAX_RESULTS;
-      var temFiltroAtual = !!(filtroAtual ||
-        (opcoesFiltro.status && opcoesFiltro.status.length) ||
-        (opcoesFiltro.preStatus && opcoesFiltro.preStatus.length) ||
-        (opcoesFiltro.produto && opcoesFiltro.produto.length) ||
-        (opcoesFiltro.canal && opcoesFiltro.canal.length) ||
-        (opcoesFiltro.resp && opcoesFiltro.resp.length) ||
-        opcoesFiltro.verohub);
-      var temMaisLocal    = fim < totalFiltrado;
-      var temMaisServidor = !temFiltroAtual && _dadosTotalServidor > (_dadosListaCache ? _dadosListaCache.length : 0);
-      var totalExibir = (!temFiltroAtual && _dadosTotalServidor > 0) ? _dadosTotalServidor : totalFiltrado;
-      _renderizarLista({
-        dados:   dadosFiltrados.slice(ini, fim),
-        total:   totalExibir,
-        pagina:  pagina,
-        temMais: temMaisLocal || (temMaisServidor && fim >= totalFiltrado)
-      });
     })
-    .withFailureHandler(function (erro) {
-      var msg = erro && erro.message ? erro.message : String(erro);
-      document.getElementById('listaVendas').innerHTML =
-        '<div class="empty"><div class="empty-icon">⚠️</div>' +
-        '<h3>Erro ao carregar</h3><p style="font-family:monospace;font-size:11px;color:#ff4570">' + esc(msg) + '</p></div>';
+    .withFailureHandler(function() {
+      // Lite indisponível (deploy antigo sem getVendasPaginadasLite) → Full direto
+      _carregarVendasFull();
     })
-    .getVendasPaginadas(1, '', JSON.stringify({ limite: 500, offset: 0 }));
+    .getVendasPaginadasLite(50, 0);
 }
 
 // ── Busca mais registros do servidor e adiciona ao cache local ──────────────
@@ -6214,6 +6299,7 @@ function _carregarMaisDoServidor(pagina) {
         _dadosListaCache    = (_dadosListaCache || []).concat(res.dados);
         _dadosListaTotal    = _dadosListaCache.length;
         _dadosTotalServidor = res.totalGeral || _dadosTotalServidor;
+        _listaCacheSalvarSS(); // Performance: persistir após load-more
       }
       carregarVendas(pagina, AppState.get('filtroAtual') || '');
     })
@@ -7163,10 +7249,7 @@ function _criarItemVenda(v, index) {
           '<span style="margin-left:auto;display:flex;align-items:center;gap:6px;">' +
             (v.status === '1- Conferencia/Ativação' ? _veroHubPedidoHtml(v, index) : '') +
             (v.viabilidade ? '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>' : '<div id="viab-badge-' + index + '"></div>') +
-            (v.bcTags || v.bcStatus ? '<span class="vi-bc-tags" style="opacity:.75;">' +
-              (v.bcStatus ? '<span class="vi-bc-status vi-bc-status--' + (v.bcStatus === 'Aberto' ? 'aberto' : 'ok') + '">' + esc(v.bcStatus) + '</span>' : '') +
-              (v.bcTags   ? esc(v.bcTags) : '') +
-            '</span>' : '') +
+            // Performance (19/05/2026): badges BotConversa (bcTags/bcStatus) removidos junto com a sync.
           '</span>' +
         '</div>' +
 

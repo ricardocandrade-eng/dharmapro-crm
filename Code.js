@@ -2030,145 +2030,21 @@ function dispararFluxoResponsavel(payload) {
   }
 }
 
-// Sincroniza etiquetas e status de atendimento do BotConversa para a planilha.
-// Grava nas colunas AT (BC_TAGS) e AU (BC_STATUS) de cada linha com WhatsApp.
-// Processa LOTE_MAX linhas por execução com cursor persistente (PropertiesService)
-// para não esgotar a cota de bandwidth do UrlFetchApp.
-// forcar=true ignora o gate de 30 min e reseta o cursor (varredura completa).
+// ─── REMOVIDO (Performance Lista de Vendas — 19/05/2026) ──────────────────
+// `sincronizarTagsBotConversa` foi removida porque rodava em paralelo ao
+// carregamento da Lista de Vendas, fazia até 100 chamadas HTTP em série
+// (~30s), gravava célula-a-célula com setValue, e ao final invalidava o
+// cache da Lista forçando um segundo reload. Era o maior gargalo percebido
+// pelos usuários (~30s do total de 45s de "carregamento" da Lista).
+//
+// Os campos BC_TAGS / BC_STATUS no payload da Lista foram zerados
+// (`_mapearLinhaLista`) e o badge visual no card foi removido (`JS.html`).
+// As colunas AN/AO na planilha continuam existindo (vazias) até a Fase 6b.
+//
+// Stub mantido apenas para o caso de algum acionamento legado:
 function sincronizarTagsBotConversa(forcar) {
-  try {
-    var LOTE_MAX = 100; // chamadas por execução (100 × ~300ms ≈ 30–40s, seguro em 6 min)
-    var DELAY_MS = 250; // pausa entre cada chamada HTTP (≈ 240 req/min < 600 RPM)
-
-    var props  = PropertiesService.getScriptProperties();
-    var apiKey = props.getProperty('botconversa_api_key') || '';
-    if (!apiKey) return { sucesso: false, mensagem: 'Chave BotConversa não configurada.' };
-
-    // ── Gate de 30 minutos ────────────────────────────────────────────────
-    if (!forcar) {
-      var ultimoSync = parseInt(props.getProperty('bc_tags_ultimo_sync') || '0');
-      var agora      = Date.now();
-      if (ultimoSync && (agora - ultimoSync) < 30 * 60 * 1000) {
-        Logger.log('sincronizarTagsBotConversa: skip (sync há ' + Math.round((agora - ultimoSync)/60000) + ' min)');
-        return { sucesso: true, atualizados: 0, skip: true };
-      }
-    }
-
-    var sheet       = _getSheet();
-    var ultimaLinha = sheet.getLastRow();
-    if (ultimaLinha < 3) return { sucesso: true, atualizados: 0 };
-
-    var colWhats    = CONFIG.COLUNAS.WHATS + 1;     // 1-based → P = 16
-    var colTags     = CONFIG.COLUNAS.BC_TAGS + 1;   // AT = 46
-    var colStatus   = CONFIG.COLUNAS.BC_STATUS + 1; // AU = 47
-    var totalLinhas = ultimaLinha - 2;               // total de linhas de dados
-
-    // Lê toda a coluna WhatsApp de uma vez (1 chamada barata) e coleta
-    // os índices 0-based que têm telefone válido (≥ 8 dígitos).
-    var JANELA   = 500;
-    var todosW   = sheet.getRange(3, colWhats, totalLinhas, 1).getValues();
-    var idxComFone = [];
-    for (var k = 0; k < todosW.length; k++) {
-      if (String(todosW[k][0] || '').replace(/\D/g, '').length >= 8) idxComFone.push(k);
-    }
-    if (idxComFone.length === 0) {
-      Logger.log('sincronizarTagsBotConversa: nenhuma linha com WhatsApp encontrada.');
-      return { sucesso: true, atualizados: 0, semFone: totalLinhas };
-    }
-
-    // Janela: últimos JANELA entre os que têm fone, invertidos → mais recentes primeiro
-    var janela      = idxComFone.slice(-JANELA).reverse();
-    var totalJanela = janela.length;
-
-    // Cursor aponta para posição dentro de janela[] (0-based)
-    var cursorJ = forcar ? 0 : parseInt(props.getProperty('bc_tags_cursor') || '0');
-    if (cursorJ >= totalJanela) cursorJ = 0;
-
-    var lock = LockService.getScriptLock();
-    try { lock.waitLock(10000); } catch(le) {
-      return { sucesso: false, mensagem: 'Planilha em uso. Tente novamente em instantes.' };
-    }
-
-    var atualizados = 0;
-    var naoAchado   = 0;
-    var erros       = 0;
-    var chamadas    = 0;
-    var baseUrl     = 'https://backend.botconversa.com.br/api/v1/webhook/subscriber/get_by_phone/';
-    var headers     = { 'api-key': apiKey };
-    var j           = cursorJ; // posição dentro de janela[]
-    var amostraFone = '';
-
-    while (j < totalJanela && chamadas < LOTE_MAX) {
-      var absIdx  = janela[j];          // índice 0-based dentro de todosW
-      var foneRaw = String(todosW[absIdx][0] || '').replace(/\D/g, '');
-
-      // Normaliza DDI (+55 se ausente)
-      if (foneRaw.length <= 11 && foneRaw.substring(0, 2) !== '55') {
-        foneRaw = '55' + foneRaw;
-      }
-      if (!amostraFone) amostraFone = foneRaw;
-
-      try {
-        var resp = UrlFetchApp.fetch(baseUrl + foneRaw + '/', {
-          method: 'get', headers: headers, muteHttpExceptions: true
-        });
-        chamadas++;
-        var httpCode = resp.getResponseCode();
-
-        if (httpCode === 200) {
-          var sub        = JSON.parse(resp.getContentText());
-          var tags       = (sub.tags && sub.tags.length) ? sub.tags.join(' | ') : '';
-          // Loga objeto completo para diagnóstico (apenas os 5 primeiros)
-          if (atualizados < 5) {
-            Logger.log('BC subscriber raw: ' + JSON.stringify(sub) + ' | fone=' + foneRaw);
-          }
-          var status     = sub.live_chat ? 'Aberto' : 'Concluído';
-          var linhaSheet = absIdx + 3; // linha real na planilha (dados começam na row 3)
-          sheet.getRange(linhaSheet, colTags).setValue(tags);
-          sheet.getRange(linhaSheet, colStatus).setValue(status);
-          atualizados++;
-        } else {
-          if (naoAchado < 3) {
-            Logger.log('BC nao-200: HTTP ' + httpCode + ' fone=' + foneRaw +
-                       ' resp=' + resp.getContentText().substring(0, 120));
-          }
-          naoAchado++;
-        }
-      } catch(fe) {
-        Logger.log('sincronizarTagsBotConversa erro idx ' + absIdx + ': ' + fe.message);
-        erros++;
-        Utilities.sleep(500);
-      }
-
-      Utilities.sleep(DELAY_MS);
-      j++;
-    }
-
-    lock.releaseLock();
-
-    // Cursor: avança; reinicia quando termina a janela
-    var novoCursorJ = (j >= totalJanela) ? 0 : j;
-    props.setProperty('bc_tags_cursor',      String(novoCursorJ));
-    props.setProperty('bc_tags_ultimo_sync', String(Date.now()));
-
-    if (atualizados > 0) _limparCacheListaV3();
-
-    Logger.log('sincronizarTagsBotConversa: janela=' + totalJanela + ' comFone' +
-               ' lote [' + cursorJ + '-' + (j-1) + ']' +
-               ' | atualizados=' + atualizados +
-               ' naoAchado=' + naoAchado +
-               ' erros=' + erros +
-               ' | amostraFone=' + (amostraFone || '(nenhum)') +
-               ' | próximo cursor=' + novoCursorJ);
-
-    return { sucesso: true, atualizados: atualizados,
-             naoAchado: naoAchado, erros: erros,
-             cursor: novoCursorJ, totalJanela: totalJanela };
-
-  } catch(e) {
-    Logger.log('sincronizarTagsBotConversa erro geral: ' + e.message);
-    return { sucesso: false, mensagem: e.message };
-  }
+  return { sucesso: true, atualizados: 0, skip: true,
+           mensagem: 'sincronizarTagsBotConversa removida em 19/05/2026 — ver Code.js histórico.' };
 }
 
 // ─── PAGAMENTOS PAP ────────────────────────────────────────────────────────
@@ -4063,6 +3939,88 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
   }
 }
 
+// ─── LITE (Performance 19/05/2026) ─────────────────────────────────────────
+// Versão rápida do getVendasPaginadas, processa apenas o `limite` solicitado
+// (default 50) e NÃO cacheia. Usado pelo frontend em pipeline:
+//   1ª: getVendasPaginadasLite(50) → render imediato (~2s)
+//   2ª: getVendasPaginadas (500)   → popula cache do backend pra próximas
+// Como NÃO usa cache, ainda paga _preScanColuna + _getVinculosVendasMap_ + lerBlocos
+// + _mapearLinhaLista por linha. Mas com 50 linhas em vez de 500, o tempo
+// total dropa de ~12-15s para ~2-3s. O pipeline mantém o cache backend
+// quente pra próximas sessões.
+function getVendasPaginadasLite(limite, offset) {
+  try {
+    limite = Math.min(parseInt(limite) || 50, 200);
+    offset = Math.max(parseInt(offset) || 0, 0);
+
+    var sheet       = _getSheet();
+    var ultimaLinha = sheet.getLastRow();
+    if (ultimaLinha < 3) return { dados: [], total: 0, totalGeral: 0, temMais: false };
+
+    var tz = Session.getScriptTimeZone();
+
+    var COL_CLIENTE = CONFIG.COLUNAS.CLIENTE + 1;
+    var linhasNaoVazias = _preScanColuna(sheet, ultimaLinha, COL_CLIENTE, function(v) {
+      return v !== '' && v !== null && v !== undefined;
+    });
+    var totalGeral = linhasNaoVazias.length;
+    linhasNaoVazias.sort(function(a, b) { return b - a; });
+
+    var linhasSlice = linhasNaoVazias.slice(offset, offset + limite);
+    if (linhasSlice.length === 0) {
+      return { dados: [], total: 0, totalGeral: totalGeral, temMais: false };
+    }
+
+    var vinculosMap = _getVinculosVendasMap_();
+    var linhasNecessarias = {};
+    for (var ln = 0; ln < linhasSlice.length; ln++) linhasNecessarias[linhasSlice[ln]] = true;
+    for (var vr = 0; vr < linhasSlice.length; vr++) {
+      var linhaBase = linhasSlice[vr];
+      var filhos = vinculosMap.filhasPorMae[linhaBase] || [];
+      for (var fv = 0; fv < filhos.length; fv++) linhasNecessarias[filhos[fv].vendaFilhaLinha] = true;
+      var pai = vinculosMap.maePorFilha[linhaBase];
+      if (pai && pai.vendaMaeLinha) linhasNecessarias[pai.vendaMaeLinha] = true;
+    }
+
+    var linhasAsc = Object.keys(linhasNecessarias)
+      .map(function(l) { return parseInt(l, 10); })
+      .filter(function(l) { return !isNaN(l) && l >= 3; })
+      .sort(function(a, b) { return a - b; });
+    var blocos = _agruparBlocos(linhasAsc, 8);
+    var lidos  = _lerBlocos(sheet, blocos, 47);
+
+    var mapaLinhas = {};
+    for (var m = 0; m < lidos.length; m++) mapaLinhas[lidos[m].linhaSheet] = lidos[m].row;
+
+    var mapaResumoVinculos = {};
+    for (var r = 0; r < linhasAsc.length; r++) {
+      var ln2 = linhasAsc[r];
+      if (!mapaLinhas[ln2]) continue;
+      mapaResumoVinculos[ln2] = _resumirVendaVinculada_(_mapearLinhaLista(mapaLinhas[ln2], ln2, tz));
+    }
+
+    var vendas = [];
+    for (var k = 0; k < linhasSlice.length; k++) {
+      var numLinha = linhasSlice[k];
+      var row = mapaLinhas[numLinha];
+      if (!row) continue;
+      vendas.push(_decorarVendaComVinculos_(_mapearLinhaLista(row, numLinha, tz), vinculosMap, mapaResumoVinculos));
+    }
+
+    Logger.log('getVendasPaginadasLite: offset=' + offset + ' limite=' + limite + ' retornando=' + vendas.length + ' totalGeral=' + totalGeral);
+    return {
+      dados:      vendas,
+      total:      vendas.length,
+      totalGeral: totalGeral,
+      temMais:    offset + limite < totalGeral,
+      lite:       true
+    };
+  } catch(e) {
+    Logger.log('ERRO em getVendasPaginadasLite: ' + e);
+    return { dados: [], total: 0, totalGeral: 0, temMais: false, erro: e.message };
+  }
+}
+
 function getVendaPorLinha(numeroLinha) {
   try {
     var sheet = _getSheet();
@@ -4225,8 +4183,7 @@ function criarVendaMovelVinculada(payload) {
       verohub:         '',
       verohubPedido:   '',
       verohubPedidoDt: '',
-      bcTags:          '',
-      bcStatus:        '',
+      // bcTags/bcStatus removidos em 19/05/2026 (Performance Lista).
       viabilidade:     ''
     };
 
@@ -4984,6 +4941,9 @@ function _limparCacheListaV3() {
     cache.removeAll(keys);
     Logger.log('_limparCacheListaV3: ' + keys.length + ' chaves removidas.');
   } catch(e) { Logger.log('_limparCacheListaV3 erro: ' + e); }
+
+  // Performance (19/05/2026): invalida tb cache de vínculos (acoplado).
+  _limparCacheVinculosVendas_();
 }
 
 
@@ -5117,6 +5077,27 @@ function _valorListaSemDuplicar(plano, valor) {
   return planoNorm.indexOf(valorNorm) !== -1 ? '' : valorTxt;
 }
 
+// Performance (19/05/2026): formatadores puro JS em vez de Utilities.formatDate.
+// Utilities.formatDate é cara em GAS (~3-5ms por call); com 500 linhas × 5 datas
+// = 2500 calls = 7-12s. Substituído por puro JS (~0.05ms por call) — 100× mais rápido.
+// O Date.prototype.getDate/getMonth/getFullYear retorna componentes no fuso local
+// do script (definido em appsscript.json — America/Sao_Paulo).
+function _fmtDataBR(d) {
+  if (!(d instanceof Date) || isNaN(d)) return '';
+  var dd = d.getDate();      if (dd < 10) dd = '0' + dd;
+  var mm = d.getMonth() + 1; if (mm < 10) mm = '0' + mm;
+  return dd + '/' + mm + '/' + d.getFullYear();
+}
+
+function _fmtDataHoraBR(d) {
+  if (!(d instanceof Date) || isNaN(d)) return '';
+  var dd = d.getDate();      if (dd < 10) dd = '0' + dd;
+  var mm = d.getMonth() + 1; if (mm < 10) mm = '0' + mm;
+  var HH = d.getHours();     if (HH < 10) HH = '0' + HH;
+  var MM = d.getMinutes();   if (MM < 10) MM = '0' + MM;
+  return dd + '/' + mm + '/' + d.getFullYear() + ' ' + HH + ':' + MM;
+}
+
 function _mapearLinhaLista(row, numeroLinha, tz) {
   var c = CONFIG.COLUNAS;
   var clienteLegado = _normalizarCamposClienteLegado(row, c);
@@ -5125,12 +5106,12 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     canal:       row[c.CANAL]        || '',
     produto:     row[c.PRODUTO]      || '',
     status:      row[c.STATUS]       || '',
-    dataAtiv:    (row[c.DATA_ATIV] instanceof Date) ? Utilities.formatDate(row[c.DATA_ATIV], tz, 'dd/MM/yyyy') : (row[c.DATA_ATIV] || ''),
+    dataAtiv:    (row[c.DATA_ATIV] instanceof Date) ? _fmtDataBR(row[c.DATA_ATIV]) : (row[c.DATA_ATIV] || ''),
     codCli:      row[c.COD_CLI]      || '',
     contrato:    String(row[c.CONTRATO] || '').trim().replace(/\.0$/, ''),
-    agenda:      (row[c.AGENDA] instanceof Date) ? Utilities.formatDate(row[c.AGENDA], tz, 'dd/MM/yyyy') : (row[c.AGENDA] || ''),
+    agenda:      (row[c.AGENDA] instanceof Date) ? _fmtDataBR(row[c.AGENDA]) : (row[c.AGENDA] || ''),
     turno:       row[c.TURNO]        || '',
-    instal:      (row[c.INSTAL] instanceof Date) ? Utilities.formatDate(row[c.INSTAL], tz, 'dd/MM/yyyy') : (row[c.INSTAL] || ''),
+    instal:      (row[c.INSTAL] instanceof Date) ? _fmtDataBR(row[c.INSTAL]) : (row[c.INSTAL] || ''),
     resp:        row[c.RESP]         || '',
     cpf:         (function(v) {
       var s = String(v || '').trim().replace(/[^0-9\/\.\-]/g, '');
@@ -5169,7 +5150,7 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     observacao:  row[c.OBSERVACAO]   || '',
     verohub:     (function(v) {
       if (!v) return '';
-      if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, tz, 'dd/MM/yyyy');
+      if (v instanceof Date && !isNaN(v)) return _fmtDataBR(v);
       return String(v).trim();
     })(row[c.VEROHUB]),
     statusPAP:        String(row[c.STATUS_PAP]        || ''),
@@ -5177,8 +5158,7 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     verohubPedidoDt:  String(row[c.VEROHUB_PEDIDO_DT] || '').trim(),
     segmentacao:      String(row[c.SEGMENTACAO]        || '').trim(),
     preStatus:        String(row[c.PRE_STATUS]         || ''),
-    bcTags:           String(row[c.BC_TAGS]            || '').trim(),
-    bcStatus:         String(row[c.BC_STATUS]          || '').trim(),
+    // bcTags/bcStatus removidos em 19/05/2026 (Performance Lista).
     nomeMae:          clienteLegado.nomeMae,
     dtNasc:           clienteLegado.dtNasc,
     rg:               clienteLegado.rg,
@@ -5187,7 +5167,7 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     viabilidade:      String(row[c.VIABILIDADE]        || '').trim(),
     criadoEm:         (function(v) {
       if (!v) return '';
-      if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, tz, 'dd/MM/yyyy HH:mm');
+      if (v instanceof Date && !isNaN(v)) return _fmtDataHoraBR(v);
       return String(v).trim();
     })(row[c.CRIADO_EM]),
     criadoPor:        String(row[c.CRIADO_POR] || '').trim(),
@@ -5257,8 +5237,7 @@ function _mapearLinha(row, numeroLinha) {
     verohubPedidoDt:  String(row[c.VEROHUB_PEDIDO_DT] || '').trim(),
     segmentacao:      String(row[c.SEGMENTACAO]        || '').trim(),
     preStatus:        String(row[c.PRE_STATUS]         || ''),
-    bcTags:           String(row[c.BC_TAGS]            || '').trim(),
-    bcStatus:         String(row[c.BC_STATUS]          || '').trim(),
+    // bcTags/bcStatus removidos em 19/05/2026 (Performance Lista).
     nomeMae:          clienteLegado.nomeMae,
     dtNasc:           clienteLegado.dtNasc,
     rg:               clienteLegado.rg,
@@ -5406,8 +5385,8 @@ function _construirLinhaDados(d) {
   linha[c.STATUS_PAP]        = d.statusPAP         || 'Em Aberto';
   linha[c.VEROHUB_PEDIDO]    = d.verohubPedido     || '';
   linha[c.VEROHUB_PEDIDO_DT] = d.verohubPedidoDt   || '';
-  linha[c.BC_TAGS]           = d.bcTags            || '';
-  linha[c.BC_STATUS]         = d.bcStatus          || '';
+  // BC_TAGS / BC_STATUS removidos em 19/05/2026 (Performance Lista).
+  // As colunas existem mas não são mais preenchidas. Serão removidas na Fase 6b.
   linha[c.VIABILIDADE]       = d.viabilidade       || '';
   linha[c.CRIADO_EM]         = d.criadoEm          || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
   linha[c.VERO_STATUS]       = d.veroStatus         || '';
@@ -5498,7 +5477,17 @@ function _getSheetVinculosVendas_(createIfMissing) {
   return sh;
 }
 
+// Performance (19/05/2026): cache do mapa de vínculos. TTL 300s, invalidado
+// junto com o cache da Lista e ao registrar/arquivar vínculos.
+var _VINCULOS_VENDAS_CACHE_KEY = 'vinculos_map_v1';
+
 function _getVinculosVendasMap_() {
+  // CACHE HIT
+  var cachedMap = _cacheGetChunked(CONFIG.CACHE_PREFIX + _VINCULOS_VENDAS_CACHE_KEY);
+  if (cachedMap && cachedMap.filhasPorMae && cachedMap.maePorFilha) {
+    return cachedMap;
+  }
+
   var sh = _getSheetVinculosVendas_(false);
   var mapa = { filhasPorMae: {}, maePorFilha: {} };
   if (sh && sh.getLastRow() >= 2) {
@@ -5526,7 +5515,30 @@ function _getVinculosVendasMap_() {
   }
 
   _mesclarVinculosLegadosInferidos_(mapa);
+
+  // CACHE SET (TTL 300s — mesmo da Lista)
+  try { _cachePutChunked(CONFIG.CACHE_PREFIX + _VINCULOS_VENDAS_CACHE_KEY, mapa, 300); }
+  catch(eCache) { Logger.log('_getVinculosVendasMap_ cache erro: ' + eCache); }
+
   return mapa;
+}
+
+// Invalida cache do mapa de vínculos. Chamada quando vínculo é registrado/arquivado
+// e dentro de _limparCacheListaV3 (sempre que a Lista é invalidada).
+function _limparCacheVinculosVendas_() {
+  try {
+    var cache = CacheService.getScriptCache();
+    var base  = CONFIG.CACHE_PREFIX + _VINCULOS_VENDAS_CACHE_KEY;
+    var metaRaw = cache.get(base + '_meta');
+    var keys = [base + '_meta'];
+    if (metaRaw) {
+      var meta = JSON.parse(metaRaw);
+      if (meta && meta.chunks) {
+        for (var i = 0; i < meta.chunks; i++) keys.push(base + '_' + i);
+      }
+    }
+    cache.removeAll(keys);
+  } catch(e) { Logger.log('_limparCacheVinculosVendas_ erro: ' + e); }
 }
 
 function _decorarVendaComVinculos_(venda, vinculosMap, mapaResumoVinculos) {
@@ -5746,6 +5758,9 @@ function _registrarVinculoVenda_(maeLinha, filhaLinha, tipo) {
     String(rowMae[c.CLIENTE] || '').trim(),
     String(rowFilha[c.CLIENTE] || '').trim()
   ]);
+
+  // Performance (19/05/2026): invalida cache de vínculos ao gravar novo
+  _limparCacheVinculosVendas_();
 }
 
 function _extrairValorDoPlano_(plano) {
