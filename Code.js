@@ -1124,6 +1124,23 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  // ── disparo-grupo: digest do sino (Alerta 4, schedule 8h n8n) ─────────────
+  // Reusa detectarAlertasAtivos (mesma fonte do sino do CRM). Exige token
+  // (dados operacionais — não públicos). Reusa N8N_GROUP_WEBHOOK_TOKEN que já
+  // está em PropertiesService aqui e em $env do container n8n no VPS.
+  if (action === 'notificacoes_pendentes') {
+    var secretRecebido = (e.parameter.secret || '').trim();
+    var secretValido = PropertiesService.getScriptProperties().getProperty('N8N_GROUP_WEBHOOK_TOKEN');
+    if (!secretValido || secretRecebido !== secretValido) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, erro: 'unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    return ContentService
+      .createTextOutput(JSON.stringify(_serveActionNotificacoesPendentes_()))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   // ── PWA: Manifest (Android/Chrome) ────────────────────────────────────────
   // Acessado automaticamente pelo browser ao carregar Mobile.html.
   // Permite instalar o CRM como app na tela inicial do celular.
@@ -2634,6 +2651,14 @@ function moverLeadAguardando(payload) {
         }
       }
     } catch(ne) { Logger.log('moverLeadAguardando notif: ' + ne.message); }
+  }
+
+  // disparo-grupo: Alerta 1 (transição → "2- Aguardando Instalação").
+  if (resultado.sucesso && linha) {
+    try {
+      var _statAnt = (typeof statusAnt !== 'undefined') ? statusAnt : '';
+      _dispararAlertaTransicaoStatus_(linha, _statAnt, '2- Aguardando Instalação');
+    } catch (eAlerta) { Logger.log('Alerta leadAguardando — erro: ' + (eAlerta && eAlerta.message || eAlerta)); }
   }
 
   return resultado;
@@ -4223,6 +4248,7 @@ function salvarVenda(dados) {
   var resultado = { sucesso: false };
   var _papLinha  = null; // linha da venda PAP para notificar após lock
   var _lockReleased = false; // flag para o finally não tentar liberar 2x
+  var _statusAntigoAlerta = ''; // disparo-grupo: capturado em edição p/ Alerta 1/2
   try {
     Logger.log('salvarVenda recebido: linhaReferencia=' + dados.linhaReferencia + ' | cliente=' + dados.cliente + ' | status=' + dados.status);
     dados.cliente = String(dados.cliente || '');
@@ -4304,6 +4330,7 @@ function salvarVenda(dados) {
       var linhaAtual = sheet.getRange(linhaNum, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
       // Captura status antigo ANTES do merge (depois disso dados.status é o novo)
       var statusAntigo = String(linhaAtual[CONFIG.COLUNAS.STATUS] || '').trim();
+      _statusAntigoAlerta = statusAntigo;
       // Sprint 3.3 (12/05/2026): snapshot da linha original para reverter
       // a Fibra caso a gravação subsequente do Móvel falhe (atomicidade).
       var linhaAtualSnapshot = linhaAtual.slice();
@@ -4476,6 +4503,13 @@ function salvarVenda(dados) {
         }
       }
     } catch (ne) { Logger.log('salvarVenda PAP notif: ' + ne.message); }
+  }
+
+  // disparo-grupo: Alertas 1 e 2 (transição de status). Não-bloqueante.
+  if (resultado.sucesso && resultado.linha) {
+    try {
+      _dispararAlertaTransicaoStatus_(resultado.linha, _statusAntigoAlerta, dados.status);
+    } catch (eAlerta) { Logger.log('Alerta transicao status — erro: ' + (eAlerta && eAlerta.message || eAlerta)); }
   }
 
   return resultado;
@@ -4712,6 +4746,14 @@ function moverVendaFunil(payload) {
         }
       }
     } catch(ne) { Logger.log('moverVendaFunil notif: ' + ne.message); }
+  }
+
+  // disparo-grupo: Alertas 1 e 2 (transição de status no drag-and-drop).
+  if (resultado.sucesso && linha) {
+    try {
+      var _statAnt = (typeof statusAnt !== 'undefined') ? statusAnt : '';
+      _dispararAlertaTransicaoStatus_(linha, _statAnt, novoStatus);
+    } catch (eAlerta) { Logger.log('Alerta funil — erro: ' + (eAlerta && eAlerta.message || eAlerta)); }
   }
 
   return resultado;
@@ -6472,6 +6514,25 @@ function exibirMensagemAguardandoWeb() {
     var dataFormatada= Utilities.formatDate(hoje, Session.getScriptTimeZone(), 'dd/MM');
     var mesCorrente  = Utilities.formatDate(hoje, Session.getScriptTimeZone(), 'MM/yyyy');
 
+    // disparo-grupo: cooldown one-way contra auto-fire recente (≤5min).
+    // Mostra banner amarelo no topo do modal; operador decide se manda mesmo.
+    var bannerCooldown = '';
+    try {
+      var iso = PropertiesService.getScriptProperties().getProperty('ultimoEnvioParcialAuto');
+      if (iso) {
+        var ms = new Date(iso).getTime();
+        if (!isNaN(ms)) {
+          var diff = hoje.getTime() - ms;
+          if (diff >= 0 && diff < 5 * 60 * 1000) {
+            var segs = Math.round(diff / 1000);
+            bannerCooldown = '<div style="background:#3d2f0a;color:#ffd166;border:1px solid #8a6d1f;padding:10px 12px;border-radius:6px;margin-bottom:10px;font-size:12px;line-height:1.4;">' +
+              '⏱️ Uma parcial automática foi enviada há ' + segs + 's. ' +
+              'Confirme se quer reenviar (basta copiar e colar como faz normalmente).</div>';
+          }
+        }
+      }
+    } catch (eCd) { Logger.log('cooldown parcial: ' + eCd.message); }
+
     // Usa getDashboard() para garantir dados do mês vigente calculados ao vivo
     var d = getDashboard(null, null);
     if (!d || d.erro) return '<div style="padding:12px;color:red;">Erro ao calcular dados: ' + (d && d.erro ? d.erro : 'tente novamente') + '</div>';
@@ -6500,7 +6561,7 @@ function exibirMensagemAguardandoWeb() {
       '⏳ ' + Math.round(d.backlog || 0) + ' Backlog\n' +
       '❌ ' + (d.cancelPct || 0).toFixed(1) + '% Canc. Comercial';
 
-    return '<pre id="texto" style="white-space:pre-wrap;font-size:13px;line-height:1.6;font-family:monospace;background:var(--surface2,#1e1e2e);color:var(--text,#cdd6f4);padding:12px;border-radius:6px;border:1px solid var(--border,#313244);">' + mensagem.trim() + '</pre>'
+    return bannerCooldown + '<pre id="texto" style="white-space:pre-wrap;font-size:13px;line-height:1.6;font-family:monospace;background:var(--surface2,#1e1e2e);color:var(--text,#cdd6f4);padding:12px;border-radius:6px;border:1px solid var(--border,#313244);">' + mensagem.trim() + '</pre>'
       + '<button onclick="navigator.clipboard.writeText(document.getElementById(\'texto\').innerText).then(function(){var b=this;b.innerText=\'✅ Copiado!\';setTimeout(function(){b.innerText=\'📋 Copiar WhatsApp\'},2500)}.bind(this))" style="width:100%;margin-top:10px;background:#25d366;color:#fff;border:none;padding:12px;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px;">📋 Copiar WhatsApp</button>';
   } catch(e) {
     return '<div style="padding:12px;color:red;">❌ Erro: ' + e.message + '</div>';

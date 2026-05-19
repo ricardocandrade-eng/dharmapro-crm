@@ -63,6 +63,11 @@ function registrarLeadMetaAds(payload) {
   var ultimaLinha = aba.getLastRow();
 
   Logger.log('Lead Meta Ads registrado: ' + payload.nome + ' | ' + payload.cidade + ' | linha ' + ultimaLinha);
+
+  // Alerta 5 — disparo-grupo (não-bloqueante; nunca falha o lead).
+  try { _disparoAlertaLeadMeta_(ultimaLinha, payload.nome); }
+  catch (e) { Logger.log('Alerta lead meta — erro: ' + e.message); }
+
   return ultimaLinha;
 }
 
