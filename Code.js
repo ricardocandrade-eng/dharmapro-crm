@@ -4208,7 +4208,11 @@ function criarVendaMovelVinculada(payload) {
 
     sheet.getRange(novaLinha, 1, 1, linhaDados.length).setValues([linhaDados]);
     _registrarVinculoVenda_(linhaOrigem, novaLinha, 'COMBO_MOVEL');
-    _limparCache();
+    // Fase 5b: update fino — INSERT do Móvel + UPDATE da Fibra mãe (vínculo
+    // novo recém-registrado precisa aparecer no card agrupado).
+    _limparCacheSemLista();
+    _atualizarVendaNoCache_(novaLinha);
+    _atualizarVendaNoCache_(linhaOrigem);
     return { sucesso: true, linha: novaLinha, mensagem: '✅ Venda móvel vinculada criada com sucesso!' };
   } finally {
     lock.releaseLock();
