@@ -1991,6 +1991,19 @@
     .filtro-btn-caret { font-size: 8px; color: var(--muted); display: none; }
     .btn-refresh-lista { width: 40px; height: 40px; padding: 0; font-size: 0; line-height: 1; justify-self: end; }
     .btn-refresh-lista::before { content: '\21BB'; font-size: 18px; }
+    /* Fase 5b: badge "Dados de até X min" — afordância visual de frescura do cache */
+    .badge-idade-lista {
+      display: inline-flex; align-items: center;
+      height: 28px; padding: 0 10px;
+      font-size: 11px; font-family: var(--font-mono, monospace);
+      color: var(--muted, #8a92a4);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 14px;
+      margin-right: 6px;
+      cursor: help;
+      user-select: none;
+    }
     .filtro-menu {
       position: absolute; top: calc(100% + 6px); left: 0; min-width: 240px; max-width: 300px;
       background: var(--surface); border: 1px solid var(--border2); border-radius: 12px;
@@ -2557,7 +2570,8 @@
                 <div class="filtro-menu" id="filtroMenuResp"></div>
               </div>
               </div>
-              <button class="btn btn-ghost btn-refresh-lista" onclick="recarregarLista()" title="Buscar novos registros da planilha">↻</button>
+              <span id="badgeIdadeLista" class="badge-idade-lista" style="display:none" title=""></span>
+              <button class="btn btn-ghost btn-refresh-lista" onclick="recarregarLista()" title="Sincronizar — buscar dados frescos do servidor (use quando suspeitar que algo foi editado direto no Sheets ou por script externo)">↻</button>
             </div>
             <div class="filtro-chips" id="filtroChipsAtivos"></div>
           </div>

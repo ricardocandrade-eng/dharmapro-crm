@@ -4895,9 +4895,10 @@ function _sincronizarAoLogar(nomeUsuario) {
         if (!res) return;
         if (res.contratos) _dadosSincronizados = res.contratos;
         if (res.vendas && res.vendas.dados && res.vendas.dados.length > 0) {
-          _dadosListaCache    = res.vendas.dados;
-          _dadosListaTotal    = res.vendas.dados.length;
-          _dadosTotalServidor = res.vendas.totalGeral || res.vendas.dados.length;
+          _dadosListaCache     = res.vendas.dados;
+          _dadosListaTotal     = res.vendas.dados.length;
+          _dadosTotalServidor  = res.vendas.totalGeral || res.vendas.dados.length;
+          _dadosListaTimestamp = Date.now(); // Fase 5b
           _listaCacheSalvarSS(); // Performance: prefetch também persiste
         }
       } catch(e) {}
@@ -6050,14 +6051,15 @@ function limparFiltros() {
 
 
 // ─── CACHE LOCAL DE LISTA (paginação sem round-trip ao servidor) ────────────
-var _dadosListaCache    = null;
-var _dadosListaTotal    = 0;
-var _dadosTotalServidor = 0;   // total de registros no servidor (inclui os ainda não carregados)
-var _listaNeedsReload   = false; // setado após salvar — força recarga do servidor na próxima carregarVendas
+var _dadosListaCache     = null;
+var _dadosListaTotal     = 0;
+var _dadosTotalServidor  = 0;   // total de registros no servidor (inclui os ainda não carregados)
+var _listaNeedsReload    = false; // setado após salvar — força recarga do servidor na próxima carregarVendas
+var _dadosListaTimestamp = 0;   // Fase 5b: quando o cache local foi populado (ms epoch). 0 = vazio. Usado pro badge "Dados de até X min".
 
 // Performance (19/05/2026): persistência em sessionStorage. Sobrevive a F5 e
 // troca de aba dentro da mesma sessão. TTL curto (120s) pra equilibrar com
-// invalidações do servidor (cache de Lista no GAS tem TTL 300s).
+// invalidações do servidor (cache de Lista no GAS tem TTL 1800s — Fase 5b).
 var _LISTA_SS_KEY  = 'dharmapro_lista_v1';
 var _LISTA_SS_TTL  = 120 * 1000; // 120s
 
@@ -6080,15 +6082,62 @@ function _listaCacheCarregarSS() {
     var p = JSON.parse(raw);
     if (!p || !p.ts || !Array.isArray(p.dados)) return false;
     if ((Date.now() - p.ts) > _LISTA_SS_TTL) { sessionStorage.removeItem(_LISTA_SS_KEY); return false; }
-    _dadosListaCache    = p.dados;
-    _dadosListaTotal    = p.dados.length;
-    _dadosTotalServidor = p.totalServidor || p.dados.length;
+    _dadosListaCache     = p.dados;
+    _dadosListaTotal     = p.dados.length;
+    _dadosTotalServidor  = p.totalServidor || p.dados.length;
+    _dadosListaTimestamp = p.ts; // Fase 5b
     return true;
   } catch(e) { return false; }
 }
 
 function _listaCacheLimparSS() {
   try { sessionStorage.removeItem(_LISTA_SS_KEY); } catch(e) {}
+  _dadosListaTimestamp = 0; // Fase 5b
+}
+
+// Fase 5b: atualiza o badge "Dados de até X min" no header da Lista.
+// Idempotente — pode ser chamada sempre que renderizar a Lista.
+// Se _dadosListaTimestamp == 0 (sem cache), esconde o badge.
+function _atualizarBadgeIdadeLista() {
+  var el = document.getElementById('badgeIdadeLista');
+  if (!el) return;
+  if (!_dadosListaTimestamp) { el.style.display = 'none'; return; }
+  var idadeMs  = Date.now() - _dadosListaTimestamp;
+  var idadeMin = Math.floor(idadeMs / 60000);
+  var idadeSeg = Math.floor(idadeMs / 1000);
+  var txt;
+  if (idadeSeg < 30)     txt = 'Agora';
+  else if (idadeMin < 1) txt = 'Há ' + idadeSeg + 's';
+  else if (idadeMin < 60) txt = 'Há ' + idadeMin + ' min';
+  else                   txt = 'Há ' + Math.floor(idadeMin / 60) + 'h';
+  el.textContent = txt;
+  el.title = 'Dados carregados ' + new Date(_dadosListaTimestamp).toLocaleString('pt-BR') +
+             ' — clique no ⟳ para buscar dados frescos.';
+  el.style.display = '';
+}
+
+// Fase 5b: update fino do cache local — análogo a _atualizarVendaNoCache_ do backend.
+// UPDATE se já existe; INSERT no topo se nova. Disponível pra ser chamado em
+// handlers de save no frontend (não amarrado ainda nesta rodada — backend já
+// faz o trabalho via cache HIT em ~500ms).
+function _atualizarVendaNoCacheLocal(venda) {
+  if (!venda || !venda.linha) return false;
+  if (!_dadosListaCache) return false; // cache não existe; nada a fazer
+  var idx = -1;
+  for (var i = 0; i < _dadosListaCache.length; i++) {
+    if (_dadosListaCache[i] && _dadosListaCache[i].linha === venda.linha) { idx = i; break; }
+  }
+  if (idx >= 0) {
+    _dadosListaCache[idx] = venda;
+  } else {
+    _dadosListaCache.unshift(venda);
+    if (_dadosListaCache.length > 500) _dadosListaCache.pop();
+    _dadosTotalServidor = (_dadosTotalServidor || _dadosListaCache.length - 1) + 1;
+  }
+  _dadosListaTotal     = _dadosListaCache.length;
+  _dadosListaTimestamp = Date.now();
+  _listaCacheSalvarSS();
+  return true;
 }
 
 // ── Filtra _dadosListaCache localmente (sem chamada ao servidor) ──────────
@@ -6235,9 +6284,10 @@ function carregarVendas(pagina, filtro) {
           return;
         }
         if (res.dados && res.dados.length > 0) {
-          _dadosListaCache    = res.dados;
-          _dadosListaTotal    = res.dados.length;
-          _dadosTotalServidor = res.totalGeral || res.dados.length;
+          _dadosListaCache     = res.dados;
+          _dadosListaTotal     = res.dados.length;
+          _dadosTotalServidor  = res.totalGeral || res.dados.length;
+          _dadosListaTimestamp = Date.now(); // Fase 5b
           _listaCacheSalvarSS();
         }
         _renderListaCacheLocal();
@@ -6254,9 +6304,10 @@ function carregarVendas(pagina, filtro) {
     .withSuccessHandler(function(resLite) {
       var liteOk = resLite && !resLite.erro && resLite.dados && resLite.dados.length > 0;
       if (liteOk) {
-        _dadosListaCache    = resLite.dados;
-        _dadosListaTotal    = resLite.dados.length;
-        _dadosTotalServidor = resLite.totalGeral || resLite.dados.length;
+        _dadosListaCache     = resLite.dados;
+        _dadosListaTotal     = resLite.dados.length;
+        _dadosTotalServidor  = resLite.totalGeral || resLite.dados.length;
+        _dadosListaTimestamp = Date.now(); // Fase 5b
         _listaCacheSalvarSS();
         _renderListaCacheLocal();
 
@@ -6266,9 +6317,10 @@ function carregarVendas(pagina, filtro) {
           .withSuccessHandler(function(resFull) {
             if (!resFull || resFull.erro) return;
             if (resFull.dados && resFull.dados.length > (_dadosListaCache ? _dadosListaCache.length : 0)) {
-              _dadosListaCache    = resFull.dados;
-              _dadosListaTotal    = resFull.dados.length;
-              _dadosTotalServidor = resFull.totalGeral || resFull.dados.length;
+              _dadosListaCache     = resFull.dados;
+              _dadosListaTotal     = resFull.dados.length;
+              _dadosTotalServidor  = resFull.totalGeral || resFull.dados.length;
+              _dadosListaTimestamp = Date.now(); // Fase 5b
               _listaCacheSalvarSS();
               _renderListaCacheLocal();
             }
@@ -6317,6 +6369,9 @@ function _renderizarLista(res) {
 
   // Mostra botão "Varredura" pros admins (hook leve, idempotente)
   if (typeof _varreduraInitBotao === 'function') _varreduraInitBotao();
+
+  // Fase 5b: atualiza badge "Dados de até X min" no header da Lista.
+  if (typeof _atualizarBadgeIdadeLista === 'function') _atualizarBadgeIdadeLista();
 
   var container = document.getElementById('listaVendas');
 
