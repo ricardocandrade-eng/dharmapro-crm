@@ -3837,6 +3837,7 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
       var cachedLista = _cacheGetChunked(CACHE_KEY_LISTA);
       if (cachedLista && Array.isArray(cachedLista.dados) && cachedLista.dados.length > 0) {
         Logger.log('getVendasPaginadas CACHE HIT: ' + cachedLista.dados.length + ' registros, totalGeral=' + cachedLista.totalGeral);
+        _incCounter_('lista_cache_hit');
         return {
           dados:      cachedLista.dados,
           total:      cachedLista.dados.length,
@@ -3845,6 +3846,7 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
           temMais:    !!(cachedLista.temMais)
         };
       }
+      _incCounter_('lista_cache_miss');
     }
 
     var tz = Session.getScriptTimeZone();
@@ -5041,6 +5043,115 @@ function _limparCache() {
   try { cache.removeAll(toRemove); } catch(e) { Logger.log('_limparCache removeAll erro: ' + e); }
   _limparCacheListaCompleta();
   _limparCacheListaV3(); // garante limpeza do cache chunked da lista principal
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  PERFORMANCE FASE 5b (19/05/2026) — Update fino do cache da Lista
+//  Substitui invalidação total por UPDATE/INSERT cirúrgico por linha. Mantém
+//  cache quente entre saves. Em caso de erro, fallback para invalidação total.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Variante de _limparCache() que NÃO invalida o cache da Lista (lista_v4 /
+// lista_completa). Usar nos pontos de save onde _atualizarVendaNoCache_()
+// cuida da lista linha-a-linha. Sem essa função, todo save invalida cache via
+// cascata em _limparCache() → _limparCacheListaV3 — anulando a Fase 5b.
+function _limparCacheSemLista() {
+  var cache = CacheService.getScriptCache();
+  var toRemove = [
+    CONFIG.CACHE_PREFIX + 'funil_v2_meta',
+    CONFIG.CACHE_PREFIX + 'leads_v1_meta',
+    CONFIG.CACHE_PREFIX + 'responsaveis_v1',
+    CONFIG.CACHE_PREFIX + 'cidades_v1',
+    CONFIG.CACHE_PREFIX + 'tabela_v1',
+    CONFIG.CACHE_PREFIX + 'keys'
+  ];
+  var hoje = new Date();
+  for (var m = 0; m <= 2; m++) {
+    var d = new Date(hoje.getFullYear(), hoje.getMonth() - m, 1);
+    toRemove.push(CONFIG.CACHE_PREFIX + 'dash_' + (d.getMonth()+1) + '_' + d.getFullYear());
+  }
+  try { cache.removeAll(toRemove); } catch(e) { Logger.log('_limparCacheSemLista removeAll erro: ' + e); }
+}
+
+// Atualiza a entrada de UMA venda nos caches da Lista (lista_v4 + lista_completa).
+// UPDATE se já existe; INSERT no topo se nova. Mantém ≤ 500 itens.
+// Reconstrói vínculos da venda + pai + filhas pra manter card agrupado correto.
+// Falha graciosa: em erro, cai pra invalidação total (comportamento antigo).
+function _atualizarVendaNoCache_(numeroLinha) {
+  numeroLinha = parseInt(numeroLinha);
+  if (!numeroLinha || numeroLinha < 3) return;
+  try {
+    var sheet = _getSheet();
+    var ult = sheet.getLastRow();
+    if (numeroLinha > ult) return;
+
+    var row = sheet.getRange(numeroLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+    var tz  = Session.getScriptTimeZone();
+    var vinculosMap = _getVinculosVendasMap_(); // já cacheado (Fase 2)
+
+    // Resumo da venda + filhas + pai (necessário pro card agrupado)
+    var mapaResumoVinculos = {};
+    mapaResumoVinculos[numeroLinha] = _resumirVendaVinculada_(_mapearLinhaLista(row, numeroLinha, tz));
+    var filhos = vinculosMap.filhasPorMae[numeroLinha] || [];
+    for (var f = 0; f < filhos.length; f++) {
+      var lf = filhos[f].vendaFilhaLinha;
+      if (!lf || lf < 3 || lf > ult) continue;
+      var rowF = sheet.getRange(lf, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+      mapaResumoVinculos[lf] = _resumirVendaVinculada_(_mapearLinhaLista(rowF, lf, tz));
+    }
+    var pai = vinculosMap.maePorFilha[numeroLinha];
+    if (pai && pai.vendaMaeLinha && pai.vendaMaeLinha >= 3 && pai.vendaMaeLinha <= ult) {
+      var rowM = sheet.getRange(pai.vendaMaeLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+      mapaResumoVinculos[pai.vendaMaeLinha] = _resumirVendaVinculada_(_mapearLinhaLista(rowM, pai.vendaMaeLinha, tz));
+    }
+
+    var vendaAtualizada = _decorarVendaComVinculos_(
+      _mapearLinhaLista(row, numeroLinha, tz),
+      vinculosMap,
+      mapaResumoVinculos
+    );
+
+    _aplicarUpdateNoChunked_(CONFIG.CACHE_PREFIX + 'lista_v4',       numeroLinha, vendaAtualizada);
+    _aplicarUpdateNoChunked_(CONFIG.CACHE_PREFIX + 'lista_completa', numeroLinha, vendaAtualizada);
+    _incCounter_('lista_fine_update');
+  } catch(e) {
+    Logger.log('_atualizarVendaNoCache_ erro (linha ' + numeroLinha + '): ' + (e && e.message || e) + ' — fallback p/ invalidação total.');
+    _incCounter_('lista_fine_update_fallback');
+    try { _limparCacheListaV3(); _limparCacheListaCompleta(); } catch(e2) {}
+  }
+}
+
+// Aplica UPDATE-or-INSERT num cache chunked individual. Helper privado.
+// No-op se o cache ainda não existe (não cria do nada — Fase 5b assume
+// que getVendasPaginadas é quem cria o cache; update fino só mantém).
+function _aplicarUpdateNoChunked_(key, numeroLinha, vendaAtualizada) {
+  var cached = _cacheGetChunked(key);
+  if (!cached || !Array.isArray(cached.dados)) return;
+  var idx = -1;
+  for (var i = 0; i < cached.dados.length; i++) {
+    if (cached.dados[i] && cached.dados[i].linha === numeroLinha) { idx = i; break; }
+  }
+  if (idx >= 0) {
+    cached.dados[idx] = vendaAtualizada;
+  } else {
+    // INSERT: presume mais recente = topo (linhasNaoVazias sort desc por linha física)
+    cached.dados.unshift(vendaAtualizada);
+    if (cached.dados.length > 500) cached.dados.pop();
+    cached.totalGeral = (cached.totalGeral || cached.dados.length - 1) + 1;
+  }
+  // TTL conservador 30min (commit 2 alinha o cache principal pra mesmo valor).
+  _cachePutChunked(key, cached, 1800);
+}
+
+// Telemetria leve via Script Properties. Fire-and-forget — nunca falha.
+// Contadores expostos via _testTelemetria() / _resetTelemetriaLista().
+// Decisão a tomar após 1 semana: se HIT/MISS ratio < 70%, TTL precisa subir.
+function _incCounter_(key) {
+  try {
+    var p = PropertiesService.getScriptProperties();
+    var n = parseInt(p.getProperty('counter_' + key) || '0', 10) + 1;
+    p.setProperty('counter_' + key, String(n));
+  } catch(e) { /* never throw from telemetry */ }
 }
 
 // Função pública — chamada pelo botão 🔄 do frontend para forçar recarga da planilha
