@@ -3919,10 +3919,14 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
       vendas.push(_decorarVendaComVinculos_(_mapearLinhaLista(row, numLinha, tz), vinculosMap, mapaResumoVinculos));
     }
 
-    // ── Salva no cache (somente offset=0, sem filtro, TTL 90s) ───────────────
+    // ── Salva no cache (somente offset=0, sem filtro, TTL 30min — Fase 5b) ──
+    // TTL bumped 300 → 1800 em conjunto com update fino (commit 3+) que mantém
+    // cache quente em saves. Stale máximo de 30min cobre edições direto no
+    // Sheets / scripts externos sem chamar invalidação. Botão Sincronizar (commit 8)
+    // dá saída de emergência. Decidir após telemetria de 1 semana se ajusta.
     if (offset === 0 && !filtro) {
-      _cachePutChunked(CACHE_KEY_LISTA, { dados: vendas, totalGeral: totalGeral, temMais: temMais }, 300);
-      Logger.log('getVendasPaginadas: cache gravado (' + vendas.length + ' de ' + totalGeral + ' registros)');
+      _cachePutChunked(CACHE_KEY_LISTA, { dados: vendas, totalGeral: totalGeral, temMais: temMais }, 1800);
+      Logger.log('getVendasPaginadas: cache gravado (' + vendas.length + ' de ' + totalGeral + ' registros, TTL 1800s)');
     }
 
     Logger.log('getVendasPaginadas: offset=' + offset + ' limite=' + limite + ' retornando=' + vendas.length + ' totalGeral=' + totalGeral);
