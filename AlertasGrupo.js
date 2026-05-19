@@ -284,9 +284,37 @@ function _disparoAlertaParcial_(linhaNum) {
   }
 }
 /**
+ * Conta leads de hoje na aba "Leads Meta Ads" (col A=data_entrada vs hoje em
+ * America/Sao_Paulo). Tolerante a erro — retorna 0 se algo falhar.
+ *
+ * @param {Sheet} aba - referência da aba já obtida (evita re-lookup)
+ * @returns {number}
+ */
+function _contarLeadsMetaHoje_(aba) {
+  try {
+    var ultRow = aba.getLastRow();
+    if (ultRow < 2) return 0;
+    var hojeKey = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'yyyy-MM-dd');
+    var col = aba.getRange(2, 1, ultRow - 1, 1).getValues();
+    var count = 0;
+    for (var i = 0; i < col.length; i++) {
+      var v = col[i][0];
+      if (v instanceof Date && Utilities.formatDate(v, 'America/Sao_Paulo', 'yyyy-MM-dd') === hojeKey) {
+        count++;
+      }
+    }
+    return count;
+  } catch (e) {
+    Logger.log('_contarLeadsMetaHoje_ erro: ' + (e && e.message || e));
+    return 0;
+  }
+}
+
+/**
  * Alerta 5 — Lead novo Meta Ads.
  *
  * Chamado por `registrarLeadMetaAds` em MetaAdsAPI.js após appendRow.
+ * Mensagem inclui o nome do lead + contador acumulado do dia.
  * Idempotência: coluna `alerta_grupo_enviado` na aba "Leads Meta Ads" (TRUE
  * após sucesso). Não bloqueia o caller — falha de alerta nunca falha o lead.
  *
@@ -313,7 +341,11 @@ function _disparoAlertaLeadMeta_(linhaNum, nomeLead) {
       return;
     }
     var nome = String(nomeLead || '').trim();
-    var msg = nome ? ('💬 Novo Lead Meta: ' + nome) : '💬 Novo Lead Meta';
+    var linha1 = nome ? ('💬 Novo Lead Meta: ' + nome) : '💬 Novo Lead Meta';
+    // Contador inclui o lead atual (que JÁ foi appended antes deste hook).
+    var total = _contarLeadsMetaHoje_(aba);
+    var linha2 = total > 0 ? ('# ' + total + ' lead' + (total === 1 ? '' : 's') + ' hoje') : '';
+    var msg = linha2 ? (linha1 + '\n' + linha2) : linha1;
     var ok = enviarParaGrupoWhatsApp(msg);
     if (ok) {
       aba.getRange(linhaNum, colMarker + 1).setValue(true);
