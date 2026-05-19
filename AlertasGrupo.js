@@ -19,11 +19,18 @@ var CFG_DISPARO_GRUPO = {
 };
 
 /**
- * Envia uma mensagem ao grupo via Flow 1 do n8n.
+ * Envia uma mensagem ao destino via Flow 1 do n8n.
+ *
  * @param {string} mensagem - Texto pronto pra envio.
+ * @param {string} [destino] - Apelido do destino (default: omitido → Flow 1
+ *                             resolve pra "default" = grupo principal).
+ *                             Apelidos disponíveis: ver $env.DESTINOS_DISPONIVEIS
+ *                             no container n8n do VPS. Atualmente:
+ *                             - "default" → grupo Mobile Fibra | Alta Performance
+ *                             - "ricardo" → DM do Ricardo (5532988015161)
  * @returns {boolean} true se HTTP 200, false caso contrário.
  */
-function enviarParaGrupoWhatsApp(mensagem) {
+function enviarParaGrupoWhatsApp(mensagem, destino) {
   if (typeof mensagem !== 'string' || !mensagem.trim()) {
     Logger.log('enviarParaGrupoWhatsApp: mensagem vazia, abortando');
     return false;
@@ -33,6 +40,11 @@ function enviarParaGrupoWhatsApp(mensagem) {
     Logger.log('enviarParaGrupoWhatsApp: ' + CFG_DISPARO_GRUPO.PROP_TOKEN + ' ausente em Script Properties');
     return false;
   }
+  var body = { mensagem: mensagem };
+  if (destino) {
+    var apelido = String(destino).trim();
+    if (apelido) body.destino = apelido;
+  }
   try {
     var headers = {};
     headers[CFG_DISPARO_GRUPO.HEADER_TOKEN] = token;
@@ -40,13 +52,13 @@ function enviarParaGrupoWhatsApp(mensagem) {
       method:             'post',
       contentType:        'application/json',
       headers:            headers,
-      payload:            JSON.stringify({ mensagem: mensagem }),
+      payload:            JSON.stringify(body),
       muteHttpExceptions: true,
       followRedirects:    true
     });
     var code = resp.getResponseCode();
     if (code !== 200) {
-      Logger.log('enviarParaGrupoWhatsApp: HTTP ' + code + ' — ' + resp.getContentText().slice(0, 200));
+      Logger.log('enviarParaGrupoWhatsApp: HTTP ' + code + ' destino=' + (body.destino || 'default') + ' — ' + resp.getContentText().slice(0, 200));
       return false;
     }
     return true;
