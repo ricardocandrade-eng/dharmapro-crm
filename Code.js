@@ -2222,7 +2222,7 @@ function salvarStatusPAP(linha, novoStatus) {
   try {
     var sheet = _getSheet();
     sheet.getRange(linha, CONFIG.COLUNAS.STATUS_PAP + 1).setValue(novoStatus || '');
-    _limparCacheListaCompleta();
+    _atualizarVendaNoCache_(linha); // Fase 5b
     Logger.log('salvarStatusPAP: linha ' + linha + ' = "' + novoStatus + '"');
     return { sucesso: true };
   } catch(e) {
@@ -2236,7 +2236,7 @@ function marcarPagoPAP(linha) {
   try {
     var sheet = _getSheet();
     sheet.getRange(linha, CONFIG.COLUNAS.STATUS_PAP + 1).setValue('Pago');
-    _limparCacheListaCompleta();
+    _atualizarVendaNoCache_(linha); // Fase 5b
     Logger.log('marcarPagoPAP: linha ' + linha + ' marcada como Pago.');
     return { sucesso: true };
   } catch(e) {
@@ -2253,7 +2253,7 @@ function marcarPagoENotificarPAP(payload) {
     // 1) Marca como Pago na planilha
     var sheet = _getSheet();
     sheet.getRange(payload.linha, CONFIG.COLUNAS.STATUS_PAP + 1).setValue('Pago');
-    _limparCacheListaCompleta();
+    _atualizarVendaNoCache_(payload.linha); // Fase 5b — var é payload.linha
     resultado.pagamento = true;
     Logger.log('marcarPagoENotificarPAP: linha ' + payload.linha + ' marcada como Pago.');
 
