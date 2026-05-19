@@ -1961,15 +1961,15 @@ function _consultarNGVenda(index, _tentativa) {
       var _hash = '#dhp?cpf=' + encodeURIComponent(_cpfDigitos) +
                   '&user='    + encodeURIComponent(creds.user) +
                   '&pass='    + encodeURIComponent(creds.pass);
-      // Popup stealth: tamanho mínimo (NG precisa carregar Wing — abaixo de
-      // 400x300 o app pode não renderizar correto), posicionado fora da área
-      // visível dos monitores comuns, sem decorações, e com blur+moveTo
-      // imediato pra mandar pra trás do CRM. Browsers modernos podem clampar
-      // o `top` dentro do screen — o blur garante que pelo menos não rouba foco.
+      // Popup stealth: reduzido pra 250x180 (testando o mínimo que o Wing
+      // ainda renderiza — se quebrar a leitura, voltar pra 400x300). Posição
+      // offscreen (Chrome clampa pra dentro do screen, geralmente joga no
+      // canto inferior direito). Features removem decoração; blur+moveTo
+      // via helper devolve foco pro CRM e reforça posicionamento.
       _popup = window.open(
         'https://ng.vero.objective.com.br/' + _hash,
         'dhp_ng_' + Date.now(),
-        'width=400,height=300,left=99999,top=99999,menubar=no,toolbar=no,location=no,status=no,scrollbars=no,resizable=no'
+        'width=250,height=180,left=99999,top=99999,menubar=no,toolbar=no,location=no,status=no,scrollbars=no,resizable=no'
       );
       _ngPopupAtual = _popup;
       _tornarPopupInvisivel(_popup);
@@ -2778,13 +2778,13 @@ function _varreduraConcluir() {
         var resumoTrunc = String(rr.resumo || '').substring(0, 80);
         var marcadorDiv = rr.divergencia ? ' <span style="color:#ffc107;">⚠</span>' : '';
         var nomeCliente = String(rr.cliente || '').substring(0, 30);
-        html += '<li><span style="color:' + corIcon + ';font-weight:700;">' + icon + '</span>'
+        html += '<li style="margin-bottom:6px;">'
+              + '<span style="color:' + corIcon + ';font-weight:700;">' + icon + '</span>'
               + ' L<strong>' + rr.linha + '</strong>'
               + ' · ' + emoji + ' ' + rr.sistema
               + (nomeCliente ? ' · <span style="color:var(--text);">' + nomeCliente + '</span>' : '')
               + ' · ' + (rr.cpf || '?')
-              + (resumoTrunc ? ' — <span style="color:var(--text);">' + resumoTrunc + '</span>' : '')
-              + marcadorDiv
+              + (resumoTrunc ? '<div style="padding-left:18px;color:var(--text);opacity:.85;margin-top:2px;">' + resumoTrunc + marcadorDiv + '</div>' : marcadorDiv)
               + '</li>';
       }
       html += '</ul></details>';
