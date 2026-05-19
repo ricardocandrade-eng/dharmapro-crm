@@ -1586,3 +1586,193 @@ function removerTriggerRelatorioDiarioAds() {
   }
   Logger.log('Triggers removidos: ' + n);
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+//  ALERTA TRÁFEGO PAGO (spec 04 — disparo-grupo)
+//  Snapshot diário consolidado da conta Meta Ads + leads/vendas CRM.
+//  Consumido pelo workflow n8n (schedule 8h/14h/20h) que envia DM pro Ricardo.
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Wrapper genérico sobre Meta Graph API. Levanta exceção em erro.
+ * @param {string} path - ex: '/act_xxx/insights' ou '/act_xxx/adsets'
+ * @param {object} params - query params (será serializado)
+ * @returns {object} JSON parsed
+ */
+function _metaApiGet_(path, params) {
+  var token = PropertiesService.getScriptProperties().getProperty('META_ACCESS_TOKEN');
+  if (!token) throw new Error('META_ACCESS_TOKEN ausente em Script Properties');
+  var p = Object.assign({ access_token: token }, params || {});
+  var qs = Object.keys(p).map(function(k) {
+    var v = p[k];
+    if (typeof v === 'object') v = JSON.stringify(v);
+    return encodeURIComponent(k) + '=' + encodeURIComponent(v);
+  }).join('&');
+  var url = 'https://graph.facebook.com/' + CFG_META.API_VERSION + path + '?' + qs;
+  var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  var json = JSON.parse(resp.getContentText());
+  if (json.error) {
+    throw new Error('Meta API: ' + json.error.message + ' (code ' + json.error.code + ')');
+  }
+  return json;
+}
+
+/**
+ * Soma daily_budget de todos os ad sets ATIVOS da conta.
+ * Meta retorna daily_budget em CENTAVOS — dividir por 100.
+ * @returns {number} Total em reais
+ */
+function _somarBudgetAdSetsAtivos_() {
+  var json = _metaApiGet_('/' + CFG_META.AD_ACCOUNT_ID + '/adsets', {
+    fields: 'daily_budget,status,effective_status',
+    limit: 200
+  });
+  var data = json.data || [];
+  var total = 0;
+  for (var i = 0; i < data.length; i++) {
+    var a = data[i];
+    if (a.status === 'ACTIVE' && a.effective_status === 'ACTIVE' && a.daily_budget) {
+      total += parseFloat(a.daily_budget) / 100;
+    }
+  }
+  return total;
+}
+
+/**
+ * Lista nomes de campanhas ATIVAS da conta.
+ * @returns {string[]}
+ */
+function _listarCampanhasAtivas_() {
+  var json = _metaApiGet_('/' + CFG_META.AD_ACCOUNT_ID + '/campaigns', {
+    fields: 'name,status,effective_status',
+    limit: 100
+  });
+  var data = json.data || [];
+  return data
+    .filter(function(c) { return c.status === 'ACTIVE' && c.effective_status === 'ACTIVE'; })
+    .map(function(c) { return c.name; });
+}
+
+/**
+ * Conta leads e vendas convertidas hoje a partir da aba "Leads Meta Ads".
+ * - leads_hoje: linhas onde data_entrada (col A) é hoje em America/Sao_Paulo
+ * - vendas_hoje: linhas onde status_final (col I) === 'Converteu' E
+ *                data_status (col K) é hoje
+ * @returns {{leads_hoje:number, vendas_hoje:number}}
+ */
+function _contarLeadsEVendasHoje_() {
+  var aba = _getSpreadsheet_().getSheetByName(CFG_META.ABA_LEADS_META);
+  if (!aba) return { leads_hoje: 0, vendas_hoje: 0 };
+  var ultRow = aba.getLastRow();
+  if (ultRow < 2) return { leads_hoje: 0, vendas_hoje: 0 };
+  // A=data_entrada, I=status_final, K=data_status (cols 1, 9, 11)
+  var rows = aba.getRange(2, 1, ultRow - 1, 11).getValues();
+  var tz = 'America/Sao_Paulo';
+  var hojeKey = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+  var leads = 0;
+  var vendas = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var dataEntrada = rows[i][0];
+    var statusFinal = String(rows[i][8] || '').trim();
+    var dataStatus  = rows[i][10];
+
+    if (dataEntrada instanceof Date) {
+      if (Utilities.formatDate(dataEntrada, tz, 'yyyy-MM-dd') === hojeKey) leads++;
+    }
+    if (statusFinal === 'Converteu' && dataStatus instanceof Date) {
+      if (Utilities.formatDate(dataStatus, tz, 'yyyy-MM-dd') === hojeKey) vendas++;
+    }
+  }
+  return { leads_hoje: leads, vendas_hoje: vendas };
+}
+
+/**
+ * Snapshot consolidado do tráfego pago do DIA ATUAL (timezone America/Sao_Paulo).
+ *
+ * Consome:
+ *  - Meta Insights API: spend/impressions/reach/clicks/ctr/cpc/cpm (level=account)
+ *  - Meta Ad Sets API:  soma daily_budget dos ad sets ativos
+ *  - Meta Campaigns API: nomes de campanhas ativas
+ *  - Aba CRM "Leads Meta Ads": leads e vendas convertidas hoje
+ *
+ * @returns {object} shape definido em spec 04 (ver disparo-grupo/specs/04_alerta_trafego_pago.md)
+ */
+function getResumoTrafegoHoje() {
+  var tz = 'America/Sao_Paulo';
+  var agora = new Date();
+  var hojeISO = Utilities.formatDate(agora, tz, 'yyyy-MM-dd');
+
+  // 1. Insights consolidados (level=account, range hoje)
+  var insightsJson = _metaApiGet_('/' + CFG_META.AD_ACCOUNT_ID + '/insights', {
+    fields: 'spend,impressions,reach,clicks,ctr,cpc,cpm,frequency',
+    time_range: { since: hojeISO, until: hojeISO },
+    level: 'account',
+    limit: 1
+  });
+  var ins = (insightsJson.data && insightsJson.data[0]) || {};
+  var spend  = parseFloat(ins.spend || 0);
+  var impr   = parseInt(ins.impressions || 0, 10);
+  var reach  = parseInt(ins.reach || 0, 10);
+  var cliques = parseInt(ins.clicks || 0, 10);
+  var ctr    = parseFloat(ins.ctr || 0);
+  var cpc    = parseFloat(ins.cpc || 0);
+
+  // 2. Previsto = soma de daily_budget dos ad sets ativos
+  var previsto = 0;
+  try { previsto = _somarBudgetAdSetsAtivos_(); }
+  catch (e) { Logger.log('_somarBudgetAdSetsAtivos_: ' + e.message); }
+
+  // 3. Leads e vendas hoje
+  var lv = _contarLeadsEVendasHoje_();
+
+  // 4. Campanhas ativas (nomes)
+  var campanhasAtivas = [];
+  try { campanhasAtivas = _listarCampanhasAtivas_(); }
+  catch (e) { Logger.log('_listarCampanhasAtivas_: ' + e.message); }
+
+  return {
+    ok: true,
+    snapshot_em: Utilities.formatDate(agora, tz, "yyyy-MM-dd'T'HH:mm:ssXXX"),
+    investimento: {
+      gasto_hoje:   spend,
+      previsto_dia: previsto
+    },
+    entrega: {
+      impressoes: impr,
+      alcance:    reach,
+      cliques:    cliques,
+      ctr_pct:    ctr,
+      cpc:        cpc
+    },
+    resultado: {
+      leads_hoje: lv.leads_hoje,
+      cpl:        lv.leads_hoje > 0 ? (spend / lv.leads_hoje) : 0
+    },
+    vendas: {
+      convertidas_hoje: lv.vendas_hoje
+    },
+    meta: {
+      campanhas_ativas: campanhasAtivas,
+      fonte_leads:      'Leads Meta Ads (CRM)',
+      fonte_metricas:   'Meta Insights API ' + CFG_META.API_VERSION
+    }
+  };
+}
+
+/**
+ * Smoke test — roda no editor pra ver o resumo no Logger.
+ */
+function _smokeResumoTrafego() {
+  try {
+    var r = getResumoTrafegoHoje();
+    Logger.log('=== Resumo Tráfego Hoje ===');
+    Logger.log('Gasto: R$ ' + r.investimento.gasto_hoje.toFixed(2) + ' / Previsto: R$ ' + r.investimento.previsto_dia.toFixed(2));
+    Logger.log('Impr: ' + r.entrega.impressoes + ' · Alcance: ' + r.entrega.alcance + ' · Cliques: ' + r.entrega.cliques);
+    Logger.log('CTR: ' + r.entrega.ctr_pct.toFixed(2) + '% · CPC: R$ ' + r.entrega.cpc.toFixed(2));
+    Logger.log('Leads: ' + r.resultado.leads_hoje + ' · CPL: R$ ' + r.resultado.cpl.toFixed(2));
+    Logger.log('Vendas hoje: ' + r.vendas.convertidas_hoje);
+    Logger.log('Campanhas ativas (' + r.meta.campanhas_ativas.length + '): ' + r.meta.campanhas_ativas.join(' · '));
+  } catch (e) {
+    Logger.log('ERRO: ' + e.message);
+  }
+}

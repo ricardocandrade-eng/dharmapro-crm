@@ -1124,6 +1124,21 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  // ── disparo-grupo: resumo do tráfego pago (Alerta 7, schedule 8/14/20h n8n) ─
+  // Sem secret — agregados públicos (gasto + impressões + leads + vendas).
+  // Reusa MetaAdsAPI.getResumoTrafegoHoje() pra centralizar lógica Meta API.
+  if (action === 'resumo_trafego') {
+    try {
+      return ContentService
+        .createTextOutput(JSON.stringify(getResumoTrafegoHoje()))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, erro: err && err.message || String(err) }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // ── disparo-grupo: digest do sino (Alerta 4, schedule 8h n8n) ─────────────
   // Reusa detectarAlertasAtivos (mesma fonte do sino do CRM). Exige token
   // (dados operacionais — não públicos). Reusa N8N_GROUP_WEBHOOK_TOKEN que já
