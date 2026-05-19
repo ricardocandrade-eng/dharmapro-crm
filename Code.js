@@ -290,7 +290,7 @@ function salvarVeroHub(linha, data) {
     if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
     var sheet = _getSheet();
     sheet.getRange(linha, CONFIG.COLUNAS.VEROHUB + 1).setValue(data || '');
-    _limparCacheListaCompleta();
+    _atualizarVendaNoCache_(linha); // Fase 5b
     return { sucesso: true };
   } catch(e) {
     return { sucesso: false, mensagem: e.message };
@@ -314,7 +314,7 @@ function salvarVeroHubPedidoManual(linha, data) {
     var horaEdit = Utilities.formatDate(new Date(), tz, 'HH:mm');
     var sheet = _getSheet();
     sheet.getRange(linha, CONFIG.COLUNAS.VEROHUB + 1).setValue(data || '');
-    _limparCacheListaCompleta();
+    _atualizarVendaNoCache_(linha); // Fase 5b
     return { sucesso: true, horaEdit: horaEdit };
   } catch(e) {
     return { sucesso: false, mensagem: e.message };
@@ -328,7 +328,7 @@ function salvarTurno(linha, turno) {
     if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
     var sheet = _getSheet();
     sheet.getRange(linha, CONFIG.COLUNAS.TURNO + 1).setValue(turno || '');
-    _limparCacheListaCompleta();
+    _atualizarVendaNoCache_(linha); // Fase 5b
     return { sucesso: true };
   } catch(e) {
     return { sucesso: false, mensagem: e.message };
@@ -364,7 +364,7 @@ function salvarAgendamentoComContador(linha, data) {
       sheet.getRange(linha, c.REAGENDAMENTOS + 1).setValue(contAtual);
     }
 
-    _limparCacheListaCompleta();
+    _atualizarVendaNoCache_(linha); // Fase 5b
     return { sucesso: true, reagendamentos: contAtual };
   } catch(e) {
     return { sucesso: false, mensagem: e.message };
@@ -385,7 +385,7 @@ function salvarPedidoVeroHub(linha, numeroPedido, dataHoraPedido) {
     var sheet = _getSheet();
     sheet.getRange(linha, c.VEROHUB_PEDIDO    + 1).setValue(numeroPedido   || '');
     sheet.getRange(linha, c.VEROHUB_PEDIDO_DT + 1).setValue(dataHoraPedido || '');
-    _limparCacheListaCompleta();
+    _atualizarVendaNoCache_(linha); // Fase 5b
     return { sucesso: true, numeroPedido: numeroPedido, dataHoraPedido: dataHoraPedido };
   } catch(e) {
     return { sucesso: false, mensagem: e.message };
@@ -495,7 +495,7 @@ function criarPedidoVeroHub(dados) {
       var sheet = _getSheet();
       sheet.getRange(linha, c.VEROHUB_PEDIDO    + 1).setValue(String(novoId));
       sheet.getRange(linha, c.VEROHUB_PEDIDO_DT + 1).setValue(dtHora);
-      _limparCacheListaCompleta();
+      _atualizarVendaNoCache_(linha); // Fase 5b
     }
 
     return {
@@ -520,7 +520,7 @@ function salvarViabilidadeVenda(linha, viabilidade, network) {
     var valor = String(viabilidade || '').trim();
     if (network) valor += ' | ' + String(network).trim();
     _getSheet().getRange(linha, CONFIG.COLUNAS.VIABILIDADE + 1).setValue(valor);
-    _limparCacheListaCompleta();
+    _atualizarVendaNoCache_(linha); // Fase 5b
     return { sucesso: true };
   } catch(e) {
     Logger.log('Erro salvarViabilidadeVenda: ' + e.message);
