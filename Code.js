@@ -622,7 +622,7 @@ function atualizarVendaComAdapter(dados) {
       sheet.getRange(linha, CONFIG.COLUNAS.AGENDA + 1).setValue(_formatarDataNascimento(dados.dataAgendamento, 'dd/MM/yyyy'));
     }
 
-    _limparCacheListaCompleta();
+    _atualizarVendaNoCache_(linha); // Fase 5b: update fino (var é `linha`, não linhaNum)
 
     // Notificação PAP quando instalação confirmada
     if (dados.instalada) {
@@ -686,7 +686,7 @@ function atualizarVendaComNG(dados) {
       sheet.getRange(linha, CONFIG.COLUNAS.AGENDA + 1).setValue(_formatarDataNascimento(dados.dataAgendamento, 'dd/MM/yyyy'));
     }
 
-    _limparCacheListaCompleta();
+    _atualizarVendaNoCache_(linha); // Fase 5b: update fino (var é `linha`, não linhaNum)
 
     // Notificação PAP quando instalação confirmada
     if (dados.instalada) {
