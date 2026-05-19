@@ -1748,6 +1748,26 @@ var _ngDadosTemp = null;
 var _ngPopupAtual = null;       // handle do último popup NG aberto
 var _adapterPopupAtual = null;  // handle do último popup Adapter aberto
 
+// Tenta deixar o popup o mais invisível possível: blur imediato (devolve foco
+// pro CRM) + moveTo offscreen + window.focus no opener. Browsers modernos
+// (Chrome/Edge) clampam coordenadas dentro do screen e impõem tamanho mínimo,
+// então NÃO dá pra esconder 100% — mas dá pra evitar que roube foco e fique
+// piscando na frente do usuário. Repete por 2s pra cobrir o caso onde a Wing
+// (NG) tenta dar focus ao terminar de carregar.
+function _tornarPopupInvisivel(p) {
+  if (!p) return;
+  function esconder() {
+    try { p.blur(); } catch(e) {}
+    try { p.moveTo(99999, 99999); } catch(e) {}
+    try { window.focus(); } catch(e) {}
+  }
+  esconder();
+  // Reaplica após o load do app — Wing/Adapter podem chamar window.focus()
+  // ao terminar de carregar, então a gente reforça por alguns segundos.
+  var tentativas = [200, 600, 1200, 2000];
+  tentativas.forEach(function(ms) { setTimeout(esconder, ms); });
+}
+
 function _consultarNGVenda(index, _tentativa) {
   _tentativa = _tentativa || 1;
   var v = _paginaAtual[index];
@@ -1941,8 +1961,18 @@ function _consultarNGVenda(index, _tentativa) {
       var _hash = '#dhp?cpf=' + encodeURIComponent(_cpfDigitos) +
                   '&user='    + encodeURIComponent(creds.user) +
                   '&pass='    + encodeURIComponent(creds.pass);
-      _popup = window.open('https://ng.vero.objective.com.br/' + _hash, 'dhp_ng_' + Date.now(), 'width=400,height=300,left=0,top=0');
+      // Popup stealth: tamanho mínimo (NG precisa carregar Wing — abaixo de
+      // 400x300 o app pode não renderizar correto), posicionado fora da área
+      // visível dos monitores comuns, sem decorações, e com blur+moveTo
+      // imediato pra mandar pra trás do CRM. Browsers modernos podem clampar
+      // o `top` dentro do screen — o blur garante que pelo menos não rouba foco.
+      _popup = window.open(
+        'https://ng.vero.objective.com.br/' + _hash,
+        'dhp_ng_' + Date.now(),
+        'width=400,height=300,left=99999,top=99999,menubar=no,toolbar=no,location=no,status=no,scrollbars=no,resizable=no'
+      );
       _ngPopupAtual = _popup;
+      _tornarPopupInvisivel(_popup);
 
       // Detecta popup bloqueado pelo navegador
       if (!_popup || _popup.closed || typeof _popup.closed === 'undefined') {
@@ -2224,8 +2254,16 @@ function _consultarAdapterVenda(index, _tentativa) {
       var _hash = '#dhp?cpf=' + encodeURIComponent(_cpfDigitos) +
                   '&user='    + encodeURIComponent(creds.user) +
                   '&pass='    + encodeURIComponent(creds.pass);
-      _popup = window.open('https://adapter.veronet.com.br/adapter/' + _hash, 'dhp_adapter_' + Date.now(), 'width=1,height=1,left=-100,top=-100');
+      // Popup stealth: Adapter precisa só de cookies + AJAX, então usa o
+      // mínimo permitido pelo Chrome (~200x100). Posição offscreen + blur +
+      // moveTo via helper compartilhado com o popup do NG.
+      _popup = window.open(
+        'https://adapter.veronet.com.br/adapter/' + _hash,
+        'dhp_adapter_' + Date.now(),
+        'width=200,height=100,left=99999,top=99999,menubar=no,toolbar=no,location=no,status=no,scrollbars=no,resizable=no'
+      );
       _adapterPopupAtual = _popup;
+      _tornarPopupInvisivel(_popup);
 
       // Detecta popup bloqueado pelo navegador
       if (!_popup || _popup.closed || typeof _popup.closed === 'undefined') {
@@ -2399,6 +2437,15 @@ function _varreduraFiltrar(sistema, statuses) {
 // Auto-preview: mostra a contagem + lista de vendas que efetivamente vão entrar
 // na varredura. Atualiza ao mudar filtros (debounced 300ms). Permite ao admin
 // validar visualmente se o filtro está correto antes de clicar "Rodar".
+// Pausa fixa entre consultas (segundos). 3s = meio termo entre velocidade
+// (varredura de 30 vendas em ~1m30s) e folga pra sessão Wing/Adapter respirar.
+// Ajuste se a Vero começar a rejeitar consultas em sequências longas.
+var _VARREDURA_DELAY_SEGS = 3;
+
+// Teto de segurança — evita que filtros amplos (ex: marcar status 3 sem mais nada)
+// disparem milhares de consultas sem intenção. Subir aqui se precisar mais.
+var _VARREDURA_MAX_HARD   = 500;
+
 function _varreduraAtualizarContador() {
   var el = document.getElementById('varr-disponiveis');
   if (!el) return;
@@ -2418,7 +2465,6 @@ function _varreduraAtualizarContador() {
     google.script.run
       .withSuccessHandler(function(res) {
         var vendas = (res && res.vendas) || [];
-        var maximo = Math.max(1, Math.min(500, parseInt(document.getElementById('varr-maximo').value, 10) || 30));
 
         if (vendas.length === 0) {
           el.innerHTML = '<strong>0</strong> (nenhuma venda satisfaz os filtros)';
@@ -2426,10 +2472,10 @@ function _varreduraAtualizarContador() {
         }
 
         var resumo = '<strong>' + vendas.length + '</strong>';
-        if (vendas.length <= maximo) {
+        if (vendas.length <= _VARREDURA_MAX_HARD) {
           resumo += ' (todas serão consultadas)';
         } else {
-          resumo += ' encontradas — primeiras <strong>' + maximo + '</strong> serão consultadas';
+          resumo += ' encontradas — primeiras <strong>' + _VARREDURA_MAX_HARD + '</strong> serão consultadas (teto de segurança)';
         }
 
         // Listagem expansível das primeiras 30
@@ -2465,8 +2511,8 @@ function _varreduraIniciar() {
     mostrarToast('Selecione ao menos um status.', 'warning');
     return;
   }
-  var maximo    = Math.max(1, Math.min(500, parseInt(document.getElementById('varr-maximo').value, 10) || 30));
-  var delaySegs = Math.max(1, Math.min(60,  parseInt(document.getElementById('varr-delay').value,  10) || 5));
+  var maximo    = _VARREDURA_MAX_HARD;
+  var delaySegs = _VARREDURA_DELAY_SEGS;
 
   // Trava o botão e indica busca em curso
   var btnRodar = document.getElementById('varr-btn-rodar');
@@ -2731,9 +2777,11 @@ function _varreduraConcluir() {
         var emoji = (rr.sistema === 'NG') ? '🔵' : '🟢';
         var resumoTrunc = String(rr.resumo || '').substring(0, 80);
         var marcadorDiv = rr.divergencia ? ' <span style="color:#ffc107;">⚠</span>' : '';
+        var nomeCliente = String(rr.cliente || '').substring(0, 30);
         html += '<li><span style="color:' + corIcon + ';font-weight:700;">' + icon + '</span>'
               + ' L<strong>' + rr.linha + '</strong>'
               + ' · ' + emoji + ' ' + rr.sistema
+              + (nomeCliente ? ' · <span style="color:var(--text);">' + nomeCliente + '</span>' : '')
               + ' · ' + (rr.cpf || '?')
               + (resumoTrunc ? ' — <span style="color:var(--text);">' + resumoTrunc + '</span>' : '')
               + marcadorDiv
