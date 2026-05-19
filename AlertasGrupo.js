@@ -347,11 +347,32 @@ function _disparoAlertaLeadMeta_(linhaNum, nomeLead) {
     var msg = nome
       ? ('💬 Novo Lead Meta: ' + nome + suf)
       : ('💬 Novo Lead Meta' + suf);
-    var ok = enviarParaGrupoWhatsApp(msg);
-    if (ok) {
+
+    // Destinos: lê Script Property ALERTA5_DESTINOS (CSV); default 'default,agencia'.
+    // Permite ajustar sem deploy via PropertiesService.
+    var destinosRaw = PropertiesService.getScriptProperties().getProperty('ALERTA5_DESTINOS')
+      || 'default,agencia';
+    var destinos = destinosRaw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    var algumOk = false;
+    var falhas = [];
+    for (var i = 0; i < destinos.length; i++) {
+      var d = destinos[i];
+      // 'default' = sem segundo arg (helper passa undefined; Flow 1 resolve default).
+      var ok = (d === 'default')
+        ? enviarParaGrupoWhatsApp(msg)
+        : enviarParaGrupoWhatsApp(msg, d);
+      if (ok) { algumOk = true; }
+      else    { falhas.push(d); }
+    }
+    if (algumOk) {
+      // Marca idempotência se PELO MENOS UM destino entregou — evita reenvio
+      // em massa em retry quando 1 destino fica flaky.
       aba.getRange(linhaNum, colMarker + 1).setValue(true);
+      if (falhas.length) {
+        Logger.log('_disparoAlertaLeadMeta_: parcial — falhas em [' + falhas.join(',') + '] mas marker setado');
+      }
     } else {
-      Logger.log('_disparoAlertaLeadMeta_: envio falhou — marker NÃO atualizado (próxima execução tentará de novo)');
+      Logger.log('_disparoAlertaLeadMeta_: TODOS os destinos falharam — marker NÃO setado (próxima execução tentará)');
     }
   } catch (e) {
     Logger.log('_disparoAlertaLeadMeta_ erro: ' + (e && e.message || e));
