@@ -2828,13 +2828,12 @@ function _varreduraAtualizarUI() {
   if (elBar) elBar.style.width = pct + '%';
 }
 
-// Toggle de visibilidade do botão — admin only. Chamado por _renderizarLista.
+// Hook mantido pra compat — _renderizarLista chama explicitamente. O botão agora
+// vive na topbar global (Index.html) e fica visível pra todos os perfis o tempo
+// todo; não precisa toggle manual. Função deixada como no-op pra preservar o
+// callsite; futuras restrições por perfil/feature flag entrariam aqui.
 function _varreduraInitBotao() {
-  try {
-    var btn = document.getElementById('btnVarredura');
-    if (!btn) return;
-    btn.style.display = (AppState.get('perfil') === 'admin') ? 'inline-block' : 'none';
-  } catch(e) {}
+  // no-op: botão vive na topbar global e fica sempre visível
 }
 
 

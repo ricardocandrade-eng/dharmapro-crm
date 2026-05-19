@@ -123,6 +123,18 @@
     /* ── Sino de Notificações ── */
     .notif-bell-wrap { position: fixed; right: 24px; top: 7px; z-index: 300; flex-shrink: 0; }
 
+    /* ── Botão Consultar Instalações (Modo Varredura) ────────────────── */
+    .topbar-action-btn {
+      position: fixed; right: 145px; top: 9px; z-index: 300;
+      padding: 7px 12px; border-radius: 8px;
+      background: var(--surface2); border: 1.5px solid var(--border);
+      color: var(--text); font-family: 'Sora', sans-serif; font-size: 11.5px; font-weight: 500;
+      cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .topbar-action-btn:hover { background: var(--border); border-color: var(--accent); color: var(--accent); }
+    .topbar-action-btn:active { transform: translateY(1px); }
+
     /* ── Health Check Widget (VPN/NG/Adapter) ─────────────────────────── */
     .health-widget {
       position: fixed; right: 78px; top: 14px; z-index: 300;
@@ -2236,6 +2248,9 @@
           <span class="msg-sistema-texto" id="msgSistemaTexto"></span>
         </div>
 
+        <!-- ── Botão Consultar Instalações (Modo Varredura) ── -->
+        <button id="btnVarredura" class="topbar-action-btn" onclick="_varreduraAbrir()" title="Consultar status de instalação em lote via NG/Adapter">🔍 Consultar instalações</button>
+
         <!-- ── Health Check Widget: VPN / NG / Adapter ── -->
         <div class="health-widget" id="healthWidget" onclick="_verificarConexoes(true)" title="Verificar conexões NG / Adapter / VPN — clique pra refresh">
           <span class="health-dot health-dot--vpn" id="healthDotVpn" title="VPN"></span>
@@ -2560,7 +2575,6 @@
           </div>
           <div class="list-meta">
             <span id="totalRegistros">—</span>
-            <button id="btnVarredura" class="btn btn-ghost btn-sm" style="display:none;margin-left:12px;font-size:11px;" onclick="_varreduraAbrir()" title="Modo Varredura (admin)">🔍 Varredura</button>
           </div>
           <div class="lista-scroll" id="listaVendas">
             <div class="empty"><div class="empty-icon">📋</div><h3>Carregando...</h3></div>
