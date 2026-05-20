@@ -75,6 +75,16 @@ function pifOnStatusChange(novoStatus) {
     grpPreStatus.style.opacity = ehConf ? '' : '0.35';
     if (!ehConf) grpPreStatus.value = '';
   }
+
+  // Direção C (20/05/2026): atualiza band + plano destaque ao vivo quando
+  // o status muda — mantém visual coerente sem precisar salvar.
+  if (typeof _pifPopularBand === 'function' && v) {
+    var vAtualizado = {};
+    Object.keys(v).forEach(function(k){ vAtualizado[k] = v[k]; });
+    vAtualizado.status = novoStatus;
+    _pifPopularBand(vAtualizado);
+    if (typeof _pifPopularPlanoDestaque === 'function') _pifPopularPlanoDestaque(vAtualizado);
+  }
 }
 
 // Sprint 3.3 (12/05/2026): handler do select de Status do MÓVEL (`pif-mv-status`).
@@ -566,7 +576,13 @@ function _pifAplicarModoLeitura() {
   var form = document.getElementById('painelInlineForm');
   if (!form) return;
   form.classList.remove('modo-edicao');
-  form.querySelectorAll('input, select, textarea').forEach(function(el) {
+  // Direção C (20/05/2026): remove modo-edição do painelConteudo também,
+  // pra band/hero voltarem ao modo readonly (texto em vez de select)
+  var painel = document.getElementById('painelConteudo');
+  if (painel) painel.classList.remove('modo-edicao');
+  // Aplica readonly/disabled em todos inputs/selects do form + band/hero
+  var scope = painel || form;
+  scope.querySelectorAll('input, select, textarea').forEach(function(el) {
     if (el.tagName === 'SELECT') { el.disabled = true; }
     else                          { el.readOnly = true; }
   });
@@ -579,7 +595,12 @@ function _pifAplicarModoEdicao() {
   var form = document.getElementById('painelInlineForm');
   if (!form) return;
   form.classList.add('modo-edicao');
-  form.querySelectorAll('input, select, textarea').forEach(function(el) {
+  // Direção C (20/05/2026): adiciona modo-edição no painelConteudo, que
+  // expõe os selects no band e nos chips do hero (Status/PréStatus/Canal/Resp)
+  var painel = document.getElementById('painelConteudo');
+  if (painel) painel.classList.add('modo-edicao');
+  var scope = painel || form;
+  scope.querySelectorAll('input, select, textarea').forEach(function(el) {
     // Inputs marcados como sempre readonly (ex: pif-valor calculado) mantêm
     if (el.dataset && el.dataset.sempreReadonly === '1') {
       el.readOnly = true; return;
@@ -7464,6 +7485,185 @@ function selecionarVenda(index, el) {
   mostrarPainel(v);
 }
 
+// ─── PAINEL v7 — Direção C (Cards Colapsáveis · 20/05/2026) ───────────────
+// Helpers para popular faixa de status, chips do hero, plano destaque e
+// summaries inline dos collapsibles.
+function _pifPopularBand(v) {
+  if (!v) return;
+  var cores = STATUS_CORES[v.status] || { bg: 'transparent', text: '#9ba4c2', border: '#9ba4c2' };
+  var band = document.getElementById('pifStatusBand');
+  if (band) band.style.cssText = _bandStyleFromCores(cores);
+  var statusTxt = document.getElementById('pif-band-status-text');
+  if (statusTxt) statusTxt.textContent = v.status || '—';
+  var pre = document.getElementById('pif-band-prestatus');
+  if (pre) {
+    var ehConf = (v.status || '') === '1- Conferencia/Ativação';
+    if (v.preStatus && ehConf) {
+      pre.textContent = '· ' + v.preStatus;
+      pre.style.display = '';
+    } else {
+      pre.style.display = 'none';
+    }
+  }
+  var lanc = document.getElementById('pif-band-lanc');
+  if (lanc) {
+    var txt = '';
+    if (v.criadoEm && v.criadoEm.length >= 16) {
+      txt = 'Lanç. ' + v.criadoEm.substring(0,5) + ' ' + v.criadoEm.substring(11,16);
+      if (v.criadoPor) txt += ' · ' + v.criadoPor;
+    }
+    lanc.textContent = txt;
+  }
+}
+
+function _pifPopularHero(v) {
+  if (!v) return;
+  // Nome (sempre branco — sai do esquema de cor do status, mesmo padrão da lista)
+  var nome = document.getElementById('pNome');
+  if (nome) { nome.textContent = v.cliente || 'Sem nome'; nome.style.color = '#fff'; }
+  // CPF · ID · Linha em uma única linha mono
+  var cpf = document.getElementById('pCpf');
+  if (cpf) cpf.textContent =
+    (v.cpf      ? v.cpf : '') +
+    (v.contrato ? ' · ID ' + v.contrato : '') +
+    (v.linha    ? ' · L.'  + v.linha    : '');
+  // Chip Canal
+  var canalText = document.getElementById('pifChipCanalText');
+  if (canalText) canalText.textContent = v.canal || '—';
+  var canalChip = document.getElementById('pifChipCanal');
+  if (canalChip) canalChip.style.display = (v.canal || _pifModoEdicao) ? '' : 'none';
+  // Chip Responsável (avatar + nome)
+  var respChip = document.getElementById('pifChipResp');
+  var respAvatar = document.getElementById('pifChipRespAvatar');
+  var respNome = document.getElementById('pifChipRespNome');
+  if (v.resp) {
+    var ini = _iniciais(v.resp);
+    var respColors = ['rgba(34,217,138,.18)/var(--green)', 'rgba(167,139,250,.18)/var(--purple)',
+                      'rgba(79,158,255,.18)/var(--blue)',  'rgba(247,162,59,.18)/var(--yellow)'];
+    var rc = respColors[(ini.charCodeAt(0) || 0) % respColors.length].split('/');
+    if (respAvatar) { respAvatar.textContent = ini; respAvatar.style.background = rc[0]; respAvatar.style.color = rc[1]; }
+    if (respNome) respNome.textContent = v.resp;
+    if (respChip) respChip.style.display = '';
+  } else {
+    if (respChip) respChip.style.display = _pifModoEdicao ? '' : 'none';
+  }
+  // Chip combo sem móvel (warning)
+  var warn = document.getElementById('pifChipComboSemMovel');
+  if (warn) warn.style.display = v.comboMovelPendente ? '' : 'none';
+}
+
+function _produtoClsPainel(produto) {
+  var map = { 'Fibra Alone': 'vi-prod-fa', 'Fibra Combo': 'vi-prod-fc', 'Móvel Combo': 'vi-prod-mc', 'Móvel Alone': 'vi-prod-ma' };
+  return map[produto] || 'vi-prod-xx';
+}
+
+function _pifSetPlanoRowPainel(qual, badgeText, badgeCls, nomePlano, status, valor) {
+  var badge = document.getElementById('pifPlano' + qual + 'Badge');
+  if (badge) { badge.textContent = badgeText; badge.className = 'vi-produto ' + badgeCls; }
+  var nome = document.getElementById('pifPlano' + qual + 'Nome');
+  if (nome) nome.textContent = nomePlano || '—';
+  var coresPlano = STATUS_CORES[status] || { text: '#9ba4c2' };
+  var cor = coresPlano.text || coresPlano.border || '#9ba4c2';
+  var sub = document.getElementById('pifPlano' + qual + 'Sub');
+  if (sub) sub.style.color = cor;
+  var statusEl = document.getElementById('pifPlano' + qual + 'Status');
+  if (statusEl) statusEl.textContent = status || '—';
+  var valorEl = document.getElementById('pifPlano' + qual + 'Valor');
+  if (valorEl) valorEl.textContent = valor || '—';
+}
+
+function _pifPopularPlanoDestaque(v) {
+  if (!v) return;
+  var destaque = document.getElementById('pifPlanoDestaque');
+  if (!destaque) return;
+  var prodNorm = _normalizarTexto(v.produto || '');
+  var isMobile = prodNorm.indexOf('MOVEL') !== -1;
+  var temFibra = false, temMovel = false;
+  if (!isMobile) {
+    // Venda principal é Fibra
+    temFibra = true;
+    _pifSetPlanoRowPainel('Fibra', _produtoComEmoji(v.produto) || 'FIBRA', _produtoClsPainel(v.produto),
+      _limparNomePlano(v.plano), v.status, _formatarValorBR(v.valor));
+    if (v.vendaMovelResumo) {
+      temMovel = true;
+      var mv = v.vendaMovelResumo;
+      _pifSetPlanoRowPainel('Movel', _produtoComEmoji(mv.produto) || 'MÓVEL', _produtoClsPainel(mv.produto),
+        _limparNomePlano(mv.plano), mv.status, _formatarValorBR(mv.valor));
+    }
+  } else {
+    // Venda principal é Móvel — pode ter mãe Fibra
+    if (v.vendaMaeResumo) {
+      temFibra = true;
+      var maeF = v.vendaMaeResumo;
+      _pifSetPlanoRowPainel('Fibra', _produtoComEmoji(maeF.produto) || 'FIBRA', _produtoClsPainel(maeF.produto),
+        _limparNomePlano(maeF.plano), maeF.status, _formatarValorBR(maeF.valor));
+    }
+    temMovel = true;
+    _pifSetPlanoRowPainel('Movel', _produtoComEmoji(v.produto) || 'MÓVEL', _produtoClsPainel(v.produto),
+      _limparNomePlano(v.plano), v.status, _formatarValorBR(v.valor));
+  }
+  document.getElementById('pifPlanoFibraRow').style.display = temFibra ? '' : 'none';
+  document.getElementById('pifPlanoMovelRow').style.display = temMovel ? '' : 'none';
+  destaque.style.display = (temFibra || temMovel) ? '' : 'none';
+}
+
+function _pifPopularSummaries(v) {
+  if (!v) return;
+  function setSumm(id, txt) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = txt || '';
+  }
+  // Cliente
+  var pc = [];
+  if (v.whats) pc.push(v.whats);
+  if (v.dtNasc) pc.push('Nasc. ' + v.dtNasc);
+  if (v.cpf) pc.push(v.cpf);
+  setSumm('pif-summ-cliente', pc.slice(0,2).join(' · '));
+  // Endereço
+  var pe = [];
+  if (v.cidade) pe.push(v.cidade);
+  if (v.uf) pe.push(v.uf);
+  if (v.bairro) pe.push(v.bairro);
+  setSumm('pif-summ-endereco', pe.slice(0,3).join(' · '));
+  // Plano
+  var pp = [];
+  if (v.formaPagamento) pp.push(_labelFormaPagamento(v.formaPagamento));
+  if (v.venc) pp.push('Venc. ' + v.venc);
+  if (v.sistema) pp.push(v.sistema);
+  setSumm('pif-summ-plano', pp.slice(0,3).join(' · '));
+  // Datas
+  var pd = [];
+  if (v.agenda) {
+    var t = v.turno ? (v.turno.toUpperCase().indexOf('TARDE') > -1 ? ' T' : ' M') : '';
+    pd.push('Ag. ' + _fmtData(v.agenda).substring(0,5) + t);
+  }
+  if (v.instal) pd.push('Inst. ' + _fmtData(v.instal).substring(0,5));
+  setSumm('pif-summ-datas', pd.join(' · '));
+  // Móvel solo
+  var pms = [];
+  if (v.linhaMovel) pms.push('Linha ' + v.linhaMovel);
+  setSumm('pif-summ-movel', pms.join(' · '));
+  // Móvel combo vinculado
+  if (v.vendaMovelResumo) {
+    var mv = v.vendaMovelResumo;
+    var pmc = [];
+    if (mv.linhaMovel) pmc.push('Linha ' + mv.linhaMovel);
+    if (mv.contrato) pmc.push('ID ' + mv.contrato);
+    setSumm('pif-summ-movel-combo', pmc.join(' · '));
+  }
+  // Observação
+  var obs = String(v.observacao || '');
+  setSumm('pif-summ-obs', obs.length > 40 ? obs.substring(0, 40) + '…' : obs);
+}
+
+function _pifToggleSection(headerEl) {
+  // Em modo edição, tudo fica aberto (CSS força) e o toggle não faz nada
+  var painel = document.getElementById('painelConteudo');
+  if (painel && painel.classList.contains('modo-edicao')) return;
+  var secao = headerEl && headerEl.closest && headerEl.closest('.pif-secao.pif-collapsible');
+  if (secao) secao.classList.toggle('expanded');
+}
+
 // Sprint 3.3 (12/05/2026): mostrarPainel reescrito — painel unificado.
 // Em vez de gerar HTML via innerHTML em #painelScroll (que era layout distinto
 // do form de edição), agora popula os inputs do #painelInlineForm com os valores
@@ -7473,6 +7673,12 @@ function mostrarPainel(v) {
   if (!v) return;
   var cores = STATUS_CORES[v.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
   _dhpPopularHeaderPainel(v, cores.text, v.comboMovelPendente);
+
+  // Direção C (20/05/2026): popula band, hero chips, plano destaque, summaries
+  _pifPopularBand(v);
+  _pifPopularHero(v);
+  _pifPopularPlanoDestaque(v);
+  _pifPopularSummaries(v);
 
   // Popula todos os inputs da Fibra (mãe)
   _pifPopularInputs(v);

@@ -961,6 +961,205 @@
 
     /* Sprint 2 (11/05/2026): Modais de status MS2/MS3 eliminados — CSS .ms-* removido. Campos agora inline no painel (.pif-*). */
 
+    /* ── Painel v7 — Direção C (Cards Colapsáveis · 20/05/2026) ── */
+    /* Faixa colorida de status no topo do painel (igual aos cards da lista) */
+    .painel-topo { padding: 0 !important; }
+    .pif-status-band {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 5px 14px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      gap: 8px;
+      border-bottom: 1px solid;
+      min-height: 26px;
+    }
+    .pif-status-band-status {
+      display: flex; align-items: center; gap: 6px;
+      font-weight: 600;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+    .pif-status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      flex-shrink: 0;
+      background: currentColor;
+    }
+    .pif-status-band-meta {
+      font-size: 10px;
+      color: var(--muted);
+      opacity: 0.65;
+      white-space: nowrap;
+      font-family: 'DM Mono', monospace;
+      flex-shrink: 0;
+    }
+    /* Status inline editável no band: text em leitura, select em edição */
+    .pif-band-edit { display: none; }
+    .pif-band-readonly { display: inline-flex; align-items: center; gap: 4px; }
+    .painel-conteudo.modo-edicao .pif-band-readonly { display: none; }
+    .painel-conteudo.modo-edicao .pif-band-edit { display: inline-flex; align-items: center; gap: 4px; }
+    .pif-status-band select {
+      background: rgba(0,0,0,.25); color: currentColor;
+      border: 0.5px solid rgba(255,255,255,.22); border-radius: 4px;
+      font-family: 'DM Mono', monospace; font-size: 10px;
+      padding: 2px 6px;
+      appearance: auto; -webkit-appearance: auto;
+      outline: none;
+    }
+    .pif-status-band select:focus { border-color: var(--accent); }
+    .pif-status-band select option { background: var(--surface); color: var(--text); }
+
+    /* Conteúdo do hero — dentro de painel-topo, abaixo da band */
+    .painel-hero-content { padding: 10px 14px 8px; }
+    .painel-hero-chips {
+      display: flex; gap: 4px; flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    .painel-hero-chip {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 4px;
+      white-space: nowrap;
+    }
+    .painel-hero-chip.chip-canal { background: rgba(247,162,59,.10); color: var(--yellow); border: 0.5px solid rgba(247,162,59,.25); }
+    .painel-hero-chip.chip-resp { background: rgba(167,139,250,.10); color: var(--purple); border: 0.5px solid rgba(167,139,250,.25); }
+    .painel-hero-chip.chip-pap { background: rgba(34,217,138,.08); color: var(--green); border: 0.5px solid rgba(34,217,138,.22); }
+    .painel-hero-chip.chip-warn { background: rgba(247,162,59,.14); color: var(--yellow); border: 0.5px solid rgba(247,162,59,.35); }
+    .painel-hero-chip .pif-chip-edit { display: none; }
+    .painel-hero-chip .pif-chip-readonly { display: inline-flex; align-items: center; gap: 4px; }
+    .painel-conteudo.modo-edicao .painel-hero-chip .pif-chip-readonly { display: none; }
+    .painel-conteudo.modo-edicao .painel-hero-chip .pif-chip-edit { display: inline-flex; align-items: center; gap: 4px; }
+    .painel-hero-chip select {
+      background: transparent; color: currentColor;
+      border: none; padding: 0;
+      font-family: 'DM Mono', monospace; font-size: 10px;
+      appearance: auto; -webkit-appearance: auto;
+      outline: none;
+      max-width: 110px;
+    }
+    .painel-hero-chip select option { background: var(--surface); color: var(--text); }
+    .painel-hero-avatar {
+      width: 14px; height: 14px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 7px; font-weight: 700; font-family: 'DM Mono', monospace;
+      flex-shrink: 0;
+    }
+
+    /* Plano destaque — fica sempre visível entre topo e form */
+    .pif-plano-destaque {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .pif-plano-bloco {
+      background: rgba(0,0,0,.18);
+      border-radius: 8px;
+      padding: 9px 10px;
+    }
+    .pif-plano-row-painel {
+      display: flex; align-items: center; gap: 8px;
+      min-width: 0;
+    }
+    .pif-plano-row-painel + .pif-plano-row-painel {
+      margin-top: 5px; padding-top: 5px;
+      border-top: 0.5px solid rgba(255,255,255,.05);
+    }
+    .pif-plano-row-painel .vi-produto {
+      width: auto; min-width: 70px; padding: 2px 6px;
+      font-size: 9px;
+    }
+    .pif-plano-meio-painel {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column; gap: 1px;
+    }
+    .pif-plano-nome-painel {
+      font-size: 11px; color: #fff; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .pif-plano-sub-painel {
+      font-family: 'DM Mono', monospace; font-size: 9px;
+      display: flex; align-items: center; gap: 4px;
+      opacity: 0.9;
+    }
+    .pif-plano-sub-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      flex-shrink: 0;
+      background: currentColor;
+    }
+    .pif-plano-valor-painel {
+      font-size: 12px; color: #fff; font-weight: 600;
+      font-family: 'DM Mono', monospace;
+      flex-shrink: 0; white-space: nowrap;
+    }
+
+    /* Seções colapsáveis */
+    .painel-inline-form { padding: 8px 0 0; }
+    .pif-secao.pif-collapsible {
+      background: rgba(0,0,0,.10);
+      border-radius: 8px;
+      margin: 0 14px 6px;
+      overflow: hidden;
+      border: 0.5px solid rgba(255,255,255,.04);
+      padding: 0 !important;
+    }
+    .pif-secao.pif-collapsible .pif-titulo {
+      cursor: pointer;
+      user-select: none;
+      border-bottom: none;
+      background: transparent;
+      margin: 0;
+      padding: 7px 10px;
+      transition: background 0.15s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .pif-secao.pif-collapsible .pif-titulo:hover {
+      background: rgba(255,255,255,.03);
+    }
+    .pif-collapse-titulo-txt { flex-shrink: 0; }
+    .pif-collapse-summary {
+      flex: 1; min-width: 0;
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      color: var(--muted);
+      opacity: 0.6;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-align: right;
+      font-weight: 400;
+      letter-spacing: 0.3px;
+      text-transform: none;
+    }
+    .pif-collapse-summary:empty { display: none; }
+    .pif-collapse-icon {
+      color: var(--muted); font-size: 11px;
+      flex-shrink: 0;
+      transition: transform 0.15s;
+      display: inline-block;
+      width: 10px;
+      text-align: center;
+    }
+    .pif-secao.pif-collapsible.expanded .pif-collapse-icon {
+      transform: rotate(90deg);
+    }
+    .pif-secao.pif-collapsible .pif-collapse-body {
+      display: none;
+      padding: 0 4px 4px;
+    }
+    .pif-secao.pif-collapsible.expanded .pif-collapse-body { display: block; }
+    /* Modo edição: força tudo aberto, esconde summary, desabilita toggle */
+    .painel-inline-form.modo-edicao .pif-secao.pif-collapsible .pif-collapse-body { display: block; }
+    .painel-inline-form.modo-edicao .pif-secao.pif-collapsible .pif-collapse-icon {
+      transform: rotate(90deg);
+      opacity: 0.3;
+    }
+    .painel-inline-form.modo-edicao .pif-secao.pif-collapsible .pif-collapse-summary { display: none; }
+    .painel-inline-form.modo-edicao .pif-secao.pif-collapsible .pif-titulo { cursor: default; }
+    .painel-inline-form.modo-edicao .pif-secao.pif-collapsible .pif-titulo:hover { background: transparent; }
+    /* No modo leitura, plano destaque é informativo (não tem grupo de inputs visível) */
+    .pif-plano-destaque .pif-grid-readonly { display: none; }
+
     /* ── Empty / Toast ── */
     .empty { text-align: center; padding: 40px 20px; color: var(--muted); }
     .empty .empty-icon { font-size: 36px; margin-bottom: 10px; }
@@ -2681,27 +2880,17 @@
           </div>
           <div class="painel-conteudo" id="painelConteudo">
             <div class="painel-topo">
-              <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-                <div>
-                  <div class="painel-nome" id="pNome">—</div>
-                  <div class="painel-cpf"  id="pCpf"></div>
-                </div>
-                <button onclick="fecharPainel()" style="background:none;border:1px solid var(--border);color:var(--muted);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">✕</button>
-              </div>
-              <div class="painel-status-wrap" id="pStatusWrap"></div>
-              <div id="pMeta"></div>
-            </div>
-            <div class="painel-scroll" id="painelScroll"></div>
-
-            <!-- ── FORMULÁRIO INLINE DE EDIÇÃO ── -->
-            <div class="painel-inline-form" id="painelInlineForm">
-
-              <!-- Classificação -->
-              <div class="pif-secao" style="padding:12px 16px 0;">
-                <div class="pif-titulo">⭐ Classificação</div>
-                <div class="pif-grid">
-                  <div class="pif-group">
-                    <label>Status</label>
+              <!-- Faixa colorida de status (Dir. C, 20/05/2026) -->
+              <div class="pif-status-band" id="pifStatusBand" style="background:rgba(155,164,194,.10);border-bottom-color:var(--border);color:var(--muted);">
+                <span class="pif-status-band-status">
+                  <span class="pif-status-dot"></span>
+                  <!-- Modo leitura: apenas texto -->
+                  <span class="pif-band-readonly">
+                    <span id="pif-band-status-text">—</span>
+                    <span id="pif-band-prestatus" class="vi-prestatus-badge" style="display:none"></span>
+                  </span>
+                  <!-- Modo edição: selects inline -->
+                  <span class="pif-band-edit">
                     <select id="pif-status" onchange="pifOnStatusChange(this.value)">
                       <option>1- Conferencia/Ativação</option>
                       <option>2- Aguardando Instalação</option>
@@ -2716,10 +2905,7 @@
                       <option>Cancelamento Comercial</option>
                       <option>Churn</option>
                       <option>Devolvido</option>
-                                          </select>
-                  </div>
-                  <div class="pif-group">
-                    <label>Pré-Status</label>
+                    </select>
                     <select id="pif-preStatus">
                       <option value="">—</option>
                       <option>EM NEGOCIAÇÃO</option>
@@ -2734,28 +2920,92 @@
                       <option>CRUZAMENTO DE CANAIS</option>
                       <option>ARQUIVAR VENDA</option>
                     </select>
+                  </span>
+                </span>
+                <span class="pif-status-band-meta" id="pif-band-lanc"></span>
+              </div>
+              <!-- Conteúdo do hero -->
+              <div class="painel-hero-content">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                  <div style="min-width:0;flex:1;">
+                    <div class="painel-nome" id="pNome">—</div>
+                    <div class="painel-cpf"  id="pCpf"></div>
                   </div>
-                  <div class="pif-group">
-                    <label>Canal</label>
-                    <select id="pif-canal">
-                      <option value="">—</option>
-                      <option>PAP</option>
-                      <option>META ADS</option>
-                      <option>INDICAÇÃO</option>
-                      <option>ATIVO</option>
-                      <option>GOOGLE ADS</option>
-                    </select>
+                  <button onclick="fecharPainel()" style="background:none;border:1px solid var(--border);color:var(--muted);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">✕</button>
+                </div>
+                <div class="painel-hero-chips" id="pHeroChips">
+                  <!-- Chip Canal -->
+                  <span class="painel-hero-chip chip-canal" id="pifChipCanal">
+                    <span class="pif-chip-readonly" id="pifChipCanalText">—</span>
+                    <span class="pif-chip-edit">
+                      <select id="pif-canal">
+                        <option value="">—</option>
+                        <option>PAP</option>
+                        <option>META ADS</option>
+                        <option>INDICAÇÃO</option>
+                        <option>ATIVO</option>
+                        <option>GOOGLE ADS</option>
+                      </select>
+                    </span>
+                  </span>
+                  <!-- Chip Responsável -->
+                  <span class="painel-hero-chip chip-resp" id="pifChipResp">
+                    <span class="pif-chip-readonly">
+                      <span class="painel-hero-avatar" id="pifChipRespAvatar">??</span>
+                      <span id="pifChipRespNome">—</span>
+                    </span>
+                    <span class="pif-chip-edit">
+                      <select id="pif-resp"><option value="">Carregando...</option></select>
+                    </span>
+                  </span>
+                  <!-- Chip Combo sem móvel (warning) -->
+                  <span class="painel-hero-chip chip-warn" id="pifChipComboSemMovel" style="display:none">
+                    ⚠ Combo sem móvel
+                  </span>
+                </div>
+                <!-- Compat: mantém os IDs antigos como ocultos pra não quebrar quem ainda referencia -->
+                <div class="painel-status-wrap" id="pStatusWrap" style="display:none"></div>
+                <div id="pMeta" style="display:none"></div>
+              </div>
+            </div>
+
+            <!-- Plano destaque (sempre visível, entre topo e form) -->
+            <div class="pif-plano-destaque" id="pifPlanoDestaque" style="display:none">
+              <div class="pif-plano-bloco">
+                <div class="pif-plano-row-painel" id="pifPlanoFibraRow" style="display:none">
+                  <span class="vi-produto vi-prod-fc" id="pifPlanoFibraBadge">FIBRA</span>
+                  <div class="pif-plano-meio-painel">
+                    <div class="pif-plano-nome-painel" id="pifPlanoFibraNome">—</div>
+                    <div class="pif-plano-sub-painel" id="pifPlanoFibraSub" style="color:var(--muted)"><span class="pif-plano-sub-dot"></span><span id="pifPlanoFibraStatus">—</span></div>
                   </div>
-                  <div class="pif-group">
-                    <label>Responsável</label>
-                    <select id="pif-resp"><option value="">Carregando...</option></select>
+                  <span class="pif-plano-valor-painel" id="pifPlanoFibraValor">—</span>
+                </div>
+                <div class="pif-plano-row-painel" id="pifPlanoMovelRow" style="display:none">
+                  <span class="vi-produto vi-prod-mc" id="pifPlanoMovelBadge">MÓVEL</span>
+                  <div class="pif-plano-meio-painel">
+                    <div class="pif-plano-nome-painel" id="pifPlanoMovelNome">—</div>
+                    <div class="pif-plano-sub-painel" id="pifPlanoMovelSub" style="color:var(--muted)"><span class="pif-plano-sub-dot"></span><span id="pifPlanoMovelStatus">—</span></div>
                   </div>
+                  <span class="pif-plano-valor-painel" id="pifPlanoMovelValor">—</span>
                 </div>
               </div>
+            </div>
+
+            <div class="painel-scroll" id="painelScroll"></div>
+
+            <!-- ── FORMULÁRIO INLINE DE EDIÇÃO ── -->
+            <div class="painel-inline-form" id="painelInlineForm">
+
+              <!-- Classificação removida — Status/PréStatus/Canal/Resp agora vivem na band+hero do topo (Dir.C 20/05/2026) -->
 
               <!-- Cliente -->
-              <div class="pif-secao" style="padding:12px 16px 0;">
-                <div class="pif-titulo">👤 Cliente</div>
+              <div class="pif-secao pif-collapsible" id="pif-sec-cliente">
+                <div class="pif-titulo" onclick="_pifToggleSection(this)">
+                  <span class="pif-collapse-titulo-txt">👤 Cliente</span>
+                  <span class="pif-collapse-summary" id="pif-summ-cliente"></span>
+                  <span class="pif-collapse-icon">▸</span>
+                </div>
+                <div class="pif-collapse-body">
                 <div class="pif-grid">
                   <div class="pif-group span2">
                     <label>Nome</label>
@@ -2795,11 +3045,17 @@
                     <input type="text" id="pif-rg" placeholder="Ex: 1234567">
                   </div>
                 </div>
+                </div><!-- /pif-collapse-body Cliente -->
               </div>
 
               <!-- Endereço -->
-              <div class="pif-secao" style="padding:12px 16px 0;">
-                <div class="pif-titulo">📍 Endereço</div>
+              <div class="pif-secao pif-collapsible" id="pif-sec-endereco">
+                <div class="pif-titulo" onclick="_pifToggleSection(this)">
+                  <span class="pif-collapse-titulo-txt">📍 Endereço</span>
+                  <span class="pif-collapse-summary" id="pif-summ-endereco"></span>
+                  <span class="pif-collapse-icon">▸</span>
+                </div>
+                <div class="pif-collapse-body">
                 <div class="pif-grid">
                   <div class="pif-group">
                     <label>CEP</label>
@@ -2841,11 +3097,17 @@
                     <input type="text" id="pif-segmentacao" placeholder="Ex: Fibra FTTH">
                   </div>
                 </div>
+                </div><!-- /pif-collapse-body Endereço -->
               </div>
 
-              <!-- Plano -->
-              <div class="pif-secao" style="padding:12px 16px 0;">
-                <div class="pif-titulo">📦 Plano</div>
+              <!-- Plano (aberto por padrão em leitura) -->
+              <div class="pif-secao pif-collapsible expanded" id="pif-sec-plano">
+                <div class="pif-titulo" onclick="_pifToggleSection(this)">
+                  <span class="pif-collapse-titulo-txt">📦 Plano</span>
+                  <span class="pif-collapse-summary" id="pif-summ-plano"></span>
+                  <span class="pif-collapse-icon">▸</span>
+                </div>
+                <div class="pif-collapse-body">
                 <div class="pif-grid">
                   <div class="pif-group">
                     <label>Produto</label>
@@ -2890,11 +3152,17 @@
                     <input type="text" id="pif-valor" placeholder="R$ 0,00">
                   </div>
                 </div>
+                </div><!-- /pif-collapse-body Plano -->
               </div>
 
-              <!-- Móvel (exibido só quando produto é Móvel) -->
-              <div class="pif-secao" id="pif-secao-movel" style="display:none;padding:12px 16px 0;">
-                <div class="pif-titulo">📱 Dados Móvel</div>
+              <!-- Móvel solo (condicional, aberto quando exibido) -->
+              <div class="pif-secao pif-collapsible expanded" id="pif-secao-movel" style="display:none">
+                <div class="pif-titulo" onclick="_pifToggleSection(this)">
+                  <span class="pif-collapse-titulo-txt">📱 Dados Móvel</span>
+                  <span class="pif-collapse-summary" id="pif-summ-movel"></span>
+                  <span class="pif-collapse-icon">▸</span>
+                </div>
+                <div class="pif-collapse-body">
                 <div class="pif-grid">
                   <div class="pif-group">
                     <label>Número da Linha</label>
@@ -2909,6 +3177,7 @@
                     </select>
                   </div>
                 </div>
+                </div><!-- /pif-collapse-body Móvel solo -->
               </div>
 
               <!-- ── Móvel Combo Vinculado ── Sprint 3.3 (12/05/2026) ──────────
@@ -2916,8 +3185,13 @@
                    Edição inline: operador altera campos do Móvel no mesmo painel
                    da Fibra mãe. _pifValidarTransicaoStatusMovel exige Contrato
                    apenas para "3- Aguardando Retirada". -->
-              <div class="pif-secao" id="pif-secao-movel-combo" style="display:none;padding:12px 16px 0;">
-                <div class="pif-titulo">📱 Móvel Combo Vinculado <span id="pif-mvLinhaLabel" style="font-size:11px;color:var(--muted);font-weight:400;font-family:'DM Mono',monospace;"></span></div>
+              <div class="pif-secao pif-collapsible expanded" id="pif-secao-movel-combo" style="display:none">
+                <div class="pif-titulo" onclick="_pifToggleSection(this)">
+                  <span class="pif-collapse-titulo-txt">📱 Móvel Combo Vinculado <span id="pif-mvLinhaLabel" style="font-size:9px;color:var(--muted);font-weight:400;font-family:'DM Mono',monospace;"></span></span>
+                  <span class="pif-collapse-summary" id="pif-summ-movel-combo"></span>
+                  <span class="pif-collapse-icon">▸</span>
+                </div>
+                <div class="pif-collapse-body">
                 <div class="pif-grid">
                   <div class="pif-group">
                     <label>Status</label>
@@ -2974,11 +3248,17 @@
                   <label>Observação Móvel</label>
                   <textarea id="pif-mv-observacao" placeholder="Anotações sobre o chip..."></textarea>
                 </div>
+                </div><!-- /pif-collapse-body Móvel Combo -->
               </div>
 
-              <!-- Datas (exibido quando há agendamento) -->
-              <div class="pif-secao" id="pif-secao-datas" style="display:none;padding:12px 16px 0;">
-                <div class="pif-titulo">📅 Datas</div>
+              <!-- Datas (aberto por padrão quando exibido) -->
+              <div class="pif-secao pif-collapsible expanded" id="pif-secao-datas" style="display:none">
+                <div class="pif-titulo" onclick="_pifToggleSection(this)">
+                  <span class="pif-collapse-titulo-txt">📅 Datas</span>
+                  <span class="pif-collapse-summary" id="pif-summ-datas"></span>
+                  <span class="pif-collapse-icon">▸</span>
+                </div>
+                <div class="pif-collapse-body">
                 <div class="pif-grid">
                   <div class="pif-group">
                     <label>Data Ativação</label>
@@ -3001,14 +3281,21 @@
                     <input type="date" id="pif-instal">
                   </div>
                 </div>
+                </div><!-- /pif-collapse-body Datas -->
               </div>
 
               <!-- Observação -->
-              <div class="pif-secao" style="padding:12px 16px 14px;">
-                <div class="pif-titulo">📝 Observação</div>
+              <div class="pif-secao pif-collapsible" id="pif-sec-obs">
+                <div class="pif-titulo" onclick="_pifToggleSection(this)">
+                  <span class="pif-collapse-titulo-txt">📝 Observação</span>
+                  <span class="pif-collapse-summary" id="pif-summ-obs"></span>
+                  <span class="pif-collapse-icon">▸</span>
+                </div>
+                <div class="pif-collapse-body">
                 <div class="pif-group">
                   <textarea id="pif-observacao" placeholder="Anotações..."></textarea>
                 </div>
+                </div><!-- /pif-collapse-body Observação -->
               </div>
 
             </div><!-- /painelInlineForm -->
