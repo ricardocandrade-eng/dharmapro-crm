@@ -133,6 +133,14 @@
 .lma-utmcell  { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted);
   max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* Cidade editável (sugestão por DDD) */
+.lma-cidade-edit  { cursor: pointer; border-bottom: 1px dashed transparent; }
+.lma-cidade-edit:hover { border-bottom-color: var(--muted); }
+.lma-cidade-sug   { color: var(--muted); font-style: italic; }
+.lma-cidade-vazia { color: var(--muted); opacity: .7; }
+.lma-cidade-input { width: 110px; box-sizing: border-box; font-family: 'DM Mono', monospace;
+  font-size: 11px; padding: 2px 4px; }
+
 /* Status badges */
 .lma-badge {
   display: inline-block; padding: 3px 10px; border-radius: 20px;
@@ -468,7 +476,7 @@ function _lmaRenderizarTabela(lista) {
         '<div class="lma-nome">' + _esc(l.nome || '—') + '</div>' +
         '<div class="lma-sub">' + _esc(l.telefone || '') + '</div>' +
       '</td>' +
-      '<td class="lma-mono">' + _esc(l.cidade || '—') + '</td>' +
+      '<td class="lma-mono" id="lmaCidadeCell_' + l.linha + '">' + _lmaCidadeInner(l) + '</td>' +
       '<td class="lma-utmcell" title="' + _esc(l.utm_campaign || '') + '">' + _esc(l.utm_campaign || '—') + '</td>' +
       '<td class="lma-utmcell" title="' + _esc(l.utm_ad || '') + '">' + _esc(l.utm_ad || '—') + '</td>' +
       '<td>' + badge + '</td>' +
@@ -576,6 +584,94 @@ function _lmaSalvarAcao(linha) {
 
 function _esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Cidade por DDD (sugestão editável) ─────────────────────────────────────
+// Mapa DDD → cidade principal do DDD na área de cobertura Vero (SE do Brasil).
+// É um palpite: o DDD cobre várias cidades, então cai como sugestão pro time
+// editar (ex: DDD 32 sugere Juiz de Fora, que domina o volume da região).
+var DDD_CIDADE = {
+  // Minas Gerais
+  '31': 'Belo Horizonte', '32': 'Juiz de Fora', '33': 'Governador Valadares',
+  '34': 'Uberlândia', '35': 'Poços de Caldas', '37': 'Divinópolis', '38': 'Montes Claros',
+  // Rio de Janeiro
+  '21': 'Rio de Janeiro', '22': 'Campos dos Goytacazes', '24': 'Volta Redonda',
+  // Espírito Santo
+  '27': 'Vitória', '28': 'Cachoeiro de Itapemirim',
+  // São Paulo
+  '11': 'São Paulo', '12': 'São José dos Campos', '13': 'Santos', '14': 'Bauru',
+  '15': 'Sorocaba', '16': 'Ribeirão Preto', '17': 'São José do Rio Preto',
+  '18': 'Presidente Prudente', '19': 'Campinas'
+};
+
+function inferirCidadePorDDD(telefone) {
+  var d = String(telefone || '').replace(/\D/g, '');
+  if (d.length >= 12 && d.indexOf('55') === 0) d = d.slice(2); // remove DDI
+  if (d.length < 10 || d.length > 11) return '';               // sem DDD confiável
+  return DDD_CIDADE[d.slice(0, 2)] || '';
+}
+
+function _lmaCidadeReal(l) {
+  var c = String((l && l.cidade) || '').trim();
+  if (!c || c === 'Não informada' || c === '—') return '';
+  return c;
+}
+
+function _lmaCidadeInner(l) {
+  var real = _lmaCidadeReal(l);
+  if (real) {
+    return '<span class="lma-cidade-edit" title="Clique para editar" onclick="_lmaEditarCidade(' + l.linha + ')">' + _esc(real) + '</span>';
+  }
+  var sug = inferirCidadePorDDD(l.telefone);
+  if (sug) {
+    return '<span class="lma-cidade-edit lma-cidade-sug" title="Sugerido pelo DDD — clique para confirmar ou editar" onclick="_lmaEditarCidade(' + l.linha + ')">≈ ' + _esc(sug) + '</span>';
+  }
+  return '<span class="lma-cidade-edit lma-cidade-vazia" title="Clique para informar a cidade" onclick="_lmaEditarCidade(' + l.linha + ')">—</span>';
+}
+
+function _lmaRenderCidadeCell(linha) {
+  var cell = document.getElementById('lmaCidadeCell_' + linha);
+  var lead = _lmaDados.find(function(l) { return l.linha === linha; });
+  if (cell && lead) cell.innerHTML = _lmaCidadeInner(lead);
+}
+
+function _lmaEditarCidade(linha) {
+  var cell = document.getElementById('lmaCidadeCell_' + linha);
+  var lead = _lmaDados.find(function(l) { return l.linha === linha; });
+  if (!cell || !lead) return;
+  var atual = _lmaCidadeReal(lead) || inferirCidadePorDDD(lead.telefone) || '';
+  cell.innerHTML = '<input type="text" class="lma-cidade-input" id="lmaCidadeInput_' + linha + '" value="' + _esc(atual) + '">';
+  var inp = document.getElementById('lmaCidadeInput_' + linha);
+  if (!inp) return;
+  inp.focus(); inp.select();
+  var feito = false;
+  function commit() { if (feito) return; feito = true; _lmaSalvarCidade(linha, inp.value); }
+  function cancelar() { if (feito) return; feito = true; _lmaRenderCidadeCell(linha); }
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelar(); }
+  });
+  inp.addEventListener('blur', commit);
+}
+
+function _lmaSalvarCidade(linha, valor) {
+  valor = String(valor || '').trim();
+  var lead = _lmaDados.find(function(l) { return l.linha === linha; });
+  var atualReal = lead ? _lmaCidadeReal(lead) : '';
+  if (valor === atualReal) { _lmaRenderCidadeCell(linha); return; } // nada mudou
+  var cell = document.getElementById('lmaCidadeCell_' + linha);
+  if (cell) cell.innerHTML = '<span class="lma-cidade-vazia">⏳</span>';
+  google.script.run
+    .withSuccessHandler(function() {
+      if (lead) lead.cidade = valor;
+      _lmaRenderCidadeCell(linha);
+      mostrarToast(valor ? ('Cidade salva: ' + valor) : 'Cidade limpa', 'success');
+    })
+    .withFailureHandler(function(e) {
+      _lmaRenderCidadeCell(linha);
+      mostrarToast('Erro ao salvar cidade: ' + (e && e.message ? e.message : String(e)), 'error');
+    })
+    .atualizarCidadeLeadMetaAds(linha, valor);
 }
 
 // ─── Registro Manual de Lead ───────────────────────────────────────────────
