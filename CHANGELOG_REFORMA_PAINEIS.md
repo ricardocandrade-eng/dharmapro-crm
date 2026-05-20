@@ -70,3 +70,43 @@ agência** (`[IMP] [ATIVA] P2 ...`) vivem em `act_2839032026433564`, que o paine
 não lê. As correções da Fase 1 deixam o painel honesto sobre a conta antiga, mas
 ele só refletirá a operação real da agência quando passar a ler a conta nova
 (provável Fase 2; depende do `META_ACCESS_TOKEN` do DharmaPro ter acesso a ela).
+
+**Update (20/05):** confirmado via `meta-ads-vero/meta-ads-mcp/check_account.js` que o
+token do system user `Admin_API_Renata` (mesmo do DharmaPro, por INFRA.md) lê **as
+duas** contas: `act_971543562231015` (Vero 01, antiga) e `act_2839032026433564`
+(Vero 02, agência ATIVA). A operação migrou Vero 01 → Vero 02 em ~18-19/05 (ambas
+têm campanhas "P2"; a viva está na 02). Decisão do Ricardo: Fase 2 vai **ler as duas
+contas** (agregar). As "9 conversões" que a auditoria estranhou são reais — da conta
+02, que o painel ainda não lê.
+
+---
+
+## Fase 2 — Reformulação visual (em andamento)
+
+Ordem escolhida pelo Ricardo: começar pela parte independente (2.3, coluna Cidade),
+depois o multi-conta (Dashboard + Painel Ads).
+
+### 2.3 — Coluna CIDADE auto-preenchida via DDD (20/05/2026)
+
+Branch `feat/reforma-paineis-fase2-cidade-ddd`. Independente da conta de anúncios.
+
+- **Frontend (`LeadsMetaAds.html`)**: novo `inferirCidadePorDDD(telefone)` + mapa
+  `DDD_CIDADE` (DDDs do SE: MG 31-38, RJ 21/22/24, ES 27/28, SP 11-19) → cidade
+  principal do DDD. Normaliza o telefone (tira DDI 55, exige 10-11 dígitos). DDD fora
+  da cobertura → sem sugestão.
+- A coluna **Cidade** (antes sempre `—`) agora:
+  - mostra a cidade real se houver (clicável pra editar);
+  - se vazia e há DDD conhecido, mostra a sugestão **faded em itálico** com `≈ Cidade`
+    (ex: `≈ Juiz de Fora`) — clique confirma/edita;
+  - se vazia e sem DDD, mostra `—` clicável.
+  - Edição inline (input; Enter salva, Esc cancela, blur salva) via
+    `_lmaEditarCidade` / `_lmaSalvarCidade` / `_lmaRenderCidadeCell`. Não grava se o
+    valor não mudou.
+- **Backend (`MetaAdsAPI.js`)**: novo `atualizarCidadeLeadMetaAds(linha, cidade)`
+  grava a col D da aba "Leads Meta Ads" (espelha `atualizarStatusLeadMetaAds`).
+- **Escopo**: a sugestão é só display/edição manual — **não** auto-persiste no webhook
+  de ingestão (continua chegando `cidade: ""`); o time confirma na tela.
+
+**Validação**: `node --check` em `MetaAdsAPI.js` + no `<script>` extraído do HTML;
+teste node do `inferirCidadePorDDD` em 9 formatos de telefone (DDI/fixo/mobile/
+formatado/fora-de-cobertura). Validação visual no CRM pendente de deploy.
