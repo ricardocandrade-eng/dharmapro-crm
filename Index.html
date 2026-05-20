@@ -338,7 +338,7 @@
       z-index: 20;
     }
     .lista-head h2 { font-size: 18px; font-weight: 800; margin-bottom: 12px; }
-    .list-controls { display: grid; grid-template-columns: minmax(0, 2.2fr) repeat(5, minmax(0, 1fr)) 40px; align-items: center; gap: 8px; width: 100%; }
+    .list-controls { display: grid; grid-template-columns: minmax(0, 2.2fr) repeat(5, minmax(0, 1fr)) auto; align-items: center; gap: 8px; width: 100%; }
     .search-wrap { min-width: 0; position: relative; }
     .search-wrap input { width: 100%; padding: 9px 12px 9px 34px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--text); font-family: 'Sora', sans-serif; transition: border-color 0.2s; }
     .search-wrap input:focus { outline: none; border-color: var(--accent); }
@@ -1989,7 +1989,9 @@
     .filtro-btn-text { display: block; overflow: hidden; text-overflow: ellipsis; text-align: center; white-space: nowrap; line-height: 1.2; }
     .filtro-btn-count { font-family: 'DM Mono', monospace; font-size: 9px; opacity: .8; display: none; }
     .filtro-btn-caret { font-size: 8px; color: var(--muted); display: none; }
-    .btn-refresh-lista { width: 40px; height: 40px; padding: 0; font-size: 0; line-height: 1; justify-self: end; }
+    /* Fase 5b: wrapper que mantém badge + botão ↻ juntos na última coluna do grid */
+    .lista-sync-wrap { display: flex; align-items: center; gap: 6px; justify-self: end; }
+    .btn-refresh-lista { width: 40px; height: 40px; padding: 0; font-size: 0; line-height: 1; flex: 0 0 auto; }
     .btn-refresh-lista::before { content: '\21BB'; font-size: 18px; }
     /* Fase 5b: badge "Dados de até X min" — afordância visual de frescura do cache */
     .badge-idade-lista {
@@ -2000,9 +2002,9 @@
       background: rgba(255,255,255,0.04);
       border: 1px solid rgba(255,255,255,0.06);
       border-radius: 14px;
-      margin-right: 6px;
       cursor: help;
       user-select: none;
+      white-space: nowrap;
     }
     .filtro-menu {
       position: absolute; top: calc(100% + 6px); left: 0; min-width: 240px; max-width: 300px;
@@ -2570,8 +2572,10 @@
                 <div class="filtro-menu" id="filtroMenuResp"></div>
               </div>
               </div>
-              <span id="badgeIdadeLista" class="badge-idade-lista" style="display:none" title=""></span>
-              <button class="btn btn-ghost btn-refresh-lista" onclick="recarregarLista()" title="Sincronizar — buscar dados frescos do servidor (use quando suspeitar que algo foi editado direto no Sheets ou por script externo)">↻</button>
+              <div class="lista-sync-wrap">
+                <span id="badgeIdadeLista" class="badge-idade-lista" style="display:none" title=""></span>
+                <button class="btn btn-ghost btn-refresh-lista" onclick="recarregarLista()" title="Sincronizar — buscar dados frescos do servidor (use quando suspeitar que algo foi editado direto no Sheets ou por script externo)">↻</button>
+              </div>
             </div>
             <div class="filtro-chips" id="filtroChipsAtivos"></div>
           </div>
