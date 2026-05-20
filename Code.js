@@ -6006,6 +6006,164 @@ function _registrarVinculoVenda_(maeLinha, filhaLinha, tipo) {
   _limparCacheVinculosVendas_();
 }
 
+// ── REPARO DE VÍNCULOS COMBO ──────────────────────────────────────────────
+//  EXCEÇÃO PERMANENTE à convenção "reparar* → _arquivo.js": esta função fica
+//  no Code.js de propósito porque o problema reincide (combos perdem o vínculo
+//  na aba "Vinculos Vendas") e o Ricardo precisa dela sempre disponível no
+//  dropdown do editor. NÃO mover para _arquivo.js em limpezas futuras.
+//
+//  Roda manualmente no editor Apps Script (sem trigger). Faz duas passagens:
+//    1. Arquiva entradas ATIVO duplicadas em "Vinculos Vendas" (no máx. 1 ativo por mãe).
+//    2. Para cada Fibra Combo sem Móvel vinculado, tenta inferir o par por
+//       CPF ou WhatsApp (janela ±7 dias). Só vincula quando há EXATAMENTE 1
+//       candidato livre — ambíguos e sem par só vão pro log, sem agir.
+//  Ao final imprime o resumo no Logger e o retorna como texto.
+// ─────────────────────────────────────────────────────────────────────────
+function repararVinculosCombosOrfaos() {
+  var sheet  = _getSheet();
+  var shVinc = _getSheetVinculosVendas_(true);
+  var c      = CONFIG.COLUNAS;
+  var log    = [];
+
+  // ── PASSAGEM 1: Limpar duplicatas em Vinculos Vendas ──────────────────
+  var duplicatasArquivadas = 0;
+  var lastVincRow = shVinc.getLastRow();
+  if (lastVincRow >= 2) {
+    var vincsRaw = shVinc.getRange(2, 1, lastVincRow - 1, 8).getValues();
+    var ativosPorMae = {};
+    for (var vi = 0; vi < vincsRaw.length; vi++) {
+      if (_normalizarTexto(vincsRaw[vi][6] || 'ATIVO') !== 'ATIVO') continue;
+      var mae = parseInt(vincsRaw[vi][2], 10);
+      if (isNaN(mae)) continue;
+      if (!ativosPorMae[mae]) ativosPorMae[mae] = [];
+      ativosPorMae[mae].push(vi); // índice base-0; linha na sheet = vi + 2
+    }
+    var maesComDup = Object.keys(ativosPorMae);
+    for (var mi = 0; mi < maesComDup.length; mi++) {
+      var idxs = ativosPorMae[maesComDup[mi]];
+      if (idxs.length <= 1) continue;
+      // Manter o último (mais recente); arquivar os anteriores
+      for (var ii = 0; ii < idxs.length - 1; ii++) {
+        shVinc.getRange(idxs[ii] + 2, 7).setValue('ARQUIVADO');
+        duplicatasArquivadas++;
+      }
+      log.push('🗂 Duplicatas arquivadas para mãe linha ' + maesComDup[mi] +
+               ': ' + (idxs.length - 1) + ' entrada(s) obsoleta(s)');
+    }
+  }
+
+  // ── PASSAGEM 2: Reconectar Fibra Combos sem Móvel vinculado ───────────
+  // Recarrega o mapa com dados já limpos
+  var vinculosMap = _getVinculosVendasMap_();
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 3) {
+    Logger.log('Nenhuma venda na planilha.');
+    return 'Nenhuma venda.';
+  }
+  var raw = sheet.getRange(3, 1, lastRow - 2, CONFIG.TOTAL_COLUNAS).getValues();
+
+  // Separar Fibra Combos e Móveis (ainda sem vínculo como filha)
+  var fibraCombos = [];
+  var moveisLivres = [];
+
+  for (var ri = 0; ri < raw.length; ri++) {
+    var row     = raw[ri];
+    var lnum    = ri + 3;
+    var produto = _normalizarTexto(row[c.PRODUTO] || '');
+    if (!produto) continue;
+    var cpf     = String(row[c.CPF]   || '').replace(/[^0-9]/g, '');
+    var whats   = String(row[c.WHATS] || '').replace(/[^0-9]/g, '');
+    var cliente = String(row[c.CLIENTE] || '').trim();
+    var tsRaw   = row[c.CRIADO_EM];
+    var ts      = (tsRaw instanceof Date) ? tsRaw.getTime() : (tsRaw ? new Date(tsRaw).getTime() : 0);
+
+    if (produto === 'FIBRA COMBO') {
+      fibraCombos.push({ linha: lnum, cpf: cpf, whats: whats, cliente: cliente, ts: ts });
+    } else if (produto.indexOf('MOVEL') !== -1) {
+      // Só considera Móvel que ainda não é filho de ninguém
+      if (!vinculosMap.maePorFilha[lnum]) {
+        moveisLivres.push({ linha: lnum, cpf: cpf, whats: whats, cliente: cliente, ts: ts });
+      }
+    }
+  }
+
+  var jaOk = 0, vinculados = 0, ambiguos = 0, semPar = 0;
+
+  for (var fi = 0; fi < fibraCombos.length; fi++) {
+    var fibra = fibraCombos[fi];
+
+    // Verifica se já existe vínculo válido com um Móvel
+    var filhos = vinculosMap.filhasPorMae[fibra.linha] || [];
+    var temMovelValido = false;
+    for (var fj = 0; fj < filhos.length; fj++) {
+      var fIdx = filhos[fj].vendaFilhaLinha - 3;
+      if (fIdx >= 0 && fIdx < raw.length &&
+          _normalizarTexto(raw[fIdx][c.PRODUTO] || '').indexOf('MOVEL') !== -1) {
+        temMovelValido = true;
+        break;
+      }
+    }
+    if (temMovelValido) { jaOk++; continue; }
+
+    // Procurar candidatos: mesmo CPF ou mesmo WhatsApp + Móvel criado até 24h depois
+    var candidatos = [];
+    for (var mj = 0; mj < moveisLivres.length; mj++) {
+      var movel = moveisLivres[mj];
+      var matchCpf   = fibra.cpf.length   >= 11 && fibra.cpf   === movel.cpf;
+      var matchWhats = fibra.whats.length >=  8 && fibra.whats === movel.whats;
+      if (!matchCpf && !matchWhats) continue;
+      // Filtro temporal: |Móvel - Fibra| ≤ 7 dias em qualquer direção.
+      // Móvel pode ser criado ANTES da Fibra (cliente pega chip primeiro,
+      // depois fecha a Fibra) ou DEPOIS (fluxo padrão criarVendaMovelVinculada).
+      // 7 dias dá folga para negociações longas sem permitir falsos positivos
+      // em clientes recorrentes (cuja correspondência seria múltipla → "ambíguo").
+      if (fibra.ts && movel.ts) {
+        var diff = Math.abs(movel.ts - fibra.ts);
+        if (diff > 7 * 86400000) continue;
+      }
+      candidatos.push(movel);
+    }
+
+    if (candidatos.length === 0) {
+      semPar++;
+      log.push('⚠️  Sem par:    linha ' + fibra.linha + ' — ' + fibra.cliente);
+    } else if (candidatos.length > 1) {
+      ambiguos++;
+      log.push('❓ Ambíguo:    linha ' + fibra.linha + ' — ' + fibra.cliente +
+               ' (' + candidatos.length + ' candidatos — verificar manualmente)');
+    } else {
+      // Exatamente 1 candidato: vincular
+      var alvo = candidatos[0];
+      _registrarVinculoVenda_(fibra.linha, alvo.linha, 'COMBO_MOVEL');
+      vinculados++;
+      log.push('✅ Vinculado:  linha ' + fibra.linha + ' (' + fibra.cliente +
+               ') → Móvel linha ' + alvo.linha);
+      // Atualiza mapa local para não reutilizar este Móvel em outro Fibra
+      vinculosMap.maePorFilha[alvo.linha] = { vendaMaeLinha: fibra.linha, vendaFilhaLinha: alvo.linha };
+      if (!vinculosMap.filhasPorMae[fibra.linha]) vinculosMap.filhasPorMae[fibra.linha] = [];
+      vinculosMap.filhasPorMae[fibra.linha].push({ vendaFilhaLinha: alvo.linha, vendaMaeLinha: fibra.linha });
+    }
+  }
+
+  if (vinculados > 0) _limparCache();
+
+  var resumo = [
+    '════════════════════════════════',
+    '  repararVinculosCombosOrfaos   ',
+    '════════════════════════════════',
+    'Duplicatas arquivadas : ' + duplicatasArquivadas,
+    'Já OK (sem ação)      : ' + jaOk,
+    'Vínculos criados      : ' + vinculados,
+    'Ambíguos (manual)     : ' + ambiguos,
+    'Sem par encontrado    : ' + semPar,
+    '────────────────────────────────'
+  ].concat(log);
+
+  resumo.forEach(function(l) { Logger.log(l); });
+  return resumo.join('\n');
+}
+
 function _extrairValorDoPlano_(plano) {
   var texto = String(plano || '');
   var match = texto.match(/R\$\s*([\d\.,]+)/i);
