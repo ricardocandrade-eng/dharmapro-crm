@@ -376,6 +376,35 @@ Implementado em 24/04/2026. Acessivel apenas para o perfil `admin`.
 
 O ID `novaVenda` e um alvo interno de `navegar()`, vinculado funcionalmente ao ID `formulario` (menu Nova Venda). Nao e exibido na UI de permissoes por perfil para evitar confusao. Sempre incluir `novaVenda` quando incluir `formulario` no array de menus de um perfil.
 
+### ⚠️ OBRIGATÓRIO: toda página/menu novo entra na tela "Gerenciar Usuários"
+
+**Regra:** sempre que criar uma página/menu novo no CRM, ela **TEM que ser
+registrada na tela "◐ Gerenciar Usuários" → aba "Permissões por Perfil"**. Em
+concreto, adicionar o id do menu nas DUAS listas em `Usuarios.html`:
+
+- `US_MENU_LABELS` — `{ 'idDoMenu': 'Rótulo amigável' }`
+- `US_TODOS_MENUS` — incluir `'idDoMenu'` no array
+
+**Por quê:** a tela "Permissões por Perfil" salva em `PERFIS_MENUS_JSON` **apenas
+os menus que estão em `US_TODOS_MENUS`**. Se a página nova não estiver lá, no
+primeiro "Salvar" que o admin der naquela tela, o meno é **removido** de
+`PERFIS_MENUS_JSON` para todos os perfis e some do CRM (foi o que derrubou
+`viabilidade` e `vinculosPendentes` em 20/05/2026 — ambos tinham sido criados
+sem entrar nessas listas).
+
+**Checklist completo de "adicionar página nova ao CRM"** (não pular nenhum):
+
+1. `Index.html` — item de menu (`<div class="nav-item" id="menuXxx" onclick="navegar('xxx')">`) + page div (`<div id="pageXxx" class="page page-full">…`).
+2. `JS.html` — `'xxx'` em `_menusPermitidos` (default), em `_menuMap` (`'xxx':'menuXxx'`) e um branch em `navegar()`.
+3. `Config.js` — incluir `'xxx'` em `PERFIS_MENUS` nos perfis que devem ver.
+4. **`Usuarios.html` — `US_MENU_LABELS` + `US_TODOS_MENUS`** (este passo é o desta regra; o mais esquecido).
+5. **Se `PERFIS_MENUS_JSON` já existe em produção** (permissões já editadas pela UI), ele **sombreia o `Config.js`** — então adicionar no `Config.js` não basta: sincronizar a property (one-shot que faz união de `perfis.<perfil>` com `PERFIS_MENUS.<perfil>`) e o usuário precisa **logout/login** (permissões só recarregam no login).
+
+> Exceção: **botões da topbar global** (ex.: 🔍 Consultar instalações) NÃO são
+> páginas/menus de perfil — vivem fixos na topbar e não entram em `PERFIS_MENUS`
+> nem em `Gerenciar Usuários`. Liberação/restrição deles é por guard no próprio
+> handler (ex.: `_varreduraAbrir`), não por permissão de menu.
+
 ---
 
 ## Recuperacao de 24/04/2026
