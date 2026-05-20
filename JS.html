@@ -5123,7 +5123,7 @@ function _resetarTimerInatividade() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal','viabilidade','vinculosPendentes']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal','viabilidade','vinculosPendentes','codigosVero']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -5144,7 +5144,8 @@ var _menuMap = {
   'usuarios':    'menuUsuarios',
   'waPessoal':   'menuWaPessoal',
   'viabilidade': 'menuViabilidade',
-  'vinculosPendentes': 'menuVinculosPendentes'
+  'vinculosPendentes': 'menuVinculosPendentes',
+  'codigosVero': 'menuCodigosVero'
 };
 
 function _aplicarMenus(menus) {
@@ -5523,6 +5524,30 @@ function navegar(pagina) {
         vpc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Vínculos Pendentes: ' + e.message + '</div>';
       })
       .getVinculosPendentesHtml();
+
+  } else if (pagina === 'codigosVero') {
+    document.getElementById('menuCodigosVero').classList.add('ativo');
+    document.getElementById('pageCodigosVero').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Códigos Vero';
+    var cvc = document.getElementById('codigosVeroContainer');
+    // Recarrega a cada visita pra refletir capturas novas via Cowork
+    cvc.removeAttribute('data-loaded');
+    cvc.setAttribute('data-loaded', '1');
+    google.script.run
+      .withSuccessHandler(function(html) {
+        cvc.innerHTML = html;
+        cvc.querySelectorAll('script').forEach(function(s) {
+          var ns = document.createElement('script');
+          ns.textContent = s.textContent;
+          document.body.appendChild(ns);
+        });
+        if (typeof codigosVeroInit === 'function') codigosVeroInit();
+      })
+      .withFailureHandler(function(e) {
+        cvc.removeAttribute('data-loaded');
+        cvc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Códigos Vero: ' + e.message + '</div>';
+      })
+      .getCodigosVeroHtml();
   }
 }
 

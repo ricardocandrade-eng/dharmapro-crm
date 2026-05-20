@@ -29,6 +29,7 @@ var CONFIG = {
   TOTAL_COLUNAS:   46,          // A (0) até AT (45) — sem buracos
   TABELA_JSON_FILE_ID: '1wB9jncB_eBhGnBE-OpiZZ5UfVnvmv-ro',  // _getTabela() lê deste JSON no Drive (substitui aba TABELA)
   CIDADES_JSON_FILE_ID: '17CQ8KmZdyUtgQChPFC2b7pq2tsU6riV1',  // _getCidadesJson() lê do JSON no Drive (substitui aba CIDADES)
+  CODIGOS_VERO_JSON_FILE_ID: '',  // _getCodigosVero() — vazio = fallback p/ busca por nome 'planos_vero_codigos.json'
   COLUNAS: {
     // ── Bloco 1: Venda (A–G) ────────────────────────────────────────
     CANAL:              0,  // A  - Canal de venda (PAP, META ADS, INDICAÇÃO, ATIVO, GOOGLE ADS)
@@ -3365,6 +3366,187 @@ function _getTabela() {
     if (json.length < 95000) cache.put(key, json, 600);
   } catch(e) {}
   return rows;
+}
+
+// ─── CÓDIGOS VERO — leitura do planos_vero_codigos.json (Drive) ───────────────
+// Mapeamento código numérico Vero ↔ nome_crm. Coletado via VeroHub (Cowork).
+// Cache 600s. Se CODIGOS_VERO_JSON_FILE_ID estiver vazio, busca por nome no Drive
+// (planos_vero_codigos.json) e cacheia o ID nas Script Properties pra próxima.
+function _getCodigosVero() {
+  var cache = CacheService.getScriptCache();
+  var key   = CONFIG.CACHE_PREFIX + 'codigos_vero_v1';
+  try {
+    var hit = cache.get(key);
+    if (hit) return JSON.parse(hit);
+  } catch(e) {}
+
+  var fileId = CONFIG.CODIGOS_VERO_JSON_FILE_ID;
+  if (!fileId) {
+    try {
+      var props = PropertiesService.getScriptProperties();
+      fileId = props.getProperty('CODIGOS_VERO_FILE_ID') || '';
+    } catch(e) {}
+  }
+  if (!fileId) {
+    try {
+      var iter = DriveApp.getFilesByName('planos_vero_codigos.json');
+      if (iter.hasNext()) {
+        fileId = iter.next().getId();
+        try { PropertiesService.getScriptProperties().setProperty('CODIGOS_VERO_FILE_ID', fileId); } catch(e) {}
+      }
+    } catch(e) {
+      throw new Error('Falha ao buscar planos_vero_codigos.json no Drive: ' + e.message);
+    }
+  }
+  if (!fileId) {
+    throw new Error('planos_vero_codigos.json não encontrado no Drive. Configure CONFIG.CODIGOS_VERO_JSON_FILE_ID ou suba o arquivo.');
+  }
+
+  var content = DriveApp.getFileById(fileId).getBlob().getDataAsString();
+  var parsed = JSON.parse(content);
+  try {
+    var json = JSON.stringify(parsed);
+    if (json.length < 95000) cache.put(key, json, 600);
+  } catch(e) {}
+  return parsed;
+}
+
+// ─── VALIDAÇÃO CÓDIGOS VERO — cruza planos_vero.json vs planos_vero_codigos.json
+// Retorna { ok, sem_codigo, orfaos, resumo } pra alimentar a tela admin.
+// Chave de cruzamento: planos_vero.json[i][0] (nome_crm) ↔ codigos.coletas[*].planos[*].nome_crm_match
+// Filtra só planos com PUBLICAR=true (comercialmente ativos) — descontinuados
+// ainda no JSON ficam fora da fila de "sem código" mas geram alerta de órfão se
+// já tinham código mapeado.
+function getValidacaoCodigosVero(adminUsuario) {
+  _assertAdmin_(adminUsuario);
+
+  var planos, codigos;
+  try { planos = _getTabela(); }
+  catch (e) { return { ok: false, mensagem: 'planos_vero.json indisponível: ' + e.message }; }
+  try { codigos = _getCodigosVero(); }
+  catch (e) { return { ok: false, mensagem: 'planos_vero_codigos.json indisponível: ' + e.message }; }
+
+  if (!planos || planos.length < 3) {
+    return { ok: false, mensagem: 'planos_vero.json com formato inválido.' };
+  }
+
+  // 1. Indexar planos do CRM (linha 2+, PUBLICAR=true). Mantém também os descontinuados num set separado.
+  var planosCrmPublicados = [];
+  var todosNomesCrm = {};
+  for (var i = 2; i < planos.length; i++) {
+    var row = planos[i];
+    if (!row || !row[0]) continue;
+    var nome = String(row[0]).trim();
+    todosNomesCrm[nome] = true;
+    var publicar = row[8];
+    if (publicar === true || publicar === 'SIM') {
+      planosCrmPublicados.push({
+        nome_crm:     nome,
+        tipo:         String(row[1] || '').trim(),
+        produto_tipo: String(row[13] || '').trim(),
+        preco_boleto: row[2]
+      });
+    }
+  }
+
+  // 2. Indexar códigos do JSON de mapeamento por nome_crm_match
+  var codigosPorNome = {};
+  var totalCodigos = 0;
+  (codigos.coletas || []).forEach(function (col) {
+    var ctx = col.contexto || {};
+    var contextoLabel = ctx.cidade
+      ? (ctx.cidade + (ctx.conexao ? '/' + ctx.conexao : '') + (ctx.rede_canonica ? ' [' + ctx.rede_canonica + ']' : ''))
+      : (ctx.produto || 'sem contexto');
+    (col.planos || []).forEach(function (p) {
+      totalCodigos++;
+      if (!p.nome_crm_match) return;
+      var nm = String(p.nome_crm_match).trim();
+      if (!codigosPorNome[nm]) codigosPorNome[nm] = [];
+      codigosPorNome[nm].push({
+        codigo:       p.codigo || null,
+        nome_vero:    p.nome_vero || '',
+        confianca:    p.confianca || '',
+        addon:        p.addon || '',
+        contexto:     contextoLabel
+      });
+    });
+  });
+
+  // 3. Cruzar — publicados que têm código (ok) ou não (sem_codigo)
+  var ok = [];
+  var sem_codigo = [];
+  planosCrmPublicados.forEach(function (p) {
+    var hits = codigosPorNome[p.nome_crm];
+    if (hits && hits.length) {
+      ok.push({
+        nome_crm:     p.nome_crm,
+        tipo:         p.tipo,
+        produto_tipo: p.produto_tipo,
+        n_codigos:    hits.length,
+        codigos:      hits
+      });
+    } else {
+      sem_codigo.push({
+        nome_crm:     p.nome_crm,
+        tipo:         p.tipo,
+        produto_tipo: p.produto_tipo,
+        preco_boleto: p.preco_boleto
+      });
+    }
+  });
+
+  // 4. Órfãos — nome_crm_match nos códigos que não casa com nenhum nome em planos_vero.json
+  var orfaos = [];
+  Object.keys(codigosPorNome).forEach(function (nm) {
+    if (!todosNomesCrm[nm]) {
+      orfaos.push({
+        nome_crm_match: nm,
+        n_codigos:      codigosPorNome[nm].length,
+        codigos:        codigosPorNome[nm],
+        razao:          'Nome não existe mais em planos_vero.json (renomeado ou removido)'
+      });
+    }
+  });
+
+  var totalCrm = planosCrmPublicados.length;
+  var totalOk  = ok.length;
+  var cobertura_pct = totalCrm > 0 ? Math.round((totalOk / totalCrm) * 100) : 0;
+
+  ok.sort(function (a, b) { return a.nome_crm.localeCompare(b.nome_crm); });
+  sem_codigo.sort(function (a, b) { return a.nome_crm.localeCompare(b.nome_crm); });
+  orfaos.sort(function (a, b) { return a.nome_crm_match.localeCompare(b.nome_crm_match); });
+
+  return {
+    ok: true,
+    verificado_em: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm'),
+    resumo: {
+      total_planos_crm:         totalCrm,
+      total_planos_ok:          totalOk,
+      total_planos_sem_codigo:  sem_codigo.length,
+      total_codigos_vero:       totalCodigos,
+      total_codigos_orfaos:     orfaos.length,
+      cobertura_pct:            cobertura_pct,
+      meta_status:              codigos._meta && codigos._meta.status || ''
+    },
+    ok_list:    ok,
+    sem_codigo: sem_codigo,
+    orfaos:     orfaos
+  };
+}
+
+// Injeta a página Códigos Vero no CRM (admin only — guarda no JS.html).
+function getCodigosVeroHtml() {
+  return HtmlService.createHtmlOutputFromFile('CodigosVero').getContent();
+}
+
+// One-shot: limpa cache forçando releitura do JSON do Drive na próxima validação.
+function _limparCacheCodigosVero() {
+  try {
+    CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'codigos_vero_v1');
+    return 'OK — cache limpo.';
+  } catch (e) {
+    return 'Erro: ' + e.message;
+  }
 }
 
 // ─── API PÚBLICA — `?action=planos` e `?action=cidades` (doGet) ──────────────

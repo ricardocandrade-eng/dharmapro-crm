@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<!-- CodigosVero.html — DharmaPro CRM · Painel de status do mapeamento código Vero ↔ nome_crm (admin) -->
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    #codigosVeroContainer { font-family: 'Sora', sans-serif; color: #e4e8f5; }
+    .cv-wrap { padding: 28px 32px; max-width: 1100px; }
+
+    .cv-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+    .cv-title { font-size: 20px; font-weight: 700; }
+    .cv-subtitle { font-size: 13px; color: #7a82a0; margin-top: 3px; max-width: 760px; line-height: 1.5; }
+    .cv-meta-row { font-size: 12px; color: #7a82a0; font-family: 'DM Mono', monospace; margin: 14px 0 22px; }
+    .cv-meta-row b { color: #e4e8f5; font-weight: 500; }
+
+    .cv-btn {
+      font-family: 'Sora', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer;
+      border-radius: 9px; padding: 9px 16px; border: 1px solid #353d58; background: #1c2030;
+      color: #e4e8f5; transition: background .15s, border-color .15s, opacity .15s; white-space: nowrap;
+    }
+    .cv-btn:hover { background: #252a3a; }
+    .cv-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .cv-btn--ghost { background: transparent; }
+
+    .cv-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 12px 0 22px; }
+    .cv-kpi { background: #141720; border: 1px solid #252a3a; border-radius: 12px; padding: 13px 16px; }
+    .cv-kpi-label { font-size: 11px; color: #7a82a0; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
+    .cv-kpi-value { font-size: 24px; font-weight: 800; margin-top: 4px; font-family: 'DM Mono', monospace; }
+    .cv-kpi--ok { border-left: 3px solid #22d98a; }
+    .cv-kpi--warn { border-left: 3px solid #e6a23e; }
+    .cv-kpi--err { border-left: 3px solid #e63e6d; }
+
+    .cv-section-title {
+      font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+      color: #7a82a0; margin: 26px 0 12px; display: flex; align-items: center; gap: 8px;
+    }
+    .cv-pill {
+      font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
+      background: #1c2030; border: 1px solid #353d58; color: #e4e8f5; font-family: 'DM Mono', monospace;
+    }
+    .cv-pill--ok   { background: #0e2018; border-color: #1d5a40; color: #22d98a; }
+    .cv-pill--warn { background: #2a1f0e; border-color: #6b4d1f; color: #e6a23e; }
+    .cv-pill--err  { background: #2a0e16; border-color: #6b1f30; color: #e63e6d; }
+
+    .cv-instr { background: #141720; border: 1px solid #252a3a; border-radius: 12px; padding: 14px 18px; margin-bottom: 8px;
+      font-size: 13px; line-height: 1.55; color: #aab2cf; }
+    .cv-instr b { color: #e4e8f5; }
+    .cv-instr code { background: #1c2030; border: 1px solid #353d58; border-radius: 4px; padding: 1px 6px; font-family: 'DM Mono', monospace; font-size: 12px; color: #4f9eff; }
+
+    .cv-card { background: #141720; border: 1px solid #252a3a; border-radius: 12px; padding: 13px 16px; margin-bottom: 9px; }
+    .cv-card--ok    { border-left: 3px solid #22d98a; }
+    .cv-card--warn  { border-left: 3px solid #e6a23e; }
+    .cv-card--err   { border-left: 3px solid #e63e6d; }
+
+    .cv-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .cv-card-nome { font-size: 14px; font-weight: 700; }
+    .cv-card-meta { font-size: 12px; color: #7a82a0; font-family: 'DM Mono', monospace; }
+    .cv-card-sub  { font-size: 12.5px; color: #aab2cf; margin-top: 4px; }
+    .cv-tag-tipo {
+      font-size: 10.5px; font-weight: 700; color: #4f9eff;
+      border: 1px solid #2c456b; background: #122033; border-radius: 5px; padding: 1px 6px; margin-right: 6px;
+    }
+    .cv-tag-pt {
+      font-size: 10.5px; font-weight: 700; color: #e6a23e;
+      border: 1px solid #6b4d1f; background: #2a1f0e; border-radius: 5px; padding: 1px 6px;
+    }
+    .cv-tag-conf-alta  { font-size: 10.5px; font-weight: 600; color: #22d98a; border: 1px solid #1d5a40; background: #0e2018; border-radius: 5px; padding: 1px 6px; }
+    .cv-tag-conf-media { font-size: 10.5px; font-weight: 600; color: #e6a23e; border: 1px solid #6b4d1f; background: #2a1f0e; border-radius: 5px; padding: 1px 6px; }
+    .cv-tag-conf-baixa { font-size: 10.5px; font-weight: 600; color: #e63e6d; border: 1px solid #6b1f30; background: #2a0e16; border-radius: 5px; padding: 1px 6px; }
+    .cv-tag-addon { font-size: 10.5px; font-weight: 600; color: #c8b0ff; border: 1px solid #4a3970; background: #1b1230; border-radius: 5px; padding: 1px 6px; }
+
+    .cv-cod-list { margin: 9px 0 0; display: flex; flex-direction: column; gap: 6px; }
+    .cv-cod {
+      display: flex; align-items: baseline; gap: 9px; padding: 6px 10px;
+      background: #1c2030; border: 1px solid #252a3a; border-radius: 7px; flex-wrap: wrap;
+    }
+    .cv-cod-num { font-family: 'DM Mono', monospace; font-weight: 700; color: #4f9eff; font-size: 13px; }
+    .cv-cod-nome { font-size: 12.5px; flex: 1; min-width: 0; }
+    .cv-cod-ctx { font-size: 11.5px; color: #7a82a0; font-family: 'DM Mono', monospace; }
+
+    .cv-tabs { display: flex; gap: 4px; margin: 10px 0 0; flex-wrap: wrap; }
+    .cv-tab {
+      cursor: pointer; padding: 8px 14px; border-radius: 8px 8px 0 0; font-size: 13px; font-weight: 600;
+      border: 1px solid transparent; color: #7a82a0; background: transparent;
+    }
+    .cv-tab.ativa { color: #e4e8f5; background: #141720; border-color: #252a3a; border-bottom-color: #141720; position: relative; top: 1px; }
+    .cv-tab-counter { font-family: 'DM Mono', monospace; font-size: 11px; opacity: .8; margin-left: 4px; }
+
+    .cv-empty { color: #7a82a0; font-size: 13px; padding: 16px 4px; }
+    .cv-loading { color: #7a82a0; font-size: 13px; padding: 30px 4px; display: flex; align-items: center; gap: 10px; }
+    .cv-spinner {
+      width: 16px; height: 16px; border: 2px solid #353d58; border-top-color: #4f9eff;
+      border-radius: 50%; animation: cvspin .7s linear infinite; display: inline-block;
+    }
+    @keyframes cvspin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="cv-wrap">
+    <div class="cv-header">
+      <div>
+        <div class="cv-title">◆ Códigos Vero</div>
+        <div class="cv-subtitle">
+          Status do mapeamento entre os planos comerciais (<i>planos_vero.json</i>) e os códigos
+          numéricos do VeroHub (<i>planos_vero_codigos.json</i>). Use pra identificar planos novos
+          que ainda não têm código mapeado, ou códigos antigos que ficaram órfãos.
+        </div>
+      </div>
+      <button class="cv-btn cv-btn--ghost" id="cvBtnRefresh" onclick="cvCarregar()">↻ Verificar agora</button>
+    </div>
+
+    <div class="cv-meta-row" id="cvMeta"></div>
+
+    <div class="cv-instr">
+      <b>Como preencher os pendentes:</b> abra o Cowork (Cowork mode) e peça
+      <code>"atualize os códigos Vero pendentes"</code>. O Cowork abre o VeroHub na cidade certa,
+      captura os códigos novos e grava no <i>planos_vero_codigos.json</i>. Esta tela é
+      <b>somente leitura</b> — qualquer escrita manual aqui pode quebrar o cruzamento de relatórios.
+    </div>
+
+    <div id="cvKpis"></div>
+
+    <div class="cv-tabs" id="cvTabs"></div>
+
+    <div id="cvBody" style="background:#141720;border:1px solid #252a3a;border-top:none;border-radius:0 12px 12px 12px;padding:16px;">
+      <div class="cv-loading"><span class="cv-spinner"></span> Carregando validação…</div>
+    </div>
+  </div>
+
+  <script>
+    var _cvAdmin = '';
+    var _cvDados = null;
+    var _cvTab   = 'sem_codigo';  // padrão: tab da fila a resolver
+
+    function codigosVeroInit() {
+      _cvAdmin = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('crm_usuario')) ||
+                 (typeof AppState !== 'undefined' && AppState.get ? (AppState.get('usuario') || '') : '');
+      cvCarregar();
+    }
+
+    function cvEsc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function cvCarregar() {
+      var body = document.getElementById('cvBody');
+      body.innerHTML = '<div class="cv-loading"><span class="cv-spinner"></span> Carregando validação…</div>';
+      document.getElementById('cvMeta').textContent = '';
+      document.getElementById('cvKpis').innerHTML = '';
+      document.getElementById('cvTabs').innerHTML = '';
+      google.script.run
+        .withSuccessHandler(cvRender)
+        .withFailureHandler(function (e) {
+          body.innerHTML = '<div class="cv-empty" style="color:#e63e6d">Erro ao carregar: ' + cvEsc(e && e.message) + '</div>';
+        })
+        .getValidacaoCodigosVero(_cvAdmin);
+    }
+
+    function cvRender(data) {
+      if (!data || !data.ok) {
+        document.getElementById('cvBody').innerHTML =
+          '<div class="cv-empty" style="color:#e63e6d">' + cvEsc((data && data.mensagem) || 'Validação falhou.') + '</div>';
+        return;
+      }
+      _cvDados = data;
+      var r = data.resumo || {};
+
+      // ── Meta row ───────────────────────────────────────────────────────
+      var metaParts = [];
+      if (data.verificado_em) metaParts.push('Verificado em <b>' + cvEsc(data.verificado_em) + '</b>');
+      if (r.meta_status) metaParts.push('JSON: <b>' + cvEsc(r.meta_status.substring(0, 60)) + (r.meta_status.length > 60 ? '…' : '') + '</b>');
+      document.getElementById('cvMeta').innerHTML = metaParts.join(' · ');
+
+      // ── KPIs ───────────────────────────────────────────────────────────
+      var kpiHtml =
+        '<div class="cv-kpis">' +
+          '<div class="cv-kpi cv-kpi--ok"><div class="cv-kpi-label">Cobertura</div><div class="cv-kpi-value">' + r.cobertura_pct + '%</div></div>' +
+          '<div class="cv-kpi cv-kpi--ok"><div class="cv-kpi-label">Mapeados</div><div class="cv-kpi-value">' + r.total_planos_ok + ' / ' + r.total_planos_crm + '</div></div>' +
+          '<div class="cv-kpi cv-kpi--warn"><div class="cv-kpi-label">Sem código</div><div class="cv-kpi-value">' + r.total_planos_sem_codigo + '</div></div>' +
+          '<div class="cv-kpi cv-kpi--err"><div class="cv-kpi-label">Órfãos</div><div class="cv-kpi-value">' + r.total_codigos_orfaos + '</div></div>' +
+          '<div class="cv-kpi"><div class="cv-kpi-label">Códigos Vero</div><div class="cv-kpi-value">' + r.total_codigos_vero + '</div></div>' +
+        '</div>';
+      document.getElementById('cvKpis').innerHTML = kpiHtml;
+
+      // ── Tabs ───────────────────────────────────────────────────────────
+      var tabsHtml =
+        '<div class="cv-tab' + (_cvTab === 'sem_codigo' ? ' ativa' : '') + '" onclick="cvSetTab(\'sem_codigo\')">🟡 Sem código <span class="cv-tab-counter">(' + r.total_planos_sem_codigo + ')</span></div>' +
+        '<div class="cv-tab' + (_cvTab === 'orfaos' ? ' ativa' : '') + '" onclick="cvSetTab(\'orfaos\')">🔴 Órfãos <span class="cv-tab-counter">(' + r.total_codigos_orfaos + ')</span></div>' +
+        '<div class="cv-tab' + (_cvTab === 'ok' ? ' ativa' : '') + '" onclick="cvSetTab(\'ok\')">🟢 OK <span class="cv-tab-counter">(' + r.total_planos_ok + ')</span></div>';
+      document.getElementById('cvTabs').innerHTML = tabsHtml;
+
+      cvRenderBody();
+    }
+
+    function cvSetTab(tab) {
+      _cvTab = tab;
+      cvRender(_cvDados);  // re-renderiza com a tab nova ativa
+    }
+
+    function cvRenderBody() {
+      if (!_cvDados) return;
+      var body = document.getElementById('cvBody');
+      if (_cvTab === 'sem_codigo') {
+        body.innerHTML = cvRenderSemCodigo(_cvDados.sem_codigo || []);
+      } else if (_cvTab === 'orfaos') {
+        body.innerHTML = cvRenderOrfaos(_cvDados.orfaos || []);
+      } else {
+        body.innerHTML = cvRenderOk(_cvDados.ok_list || []);
+      }
+    }
+
+    function cvFmtPreco(v) {
+      if (v == null || v === '') return '';
+      if (typeof v === 'number') return 'R$ ' + v.toFixed(2).replace('.', ',');
+      return String(v);
+    }
+
+    function cvRenderSemCodigo(list) {
+      if (!list.length) return '<div class="cv-empty">🎉 Todos os planos comerciais ativos têm pelo menos 1 código Vero mapeado.</div>';
+      var html = '<div style="font-size:13px;color:#aab2cf;margin-bottom:12px">Planos do <i>planos_vero.json</i> (PUBLICAR=true) sem código Vero correspondente. Use o Cowork pra capturar:</div>';
+      list.forEach(function (p) {
+        var meta = [];
+        if (p.preco_boleto != null) meta.push(cvFmtPreco(p.preco_boleto));
+        html +=
+          '<div class="cv-card cv-card--warn">' +
+            '<div class="cv-card-head">' +
+              '<div class="cv-card-nome">' +
+                '<span class="cv-tag-tipo">' + cvEsc(p.tipo || '?') + '</span>' +
+                '<span class="cv-tag-pt">' + cvEsc(p.produto_tipo || '?') + '</span> ' +
+                cvEsc(p.nome_crm) +
+              '</div>' +
+              '<div class="cv-card-meta">' + meta.join(' · ') + '</div>' +
+            '</div>' +
+          '</div>';
+      });
+      return html;
+    }
+
+    function cvRenderOrfaos(list) {
+      if (!list.length) return '<div class="cv-empty">🎉 Nenhum código órfão — todos os <i>nome_crm_match</i> existem no <i>planos_vero.json</i>.</div>';
+      var html = '<div style="font-size:13px;color:#aab2cf;margin-bottom:12px">Códigos Vero cujo <i>nome_crm_match</i> não existe mais no <i>planos_vero.json</i> (provavelmente o plano foi renomeado ou removido). Revise e atualize o mapeamento manualmente se necessário:</div>';
+      list.forEach(function (o) {
+        var cods = (o.codigos || []).map(function (c) {
+          return cvRenderCodigo(c);
+        }).join('');
+        html +=
+          '<div class="cv-card cv-card--err">' +
+            '<div class="cv-card-head">' +
+              '<div class="cv-card-nome">' + cvEsc(o.nome_crm_match) + '</div>' +
+              '<div class="cv-card-meta">' + o.n_codigos + ' código(s) órfão(s)</div>' +
+            '</div>' +
+            '<div class="cv-card-sub" style="color:#e6a23e">⚠ ' + cvEsc(o.razao) + '</div>' +
+            '<div class="cv-cod-list">' + cods + '</div>' +
+          '</div>';
+      });
+      return html;
+    }
+
+    function cvRenderOk(list) {
+      if (!list.length) return '<div class="cv-empty">Nenhum plano com código mapeado ainda.</div>';
+      var html = '<div style="font-size:13px;color:#aab2cf;margin-bottom:12px">Planos do CRM com pelo menos 1 código Vero mapeado:</div>';
+      list.forEach(function (p) {
+        var cods = (p.codigos || []).map(function (c) { return cvRenderCodigo(c); }).join('');
+        html +=
+          '<div class="cv-card cv-card--ok">' +
+            '<div class="cv-card-head">' +
+              '<div class="cv-card-nome">' +
+                '<span class="cv-tag-tipo">' + cvEsc(p.tipo || '?') + '</span>' +
+                '<span class="cv-tag-pt">' + cvEsc(p.produto_tipo || '?') + '</span> ' +
+                cvEsc(p.nome_crm) +
+              '</div>' +
+              '<div class="cv-card-meta">' + p.n_codigos + ' código(s)</div>' +
+            '</div>' +
+            '<div class="cv-cod-list">' + cods + '</div>' +
+          '</div>';
+      });
+      return html;
+    }
+
+    function cvRenderCodigo(c) {
+      var confTag = '';
+      if (c.confianca === 'alta')  confTag = '<span class="cv-tag-conf-alta">alta</span>';
+      else if (c.confianca === 'media') confTag = '<span class="cv-tag-conf-media">média</span>';
+      else if (c.confianca === 'baixa') confTag = '<span class="cv-tag-conf-baixa">baixa</span>';
+      var addonTag = c.addon ? '<span class="cv-tag-addon">+ ' + cvEsc(c.addon) + '</span>' : '';
+      return '' +
+        '<div class="cv-cod">' +
+          '<span class="cv-cod-num">' + cvEsc(c.codigo || '—') + '</span>' +
+          '<span class="cv-cod-nome">' + cvEsc(c.nome_vero) + ' ' + confTag + ' ' + addonTag + '</span>' +
+          '<span class="cv-cod-ctx">' + cvEsc(c.contexto) + '</span>' +
+        '</div>';
+    }
+  </script>
+</body>
+</html>
