@@ -693,7 +693,7 @@ function getPainelAdsData(periodo) {
     return { erro: 'Nem Claude Ads Bridge nem META_ACCESS_TOKEN estao configurados.' };
   }
 
-  periodo = periodo || '3d';
+  periodo = periodo || '7d';
   var tz = Session.getScriptTimeZone();
   var hoje = new Date();
   var since, until;
@@ -739,6 +739,7 @@ function getPainelAdsData(periodo) {
     }
 
     var data = json.data || [];
+    var statusMap = _mapaStatusCampanhas_();
     var totalGasto = 0, totalLeads = 0, totalImpr = 0, totalCliques = 0;
     var campanhasData = [];
     var alertas = [];
@@ -765,17 +766,22 @@ function getPainelAdsData(periodo) {
       totalCliques += cliques;
 
       var cpl = leads > 0 ? gasto / leads : null;
-      var status = 'ok';
+      var efStatus = statusMap[row.campaign_id] || '';
+      var pausada = !!efStatus && efStatus !== 'ACTIVE';
+      var status = pausada ? 'pausada' : 'ok';
 
-      if (cpl && cpl > L.CPL_MAX && gasto > 100) {
-        alertas.push({ tipo: 'erro', texto: 'PAUSAR: ' + row.campaign_name + ' - CPL R$' + cpl.toFixed(2) + ' > R$' + L.CPL_MAX });
-        status = 'erro';
-      } else if (ctr < L.CTR_MIN && gasto > 20) {
-        alertas.push({ tipo: 'erro', texto: 'PAUSAR: ' + row.campaign_name + ' - CTR ' + ctr.toFixed(2) + '% < ' + L.CTR_MIN + '%' });
-        status = 'erro';
-      } else if (freq > L.FREQUENCIA_MAX) {
-        alertas.push({ tipo: 'aviso', texto: 'ATENCAO: ' + row.campaign_name + ' - Frequencia ' + freq.toFixed(1) + 'x (limite: ' + L.FREQUENCIA_MAX + 'x)' });
-        status = 'aviso';
+      // Campanha pausada não gera alerta de pausa/atenção — já está parada.
+      if (!pausada) {
+        if (cpl && cpl > L.CPL_MAX && gasto > 100) {
+          alertas.push({ tipo: 'erro', texto: 'PAUSAR: ' + row.campaign_name + ' - CPL R$' + cpl.toFixed(2) + ' > R$' + L.CPL_MAX });
+          status = 'erro';
+        } else if (ctr < L.CTR_MIN && gasto > 20) {
+          alertas.push({ tipo: 'erro', texto: 'PAUSAR: ' + row.campaign_name + ' - CTR ' + ctr.toFixed(2) + '% < ' + L.CTR_MIN + '%' });
+          status = 'erro';
+        } else if (freq > L.FREQUENCIA_MAX) {
+          alertas.push({ tipo: 'aviso', texto: 'ATENCAO: ' + row.campaign_name + ' - Frequencia ' + freq.toFixed(1) + 'x (limite: ' + L.FREQUENCIA_MAX + 'x)' });
+          status = 'aviso';
+        }
       }
 
       campanhasData.push({
@@ -816,6 +822,7 @@ function getPainelAdsData(periodo) {
 
     for (var fi = 0; fi < campanhasData.length; fi++) {
       var camp = campanhasData[fi];
+      if (camp.status === 'pausada') continue; // já pausada — não entra na fila de pausa
       var acaoId = 'pause_' + camp.id;
       var rationale, humanCheck;
 
@@ -1211,16 +1218,18 @@ function _buildDiagnosisPrompt_(insights, leadsData) {
     '- Frequência máxima: 4,0× — indica saturação de público',
     '- Regra de escala: +20% por semana quando CPA < R$80 por 5 dias consecutivos',
     '- Abril é estruturalmente o mês de menor volume do ano — não é problema, é sazonalidade',
-    '- Campanhas mapeadas: A — JF Principal (60% do budget), B — Órbita JF (15%), C — BH Metro (15%)',
+    '- Analise SOMENTE as campanhas listadas nos DADOS REAIS abaixo. Não cite campanhas que não aparecem nos dados (podem estar pausadas).',
     '- Plano prioritário: Oferta Verão 800MB + Globoplay + Max + Chip 60GB por R$149,90/mês',
     '- Benchmarks saudáveis do setor: CPL R$12–18, CTR 1,0–1,5%, CPA R$60–80',
     ''
   ].join('\n');
 
   var metaTxt = 'DADOS REAIS DA META (últimos 7 dias — ' + insights.desde + ' a ' + insights.ate + '):\n';
-  var camps   = insights.campanhas || [];
+  // Só campanhas com gasto no período — pausadas/sem veiculação ficam de fora
+  // pra a IA não narrar campanha parada como se estivesse ativa.
+  var camps   = (insights.campanhas || []).filter(function(c) { return parseFloat(c.gasto || 0) > 0; });
   if (camps.length === 0) {
-    metaTxt += '(Nenhuma campanha com dados no período)\n';
+    metaTxt += '(Nenhuma campanha com gasto no período)\n';
   } else {
     for (var i = 0; i < camps.length; i++) {
       var c = camps[i];
@@ -1358,7 +1367,7 @@ function _buildDiagnosisPromptResumo_(insights, leadsData) {
     '- Ticket médio: R$313/venda. CPA máximo: R$120. CPA meta: R$80.',
     '- CPL máximo: R$30. CTR mínimo: 0,5%. Frequência máxima: 4,0×.',
     '- Abril é mês estruturalmente fraco — sazonalidade.',
-    '- Campanhas: A — JF Principal (60%), B — Órbita JF (15%), C — BH Metro (15%).',
+    '- Cite SOMENTE as campanhas listadas em META abaixo. Não mencione campanhas ausentes dos dados (podem estar pausadas).',
     ''
   ].join('\n');
 
@@ -1651,6 +1660,31 @@ function _listarCampanhasAtivas_() {
   return data
     .filter(function(c) { return c.status === 'ACTIVE' && c.effective_status === 'ACTIVE'; })
     .map(function(c) { return c.name; });
+}
+
+/**
+ * Mapa campaign_id → effective_status de TODAS as campanhas da conta.
+ * Usado pelo Painel Ads pra distinguir campanha ativa de pausada — o endpoint
+ * de insights não retorna status. Defensivo: retorna {} em qualquer falha pra
+ * não derrubar o painel inteiro (campanhas ficam sem marca de pausada).
+ * @returns {Object<string,string>}
+ */
+function _mapaStatusCampanhas_() {
+  try {
+    var json = _metaApiGet_('/' + CFG_META.AD_ACCOUNT_ID + '/campaigns', {
+      fields: 'id,effective_status',
+      limit: 200
+    });
+    var data = json.data || [];
+    var mapa = {};
+    for (var i = 0; i < data.length; i++) {
+      if (data[i].id) mapa[data[i].id] = data[i].effective_status || '';
+    }
+    return mapa;
+  } catch (e) {
+    Logger.log('_mapaStatusCampanhas_ falhou: ' + e.message);
+    return {};
+  }
 }
 
 /**
