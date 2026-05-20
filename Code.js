@@ -974,6 +974,14 @@ function getContratosParaCruzamento() {
       var cliente = String(row[c.CLIENTE] || '').trim();
       var produto = String(row[c.PRODUTO] || '').trim();
 
+      // Valores atuais dos campos sobrescreviveis (para montar o diff do
+      // cruzamento — planilha como fonte da verdade). Aditivo: consumidores
+      // antigos ignoram esses campos novos.
+      var codCli     = String(row[c.COD_CLI]    || '').trim().replace(/\.0$/, '');
+      var cidade     = String(row[c.CIDADE]     || '').trim();
+      var observacao = String(row[c.OBSERVACAO] || '').trim();
+      var valor      = _normalizarValorParaNumero_(row[c.VALOR]);
+
       var dAtivRaw = row[c.DATA_ATIV];
       var dataAtiv = '';
       if (dAtivRaw instanceof Date && !isNaN(dAtivRaw)) {
@@ -1008,7 +1016,11 @@ function getContratosParaCruzamento() {
         cliente:  cliente,
         produto:  produto,
         dataAtiv: dataAtiv,
-        instal:   instal
+        instal:   instal,
+        codCli:     codCli,
+        cidade:     cidade,
+        observacao: observacao,
+        valor:      valor
       });
     }
 
@@ -1080,6 +1092,92 @@ function aplicarVeroStatusCompleto(resultados) {
     _limparCache();
     return { sucesso: true, atualizados: (resultados || []).length, linhasTotais: totalLinhas };
   } catch(e) {
+    return { sucesso: false, mensagem: e.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ── Sobrescrita de dados do CRM a partir do relatorio Vero ────────────────
+// Planilha = fonte da verdade. Recebe correcoes JA FILTRADAS pelo frontend
+// (so campos com valor na planilha e que diferem do CRM). Grava apenas as
+// celulas mapeadas — preserva STATUS e qualquer coluna nao-mapeada. O match
+// (por contrato) ja foi feito antes; aqui aplica por numero de linha.
+//   - Datas (DATA_ATIV, INSTAL) -> DD/MM/YYYY
+//   - VALOR -> numero (_normalizarValorParaNumero_)
+//   - CIDADE -> dispara relookup de SISTEMA + SEGMENTACAO pela cidade
+//   - OBSERVACAO_APPEND -> anexa linha idempotente (nao substitui anotacao do BKO)
+// correcoes = [{ linha, campos: { COD_CLI, INSTAL, VALOR, CIDADE, DATA_ATIV, OBSERVACAO_APPEND } }]
+function aplicarCorrecaoVero(correcoes) {
+  if (!correcoes || !correcoes.length) return { sucesso: true, atualizados: 0, celulas: 0 };
+  var sheet = _getSheet();
+  var c = CONFIG.COLUNAS;
+  var lastRow = sheet.getLastRow();
+
+  var lock = LockService.getScriptLock();
+  try { lock.waitLock(20000); } catch(e) { return { sucesso: false, mensagem: 'Sistema ocupado' }; }
+  try {
+    var linhasAfetadas = 0;
+    var celulasAfetadas = 0;
+
+    (correcoes || []).forEach(function(corr) {
+      if (!corr || !corr.linha || corr.linha < 3 || corr.linha > lastRow) return;
+      var campos = corr.campos || {};
+      var linha = corr.linha;
+      var mexeu = false;
+
+      // COD_CLI (F)
+      if (campos.COD_CLI !== undefined && campos.COD_CLI !== null && String(campos.COD_CLI).trim() !== '') {
+        sheet.getRange(linha, c.COD_CLI + 1).setValue(String(campos.COD_CLI).trim());
+        celulasAfetadas++; mexeu = true;
+      }
+      // DATA_ATIV (D)
+      if (campos.DATA_ATIV) {
+        var dAtiv = _formatarDataNascimento(campos.DATA_ATIV, 'dd/MM/yyyy');
+        if (dAtiv) { sheet.getRange(linha, c.DATA_ATIV + 1).setValue(dAtiv); celulasAfetadas++; mexeu = true; }
+      }
+      // INSTAL (J)
+      if (campos.INSTAL) {
+        var dInst = _formatarDataNascimento(campos.INSTAL, 'dd/MM/yyyy');
+        if (dInst) { sheet.getRange(linha, c.INSTAL + 1).setValue(dInst); celulasAfetadas++; mexeu = true; }
+      }
+      // VALOR (O)
+      if (campos.VALOR !== undefined && campos.VALOR !== null && campos.VALOR !== '') {
+        var valNum = _normalizarValorParaNumero_(campos.VALOR);
+        if (valNum !== '') { sheet.getRange(linha, c.VALOR + 1).setValue(valNum); celulasAfetadas++; mexeu = true; }
+      }
+      // CIDADE (AF) + relookup SISTEMA (AH) / SEGMENTACAO (AI)
+      if (campos.CIDADE !== undefined && campos.CIDADE !== null && String(campos.CIDADE).trim() !== '') {
+        var novaCidade = String(campos.CIDADE).trim();
+        sheet.getRange(linha, c.CIDADE + 1).setValue(novaCidade);
+        celulasAfetadas++; mexeu = true;
+        try {
+          var sis = getSistemaPorCidade(novaCidade);
+          if (sis) { sheet.getRange(linha, c.SISTEMA + 1).setValue(sis); celulasAfetadas++; }
+          var seg = getSegmentacaoPorCidade(novaCidade);
+          if (seg) { sheet.getRange(linha, c.SEGMENTACAO + 1).setValue(seg); celulasAfetadas++; }
+        } catch (eLook) {
+          Logger.log('aplicarCorrecaoVero relookup cidade falhou (linha ' + linha + '): ' + eLook.message);
+        }
+      }
+      // OBSERVACAO (L) — append idempotente
+      if (campos.OBSERVACAO_APPEND && String(campos.OBSERVACAO_APPEND).trim() !== '') {
+        var linhaNova = String(campos.OBSERVACAO_APPEND).trim();
+        var atual = String(sheet.getRange(linha, c.OBSERVACAO + 1).getValue() || '').trim();
+        if (atual.indexOf(linhaNova) === -1) {
+          sheet.getRange(linha, c.OBSERVACAO + 1).setValue(atual ? (atual + '\n' + linhaNova) : linhaNova);
+          celulasAfetadas++; mexeu = true;
+        }
+      }
+
+      if (mexeu) linhasAfetadas++;
+    });
+
+    SpreadsheetApp.flush();
+    _limparCache();
+    return { sucesso: true, atualizados: linhasAfetadas, celulas: celulasAfetadas };
+  } catch (e) {
+    Logger.log('aplicarCorrecaoVero ERRO: ' + e.message + ' | ' + e.stack);
     return { sucesso: false, mensagem: e.message };
   } finally {
     lock.releaseLock();

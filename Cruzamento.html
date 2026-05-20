@@ -373,6 +373,59 @@
       grid-template-columns: 1fr;
     }
   }
+
+  /* Painel de correcoes (sobrescrita planilha -> CRM) */
+  .cruz-corr {
+    margin: 16px 24px 0;
+    border: 1px solid rgba(230, 62, 109, 0.4);
+    background: rgba(230, 62, 109, 0.07);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .cruz-corr-top {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .cruz-corr-titulo { font-size: 13px; font-weight: 800; color: var(--text); }
+  .cruz-corr-sub { font-weight: 600; color: var(--muted); font-size: 11px; }
+  .cruz-corr-acoes { display: flex; align-items: center; gap: 8px; }
+  .cruz-corr-aplicar {
+    padding: 8px 16px; background: var(--accent); color: #fff; border: none;
+    border-radius: 8px; font-size: 12px; font-weight: 800;
+    font-family: "Sora", sans-serif; cursor: pointer; transition: all 0.2s;
+  }
+  .cruz-corr-aplicar:hover { filter: brightness(1.1); }
+  .cruz-corr-aplicar:disabled { opacity: 0.6; cursor: default; }
+  .cruz-corr-lista {
+    margin-top: 12px; max-height: 340px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .cruz-corr-lista::-webkit-scrollbar { width: 4px; }
+  .cruz-corr-lista::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .cruz-corr-item {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 9px; padding: 10px 12px;
+  }
+  .cruz-corr-item-head {
+    display: flex; align-items: baseline; gap: 8px;
+    margin-bottom: 6px; flex-wrap: wrap;
+  }
+  .cruz-corr-item-head strong { font-size: 12px; color: var(--text); }
+  .cruz-corr-meta { font-size: 10px; color: var(--muted); font-family: "DM Mono", monospace; }
+  .cruz-corr-diff {
+    display: flex; align-items: center; gap: 8px; margin: 2px 0;
+    font-size: 11px; font-family: "DM Mono", monospace; flex-wrap: wrap;
+  }
+  .cruz-corr-campo { min-width: 120px; color: var(--muted); }
+  .cruz-corr-de { color: var(--muted); text-decoration: line-through; opacity: 0.8; }
+  .cruz-corr-seta { color: var(--accent); }
+  .cruz-corr-para { color: var(--green); font-weight: 700; }
+  .cruz-corr-ok {
+    margin: 16px 24px 0; border: 1px solid rgba(43, 191, 123, 0.4);
+    background: rgba(43, 191, 123, 0.08); border-radius: 12px;
+    padding: 12px 16px; font-size: 12px; font-weight: 700; color: var(--green);
+  }
+  .cruz-corr-ico { font-weight: 800; }
 </style>
 
 <div id="pageCruzamento" class="page">
@@ -417,6 +470,13 @@ var _cruzDados = null;
 var _cruzTabAtiva = 'vendas';
 var _cruzDadosCRM = [];
 var _cruzArquivoNome = '';
+
+// Sobrescrita de dados (planilha = fonte da verdade) + persistencia do resultado.
+var _cruzCorrecoes = [];            // [{linha, contrato, cliente, campos, diffs}]
+var _cruzCorrecoesAplicadas = false;
+var _cruzOrigemAtual = '';          // 'manual' | 'auto'
+var _cruzQuando = 0;                // timestamp ms do ultimo import
+var _CRUZ_LS_KEY = 'dharmapro_cruzamento_v1';
 
 function _cruzSetStatus(texto, tipo) {
   var status = document.getElementById('cruzStatus');
@@ -470,8 +530,12 @@ function _cruzamentoImportar(inputEl) {
             _cruzDadosCRM = res && res.dados ? res.dados : [];
             document.getElementById('cruzTabs').style.display = 'flex';
             document.getElementById('cruzBtnLimpar').style.display = '';
-            _cruzSetStatus(file.name + ' importado com sucesso. CRM: ' + _cruzDadosCRM.length + ' contratos.', 'ok');
+            _cruzCorrecoes = _cruzComputarCorrecoes();
+            _cruzCorrecoesAplicadas = false;
+            _cruzSetStatus(file.name + ' importado. CRM: ' + _cruzDadosCRM.length + ' contratos · ' + _cruzCorrecoes.length + ' com correção sugerida.', 'ok');
             _cruzConsolidarESalvar();
+            _cruzSetBadges();
+            _cruzPersistir('manual');
             _cruzRenderizar();
           })
           .withFailureHandler(function(err) {
@@ -483,7 +547,11 @@ function _cruzamentoImportar(inputEl) {
         _cruzDadosCRM = [];
         document.getElementById('cruzTabs').style.display = 'flex';
         document.getElementById('cruzBtnLimpar').style.display = '';
+        _cruzCorrecoes = [];
+        _cruzCorrecoesAplicadas = false;
         _cruzSetStatus(file.name + ' importado em modo teste. CRM indisponivel neste ambiente.', 'ok');
+        _cruzSetBadges();
+        _cruzPersistir('manual');
         _cruzRenderizar();
       }
     } catch (err) {
@@ -651,6 +719,11 @@ function _cruzamentoLimpar() {
   _cruzDadosCRM = [];
   _cruzArquivoNome = '';
   _cruzTabAtiva = 'vendas';
+  _cruzCorrecoes = [];
+  _cruzCorrecoesAplicadas = false;
+  _cruzOrigemAtual = '';
+  _cruzQuando = 0;
+  _cruzLimparStorage();
   _cruzRemoverIconesLista();
   _cruzSetStatus('Nenhum arquivo importado', '');
   document.getElementById('cruzTabs').style.display = 'none';
@@ -708,6 +781,7 @@ function _cruzRenderizar() {
         _cruzRemoverIconesLista();
         _cruzRenderCancelamentos();
       }
+      _cruzInjetarPainelCorrecoes();
     } catch (err) {
       console.error('Erro ao renderizar cruzamento:', err);
       body.innerHTML = '<div class="cruz-empty" style="color:var(--accent);">Erro ao renderizar: ' + _escapeHtml(err.message) + '</div>';
@@ -1299,13 +1373,33 @@ function _cruzamentoBuscarGmail() {
         _cruzSetStatus('Erro: ' + ((res && res.mensagem) || 'falha desconhecida'), 'err');
         return;
       }
+
+      // Desenha o kanban + painel de diff e persiste, igual ao import manual.
+      if (res.dados) {
+        _cruzDados = {
+          vendas: res.dados.vendas || [],
+          instalacoes: res.dados.instalacoes || [],
+          cancelamentos: res.dados.cancelamentos || [],
+          movel: res.dados.movel || []
+        };
+        _cruzDadosCRM = res.crmRows || [];
+        _cruzArquivoNome = res.anexo || 'Relatório Vero (Gmail)';
+        _cruzCorrecoes = res.correcoes || [];
+        _cruzCorrecoesAplicadas = false;
+        document.getElementById('cruzTabs').style.display = 'flex';
+        document.getElementById('cruzBtnLimpar').style.display = '';
+        _cruzSetBadges();
+        _cruzPersistir('auto');
+        _cruzRenderizar();
+      }
+
       var c = res.contagem || {};
       var msg = 'Importado ' + (res.anexo || 'anexo Vero') +
                 ' (recebido ' + (res.recebidoEm || '?') + '). ' +
                 'Vendas:' + (c.vendas || 0) + ' · Instal:' + (c.instalacoes || 0) +
                 ' · Cancel:' + (c.cancelamentos || 0) + ' · Movel:' + (c.movel || 0) +
                 ' · CRM marcados: 🟢 ' + (c.verde_instalacoes || 0) + '+' + (c.verde_vendas || 0) +
-                ' / 🟡 ' + (c.amarelos || 0) + '.';
+                ' / 🟡 ' + (c.amarelos || 0) + ' · ✏️ ' + (c.correcoes || 0) + ' p/ corrigir.';
       _cruzSetStatus(msg, 'ok');
       _cruzCarregarUltimaSync();
     })
@@ -1359,5 +1453,330 @@ function _cruzConsolidarESalvar() {
     .withSuccessHandler(function() {})
     .withFailureHandler(function() {})
     .aplicarVeroStatusCompleto(resultados);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  SOBRESCRITA DE DADOS (planilha = fonte da verdade) + PERSISTENCIA
+//
+//  Match so por contrato; status preservado; nao cria linha.
+//  Campos: COD_CLI, INSTAL, VALOR, CIDADE, DATA_ATIV, OBSERVACAO (append).
+//  Espelha _cruzComputarCorrecoesServer_ de CruzamentoAutoAPI.js.
+// ══════════════════════════════════════════════════════════════════════════
+
+function _cruzNormValor(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (typeof v === 'number') return (isFinite(v) && v >= 0) ? v : '';
+  var s = String(v).replace(/R\$\s*/i, '').replace(/\s/g, '').trim();
+  if (!s) return '';
+  if (s.indexOf(',') !== -1) s = s.replace(/\./g, '').replace(',', '.');
+  var n = parseFloat(s);
+  return (isFinite(n) && n >= 0) ? n : '';
+}
+
+function _cruzToBR(s) {
+  if (!s) return '';
+  s = String(s).trim();
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) return s.substring(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    var p = s.substring(0, 10).split('-');
+    return p[2] + '/' + p[1] + '/' + p[0];
+  }
+  return s;
+}
+
+function _cruzValorBR(n) {
+  var num = Number(n);
+  if (!isFinite(num)) return String(n);
+  return num.toFixed(2).replace('.', ',');
+}
+
+function _cruzMontarObsCancelamentoCli(row) {
+  var data = row.DATA_CANCELAMENTO || '';
+  var tipo = row.TIPO_CANCELAMENTO || '';
+  var motivo = row.MOTIVO_CANCELAMENTO || '';
+  var base = '[Vero] CANCELADO' + (data ? ' ' + data : '');
+  var extra = [tipo, motivo].filter(function(x) { return x && String(x).trim() !== ''; }).join(' · ');
+  return extra ? (base + ' · ' + extra) : base;
+}
+
+function _cruzConsolidarCamposVeroCli() {
+  var d = _cruzDados || {};
+  var mapa = {};
+  function ensure(id) { if (!mapa[id]) mapa[id] = {}; return mapa[id]; }
+
+  (d.instalacoes || []).forEach(function(row) {
+    var id = _cruzNormId(row.ID_CONTRATO || row.CONTRATO || row.Contrato);
+    if (!id) return;
+    var o = ensure(id);
+    var hab = row.DATA_HABILITACAO || row['DATA_HABILITAÇÃO'] || row['DATA_HABILITAÇAO'] || '';
+    if (hab && !o.instal) o.instal = hab;
+    if ((row.VALOR_CONTRATO || row.VALOR_CONTRATO === 0) && o.valor === undefined) o.valor = row.VALOR_CONTRATO;
+    if (row.COD_CLIENTE && !o.codCli) o.codCli = row.COD_CLIENTE;
+    if (row.CIDADE_HIERARQUIA && !o.cidade) o.cidade = row.CIDADE_HIERARQUIA;
+    if (row.DATA_CADASTRO && !o.dataAtiv) o.dataAtiv = row.DATA_CADASTRO;
+  });
+
+  (d.vendas || []).forEach(function(row) {
+    var id = _cruzNormId(row.ID_CONTRATO || row.CONTRATO || row.Contrato);
+    if (!id) return;
+    var o = ensure(id);
+    if (row.COD_CLIENTE && !o.codCli) o.codCli = row.COD_CLIENTE;
+    if (row.CIDADE_HIERARQUIA && !o.cidade) o.cidade = row.CIDADE_HIERARQUIA;
+    if (row.DATA_CADASTRO && !o.dataAtiv) o.dataAtiv = row.DATA_CADASTRO;
+  });
+
+  (d.movel || []).forEach(function(row) {
+    var id = _cruzNormId(row.IDCONTRATO || row.ID_CONTRATO || row.CONTRATO || row.Contrato);
+    if (!id) return;
+    var o = ensure(id);
+    if (row.IDCLIENTE && !o.codCli) o.codCli = row.IDCLIENTE;
+    var vm = row.VALOR_CONTRATO_MOVEL || row.VALOR_CONTRATO;
+    if ((vm || vm === 0) && o.valor === undefined) o.valor = vm;
+    if (row.DATA_VENDA && !o.dataAtiv) o.dataAtiv = row.DATA_VENDA;
+    if (row.DATAHABILITACAO && !o.instal) o.instal = row.DATAHABILITACAO;
+    if (row.CIDADE && !o.cidade) o.cidade = row.CIDADE;
+  });
+
+  (d.cancelamentos || []).forEach(function(row) {
+    var id = _cruzNormId(row.ID_CONTRATO || row.CONTRATO || row.Contrato);
+    if (!id) return;
+    var o = ensure(id);
+    if (!o.obsAppend) o.obsAppend = _cruzMontarObsCancelamentoCli(row);
+  });
+
+  return mapa;
+}
+
+function _cruzComputarCorrecoes() {
+  var mapaVero = _cruzConsolidarCamposVeroCli();
+  var out = [];
+  (_cruzDadosCRM || []).forEach(function(item) {
+    if (!item || !item.linha) return;
+    var id = _cruzNormId(item.contrato);
+    if (!id) return;
+    var v = mapaVero[id];
+    if (!v) return;
+
+    var campos = {}, diffs = [];
+
+    if (v.codCli && String(v.codCli).trim() !== '' &&
+        String(v.codCli).trim() !== String(item.codCli || '').trim()) {
+      campos.COD_CLI = String(v.codCli).trim();
+      diffs.push({ label: 'Cód. cliente', atual: item.codCli || '', novo: campos.COD_CLI });
+    }
+    if (v.instal) {
+      var ni = _cruzToBR(v.instal), ai = _cruzToBR(item.instal);
+      if (ni && ni !== ai) { campos.INSTAL = ni; diffs.push({ label: 'Data instalação', atual: ai, novo: ni }); }
+    }
+    if (v.dataAtiv) {
+      var na = _cruzToBR(v.dataAtiv), aa = _cruzToBR(item.dataAtiv);
+      if (na && na !== aa) { campos.DATA_ATIV = na; diffs.push({ label: 'Data ativação', atual: aa, novo: na }); }
+    }
+    if (v.valor !== undefined && v.valor !== null && v.valor !== '') {
+      var nv = _cruzNormValor(v.valor);
+      var av = (item.valor === '' || item.valor === undefined || item.valor === null) ? '' : _cruzNormValor(item.valor);
+      if (nv !== '' && nv !== av) {
+        campos.VALOR = nv;
+        diffs.push({ label: 'Valor', atual: (av === '' ? '' : 'R$ ' + _cruzValorBR(av)), novo: 'R$ ' + _cruzValorBR(nv) });
+      }
+    }
+    if (v.cidade && String(v.cidade).trim() !== '') {
+      var nc = String(v.cidade).trim();
+      if (_cruzNormalizarTexto(nc) !== _cruzNormalizarTexto(item.cidade || '')) {
+        campos.CIDADE = nc;
+        diffs.push({ label: 'Cidade', atual: item.cidade || '', novo: nc });
+      }
+    }
+    if (v.obsAppend && String(v.obsAppend).trim() !== '') {
+      var lo = String(v.obsAppend).trim();
+      if (String(item.observacao || '').indexOf(lo) === -1) {
+        campos.OBSERVACAO_APPEND = lo;
+        diffs.push({ label: 'Observação (+)', atual: item.observacao || '', novo: lo });
+      }
+    }
+
+    if (diffs.length) out.push({ linha: item.linha, contrato: item.contrato, cliente: item.cliente || '', campos: campos, diffs: diffs });
+  });
+  return out;
+}
+
+// ── Painel de diff ────────────────────────────────────────────────────────
+function _cruzPainelCorrecoesHtml() {
+  if (_cruzCorrecoesAplicadas) {
+    return '<div class="cruz-corr cruz-corr-ok">' +
+      '<span class="cruz-corr-ico">✓</span> Correções aplicadas no CRM a partir do relatório Vero.' +
+      '</div>';
+  }
+  if (!_cruzCorrecoes || !_cruzCorrecoes.length) return '';
+
+  var nLinhas = _cruzCorrecoes.length;
+  var nCampos = 0;
+  _cruzCorrecoes.forEach(function(c) { nCampos += (c.diffs || []).length; });
+
+  var itens = _cruzCorrecoes.map(function(c) {
+    var ds = (c.diffs || []).map(function(d) {
+      return '<div class="cruz-corr-diff">' +
+        '<span class="cruz-corr-campo">' + _escapeHtml(d.label) + '</span>' +
+        '<span class="cruz-corr-de">' + _escapeHtml(d.atual || '—') + '</span>' +
+        '<span class="cruz-corr-seta">→</span>' +
+        '<span class="cruz-corr-para">' + _escapeHtml(d.novo) + '</span>' +
+      '</div>';
+    }).join('');
+    return '<div class="cruz-corr-item">' +
+        '<div class="cruz-corr-item-head">' +
+          '<strong>' + _escapeHtml(c.cliente || ('Contrato ' + c.contrato)) + '</strong>' +
+          '<span class="cruz-corr-meta">contrato ' + _escapeHtml(c.contrato) + ' · linha ' + c.linha + '</span>' +
+        '</div>' + ds +
+      '</div>';
+  }).join('');
+
+  return '<div class="cruz-corr">' +
+      '<div class="cruz-corr-top">' +
+        '<div class="cruz-corr-titulo">📝 ' + nLinhas + ' venda(s) a corrigir pelo relatório Vero ' +
+          '<span class="cruz-corr-sub">(' + nCampos + ' campo(s) · planilha é a fonte da verdade · status preservado)</span></div>' +
+        '<div class="cruz-corr-acoes">' +
+          '<button class="btn btn-ghost btn-sm" id="cruzCorrToggle" onclick="_cruzToggleDetalhesCorrecoes()">Ver detalhes</button>' +
+          '<button class="cruz-corr-aplicar" id="cruzCorrAplicar" onclick="_cruzAplicarCorrecoes()">Aplicar correções (' + nLinhas + ')</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="cruz-corr-lista" id="cruzCorrLista" style="display:none">' + itens + '</div>' +
+    '</div>';
+}
+
+function _cruzToggleDetalhesCorrecoes() {
+  var lista = document.getElementById('cruzCorrLista');
+  var btn = document.getElementById('cruzCorrToggle');
+  if (!lista) return;
+  var aberto = lista.style.display !== 'none';
+  lista.style.display = aberto ? 'none' : 'block';
+  if (btn) btn.textContent = aberto ? 'Ver detalhes' : 'Ocultar detalhes';
+}
+
+function _cruzInjetarPainelCorrecoes() {
+  var body = document.getElementById('cruzBody');
+  if (!body) return;
+  var html = _cruzPainelCorrecoesHtml();
+  if (html) body.insertAdjacentHTML('afterbegin', html);
+}
+
+function _cruzAplicarCorrecoes() {
+  if (!_cruzCorrecoes || !_cruzCorrecoes.length) return;
+  var btn = document.getElementById('cruzCorrAplicar');
+  var total = _cruzCorrecoes.length;
+  if (btn) { btn.disabled = true; btn.textContent = 'Aplicando...'; }
+
+  if (typeof google === 'undefined' || !google.script || !google.script.run) {
+    _cruzSetStatus('Ambiente sem backend — correções não aplicadas.', 'err');
+    if (btn) { btn.disabled = false; btn.textContent = 'Aplicar correções (' + total + ')'; }
+    return;
+  }
+
+  var payload = _cruzCorrecoes.map(function(c) { return { linha: c.linha, campos: c.campos }; });
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res || !res.sucesso) {
+        _cruzSetStatus('Erro ao aplicar correções: ' + ((res && res.mensagem) || 'falha'), 'err');
+        if (btn) { btn.disabled = false; btn.textContent = 'Aplicar correções (' + total + ')'; }
+        return;
+      }
+      _cruzCorrecoesAplicadas = true;
+      _cruzSetStatus('Correções aplicadas: ' + (res.atualizados || 0) + ' venda(s), ' + (res.celulas || 0) + ' campo(s).', 'ok');
+      _cruzPersistir(_cruzOrigemAtual);
+      _cruzRenderizar();
+    })
+    .withFailureHandler(function(err) {
+      _cruzSetStatus('Falha ao aplicar correções: ' + ((err && err.message) || 'tente novamente'), 'err');
+      if (btn) { btn.disabled = false; btn.textContent = 'Aplicar correções (' + total + ')'; }
+    })
+    .aplicarCorrecaoVero(payload);
+}
+
+// ── Persistencia (localStorage) ───────────────────────────────────────────
+function _cruzCrmRowsSlim(rows) {
+  return (rows || []).map(function(it) {
+    return {
+      linha: it.linha, contrato: it.contrato, status: it.status,
+      cliente: it.cliente, dataAtiv: it.dataAtiv, instal: it.instal
+    };
+  });
+}
+
+function _cruzSetBadges() {
+  if (!_cruzDados) return;
+  var set = function(id, n) { var el = document.getElementById(id); if (el) el.textContent = (n == null ? '-' : n); };
+  set('cruzBadgeVendas', (_cruzDados.vendas || []).length);
+  set('cruzBadgeInstalacoes', (_cruzDados.instalacoes || []).length);
+  set('cruzBadgeCancelamentos', (_cruzDados.cancelamentos || []).length);
+  set('cruzBadgeMovel', (_cruzDados.movel || []).length);
+}
+
+function _cruzFmtQuando(ms) {
+  if (!ms) return '';
+  var d = new Date(ms);
+  var p = function(n) { return n < 10 ? '0' + n : '' + n; };
+  return p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+function _cruzLabelOrigem(o) { return o === 'auto' ? 'Gmail' : 'manual'; }
+
+function _cruzPersistir(origem) {
+  _cruzOrigemAtual = origem || _cruzOrigemAtual || 'manual';
+  _cruzQuando = Date.now();
+  var base = {
+    versao: 1,
+    arquivo: _cruzArquivoNome || '',
+    origem: _cruzOrigemAtual,
+    quando: _cruzQuando,
+    dados: _cruzDados,
+    correcoes: _cruzCorrecoes || [],
+    aplicadas: !!_cruzCorrecoesAplicadas
+  };
+  try {
+    base.crmRows = _cruzCrmRowsSlim(_cruzDadosCRM);
+    localStorage.setItem(_CRUZ_LS_KEY, JSON.stringify(base));
+  } catch (e) {
+    // Quota estourou — grava sem crmRows (kanban "só CRM" fica vazio ao reabrir,
+    // mas as correções continuam aplicáveis).
+    try {
+      base.crmRows = [];
+      localStorage.setItem(_CRUZ_LS_KEY, JSON.stringify(base));
+    } catch (e2) {
+      console.warn('Cruzamento: não foi possível persistir no localStorage:', e2);
+    }
+  }
+}
+
+function _cruzLimparStorage() {
+  try { localStorage.removeItem(_CRUZ_LS_KEY); } catch (e) {}
+}
+
+function _cruzHidratarDoStorage() {
+  if (_cruzDados) return; // já há resultado nesta sessão — não sobrescreve
+  var raw;
+  try { raw = localStorage.getItem(_CRUZ_LS_KEY); } catch (e) { return; }
+  if (!raw) return;
+  var saved;
+  try { saved = JSON.parse(raw); } catch (e) { return; }
+  if (!saved || !saved.dados) return;
+
+  _cruzDados = {
+    vendas: saved.dados.vendas || [],
+    instalacoes: saved.dados.instalacoes || [],
+    cancelamentos: saved.dados.cancelamentos || [],
+    movel: saved.dados.movel || []
+  };
+  _cruzDadosCRM = saved.crmRows || [];
+  _cruzArquivoNome = saved.arquivo || '';
+  _cruzCorrecoes = saved.correcoes || [];
+  _cruzCorrecoesAplicadas = !!saved.aplicadas;
+  _cruzOrigemAtual = saved.origem || '';
+  _cruzQuando = saved.quando || 0;
+
+  document.getElementById('cruzTabs').style.display = 'flex';
+  document.getElementById('cruzBtnLimpar').style.display = '';
+  _cruzSetBadges();
+  _cruzSetStatus('Resultado de ' + _cruzFmtQuando(_cruzQuando) + ' (' + _cruzLabelOrigem(_cruzOrigemAtual) + ') — reaberto do navegador.', 'ok');
+  _cruzRenderizar();
 }
 </script>

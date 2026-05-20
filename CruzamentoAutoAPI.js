@@ -116,6 +116,11 @@ function _importarRelatorioVero_(opts) {
     var consolidacao = _cruzConsolidarServer_(dados, crmRows);
     var resSalvar = aplicarVeroStatusCompleto(consolidacao.resultados);
 
+    // Correcoes propostas (sobrescrita de dados). NAO sao aplicadas aqui —
+    // viajam pro frontend para o passo de pre-visualizacao + confirmacao.
+    // So o emoji VERO_STATUS e' gravado automaticamente (acima).
+    var correcoes = _cruzComputarCorrecoesServer_(dados, crmRows);
+
     props.setProperty(CRUZ_VERO_PROP_LAST, threadId);
 
     return {
@@ -132,9 +137,15 @@ function _importarRelatorioVero_(opts) {
         marcados: consolidacao.resultados.length,
         verde_instalacoes: consolidacao.contagemInstalacoes,
         verde_vendas: consolidacao.contagemVendas,
-        amarelos: consolidacao.contagemAmarelos
+        amarelos: consolidacao.contagemAmarelos,
+        correcoes: correcoes.length
       },
-      atualizadosNoSheet: resSalvar && resSalvar.atualizados || 0
+      atualizadosNoSheet: resSalvar && resSalvar.atualizados || 0,
+      // Dados detalhados pro frontend desenhar o kanban + persistir (localStorage)
+      // e montar o painel de diff (mesmo do import manual).
+      dados: dados,
+      crmRows: crmRows,
+      correcoes: correcoes
     };
   } finally {
     if (tempFileId) {
@@ -413,4 +424,175 @@ function _cruzEhStatusVendaServer_(status) {
   return key.indexOf('AGUARDANDO INSTALACAO') > -1
       || key.indexOf('FINALIZADA/INSTALADA') > -1
       || key.indexOf('INSTALADA') > -1;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  SOBRESCRITA DE DADOS — computacao das correcoes (server-side)
+//
+//  Espelha a logica do frontend (_cruzComputarCorrecoes em Cruzamento.html).
+//  Consolida os campos da planilha Vero por contrato e compara com os valores
+//  atuais do CRM (crmRows ja traz codCli/valor/cidade/observacao/dataAtiv/instal).
+//  Retorna SOMENTE as linhas com pelo menos uma diferenca. Nao grava nada.
+//
+//  Campos (decisao Ricardo 20/05): COD_CLI, INSTAL, VALOR, CIDADE, DATA_ATIV,
+//  OBSERVACAO (append). Status preservado; match so por contrato; nao cria linha.
+// ══════════════════════════════════════════════════════════════════════════
+function _cruzComputarCorrecoesServer_(dados, crmRows) {
+  var mapaVero = _cruzConsolidarCamposVeroServer_(dados);
+  var correcoes = [];
+
+  (crmRows || []).forEach(function(item) {
+    if (!item || !item.linha) return;
+    var id = _cruzNormIdServer_(item.contrato);
+    if (!id) return;
+    var v = mapaVero[id];
+    if (!v) return;
+
+    var campos = {};
+    var diffs = [];
+
+    // COD_CLI
+    if (v.codCli && String(v.codCli).trim() !== '' &&
+        String(v.codCli).trim() !== String(item.codCli || '').trim()) {
+      campos.COD_CLI = String(v.codCli).trim();
+      diffs.push({ campo: 'COD_CLI', label: 'Cód. cliente', atual: item.codCli || '', novo: campos.COD_CLI });
+    }
+    // INSTAL (compara em DD/MM/YYYY)
+    if (v.instal) {
+      var novoInst = _cruzToBRServer_(v.instal);
+      var atualInst = _cruzToBRServer_(item.instal);
+      if (novoInst && novoInst !== atualInst) {
+        campos.INSTAL = novoInst;
+        diffs.push({ campo: 'INSTAL', label: 'Data instalação', atual: atualInst, novo: novoInst });
+      }
+    }
+    // DATA_ATIV
+    if (v.dataAtiv) {
+      var novoAtv = _cruzToBRServer_(v.dataAtiv);
+      var atualAtv = _cruzToBRServer_(item.dataAtiv);
+      if (novoAtv && novoAtv !== atualAtv) {
+        campos.DATA_ATIV = novoAtv;
+        diffs.push({ campo: 'DATA_ATIV', label: 'Data ativação', atual: atualAtv, novo: novoAtv });
+      }
+    }
+    // VALOR (numerico)
+    if (v.valor !== undefined && v.valor !== null && v.valor !== '') {
+      var novoVal = _normalizarValorParaNumero_(v.valor);
+      var atualVal = (item.valor === '' || item.valor === undefined || item.valor === null)
+        ? '' : _normalizarValorParaNumero_(item.valor);
+      if (novoVal !== '' && novoVal !== atualVal) {
+        campos.VALOR = novoVal;
+        diffs.push({
+          campo: 'VALOR', label: 'Valor',
+          atual: (atualVal === '' ? '' : 'R$ ' + _cruzValorBRServer_(atualVal)),
+          novo: 'R$ ' + _cruzValorBRServer_(novoVal)
+        });
+      }
+    }
+    // CIDADE (compara normalizado — evita churn por caixa/acento)
+    if (v.cidade && String(v.cidade).trim() !== '') {
+      var novaCid = String(v.cidade).trim();
+      if (_cruzNormalizarTextoServer_(novaCid) !== _cruzNormalizarTextoServer_(item.cidade || '')) {
+        campos.CIDADE = novaCid;
+        diffs.push({ campo: 'CIDADE', label: 'Cidade', atual: item.cidade || '', novo: novaCid });
+      }
+    }
+    // OBSERVACAO (append idempotente)
+    if (v.obsAppend && String(v.obsAppend).trim() !== '') {
+      var linhaObs = String(v.obsAppend).trim();
+      if (String(item.observacao || '').indexOf(linhaObs) === -1) {
+        campos.OBSERVACAO_APPEND = linhaObs;
+        diffs.push({ campo: 'OBSERVACAO', label: 'Observação (+)', atual: item.observacao || '', novo: linhaObs });
+      }
+    }
+
+    if (diffs.length) {
+      correcoes.push({
+        linha: item.linha,
+        contrato: item.contrato,
+        cliente: item.cliente || '',
+        campos: campos,
+        diffs: diffs
+      });
+    }
+  });
+
+  return correcoes;
+}
+
+// Consolida os campos sobrescreviveis da planilha Vero por ID de contrato.
+// Prioridade por aba: INSTALACOES (instal+valor) > VENDAS (codCli+cidade+dataAtiv)
+// > MOVEL (idem movel) ; CANCELAMENTO/CHURN contribui so com a observacao.
+// "primeiro nao-vazio vence" dentro dessa ordem.
+function _cruzConsolidarCamposVeroServer_(dados) {
+  var mapa = {};
+  function ensure(id) { if (!mapa[id]) mapa[id] = {}; return mapa[id]; }
+
+  (dados.instalacoes || []).forEach(function(row) {
+    var id = _cruzNormIdServer_(row.ID_CONTRATO || row.CONTRATO || row.Contrato);
+    if (!id) return;
+    var o = ensure(id);
+    var hab = row.DATA_HABILITACAO || row['DATA_HABILITAÇÃO'] || row['DATA_HABILITAÇAO'] || '';
+    if (hab && !o.instal) o.instal = hab;
+    if ((row.VALOR_CONTRATO || row.VALOR_CONTRATO === 0) && o.valor === undefined) o.valor = row.VALOR_CONTRATO;
+    if (row.COD_CLIENTE && !o.codCli) o.codCli = row.COD_CLIENTE;
+    if (row.CIDADE_HIERARQUIA && !o.cidade) o.cidade = row.CIDADE_HIERARQUIA;
+    if (row.DATA_CADASTRO && !o.dataAtiv) o.dataAtiv = row.DATA_CADASTRO;
+  });
+
+  (dados.vendas || []).forEach(function(row) {
+    var id = _cruzNormIdServer_(row.ID_CONTRATO || row.CONTRATO || row.Contrato);
+    if (!id) return;
+    var o = ensure(id);
+    if (row.COD_CLIENTE && !o.codCli) o.codCli = row.COD_CLIENTE;
+    if (row.CIDADE_HIERARQUIA && !o.cidade) o.cidade = row.CIDADE_HIERARQUIA;
+    if (row.DATA_CADASTRO && !o.dataAtiv) o.dataAtiv = row.DATA_CADASTRO;
+  });
+
+  (dados.movel || []).forEach(function(row) {
+    var id = _cruzNormIdServer_(row.IDCONTRATO || row.ID_CONTRATO || row.CONTRATO || row.Contrato);
+    if (!id) return;
+    var o = ensure(id);
+    if (row.IDCLIENTE && !o.codCli) o.codCli = row.IDCLIENTE;
+    var vm = row.VALOR_CONTRATO_MOVEL || row.VALOR_CONTRATO;
+    if ((vm || vm === 0) && o.valor === undefined) o.valor = vm;
+    if (row.DATA_VENDA && !o.dataAtiv) o.dataAtiv = row.DATA_VENDA;
+    if (row.DATAHABILITACAO && !o.instal) o.instal = row.DATAHABILITACAO;
+    if (row.CIDADE && !o.cidade) o.cidade = row.CIDADE;
+  });
+
+  (dados.cancelamentos || []).forEach(function(row) {
+    var id = _cruzNormIdServer_(row.ID_CONTRATO || row.CONTRATO || row.Contrato);
+    if (!id) return;
+    var o = ensure(id);
+    if (!o.obsAppend) o.obsAppend = _cruzMontarObsCancelamentoServer_(row);
+  });
+
+  return mapa;
+}
+
+function _cruzMontarObsCancelamentoServer_(row) {
+  var data = row.DATA_CANCELAMENTO || '';
+  var tipo = row.TIPO_CANCELAMENTO || '';
+  var motivo = row.MOTIVO_CANCELAMENTO || '';
+  var base = '[Vero] CANCELADO' + (data ? ' ' + data : '');
+  var extra = [tipo, motivo].filter(function(x) { return x && String(x).trim() !== ''; }).join(' · ');
+  return extra ? (base + ' · ' + extra) : base;
+}
+
+function _cruzToBRServer_(s) {
+  if (!s) return '';
+  s = String(s).trim();
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) return s.substring(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    var p = s.substring(0, 10).split('-');
+    return p[2] + '/' + p[1] + '/' + p[0];
+  }
+  return s;
+}
+
+function _cruzValorBRServer_(n) {
+  var num = Number(n);
+  if (!isFinite(num)) return String(n);
+  return num.toFixed(2).replace('.', ',');
 }

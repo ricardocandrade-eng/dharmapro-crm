@@ -5289,6 +5289,7 @@ function navegar(pagina) {
     document.getElementById('pageCruzamento').classList.add('ativa');
     document.getElementById('breadcrumbTexto').textContent = 'Cruzamento Vero';
     if (typeof _cruzCarregarUltimaSync === 'function') _cruzCarregarUltimaSync();
+    if (typeof _cruzHidratarDoStorage === 'function') _cruzHidratarDoStorage();
 
   } else if (pagina === 'docs') {
     document.getElementById('menuDocs').classList.add('ativo');
