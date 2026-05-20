@@ -5999,26 +5999,92 @@ function buscaListaInstantanea(valor) {
   carregarVendas(1, (valor || '').trim());
 }
 
+// Fase 5b: botão ↻ Sincronizar com stale-while-revalidate.
+// Antes: zerava o cache local e travava a tela num spinner por ~7s (Lite sem
+// cache faz pre-scan completo) até os dados frescos chegarem.
+// Agora: mantém os dados atuais visíveis com badge "⟳ Sincronizando…" e troca
+// quando o fresh chega — a tela nunca fica em branco se já havia dados.
 function recarregarLista() {
-  // Limpa o cache local e busca dados frescos da planilha (bypass cache servidor)
-  _dadosListaCache    = null;
-  _dadosListaTotal    = 0;
-  _dadosTotalServidor = 0;
-  // Limpa filtros ativos
+  // Limpa filtros ativos (reset visual ao sincronizar)
   _listaFiltrosSelecionados = { status: [], preStatus: [], produto: [], canal: [], resp: [] };
   _atualizarResumoFiltros();
   var busca = document.getElementById('campoBusca'); if (busca) busca.value = '';
   AppState.set('filtroAtual', '');
   AppState.set('paginaAtual', 1);
-  // Mostra spinner
-  document.getElementById('listaVendas').innerHTML =
-    '<div class="empty"><div class="empty-icon" style="font-size:20px;animation:spin 1s linear infinite;display:inline-block;">⏳</div>' +
-    '<p style="margin-top:10px;font-size:12px;">Buscando novos registros...</p></div>';
-  // Limpa cache do servidor ANTES de recarregar
+
+  var tinhaCache = !!(_dadosListaCache && _dadosListaCache.length);
+  if (tinhaCache) {
+    // Mostra o cache atual AGORA (stale) — não trava a tela. Re-renderiza sem
+    // filtro (já resetados acima) e marca o badge como "Sincronizando…".
+    _renderizarLista({
+      dados:   _dadosListaCache.slice(0, CONFIG_JS.MAX_RESULTS),
+      total:   _dadosTotalServidor || _dadosListaCache.length,
+      pagina:  1,
+      temMais: (_dadosListaCache.length > CONFIG_JS.MAX_RESULTS) ||
+               (_dadosTotalServidor > _dadosListaCache.length)
+    });
+    _setBadgeSincronizando();
+  } else {
+    // Sem cache (1ª carga): spinner normal — não há o que mostrar ainda.
+    document.getElementById('listaVendas').innerHTML =
+      '<div class="empty"><div class="empty-icon" style="font-size:20px;animation:spin 1s linear infinite;display:inline-block;">⏳</div>' +
+      '<p style="margin-top:10px;font-size:12px;">Buscando registros…</p></div>';
+  }
+
+  // Limpa cache do servidor e busca dados frescos. Mantém o cache local velho
+  // respondendo a filtros/paginação durante a revalidação (substituído quando
+  // o fresh chega).
   google.script.run
-    .withSuccessHandler(function() { carregarVendas(1, ''); })
-    .withFailureHandler(function()  { carregarVendas(1, ''); })
+    .withSuccessHandler(function() {
+      if (tinhaCache) {
+        _revalidarListaFresh();        // silencioso — mantém a tela até o fresh chegar
+      } else {
+        _dadosListaCache = null; _dadosListaTotal = 0; _dadosTotalServidor = 0;
+        _listaCacheLimparSS();
+        carregarVendas(1, '');         // pipeline Lite normal (não havia o que preservar)
+      }
+    })
+    .withFailureHandler(function() {
+      _dadosListaCache = null; _dadosListaTotal = 0; _dadosTotalServidor = 0;
+      _listaCacheLimparSS();
+      carregarVendas(1, '');
+    })
     .limparCacheCompleto();
+}
+
+// Fase 5b: busca os 500 frescos SEM mostrar spinner (mantém a tela atual).
+// Usado pelo ↻ Sincronizar quando já havia dados — stale-while-revalidate.
+// Quando o fresh chega, substitui o cache e re-renderiza via carregarVendas
+// (que filtra local instantâneo e devolve o badge pra "Agora").
+function _revalidarListaFresh() {
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && !res.erro && res.dados && res.dados.length) {
+        _dadosListaCache     = res.dados;
+        _dadosListaTotal     = res.dados.length;
+        _dadosTotalServidor  = res.totalGeral || res.dados.length;
+        _dadosListaTimestamp = Date.now();
+        _listaCacheSalvarSS();
+      }
+      carregarVendas(1, ''); // cache fresco → render local instantâneo + badge "Agora"
+    })
+    .withFailureHandler(function() {
+      // Falhou a revalidação — descarta o cache velho e tenta o pipeline normal.
+      _dadosListaCache = null; _dadosListaTotal = 0; _dadosTotalServidor = 0;
+      _listaCacheLimparSS();
+      carregarVendas(1, '');
+    })
+    .getVendasPaginadas(1, '', JSON.stringify({ limite: 500, offset: 0 }));
+}
+
+// Fase 5b: marca o badge do header como "Sincronizando…" durante a revalidação.
+// Volta pra "Agora"/"Há X min" automaticamente no próximo _renderizarLista.
+function _setBadgeSincronizando() {
+  var el = document.getElementById('badgeIdadeLista');
+  if (!el) return;
+  el.textContent = '⟳ Sincronizando…';
+  el.title = 'Buscando dados frescos do servidor…';
+  el.style.display = '';
 }
 
 function aplicarFiltros() {
