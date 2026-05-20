@@ -3445,6 +3445,46 @@ function _getCodigosVeroMapaFlat_() {
   return out;
 }
 
+// Reverse lookup pra captura forward-only no cadastro de venda:
+// (nome_crm do plano + cidade da venda) -> codigo Vero, gravado na coluna FAT (Q).
+// Direcao ambigua (mesmo nome_crm tem codigos diferentes por regiao/addon) — usa
+// a coleta da cidade da venda e, em empate, prefere o codigo BASE (sem addon) com
+// maior confianca. Cobertura PARCIAL: so cidades ja coletadas no
+// planos_vero_codigos.json (hoje Betim, Juiz de Fora, Barbacena, Bauru). Sem match
+// retorna '' — o codigo fica em branco e a cobertura cresce conforme o dicionario.
+function getCodigoVeroPorPlanoCidade(plano, cidade) {
+  try {
+    var planoCore = String(plano || '').replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/i, '').trim();
+    if (!planoCore) return '';
+    var cidNorm = _normalizarTexto(cidade);
+    if (!cidNorm) return '';
+
+    var cv = _getCodigosVero();
+    var rank = { alta: 3, media: 2, baixa: 1, '': 0 };
+    var planoCoreNorm = _normalizarTexto(planoCore);
+    var melhor = null;
+
+    (cv.coletas || []).forEach(function(col) {
+      var ctx = col.contexto || {};
+      if (_normalizarTexto(ctx.cidade) !== cidNorm) return;
+      (col.planos || []).forEach(function(p) {
+        if (!p || !p.codigo || !p.nome_crm_match) return;
+        var nmCore = String(p.nome_crm_match).replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/i, '').trim();
+        if (_normalizarTexto(nmCore) !== planoCoreNorm) return;
+        var conf = String(p.confianca || '').toLowerCase();
+        var temAddon = !!(p.addon && String(p.addon).trim() !== '');
+        var score = (rank[conf] || 0) * 10 + (temAddon ? 0 : 5); // confianca pesa; base ganha do addon
+        if (!melhor || score > melhor.score) melhor = { codigo: String(p.codigo).trim(), score: score };
+      });
+    });
+
+    return melhor ? melhor.codigo : '';
+  } catch (e) {
+    Logger.log('getCodigoVeroPorPlanoCidade erro: ' + e.message);
+    return '';
+  }
+}
+
 // ─── VALIDAÇÃO CÓDIGOS VERO — cruza planos_vero.json vs planos_vero_codigos.json
 // Retorna { ok, sem_codigo, orfaos, resumo } pra alimentar a tela admin.
 // Chave de cruzamento: planos_vero.json[i][0] (nome_crm) ↔ codigos.coletas[*].planos[*].nome_crm_match
@@ -4735,6 +4775,12 @@ function salvarVenda(dados) {
       }
 
       var linhaDados = _construirLinhaDados(dados);
+      // Captura forward-only do codigo Vero do plano na coluna FAT (Q) — so cadastro novo.
+      // Cobertura parcial (cidades ja no dicionario); sem match fica em branco. Sem backfill.
+      try {
+        var _codVero = getCodigoVeroPorPlanoCidade(dados.plano, dados.cidade);
+        if (_codVero) linhaDados[CONFIG.COLUNAS.FAT] = _codVero;
+      } catch (eCodVero) { Logger.log('codigo Vero (nova venda) falhou: ' + eCodVero.message); }
       var ultimaSheet = sheet.getLastRow();
       var novaLinha;
       if (ultimaSheet < 3) {
