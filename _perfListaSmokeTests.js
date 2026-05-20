@@ -98,7 +98,46 @@ function _testTelemetria() {
 function _resetTelemetriaLista() {
   var p = PropertiesService.getScriptProperties();
   ['counter_lista_cache_hit', 'counter_lista_cache_miss',
-   'counter_lista_fine_update', 'counter_lista_fine_update_fallback']
+   'counter_lista_fine_update', 'counter_lista_fine_update_fallback',
+   'counter_funil_fine_update', 'counter_funil_fine_update_fallback']
     .forEach(function(k) { p.deleteProperty(k); });
-  Logger.log('Contadores zerados.');
+  Logger.log('Contadores zerados (Lista + Funil).');
+}
+
+// ── FUNIL (20/05/2026) ──────────────────────────────────────────────────────
+
+// 7. CRÍTICO — fluxo mover venda no funil → reload do board deve ser <1s.
+//    Se >5s, o update fino do funil FALHOU (provavelmente _limparCacheSemLista
+//    ainda invalida funil_v2, ou _atualizarVendaNoFunilCache_ não roda).
+function _testFunilSaveQuente() {
+  _limparCacheFunil_();
+  var t0 = Date.now();
+  var board = getVendasFunil();
+  Logger.log('Funil MISS (popula): ' + (Date.now() - t0) + 'ms, ' + board.dados.length + ' no board');
+  if (!board.dados.length) { Logger.log('Board vazio — sem o que testar.'); return; }
+
+  // Pega uma venda em "2- Aguardando Instalação" e simula mover de coluna seria
+  // arriscado (muda dados reais). Em vez disso, exercita o update fino direto:
+  var alvo = board.dados[0];
+  t0 = Date.now();
+  _atualizarVendaNoFunilCache_(alvo.linha);
+  Logger.log('Update fino funil: ' + (Date.now() - t0) + 'ms (esperado <1s)');
+
+  t0 = Date.now();
+  var board2 = getVendasFunil();
+  var tReload = Date.now() - t0;
+  Logger.log('Funil reload pós-update: ' + tReload + 'ms ' +
+             (tReload < 1000 ? '✓ PASSOU' : tReload < 5000 ? '⚠ MARGINAL' : '✗ FALHOU'));
+  Logger.log('Board mantém ' + board2.dados.length + ' (esperado ~' + board.dados.length + ')');
+  // Confere que a venda alvo continua no board (status não mudou no teste)
+  var achou = board2.dados.filter(function(v){ return v.linha === alvo.linha; }).length;
+  Logger.log('Venda alvo (linha ' + alvo.linha + ') no board: ' + (achou ? 'sim ✓' : 'NÃO ✗'));
+}
+
+// 8. Telemetria do Funil
+function _testTelemetriaFunil() {
+  var p = PropertiesService.getScriptProperties();
+  ['counter_funil_fine_update', 'counter_funil_fine_update_fallback'].forEach(function(k) {
+    Logger.log(k + ': ' + (p.getProperty(k) || '0'));
+  });
 }

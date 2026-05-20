@@ -2527,7 +2527,10 @@ function moverLeadAguardando(payload) {
     if (payload.contrato) sheet.getRange(linha, c.CONTRATO  + 1).setValue(payload.contrato);
     if (payload.obs)      sheet.getRange(linha, c.OBSERVACAO + 1).setValue(payload.obs);
 
-    _limparCache();
+    // Funil 20/05: update fino — a venda entra no funil (status 2). _atualizarVendaNoCache_
+    // cuida da Lista E do board (funil_v2). Antes invalidava tudo via _limparCache().
+    _limparCacheSemLista();
+    _atualizarVendaNoCache_(linha);
 
     Logger.log('moverLeadAguardando: linha ' + linha + ' movida.');
     resultado = { sucesso: true };
@@ -4613,34 +4616,8 @@ function getVendasFunil() {
       var cpfFast     = String(rowFast[cf.CPF]     || '').trim();
       if (!clienteFast && !cpfFast) continue;
 
-      var dAtivFast = rowFast[cf.DATA_ATIV];
-      var dataAtivStrFast = (dAtivFast instanceof Date && !isNaN(dAtivFast))
-        ? Utilities.formatDate(dAtivFast, tz, 'dd/MM/yyyy') : '';
-
-      var dAgFast = rowFast[cf.AGENDA];
-      var agendaStrFast = (dAgFast instanceof Date && !isNaN(dAgFast))
-        ? Utilities.formatDate(dAgFast, tz, 'dd/MM/yyyy') : (dAgFast ? String(dAgFast) : '');
-
-      var dInsFast = rowFast[cf.INSTAL];
-      var instalStrFast = (dInsFast instanceof Date && !isNaN(dInsFast))
-        ? Utilities.formatDate(dInsFast, tz, 'dd/MM/yyyy') : (dInsFast ? String(dInsFast) : '');
-
-      resultadoFast.push({
-        linha:     linhaFast,
-        status:    String(rowFast[cf.STATUS]    || '').trim(),
-        cliente:   clienteFast,
-        produto:   String(rowFast[cf.PRODUTO]   || '').trim(),
-        plano:     String(rowFast[cf.PLANO]     || '').trim(),
-        resp:      String(rowFast[cf.RESP]      || '').trim(),
-        whats:     String(rowFast[cf.WHATS]     || '').trim(),
-        codCli:    String(rowFast[cf.COD_CLI]   || '').trim(),
-        contrato:  String(rowFast[cf.CONTRATO]  || '').trim(),
-        dataAtiv:  dataAtivStrFast,
-        agenda:    agendaStrFast,
-        turno:     String(rowFast[cf.TURNO]     || '').trim(),
-        instal:    instalStrFast,
-        preStatus: String(rowFast[cf.PRE_STATUS] || '').trim()
-      });
+      // Fase 5b/Funil: mapeamento extraído pra _mapearLinhaFunil_ (reusado no update fino).
+      resultadoFast.push(_mapearLinhaFunil_(rowFast, linhaFast, tz));
     }
 
     Logger.log('getVendasFunil fast: ' + resultadoFast.length + ' registros. Ag=' +
@@ -4648,12 +4625,124 @@ function getVendasFunil() {
       contadoresFast['3 - Finalizada/Instalada'] + ' Pen=' + contadoresFast['Pendencia Vero']);
 
     var retornoFast = { dados: resultadoFast, total: resultadoFast.length };
-    _cachePutChunked(CACHE_KEY, retornoFast, 300);
+    // Funil 20/05: TTL 300 → 1800 (30min), alinhado ao update fino que mantém quente.
+    _cachePutChunked(CACHE_KEY, retornoFast, 1800);
     return retornoFast;
 
   } catch (e) {
     Logger.log('Erro em getVendasFunil: ' + e.toString());
     return { dados: [], total: 0, erro: e.message };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  PERFORMANCE FUNIL (20/05/2026) — Update fino do cache do board
+//  Mesma fórmula da Fase 5b da Lista, adaptada: o cache funil_v2 é um array flat
+//  e o frontend distribui nas 3 colunas. Update fino remove a entrada antiga da
+//  linha e readiciona SE a venda ainda qualifica pro board.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Mapeia uma linha da planilha para o objeto do board do Funil. Compartilhado
+// entre getVendasFunil (carga em massa) e _atualizarVendaNoFunilCache_ (update
+// fino). Todas as colunas usadas estão até WHATS (21) — funciona com row parcial
+// (getVendasFunil lê só até WHATS) ou completa (update fino lê TOTAL_COLUNAS).
+function _mapearLinhaFunil_(row, linha, tz) {
+  var cf = CONFIG.COLUNAS;
+  var dAtiv = row[cf.DATA_ATIV];
+  var dataAtivStr = (dAtiv instanceof Date && !isNaN(dAtiv)) ? Utilities.formatDate(dAtiv, tz, 'dd/MM/yyyy') : '';
+  var dAg = row[cf.AGENDA];
+  var agendaStr = (dAg instanceof Date && !isNaN(dAg)) ? Utilities.formatDate(dAg, tz, 'dd/MM/yyyy') : (dAg ? String(dAg) : '');
+  var dIns = row[cf.INSTAL];
+  var instalStr = (dIns instanceof Date && !isNaN(dIns)) ? Utilities.formatDate(dIns, tz, 'dd/MM/yyyy') : (dIns ? String(dIns) : '');
+  return {
+    linha:     linha,
+    status:    String(row[cf.STATUS]     || '').trim(),
+    cliente:   String(row[cf.CLIENTE]    || '').trim(),
+    produto:   String(row[cf.PRODUTO]    || '').trim(),
+    plano:     String(row[cf.PLANO]      || '').trim(),
+    resp:      String(row[cf.RESP]       || '').trim(),
+    whats:     String(row[cf.WHATS]      || '').trim(),
+    codCli:    String(row[cf.COD_CLI]    || '').trim(),
+    contrato:  String(row[cf.CONTRATO]   || '').trim(),
+    dataAtiv:  dataAtivStr,
+    agenda:    agendaStr,
+    turno:     String(row[cf.TURNO]      || '').trim(),
+    instal:    instalStr,
+    preStatus: String(row[cf.PRE_STATUS] || '').trim()
+  };
+}
+
+// A linha qualifica para o board do Funil? Replica o filtro de getVendasFunil:
+// status ∈ {2- Aguardando Instalação, 3 - Finalizada/Instalada, Pendencia Vero};
+// se status 3, a instalação precisa cair no mês/ano atual. O limite de 150/coluna
+// do MISS NÃO é aplicado aqui (desvio de ±1 é recortado no próximo MISS).
+function _qualificaParaFunil_(row) {
+  var cf = CONFIG.COLUNAS;
+  var status = String(row[cf.STATUS] || '').trim();
+  var statusFunil = {
+    '2- Aguardando Instalação': true,
+    '3 - Finalizada/Instalada': true,
+    'Pendencia Vero':           true
+  };
+  if (!statusFunil[status]) return false;
+  if (status === '3 - Finalizada/Instalada') {
+    var dIns = _parseDataFlex(row[cf.INSTAL]);
+    var agora = new Date();
+    if (!dIns || (dIns.getMonth() + 1) !== (agora.getMonth() + 1) ||
+        dIns.getFullYear() !== agora.getFullYear()) return false;
+  }
+  return true;
+}
+
+// Invalida o cache chunked do board (funil_v2). Usado no fallback do update fino.
+function _limparCacheFunil_() {
+  try {
+    var cache = CacheService.getScriptCache();
+    var base  = CONFIG.CACHE_PREFIX + 'funil_v2';
+    cache.remove(base + '_meta');
+    for (var i = 0; i < 20; i++) cache.remove(base + '_' + i);
+  } catch(e) { Logger.log('_limparCacheFunil_ erro: ' + e); }
+}
+
+// Update fino do board: remove a entrada antiga da linha do funil_v2 e readiciona
+// SE a venda ainda qualifica (status do funil + filtro de mês no status 3). No-op
+// se o cache não existe (não cria do nada). Falha graciosa: erro → invalida funil_v2.
+function _atualizarVendaNoFunilCache_(numeroLinha) {
+  numeroLinha = parseInt(numeroLinha);
+  if (!numeroLinha || numeroLinha < 3) return;
+  try {
+    var key = CONFIG.CACHE_PREFIX + 'funil_v2';
+    var cached = _cacheGetChunked(key);
+    if (!cached || !Array.isArray(cached.dados)) return; // não cria cache do nada
+
+    // Remove a entrada antiga da linha (mudança de coluna ou saída do board)
+    var novos = [];
+    for (var i = 0; i < cached.dados.length; i++) {
+      if (cached.dados[i] && cached.dados[i].linha !== numeroLinha) novos.push(cached.dados[i]);
+    }
+
+    // Lê a linha e readiciona se ainda qualifica pro funil
+    var sheet = _getSheet();
+    if (numeroLinha <= sheet.getLastRow()) {
+      var row = sheet.getRange(numeroLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+      if (_qualificaParaFunil_(row)) {
+        var cf = CONFIG.COLUNAS;
+        var cliente = String(row[cf.CLIENTE] || '').trim();
+        var cpf     = String(row[cf.CPF]     || '').trim();
+        if (cliente || cpf) {
+          novos.unshift(_mapearLinhaFunil_(row, numeroLinha, Session.getScriptTimeZone()));
+        }
+      }
+    }
+
+    cached.dados = novos;
+    cached.total = novos.length;
+    _cachePutChunked(key, cached, 1800);
+    _incCounter_('funil_fine_update');
+  } catch(e) {
+    Logger.log('_atualizarVendaNoFunilCache_ erro (linha ' + numeroLinha + '): ' + (e && e.message || e) + ' — fallback invalida funil_v2.');
+    _incCounter_('funil_fine_update_fallback');
+    _limparCacheFunil_();
   }
 }
 
@@ -4721,7 +4810,10 @@ function moverVendaFunil(payload) {
       sheet.getRange(linha, CONFIG.COLUNAS.OBSERVACAO + 1).setValue(valorExtra);
     }
 
-    _limparCache();
+    // Funil 20/05: update fino em vez de invalidação total. _atualizarVendaNoCache_
+    // cuida da Lista (lista_v4) E do board (funil_v2 via _atualizarVendaNoFunilCache_).
+    _limparCacheSemLista();
+    _atualizarVendaNoCache_(linha);
 
     Logger.log('Funil: linha ' + linha + ' movida para "' + novoStatus + '"' +
                (campoExtra ? ' | ' + campoExtra + ': ' + valorExtra : ''));
@@ -5092,8 +5184,11 @@ function _limparCache() {
 // cascata em _limparCache() → _limparCacheListaV3 — anulando a Fase 5b.
 function _limparCacheSemLista() {
   var cache = CacheService.getScriptCache();
+  // Funil 20/05: 'funil_v2_meta' REMOVIDO daqui — o board agora é mantido por
+  // update fino (_atualizarVendaNoFunilCache_, chamado dentro de _atualizarVendaNoCache_).
+  // Os 2 chamadores desta função (salvarVenda, criarVendaMovelVinculada) sempre
+  // chamam _atualizarVendaNoCache_ em seguida, então o funil segue consistente.
   var toRemove = [
-    CONFIG.CACHE_PREFIX + 'funil_v2_meta',
     CONFIG.CACHE_PREFIX + 'leads_v1_meta',
     CONFIG.CACHE_PREFIX + 'responsaveis_v1',
     CONFIG.CACHE_PREFIX + 'cidades_v1',
@@ -5154,6 +5249,8 @@ function _atualizarVendaNoCache_(numeroLinha) {
     _incCounter_('lista_fine_update_fallback');
     try { _limparCacheListaV3(); _limparCacheListaCompleta(); } catch(e2) {}
   }
+  // Funil 20/05: mantém o board quente também (try/catch próprio — não afeta a Lista).
+  _atualizarVendaNoFunilCache_(numeroLinha);
 }
 
 // Aplica UPDATE-or-INSERT num cache chunked individual. Helper privado.
