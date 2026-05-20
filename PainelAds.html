@@ -126,6 +126,9 @@
 #painelAdsContainer .pa-card.c-red   { border-color:rgba(255,69,112,.3);  background:linear-gradient(135deg,rgba(255,69,112,.14) 0%,var(--s1) 30%,rgba(167,139,250,.05) 100%); box-shadow:0 14px 34px rgba(130,30,55,.18); }
 #painelAdsContainer .pa-card.c-purple{ border-color:rgba(167,139,250,.32); background:linear-gradient(135deg,rgba(167,139,250,.16) 0%,var(--s1) 28%,rgba(0,212,255,.06) 100%); box-shadow:0 14px 34px rgba(81,61,140,.18); }
 #painelAdsContainer .pa-card.c-dim   { border-color:var(--rim); background:var(--s1); box-shadow:none; opacity:.62; }
+#painelAdsContainer .pa-pausadas { margin-top:6px; }
+#painelAdsContainer .pa-pausadas > summary { cursor:pointer; font-family:var(--mono); font-size:11px; letter-spacing:.08em; color:var(--dim2); padding:8px 0; user-select:none; }
+#painelAdsContainer .pa-pausadas > summary:hover { color:var(--g2); }
 
 /* card head */
 #painelAdsContainer .pa-card-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px; }
@@ -898,7 +901,7 @@
     var cardTone = pausada ? 'c-dim' : camp.status === 'erro' ? 'c-red' : camp.status === 'aviso' ? 'c-amber' : 'c-cyan';
 
     var html = '<div class="pa-card ' + cardTone + '">';
-    html += '<div class="pa-card-head"><span class="pa-badge ' + statusClasse + '">' + statusLabel + '</span><span class="pa-badge dim">◈ Meta</span></div>';
+    html += '<div class="pa-card-head"><span class="pa-badge ' + statusClasse + '">' + statusLabel + '</span><span class="pa-badge dim">◈ ' + _paEsc(camp.conta || 'Meta') + '</span></div>';
     html += '<div class="pa-camp-name">' + _paEsc(camp.nome) + '</div>';
     html += '<div class="pa-camp-budget">' + _paMoeda(camp.gasto) + ' gasto</div>';
 
@@ -1161,20 +1164,6 @@
     return html;
   }
 
-  function _paIntelligenceCard(titulo, item, cor) {
-    var key = item && item.key ? item.key : 'Sem leitura';
-    var saleRate = item && item.lead_to_sale_rate_percent != null ? parseFloat(item.lead_to_sale_rate_percent).toFixed(1) + '%' : '-';
-    var qualRate = item && item.qualification_rate_percent != null ? parseFloat(item.qualification_rate_percent).toFixed(1) + '%' : '-';
-    var disqRate = item && item.disqualification_rate_percent != null ? parseFloat(item.disqualification_rate_percent).toFixed(1) + '%' : '-';
-    var html = '<div class="pa-card ' + cor + '">';
-    html += '<div class="pa-card-head"><span class="pa-card-title">' + _paEsc(titulo) + '</span><span class="pa-badge dim">CRM</span></div>';
-    html += '<div class="pa-kpi sm">' + _paEsc(key) + '</div>';
-    html += '<div class="pa-kpi-sub"><b>' + _paEsc(String(item && item.leads != null ? item.leads : 0)) + '</b> leads &nbsp;|&nbsp; <b>' + _paEsc(String(item && item.sales != null ? item.sales : 0)) + '</b> vendas</div>';
-    html += '<div class="pa-kpi-benchmark">Qualificacao: <b>' + _paEsc(qualRate) + '</b> &nbsp;|&nbsp; Lead->Venda: <b>' + _paEsc(saleRate) + '</b> &nbsp;|&nbsp; Desqualificacao: <b>' + _paEsc(disqRate) + '</b></div>';
-    html += '</div>';
-    return html;
-  }
-
   function _paExperimentRow(exp) {
     var prioridade = exp && exp.priority ? String(exp.priority).toUpperCase() : 'MEDIUM';
     var badge = prioridade === 'HIGH' ? 'red' : prioridade === 'LOW' ? 'dim' : 'amber';
@@ -1367,7 +1356,6 @@
     var cockpit = d.cockpit || {};
     var operator = cockpit.operador || {};
     var firstActions = operator.o_que_fazer_primeiro || {};
-    var intelligence = cockpit.inteligencia_comercial || {};
     var automacao = cockpit.automacao || {};
     var queue = automacao.fila_prioritaria || [];
 
@@ -1456,15 +1444,6 @@
 
       // ③ Executar — CTA dedicado
       html += _paExecuteCTA(queue);
-
-      // Inteligência Comercial
-      html += '<div class="pa-section"><span>Inteligencia Comercial</span></div>';
-      html += '<div class="pa-kpi-grid" style="margin-bottom:12px;">';
-      html += _paIntelligenceCard('Melhor cidade', intelligence.melhor_cidade || {}, 'c-cyan');
-      html += _paIntelligenceCard('Melhor oferta', intelligence.melhor_oferta || {}, 'c-lime');
-      html += _paIntelligenceCard('Pior publico', intelligence.pior_publico || {}, 'c-amber');
-      html += _paIntelligenceCard('Pior criativo', intelligence.pior_criativo || {}, 'c-red');
-      html += '</div>';
     }
 
     html += '<div class="pa-section"><span>Visao Geral</span></div>';
@@ -1483,16 +1462,35 @@
     html += _paKpiCard('CPA REAL', 'c-amber', r.cpaReal ? 'R$' + parseFloat(r.cpaReal).toFixed(2) : '-', null, classeMap[cpaClasse], 'Maximo: <b>R$120</b> &nbsp;|&nbsp; Meta: < R$60', 'custo total por venda instalada (gasto ÷ conversões)');
     html += '</div>';
 
-    html += '<div class="pa-section"><span>Campanhas</span></div>';
-    if (camps.length === 0) {
-      html += '<div class="pa-empty"><div class="pa-empty-ico">◈</div>Nenhuma campanha com dados no periodo.<br><span style="font-size:10px;color:var(--dim)">As campanhas podem estar pausadas ou sem veiculacao.</span></div>';
-    } else {
-      html += '<div class="pa-camp-grid">';
-      for (var i = 0; i < camps.length; i++) html += _paCampCard(camps[i], maxGasto);
-      for (var j = camps.length; j < 3; j++) {
-        html += '<div class="pa-card" style="display:flex;align-items:center;justify-content:center;border-style:dashed;opacity:.35;"><span style="font-family:var(--mono);font-size:10px;letter-spacing:.15em;color:var(--dim)">SEM DADOS</span></div>';
+    // Alertas operacionais (lado CRM) — leads parados, etc.
+    var alertasOp = d.alertas_operacionais || [];
+    if (alertasOp.length > 0) {
+      html += '<div class="pa-section"><span>🔔 Alertas operacionais</span></div>';
+      html += '<div class="pa-card c-amber" style="margin-bottom:12px;">';
+      for (var ao = 0; ao < alertasOp.length; ao++) {
+        html += '<div style="font-size:12px;color:var(--dim2);line-height:1.6;">• ' + _paEsc(alertasOp[ao]) + '</div>';
       }
       html += '</div>';
+    }
+
+    // Campanhas — ativas por padrão; pausadas em collapse.
+    var campsAtivas   = camps.filter(function(cc) { return cc.status !== 'pausada'; });
+    var campsPausadas = camps.filter(function(cc) { return cc.status === 'pausada'; });
+
+    html += '<div class="pa-section"><span>Campanhas ativas' + (d.contas && d.contas.length ? ' · ' + _paEsc(d.contas.join(' + ')) : '') + '</span></div>';
+    if (campsAtivas.length === 0) {
+      html += '<div class="pa-empty"><div class="pa-empty-ico">◈</div>Nenhuma campanha ativa com dados no periodo.<br><span style="font-size:10px;color:var(--dim)">Veja as pausadas abaixo ou ajuste a janela.</span></div>';
+    } else {
+      html += '<div class="pa-camp-grid">';
+      for (var i = 0; i < campsAtivas.length; i++) html += _paCampCard(campsAtivas[i], maxGasto);
+      html += '</div>';
+    }
+
+    if (campsPausadas.length > 0) {
+      html += '<details class="pa-pausadas"><summary>Ver pausadas (' + campsPausadas.length + ')</summary>';
+      html += '<div class="pa-camp-grid" style="margin-top:10px;">';
+      for (var pz = 0; pz < campsPausadas.length; pz++) html += _paCampCard(campsPausadas[pz], maxGasto);
+      html += '</div></details>';
     }
 
     html += '<div class="pa-section"><span>Analise</span></div>';
@@ -1686,11 +1684,10 @@
               '<button class="pa-modal-close" onclick="paFecharGuia()">Fechar</button>' +
             '</div>' +
             '<div class="pa-modal-grid">' +
-              '<div class="pa-modal-card"><h4>Todo Dia</h4><p>1. Atualize o painel.</p><p>2. Veja primeiro: Pausar / Revisar, Escalar com cuidado e Observar.</p><p>3. Confira pior publico e pior criativo antes de abrir o Meta Ads.</p></div>' +
+              '<div class="pa-modal-card"><h4>Todo Dia</h4><p>1. Atualize o painel.</p><p>2. Veja primeiro: Pausar / Revisar, Escalar com cuidado e Observar.</p><p>3. Cheque os alertas operacionais (leads parados) antes de abrir o Meta Ads.</p></div>' +
               '<div class="pa-modal-card"><h4>Pausar / Revisar</h4><p>Use esse bloco para cortar desperdicio. Nao pause por impulso: confirme se nao houve contexto comercial especial.</p><p>Se nao houve, revise publico, cobertura, oferta e criativo.</p></div>' +
               '<div class="pa-modal-card"><h4>Escalar com Cuidado</h4><p>Escalar nao e dobrar budget. A ideia e subir em degrau pequeno e verificar se a qualidade do lead continua boa.</p><p>Se o comercial confirmar qualidade, mantenha a escala gradual.</p></div>' +
               '<div class="pa-modal-card"><h4>Observar</h4><p>Quando a campanha cai em observar, o sistema esta dizendo para nao agir por ansiedade.</p><p>Coletar mais dados costuma ser melhor do que mexer cedo demais.</p></div>' +
-              '<div class="pa-modal-card"><h4>Inteligencia Comercial</h4><p>Melhor cidade e melhor oferta mostram onde investir mais.</p><p>Pior publico e pior criativo mostram o que revisar ou testar primeiro.</p></div>' +
               '<div class="pa-modal-card"><h4>Automacao da IA</h4><p>Sim, e possivel automatizar bastante. O melhor modelo e autonomia assistida: a IA prepara, monitora e sugere; a execucao sensivel continua com aprovacao humana.</p><p>O caminho seguro e automatizar alertas, relatorios, fila de acoes e testes pequenos antes de liberar pausas e escalas sem revisao.</p></div>' +
               '<div class="pa-modal-card"><h4>Status de Autonomia</h4><p><b>Assistivo</b>: a IA organiza e recomenda.</p><p><b>Aprovar</b>: a IA sugere a acao, mas espera voce confirmar.</p><p><b>Autonomo</b>: a IA ja esta autorizada a agir dentro dos guardrails definidos.</p></div>' +
               '<div class="pa-modal-card"><h4>Simulacao vs Execucao</h4><p>Quando o painel mostrar simulacao protegida, a IA ainda nao mexeu no Meta Ads; ela so registrou o que faria.</p><p>Quando aparecer execucao live, a IA ja pode aplicar pausas e escalas pequenas que passaram por todas as travas.</p></div>' +

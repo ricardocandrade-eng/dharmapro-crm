@@ -110,3 +110,52 @@ Branch `feat/reforma-paineis-fase2-cidade-ddd`. Independente da conta de anúnci
 **Validação**: `node --check` em `MetaAdsAPI.js` + no `<script>` extraído do HTML;
 teste node do `inferirCidadePorDDD` em 9 formatos de telefone (DDI/fixo/mobile/
 formatado/fora-de-cobertura). Validação visual no CRM pendente de deploy.
+
+### 2.0/2.2/2.1 — Multi-conta + Painel Ads reescrito + Dashboard executivo (20/05/2026)
+
+Branch `feat/reforma-paineis-fase2-multiconta`. Decisão: ler/agregar as 2 contas
+(token Admin_API_Renata lê ambas, confirmado).
+
+**2.0 — Multi-conta (`MetaAdsAPI.js`)**
+- `CFG_META`: novo `AD_ACCOUNT_IDS` (`['act_2839032026433564','act_971543562231015']`,
+  agência primeiro) + `AD_ACCOUNT_NOMES` (Vero 02 / Vero 01). `AD_ACCOUNT_ID`
+  (primária) intocada — segue servindo o layer de ações e `getResumoTrafegoHoje`
+  (alerta 7), que **continuam só na conta antiga** (ver pendência abaixo).
+- Helpers `_getContasMetaAds_()` e `_nomeContaMeta_()`. `_mapaStatusCampanhas_(accountId)`
+  parametrizado.
+- `getPainelAdsData`: agora **itera as contas**, agrega Gasto/Leads/Impr/Cliques,
+  concatena campanhas (cada uma com `conta`), ordena ativas→pausadas (gasto desc).
+  Conta que falha é pulada (`contasComErro`); só erra se TODAS falham.
+
+**2.2 — Painel Ads (`PainelAds.html` + `MetaAdsAPI.js`)**
+- **Removidos** os 4 cards quebrados de "Inteligência Comercial" (front + função
+  backend `_buildInteligenciaComercialFromLeads_` + helper front `_paIntelligenceCard`
+  + card de ajuda no modal — tudo deletado).
+- Lista de campanhas: **ativas por padrão**; pausadas num `<details>` "Ver pausadas (N)".
+  Cada card mostra a conta (`◈ Vero 02`).
+- Nova seção **🔔 Alertas operacionais** (backend `_alertasOperacionaisLeads_`):
+  hoje, leads sem triagem há +24h.
+- Mantidos os KPIs e o funil existentes (não estavam quebrados).
+
+**2.1 — Dashboard executivo (`Dashboard.html` + `MetaAdsAPI.js`)**
+- Novo backend `getDashboardMetaAdsExecutivo()`: Gasto (agrega 2 contas via insights
+  `time_increment=1`, 30d) + Leads/Vendas do CRM, em 3 janelas (Hoje · Semana 7d ·
+  Mês MTD); CPA = gasto/vendas; série diária pro gráfico. Helper
+  `_crmLeadsVendasPorJanela_`.
+- Aba "Meta Ads ✦" reescrita: matriz **4 KPIs × 3 janelas** + gráfico **spend×dia**.
+  **Removidos**: narrativa de IA (lista de resumos), KPIs de snapshot, toggle de
+  métrica. Botões de período agora controlam a janela do gráfico (default 30d).
+- `getRelatorioAdsHistorico` e o trigger 07h (`gerarRelatorioDiarioAds`) seguem
+  existindo (gravam a aba `Diagnostico Ads Diario`), mas **não são mais exibidos**.
+
+**Validação**: `node --check` no backend + nos `<script>` extraídos de PainelAds.html
+e Dashboard.html. Validação visual + cross-check com `snapshot.js`/`check_account.js`
+pendente de deploy.
+
+### ⚠️ Pendência aberta (fora do escopo desta sessão)
+
+`getResumoTrafegoHoje()` (endpoint `?action=resumo_trafego` → **alerta 7 de tráfego
+pago**, n8n `rZi4ZpL1Sj8tvcMz`) ainda lê **só** `act_971543562231015` (conta antiga).
+Como a operação migrou pra Vero 02, esse alerta diário está reportando a conta errada.
+Não foi alterado aqui por ser um **contrato** consumido por n8n — mudar exige
+confirmação. Decidir se aponta pra agência ou agrega as duas.

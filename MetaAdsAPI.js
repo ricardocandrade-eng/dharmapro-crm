@@ -7,7 +7,15 @@
 var CFG_META = {
   ABA_LEADS_META:  'Leads Meta Ads',
   API_VERSION:     'v20.0',
+  // Conta primária (layer de ações/contratos legados — pause/scale, resumo_trafego).
   AD_ACCOUNT_ID:   'act_971543562231015',
+  // Contas LIDAS/AGREGADAS nos painéis (Painel Ads + Dashboard executivo).
+  // Ordem: agência ativa (Vero 02) primeiro, depois a antiga (Vero 01).
+  AD_ACCOUNT_IDS:  ['act_2839032026433564', 'act_971543562231015'],
+  AD_ACCOUNT_NOMES: {
+    'act_2839032026433564': 'Vero 02',
+    'act_971543562231015':  'Vero 01'
+  },
   // Token: Extensões → Apps Script → Propriedades do projeto → META_ACCESS_TOKEN
   LIMITES: {
     CPL_MAX:         30,
@@ -388,108 +396,6 @@ function excluirLeadMetaAds(linha) {
 // getPainelAdsData() está definida abaixo, junto ao Bridge.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Agrega leads da aba "Leads Meta Ads" dentro do período [since, until]
- * (formato yyyy-MM-dd) e produz os 4 cards de Inteligência Comercial:
- * melhor cidade, melhor oferta (utm_campaign), pior público (utm_medium)
- * e pior criativo (utm_ad). Substitui o pipeline Node.js (Claude Ads Bridge)
- * que foi removido em 28/04/2026.
- *
- * Shape de cada card (consumido por _paIntelligenceCard em PainelAds.html):
- * { key, leads, sales, qualification_rate_percent,
- *   lead_to_sale_rate_percent, disqualification_rate_percent }
- */
-function _buildInteligenciaComercialFromLeads_(since, until) {
-  try {
-    var ss = _getSpreadsheet_();
-    var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
-    if (!aba) return {};
-    var ult = aba.getLastRow();
-    if (ult < 2) return {};
-    var raw = aba.getRange(2, 1, ult - 1, 12).getValues();
-
-    var sinceDate = since ? new Date(since + 'T00:00:00') : null;
-    var untilDate = until ? new Date(until + 'T23:59:59') : null;
-
-    var porCidade = {}, porCampaign = {}, porMedium = {}, porAd = {};
-
-    function bump(map, key, statusFinal) {
-      var k = String(key || '').trim();
-      if (!k) k = '(sem dado)';
-      if (!map[k]) map[k] = { key: k, leads: 0, sales: 0, qual: 0, disq: 0 };
-      map[k].leads++;
-      if (statusFinal === 'Converteu') {
-        map[k].sales++;
-        map[k].qual++;
-      } else if (statusFinal === 'Qualificado') {
-        map[k].qual++;
-      } else if (statusFinal === 'Desqualificado') {
-        map[k].disq++;
-      }
-    }
-
-    for (var i = 0; i < raw.length; i++) {
-      var r = raw[i];
-      if (!r[0]) continue;
-      var dt = r[0] instanceof Date ? r[0] : new Date(r[0]);
-      if (!dt || isNaN(dt.getTime())) continue;
-      if (sinceDate && dt < sinceDate) continue;
-      if (untilDate && dt > untilDate) continue;
-
-      var sf = String(r[8] || '').trim();
-      bump(porCidade,   r[3], sf);
-      bump(porCampaign, r[5], sf);
-      bump(porMedium,   r[7], sf);
-      bump(porAd,       r[6], sf);
-    }
-
-    function finalize(item) {
-      var n = item.leads;
-      item.qualification_rate_percent    = n > 0 ? (item.qual / n) * 100 : 0;
-      item.lead_to_sale_rate_percent     = n > 0 ? (item.sales / n) * 100 : 0;
-      item.disqualification_rate_percent = n > 0 ? (item.disq / n) * 100 : 0;
-      return item;
-    }
-
-    function toArr(map) {
-      return Object.keys(map).map(function(k) { return finalize(map[k]); });
-    }
-
-    function bestByConversion(arr) {
-      if (!arr.length) return {};
-      arr.sort(function(a, b) {
-        if (b.sales !== a.sales) return b.sales - a.sales;
-        if (b.lead_to_sale_rate_percent !== a.lead_to_sale_rate_percent)
-          return b.lead_to_sale_rate_percent - a.lead_to_sale_rate_percent;
-        return b.leads - a.leads;
-      });
-      return arr[0];
-    }
-
-    function worstByDisq(arr) {
-      if (!arr.length) return {};
-      arr.sort(function(a, b) {
-        if (b.disqualification_rate_percent !== a.disqualification_rate_percent)
-          return b.disqualification_rate_percent - a.disqualification_rate_percent;
-        return b.leads - a.leads;
-      });
-      // só vale destacar se houver pelo menos 1 desqualificado no público/criativo
-      if (arr[0].disq === 0) return {};
-      return arr[0];
-    }
-
-    return {
-      melhor_cidade: bestByConversion(toArr(porCidade)),
-      melhor_oferta: bestByConversion(toArr(porCampaign)),
-      pior_publico:  worstByDisq(toArr(porMedium)),
-      pior_criativo: worstByDisq(toArr(porAd))
-    };
-  } catch (e) {
-    Logger.log('_buildInteligenciaComercialFromLeads_ falhou: ' + e.message);
-    return {};
-  }
-}
-
 function _getClaudeAdsBridgeData_() {
   var props = PropertiesService.getScriptProperties();
   var bridgeJson = props.getProperty('CLAUDE_ADS_BRIDGE_JSON');
@@ -737,88 +643,111 @@ function getPainelAdsData(periodo) {
     since = Utilities.formatDate(d30, tz, 'yyyy-MM-dd');
   }
 
-  var base = 'https://graph.facebook.com/' + CFG_META.API_VERSION + '/' + CFG_META.AD_ACCOUNT_ID + '/insights';
-  var params = {
-    access_token: token,
-    fields: 'campaign_id,campaign_name,impressions,clicks,ctr,cpm,cpc,spend,actions,frequency',
-    time_range: JSON.stringify({ since: since, until: until }),
-    level: 'campaign',
-    limit: '50'
-  };
-
-  var qs = Object.keys(params).map(function(k) {
-    return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
-  }).join('&');
+  var contas = _getContasMetaAds_();
+  var L = CFG_META.LIMITES;
 
   try {
-    var resp = UrlFetchApp.fetch(base + '?' + qs, { muteHttpExceptions: true });
-    var json = JSON.parse(resp.getContentText());
-
-    if (json.error) {
-      return { erro: 'Meta Ads API: ' + json.error.message + ' (code ' + json.error.code + ')' };
-    }
-
-    var data = json.data || [];
-    var statusMap = _mapaStatusCampanhas_();
     var totalGasto = 0, totalLeads = 0, totalImpr = 0, totalCliques = 0;
     var campanhasData = [];
     var alertas = [];
-    var L = CFG_META.LIMITES;
+    var contasComErro = [];
 
-    for (var i = 0; i < data.length; i++) {
-      var row = data[i];
-      var gasto = parseFloat(row.spend || 0);
-      var impr = parseInt(row.impressions || 0, 10);
-      var cliques = parseInt(row.clicks || 0, 10);
-      var ctr = parseFloat(row.ctr || 0);
-      var cpm = parseFloat(row.cpm || 0);
-      var cpc = parseFloat(row.cpc || 0);
-      var freq = parseFloat(row.frequency || 0);
+    for (var ac = 0; ac < contas.length; ac++) {
+      var conta = contas[ac];
+      var nomeConta = _nomeContaMeta_(conta);
+      var params = {
+        access_token: token,
+        fields: 'campaign_id,campaign_name,impressions,clicks,ctr,cpm,cpc,spend,actions,frequency',
+        time_range: JSON.stringify({ since: since, until: until }),
+        level: 'campaign',
+        limit: '100'
+      };
+      var qs = Object.keys(params).map(function(k) {
+        return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+      }).join('&');
+      var url = 'https://graph.facebook.com/' + CFG_META.API_VERSION + '/' + conta + '/insights?' + qs;
 
-      var leadsAct = (row.actions || []).filter(function(a) {
-        return a.action_type === 'lead' || a.action_type === 'onsite_conversion.messaging_conversation_started_7d';
-      });
-      var leads = leadsAct.length > 0 ? parseFloat(leadsAct[0].value || 0) : 0;
-
-      totalGasto += gasto;
-      totalLeads += leads;
-      totalImpr += impr;
-      totalCliques += cliques;
-
-      var cpl = leads > 0 ? gasto / leads : null;
-      var efStatus = statusMap[row.campaign_id] || '';
-      var pausada = !!efStatus && efStatus !== 'ACTIVE';
-      var status = pausada ? 'pausada' : 'ok';
-
-      // Campanha pausada não gera alerta de pausa/atenção — já está parada.
-      if (!pausada) {
-        if (cpl && cpl > L.CPL_MAX && gasto > 100) {
-          alertas.push({ tipo: 'erro', texto: 'PAUSAR: ' + row.campaign_name + ' - CPL R$' + cpl.toFixed(2) + ' > R$' + L.CPL_MAX });
-          status = 'erro';
-        } else if (ctr < L.CTR_MIN && gasto > 20) {
-          alertas.push({ tipo: 'erro', texto: 'PAUSAR: ' + row.campaign_name + ' - CTR ' + ctr.toFixed(2) + '% < ' + L.CTR_MIN + '%' });
-          status = 'erro';
-        } else if (freq > L.FREQUENCIA_MAX) {
-          alertas.push({ tipo: 'aviso', texto: 'ATENCAO: ' + row.campaign_name + ' - Frequencia ' + freq.toFixed(1) + 'x (limite: ' + L.FREQUENCIA_MAX + 'x)' });
-          status = 'aviso';
-        }
+      var data, statusMap;
+      try {
+        var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+        var json = JSON.parse(resp.getContentText());
+        if (json.error) { contasComErro.push(nomeConta + ': ' + json.error.message); continue; }
+        data = json.data || [];
+        statusMap = _mapaStatusCampanhas_(conta);
+      } catch (eConta) {
+        contasComErro.push(nomeConta + ': ' + eConta.message);
+        continue;
       }
 
-      campanhasData.push({
-        id: row.campaign_id,
-        nome: row.campaign_name,
-        gasto: gasto,
-        leads: leads,
-        impressoes: impr,
-        cliques: cliques,
-        ctr: ctr,
-        cpm: cpm,
-        cpc: cpc,
-        frequencia: freq,
-        cpl: cpl,
-        status: status
-      });
+      for (var i = 0; i < data.length; i++) {
+        var row = data[i];
+        var gasto = parseFloat(row.spend || 0);
+        var impr = parseInt(row.impressions || 0, 10);
+        var cliques = parseInt(row.clicks || 0, 10);
+        var ctr = parseFloat(row.ctr || 0);
+        var cpm = parseFloat(row.cpm || 0);
+        var cpc = parseFloat(row.cpc || 0);
+        var freq = parseFloat(row.frequency || 0);
+
+        var leadsAct = (row.actions || []).filter(function(a) {
+          return a.action_type === 'lead' || a.action_type === 'onsite_conversion.messaging_conversation_started_7d';
+        });
+        var leads = leadsAct.length > 0 ? parseFloat(leadsAct[0].value || 0) : 0;
+
+        totalGasto += gasto;
+        totalLeads += leads;
+        totalImpr += impr;
+        totalCliques += cliques;
+
+        var cpl = leads > 0 ? gasto / leads : null;
+        var efStatus = statusMap[row.campaign_id] || '';
+        var pausada = !!efStatus && efStatus !== 'ACTIVE';
+        var status = pausada ? 'pausada' : 'ok';
+
+        // Campanha pausada não gera alerta de pausa/atenção — já está parada.
+        if (!pausada) {
+          if (cpl && cpl > L.CPL_MAX && gasto > 100) {
+            alertas.push({ tipo: 'erro', texto: 'PAUSAR: ' + row.campaign_name + ' - CPL R$' + cpl.toFixed(2) + ' > R$' + L.CPL_MAX });
+            status = 'erro';
+          } else if (ctr < L.CTR_MIN && gasto > 20) {
+            alertas.push({ tipo: 'erro', texto: 'PAUSAR: ' + row.campaign_name + ' - CTR ' + ctr.toFixed(2) + '% < ' + L.CTR_MIN + '%' });
+            status = 'erro';
+          } else if (freq > L.FREQUENCIA_MAX) {
+            alertas.push({ tipo: 'aviso', texto: 'ATENCAO: ' + row.campaign_name + ' - Frequencia ' + freq.toFixed(1) + 'x (limite: ' + L.FREQUENCIA_MAX + 'x)' });
+            status = 'aviso';
+          }
+        }
+
+        campanhasData.push({
+          id: row.campaign_id,
+          nome: row.campaign_name,
+          conta: nomeConta,
+          gasto: gasto,
+          leads: leads,
+          impressoes: impr,
+          cliques: cliques,
+          ctr: ctr,
+          cpm: cpm,
+          cpc: cpc,
+          frequencia: freq,
+          cpl: cpl,
+          status: status
+        });
+      }
     }
+
+    // Se TODAS as contas falharam, propaga erro; senão segue com o que veio.
+    if (campanhasData.length === 0 && contasComErro.length >= contas.length) {
+      return { erro: 'Meta Ads API: ' + contasComErro.join(' | ') };
+    }
+
+    // Ordena: ativas primeiro, depois pausadas; cada grupo por gasto desc.
+    campanhasData.sort(function(a, b) {
+      var pa = a.status === 'pausada' ? 1 : 0;
+      var pb = b.status === 'pausada' ? 1 : 0;
+      if (pa !== pb) return pa - pb;
+      return (b.gasto || 0) - (a.gasto || 0);
+    });
 
     var dharmaResult = exportarLeadsMetaAds();
     var dharma = dharmaResult.resumo || {};
@@ -892,6 +821,8 @@ function getPainelAdsData(periodo) {
       },
       campanhas: campanhasData,
       alertas: alertas,
+      alertas_operacionais: _alertasOperacionaisLeads_(),
+      contas: contas.map(function(c) { return _nomeContaMeta_(c); }),
       dharma: dharma,
       cockpit: {
         operador: {
@@ -905,12 +836,139 @@ function getPainelAdsData(periodo) {
           fila_prioritaria: filaPrioritaria,
           approval_summary: _buildClaudeAdsActionDecisionSummary_(filaPrioritaria)
         },
-        inteligencia_comercial: _buildInteligenciaComercialFromLeads_(since, until),
         experimentos: { total: 0, prioritarios: [] }
       }
     };
   } catch (e) {
     return { erro: 'Erro inesperado: ' + e.message };
+  }
+}
+
+
+/**
+ * Dashboard executivo Meta Ads: Gasto · Leads · Vendas · CPA em 3 janelas
+ * (Hoje · Esta semana=7d incl. hoje · Este mês=MTD). Gasto agrega todas as
+ * contas (CFG_META.AD_ACCOUNT_IDS); Leads/Vendas vêm da aba "Leads Meta Ads"
+ * (CRM). CPA = gasto/vendas por janela. Inclui série diária de gasto (30d)
+ * pro gráfico spend×dia.
+ */
+function getDashboardMetaAdsExecutivo() {
+  try {
+    var token = PropertiesService.getScriptProperties().getProperty('META_ACCESS_TOKEN');
+    if (!token) return { ok: false, erro: 'META_ACCESS_TOKEN não configurado.' };
+
+    var tz   = Session.getScriptTimeZone();
+    var hoje = new Date();
+    var hojeKey = Utilities.formatDate(hoje, tz, 'yyyy-MM-dd');
+    var d30 = new Date(hoje); d30.setDate(d30.getDate() - 29);
+    var sinceKey = Utilities.formatDate(d30, tz, 'yyyy-MM-dd');
+    var d7 = new Date(hoje); d7.setDate(d7.getDate() - 6);
+    var seteKey = Utilities.formatDate(d7, tz, 'yyyy-MM-dd');
+    var mesKey  = Utilities.formatDate(hoje, tz, 'yyyy-MM') + '-01';
+
+    // 1) Gasto diário por conta (time_increment=1) → mapa data→gasto agregado.
+    var contas = _getContasMetaAds_();
+    var gastoPorDia = {};
+    var contasComErro = [];
+    for (var ac = 0; ac < contas.length; ac++) {
+      var conta = contas[ac];
+      var params = {
+        access_token:   token,
+        fields:         'spend',
+        time_range:     JSON.stringify({ since: sinceKey, until: hojeKey }),
+        time_increment: '1',
+        level:          'account',
+        limit:          '60'
+      };
+      var qs = Object.keys(params).map(function(k) {
+        return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+      }).join('&');
+      var url = 'https://graph.facebook.com/' + CFG_META.API_VERSION + '/' + conta + '/insights?' + qs;
+      try {
+        var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+        var json = JSON.parse(resp.getContentText());
+        if (json.error) { contasComErro.push(_nomeContaMeta_(conta) + ': ' + json.error.message); continue; }
+        (json.data || []).forEach(function(rowDia) {
+          var dk = rowDia.date_start;
+          if (dk) gastoPorDia[dk] = (gastoPorDia[dk] || 0) + parseFloat(rowDia.spend || 0);
+        });
+      } catch (eC) {
+        contasComErro.push(_nomeContaMeta_(conta) + ': ' + eC.message);
+      }
+    }
+
+    var serieDia = Object.keys(gastoPorDia).sort().map(function(k) {
+      return { data: k, gasto: gastoPorDia[k] };
+    });
+    function somaGastoDesde(desdeKey) {
+      var t = 0;
+      for (var k in gastoPorDia) { if (k >= desdeKey) t += gastoPorDia[k]; }
+      return t;
+    }
+    var gastoHoje   = gastoPorDia[hojeKey] || 0;
+    var gastoSemana = somaGastoDesde(seteKey);
+    var gastoMes    = somaGastoDesde(mesKey);
+
+    // 2) Leads & Vendas do CRM por janela.
+    var crm = _crmLeadsVendasPorJanela_(tz, hojeKey, seteKey, mesKey);
+    function cpa(g, v) { return v > 0 ? g / v : null; }
+
+    return {
+      ok: true,
+      gerado_em: new Date().toISOString(),
+      contas: contas.map(function(c) { return _nomeContaMeta_(c); }),
+      contas_com_erro: contasComErro,
+      janelas: {
+        hoje:   { gasto: gastoHoje,   leads: crm.hoje.leads,   vendas: crm.hoje.vendas,   cpa: cpa(gastoHoje, crm.hoje.vendas) },
+        semana: { gasto: gastoSemana, leads: crm.semana.leads, vendas: crm.semana.vendas, cpa: cpa(gastoSemana, crm.semana.vendas) },
+        mes:    { gasto: gastoMes,    leads: crm.mes.leads,    vendas: crm.mes.vendas,    cpa: cpa(gastoMes, crm.mes.vendas) }
+      },
+      serie_dia: serieDia
+    };
+  } catch (e) {
+    return { ok: false, erro: 'Erro inesperado: ' + e.message };
+  }
+}
+
+/**
+ * Conta leads (por data_entrada, col A) e vendas (status_final='Converteu',
+ * por data_status col K com fallback à entrada) na aba "Leads Meta Ads", em
+ * 3 janelas: hoje, semana (>= seteKey), mês (>= mesKey). Compara yyyy-MM-dd.
+ */
+function _crmLeadsVendasPorJanela_(tz, hojeKey, seteKey, mesKey) {
+  var z = { hoje: { leads: 0, vendas: 0 }, semana: { leads: 0, vendas: 0 }, mes: { leads: 0, vendas: 0 } };
+  try {
+    var ss  = _getSpreadsheet_();
+    var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+    if (!aba) return z;
+    var ult = aba.getLastRow();
+    if (ult < 2) return z;
+    var raw = aba.getRange(2, 1, ult - 1, 12).getValues();
+    function keyOf(v) {
+      if (!v) return '';
+      var d = v instanceof Date ? v : new Date(v);
+      return isNaN(d.getTime()) ? '' : Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+    }
+    for (var i = 0; i < raw.length; i++) {
+      var r = raw[i];
+      if (!r[0]) continue;
+      var kEntrada = keyOf(r[0]);  // col A: data_entrada
+      if (kEntrada) {
+        if (kEntrada === hojeKey) z.hoje.leads++;
+        if (kEntrada >= seteKey)  z.semana.leads++;
+        if (kEntrada >= mesKey)   z.mes.leads++;
+      }
+      if (String(r[8] || '').trim() === 'Converteu') {  // col I: status_final
+        var kStatus = keyOf(r[10]) || kEntrada;          // col K: data_status
+        if (kStatus === hojeKey) z.hoje.vendas++;
+        if (kStatus >= seteKey)  z.semana.vendas++;
+        if (kStatus >= mesKey)   z.mes.vendas++;
+      }
+    }
+    return z;
+  } catch (e) {
+    Logger.log('_crmLeadsVendasPorJanela_ falhou: ' + e.message);
+    return z;
   }
 }
 
@@ -1689,9 +1747,57 @@ function _listarCampanhasAtivas_() {
  * não derrubar o painel inteiro (campanhas ficam sem marca de pausada).
  * @returns {Object<string,string>}
  */
-function _mapaStatusCampanhas_() {
+/**
+ * Lista de contas Meta lidas/agregadas pelos painéis. Fallback p/ conta primária.
+ * @returns {string[]}
+ */
+function _getContasMetaAds_() {
+  var ids = CFG_META.AD_ACCOUNT_IDS;
+  return (ids && ids.length) ? ids.slice() : [CFG_META.AD_ACCOUNT_ID];
+}
+
+/** Nome curto da conta p/ exibição (ex: 'Vero 02'); fallback ao próprio id. */
+function _nomeContaMeta_(accountId) {
+  return (CFG_META.AD_ACCOUNT_NOMES && CFG_META.AD_ACCOUNT_NOMES[accountId]) || accountId;
+}
+
+/**
+ * Alertas operacionais a partir da aba "Leads Meta Ads" (lado CRM).
+ * Hoje: leads sem triagem (sem status_final) há mais de 24h.
+ * @returns {string[]}
+ */
+function _alertasOperacionaisLeads_() {
   try {
-    var json = _metaApiGet_('/' + CFG_META.AD_ACCOUNT_ID + '/campaigns', {
+    var ss  = _getSpreadsheet_();
+    var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+    if (!aba) return [];
+    var ult = aba.getLastRow();
+    if (ult < 2) return [];
+    var raw = aba.getRange(2, 1, ult - 1, 12).getValues();
+    var agora = new Date();
+    var parados = 0;
+    for (var i = 0; i < raw.length; i++) {
+      var r = raw[i];
+      if (!r[0]) continue;
+      if (String(r[8] || '').trim()) continue;  // col I: já tem status_final
+      var dt = r[0] instanceof Date ? r[0] : new Date(r[0]);
+      if (!dt || isNaN(dt.getTime())) continue;
+      if ((agora - dt) / 36e5 >= 24) parados++;
+    }
+    var out = [];
+    if (parados > 0) {
+      out.push(parados + ' lead' + (parados > 1 ? 's' : '') + ' sem triagem há +24h — atualize o status em Leads Meta Ads.');
+    }
+    return out;
+  } catch (e) {
+    Logger.log('_alertasOperacionaisLeads_ falhou: ' + e.message);
+    return [];
+  }
+}
+
+function _mapaStatusCampanhas_(accountId) {
+  try {
+    var json = _metaApiGet_('/' + (accountId || CFG_META.AD_ACCOUNT_ID) + '/campaigns', {
       fields: 'id,effective_status',
       limit: 200
     });
