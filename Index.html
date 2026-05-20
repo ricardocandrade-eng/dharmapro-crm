@@ -1109,6 +1109,9 @@
       overflow: hidden;
       border: 0.5px solid rgba(255,255,255,.04);
       padding: 0 !important;
+      flex-shrink: 0;  /* Dir.C 20/05: em flex column o painel comprimia os blocos
+                          (flex-shrink:1 default) e o overflow:hidden cortava o
+                          conteúdo — parecia sobreposição e campos não cabiam. */
     }
     .pif-secao.pif-collapsible .pif-titulo {
       cursor: pointer;
@@ -1116,9 +1119,10 @@
       border-bottom: none;
       background: transparent;
       margin: 0;
-      padding: 7px 10px;
+      padding: 10px 10px;
       transition: background 0.15s;
       display: flex; align-items: center; gap: 6px;
+      min-height: 34px;
     }
     .pif-secao.pif-collapsible .pif-titulo:hover {
       background: rgba(255,255,255,.03);
@@ -1128,6 +1132,8 @@
       min-width: 140px;
       font-weight: 700;
       letter-spacing: 1px;
+      font-size: 11px;               /* Dir.C 20/05: era 9px herdado — título ilegível colapsado */
+      color: rgba(255,255,255,.82);  /* era .55 herdado — apagado demais */
     }
     .pif-collapse-summary {
       flex: 1; min-width: 0;
@@ -3113,7 +3119,7 @@
               </div>
 
               <!-- Plano (aberto por padrão em leitura) -->
-              <div class="pif-secao pif-collapsible expanded" id="pif-sec-plano">
+              <div class="pif-secao pif-collapsible" id="pif-sec-plano">
                 <div class="pif-titulo" onclick="_pifToggleSection(this)">
                   <span class="pif-collapse-titulo-txt">📦 Plano</span>
                   <span class="pif-collapse-summary" id="pif-summ-plano"></span>
@@ -3168,7 +3174,7 @@
               </div>
 
               <!-- Móvel solo (condicional, aberto quando exibido) -->
-              <div class="pif-secao pif-collapsible expanded" id="pif-secao-movel" style="display:none">
+              <div class="pif-secao pif-collapsible" id="pif-secao-movel" style="display:none">
                 <div class="pif-titulo" onclick="_pifToggleSection(this)">
                   <span class="pif-collapse-titulo-txt">📱 Dados Móvel</span>
                   <span class="pif-collapse-summary" id="pif-summ-movel"></span>
@@ -3197,7 +3203,7 @@
                    Edição inline: operador altera campos do Móvel no mesmo painel
                    da Fibra mãe. _pifValidarTransicaoStatusMovel exige Contrato
                    apenas para "3- Aguardando Retirada". -->
-              <div class="pif-secao pif-collapsible expanded" id="pif-secao-movel-combo" style="display:none">
+              <div class="pif-secao pif-collapsible" id="pif-secao-movel-combo" style="display:none">
                 <div class="pif-titulo" onclick="_pifToggleSection(this)">
                   <span class="pif-collapse-titulo-txt">📱 Móvel Combo Vinculado <span id="pif-mvLinhaLabel" style="font-size:9px;color:var(--muted);font-weight:400;font-family:'DM Mono',monospace;"></span></span>
                   <span class="pif-collapse-summary" id="pif-summ-movel-combo"></span>
@@ -3264,7 +3270,7 @@
               </div>
 
               <!-- Datas (aberto por padrão quando exibido) -->
-              <div class="pif-secao pif-collapsible expanded" id="pif-secao-datas" style="display:none">
+              <div class="pif-secao pif-collapsible" id="pif-secao-datas" style="display:none">
                 <div class="pif-titulo" onclick="_pifToggleSection(this)">
                   <span class="pif-collapse-titulo-txt">📅 Datas</span>
                   <span class="pif-collapse-summary" id="pif-summ-datas"></span>

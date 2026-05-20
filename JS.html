@@ -9581,6 +9581,17 @@ mostrarPainel = function(v) {
   if (rowDM) rowDM.style.display = visivel ? '' : 'none';
   if (btnDM) btnDM.style.display = visivel ? 'flex' : 'none';
   _dhpMostrarPainelOriginal(v);
+  // Dir.C 20/05/2026: ao abrir um card novo, todos os blocos colapsáveis começam
+  // recolhidos. O DOM do painel é reusado entre cards, então sem este reset um
+  // bloco expandido num card anterior continuaria aberto no próximo.
+  try {
+    var painelEd = document.getElementById('painelConteudo');
+    var emEdicao = painelEd && painelEd.classList.contains('modo-edicao');
+    if (!emEdicao) {
+      var secs = document.querySelectorAll('.pif-secao.pif-collapsible.expanded');
+      for (var i = 0; i < secs.length; i++) secs[i].classList.remove('expanded');
+    }
+  } catch(e) {}
 };
 
 // Sprint 3.3 (12/05/2026): _dhpMostrarPainelCombo eliminado — Fibra Combo+Móvel
