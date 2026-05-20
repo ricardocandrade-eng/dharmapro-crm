@@ -357,11 +357,10 @@
     .pagination { padding: 12px; border-top: 1px solid var(--border); display: none; justify-content: center; align-items: center; gap: 10px; flex-shrink: 0; background: var(--bg); }
     .pag-info { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
 
-    /* ── Venda item — layout 3 zonas ── */
+    /* ── Venda item — layout 3 zonas (Dir. A revisada — 19/05/2026) ── */
     .venda-item {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-top-width: 2px; /* cor definida inline via JS */
       border-radius: 10px;
       margin-bottom: 8px;
       cursor: pointer;
@@ -370,6 +369,40 @@
     }
     .venda-item:hover { border-color: var(--border2); background: var(--surface2); }
     .venda-item.selecionado { border-color: var(--accent); background: rgba(230,62,109,0.05); }
+
+    /* ── Faixa colorida de status no topo do card ── */
+    .vi-status-band {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 4px 12px;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      gap: 8px;
+      border-bottom: 1px solid;
+      min-height: 22px;
+    }
+    .vi-status-band-status {
+      display: flex; align-items: center; gap: 6px;
+      font-weight: 600;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+    .vi-status-band-meta {
+      font-size: 9px;
+      color: var(--muted);
+      opacity: 0.7;
+      white-space: nowrap;
+      font-family: 'DM Mono', monospace;
+      flex-shrink: 0;
+    }
+    .vi-status-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      flex-shrink: 0;
+      background: currentColor;
+    }
+    .vi-status-band .vi-prestatus-badge { opacity: 0.85; }
+    .vi-status-band .vi-row-vhub-pedido-wrap { font-size: 9px; gap: 4px; }
+    .vi-status-band .vi-row-vhub-pedido-wrap .agenda-input { font-size: 9px; padding: 1px 4px; }
+    .vi-status-band .vi-viab-badge { font-size: 9px; padding: 1px 6px; }
 
     /* Corpo do card */
     .vi-body { display: flex; flex-direction: column; }
@@ -631,6 +664,54 @@
     /* Cards v6: esconde apenas botões legados (👤📋🤖🔍); NG/AD ficam visíveis via .btn-popup--consulta */
     .vi-bot-v6 .vi-actions > .btn-popup { display: none !important; }
     .vi-bot-v6 .vi-actions > .btn-popup--consulta { display: inline-block !important; }
+
+    /* ── Plan row v7 (Dir. A revisada — 19/05/2026) ── */
+    .vi-plano-row {
+      display: flex; align-items: center; gap: 8px;
+      min-width: 0;
+    }
+    .vi-plano-row + .vi-plano-row { margin-top: 6px; }
+    .vi-plano-row .vi-produto {
+      min-width: 88px;
+    }
+    .vi-plano-meio {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column;
+      gap: 1px;
+    }
+    .vi-plano-nome {
+      font-size: 11px; color: var(--text); font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .vi-plano-substatus {
+      font-family: 'DM Mono', monospace; font-size: 9px;
+      display: flex; align-items: center; gap: 4px;
+      opacity: 0.9;
+      white-space: nowrap;
+    }
+    .vi-plano-substatus-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .vi-plano-substatus-meta {
+      color: var(--muted); opacity: 0.55;
+    }
+    .vi-plano-valor {
+      font-size: 12px; color: #fff; font-weight: 600;
+      font-family: 'DM Mono', monospace;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    /* Linha inferior: datas à esquerda, ações à direita */
+    .vi-bottom-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px;
+      padding-top: 7px; margin-top: 7px;
+      border-top: 1px solid var(--border);
+    }
+    .vi-bottom-row .vi-row-dates { margin: 0; }
+    .vi-bottom-row .vi-actions { margin: 0; }
     .dhp-combo-plano-bloco {
       display: flex;
       flex-direction: column;

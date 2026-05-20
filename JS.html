@@ -7280,6 +7280,63 @@ function _ignorarDesbloqueio() {
 
 
 
+// ─── HELPERS V7 (faixa colorida + status por plano) ─────────────────────────
+function _hexParaRgba(hex, alpha) {
+  var h = String(hex || '').replace('#', '');
+  if (h.length === 3) h = h.split('').map(function(c){return c+c;}).join('');
+  if (h.length !== 6) return 'rgba(155,164,194,' + alpha + ')';
+  var n = parseInt(h, 16);
+  if (isNaN(n)) return 'rgba(155,164,194,' + alpha + ')';
+  var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+}
+function _bandStyleFromCores(cores) {
+  if (!cores) return 'background:transparent;color:var(--muted);border-bottom-color:var(--border)';
+  var temBg = cores.bg && cores.bg !== 'transparent';
+  if (temBg) {
+    return 'background:' + cores.bg + ';color:#fff;border-bottom-color:rgba(255,255,255,.18)';
+  }
+  var cor = cores.text || cores.border || '#9ba4c2';
+  return 'background:' + _hexParaRgba(cor, 0.10) + ';color:' + cor + ';border-bottom-color:' + _hexParaRgba(cor, 0.28);
+}
+function _limparNomePlano(plano) {
+  if (!plano) return '';
+  return String(plano).replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/, '').trim();
+}
+function _formatarValorBR(valor) {
+  if (valor === null || valor === undefined || valor === '') return '';
+  var num = parseFloat(String(valor).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.'));
+  if (isNaN(num)) {
+    var num2 = parseFloat(String(valor).replace(/[^\d.-]/g, ''));
+    if (isNaN(num2)) return String(valor);
+    num = num2;
+  }
+  return 'R$ ' + num.toFixed(2).replace('.', ',');
+}
+function _statusBandHtml(v, index, extraInline) {
+  var cores = STATUS_CORES[v.status] || { bg: 'transparent', text: '#9ba4c2', border: '#9ba4c2' };
+  var bandStyle = _bandStyleFromCores(cores);
+  var statusTxt = esc(v.status || '—');
+  var lanc = '';
+  if (v.criadoEm && v.criadoEm.length >= 16) {
+    var _lancVal = v.criadoEm.substring(0,5) + ' ' + v.criadoEm.substring(11,16);
+    if (v.criadoPor) _lancVal += ' · ' + v.criadoPor;
+    lanc = 'Lanç. ' + _lancVal;
+  }
+  var preStatus = (v.preStatus && v.status === '1- Conferencia/Ativação')
+    ? '<span class="vi-prestatus-badge">' + esc(v.preStatus) + '</span>'
+    : '';
+  return '<div class="vi-status-band" style="' + bandStyle + '">' +
+    '<span class="vi-status-band-status">' +
+      '<span class="vi-status-dot"></span>' +
+      statusTxt +
+      (preStatus ? ' ' + preStatus : '') +
+      (extraInline || '') +
+    '</span>' +
+    (lanc ? '<span class="vi-status-band-meta">' + esc(lanc) + '</span>' : '') +
+  '</div>';
+}
+
 // ─── CRIAR ITEM DA LISTA ───────────────────────────────────────────────────
 function _criarItemVenda(v, index) {
   var cores      = STATUS_CORES[v.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
@@ -7290,8 +7347,9 @@ function _criarItemVenda(v, index) {
   var prodMap = { 'Fibra Alone': 'vi-prod-fa', 'Fibra Combo': 'vi-prod-fc', 'Móvel Combo': 'vi-prod-mc', 'Móvel Alone': 'vi-prod-ma' };
   var prodCls = prodMap[v.produto] || 'vi-prod-xx';
 
-  // Plano + valor inline
-  var planoVal = [v.plano, v.valor].filter(Boolean).join(' · ');
+  // Plano: nome limpo (remove sufixo " | R$ X,XX" que vem no campo plano) + valor formatado
+  var planoNome = _limparNomePlano(v.plano);
+  var valorFmt  = _formatarValorBR(v.valor);
 
   // Responsável: avatar com iniciais colorido
   var respHtml = '';
@@ -7308,14 +7366,13 @@ function _criarItemVenda(v, index) {
     respHtml += '<span class="vi-canal-sm">' + esc(v.canal) + '</span>';
   }
 
-  // Linha de datas: Ativ. / Pré-Status / Ag. / Inst.
+  // Linha de datas: Ativ. / Ag. / Inst. (Lanç. foi pra band)
   var datasHtml = '';
   var dataAtivFormatada = _fmtData(v.dataAtiv);
   var ehDataReal = /^\d{2}\/\d{2}\/\d{4}$/.test(dataAtivFormatada);
   if (ehDataReal) {
     datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ativ.</span><span class="vi-dval ok">' + esc(dataAtivFormatada.substring(0,5)) + '</span></span>';
   }
-
   if (v.agenda) {
     var agCls = v.instal ? ' ok' : ' pend';
     var _tAbrev = v.turno ? (v.turno.toUpperCase().indexOf('TARDE') > -1 ? ' T' : ' M') : '';
@@ -7324,68 +7381,66 @@ function _criarItemVenda(v, index) {
   if (v.instal) {
     datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
   }
-  if (v.criadoEm && v.criadoEm.length >= 16) {
-    var _lancVal = v.criadoEm.substring(0,5) + ' ' + v.criadoEm.substring(11,16);
-    if (v.criadoPor) _lancVal += ' · ' + v.criadoPor;
-    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl" style="opacity:.55">Lanç.</span><span class="vi-dval" style="opacity:.55">' + esc(_lancVal) + '</span></span>';
+
+  // Extra inline na band: VeroHub (status 1) + Viabilidade badge
+  var bandExtra = '';
+  if (v.status === '1- Conferencia/Ativação') {
+    bandExtra += _veroHubPedidoHtml(v, index);
+  }
+  if (v.viabilidade) {
+    bandExtra += '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>';
+  } else {
+    bandExtra += '<div id="viab-badge-' + index + '" style="display:none"></div>';
   }
 
-  return '<div class="venda-item" id="item_' + index + '" onclick="selecionarVenda(' + index + ',this)" style="border-top:2px solid ' + topColor + '">' +
+  return '<div class="venda-item" id="item_' + index + '" onclick="selecionarVenda(' + index + ',this)">' +
+
+    // FAIXA COLORIDA NO TOPO — status principal + lanç. + (vhub/viab inline)
+    _statusBandHtml(v, index, bandExtra) +
+
     '<div class="vi-body">' +
 
-      // ZONA 1 — nome + status
+      // ZONA 1 — nome + IDs (esquerda) | responsável (direita)
       '<div class="vi-top">' +
         '<div class="vi-nome-bloco">' +
-          '<span class="vi-nome" style="color:' + cores.text + ' !important;">' + esc(v.cliente || 'Sem nome') + '</span>' +
+          '<span class="vi-nome">' + esc(v.cliente || 'Sem nome') + '</span>' +
           '<div class="vi-ids">' +
             (v.cpf      ? '<span class="vi-id">'                                          + esc(v.cpf)      + '</span>' : '') +
             (v.contrato ? '<span class="vi-id-sep">·</span><span class="vi-id">ID Contrato ' + esc(v.contrato) + '</span>' : '') +
           '</div>' +
         '</div>' +
-        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">' +
-          '<div style="display:flex;align-items:center;gap:6px;">' +
-            (v.preStatus && v.status === '1- Conferencia/Ativação' ? '<span class="vi-prestatus-badge">' + esc(v.preStatus) + '</span>' : '') +
-            '<span class="vi-status" style="' + badgeStyle + '">' + esc(v.status || '—') + '</span>' +
-          '</div>' +
-          (respHtml ? '<div class="vi-row-resp" style="justify-content:flex-end">' + respHtml + '</div>' : '') +
-        '</div>' +
+        (respHtml ? '<div class="vi-row-resp" style="justify-content:flex-end;flex-shrink:0">' + respHtml + '</div>' : '') +
       '</div>' +
 
       '<div class="vi-divider"></div>' +
 
-      // ZONA 2 v6 — 3 linhas empilhadas
+      // ZONA 2 v7 — plano + bottom row
       '<div class="vi-bot-v6">' +
 
-        // Linha 1: Tipo | bolinha | Plano | Valor
-        '<div class="vi-pv-row">' +
+        // Linha do plano: produto | nome do plano (com vero status) | valor
+        '<div class="vi-plano-row">' +
           (v.produto ? '<span class="vi-produto ' + prodCls + '">' + esc(_produtoComEmoji(v.produto)) + '</span>' : '') +
-          (v.veroStatus ? '<span class="vi-vero-status" title="' + (v.veroStatus.substring(0,2) === '🟢' ? 'Encontrado: aba ' + (v.veroStatus.substring(3) || 'Vero') : 'Não encontrado no relatório Vero') + '">' + v.veroStatus.substring(0,2) + '</span>' : '') +
-          (planoVal ? '<span class="vi-plano-val">' + esc(planoVal) + '</span>' : '') +
+          '<div class="vi-plano-meio">' +
+            '<div class="vi-plano-nome">' +
+              (v.veroStatus ? '<span class="vi-vero-status" title="' + (v.veroStatus.substring(0,2) === '🟢' ? 'Encontrado: aba ' + (v.veroStatus.substring(3) || 'Vero') : 'Não encontrado no relatório Vero') + '">' + v.veroStatus.substring(0,2) + '</span> ' : '') +
+              esc(planoNome || '—') +
+            '</div>' +
+          '</div>' +
+          (valorFmt ? '<span class="vi-plano-valor">' + esc(valorFmt) + '</span>' : '') +
         '</div>' +
 
-        // Linha 2: Status / ID Contrato (+ vhub/viab/bcTags inline à direita)
-        '<div class="vi-status-row">' +
-          '<span class="vi-status-inline">' + esc(v.status || '—') + '</span>' +
-          (v.contrato ? '<span class="vi-id-sep">/</span><span class="vi-id-inline">ID Contrato ' + esc(v.contrato) + '</span>' : '') +
-          '<span style="margin-left:auto;display:flex;align-items:center;gap:6px;">' +
-            (v.status === '1- Conferencia/Ativação' ? _veroHubPedidoHtml(v, index) : '') +
-            (v.viabilidade ? '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>' : '<div id="viab-badge-' + index + '"></div>') +
-            // Performance (19/05/2026): badges BotConversa (bcTags/bcStatus) removidos junto com a sync.
-          '</span>' +
-        '</div>' +
-
-        // Linha 3: Datas (Ativ. | Ag. | Lanç. + Nome Usuário via criadoPor)
-        (datasHtml ? '<div class="vi-row-dates">' + datasHtml + '</div>' : '') +
-
-        // Botões — ocultos provisoriamente via .vi-bot-v6 .vi-actions { display:none }
-        '<div class="vi-actions">' +
-          (v.cpf ? '<button class="btn-popup" title="Consultar CPF Assertiva" onclick="event.stopPropagation();abrirModalAssertiva(\'' + esc(v.cpf.replace(/\D/g,'')) + '\')">👤</button>' : '') +
-          '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
-          '<button class="btn-popup" title="Disparar fluxo BotConversa para o Cliente" onclick="event.stopPropagation();abrirModalBotConversa(\'cliente\',' + index + ')">🤖</button>' +
-          (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">🔍</button>' : '') +
-          (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
-          (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
-          '<span class="venda-arrow">›</span>' +
+        // Linha inferior: datas (esq) | ações (dir)
+        '<div class="vi-bottom-row">' +
+          '<div class="vi-row-dates">' + datasHtml + '</div>' +
+          '<div class="vi-actions">' +
+            (v.cpf ? '<button class="btn-popup" title="Consultar CPF Assertiva" onclick="event.stopPropagation();abrirModalAssertiva(\'' + esc(v.cpf.replace(/\D/g,'')) + '\')">👤</button>' : '') +
+            '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
+            '<button class="btn-popup" title="Disparar fluxo BotConversa para o Cliente" onclick="event.stopPropagation();abrirModalBotConversa(\'cliente\',' + index + ')">🤖</button>' +
+            (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">🔍</button>' : '') +
+            (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
+            (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
+            '<span class="venda-arrow">›</span>' +
+          '</div>' +
         '</div>' +
 
       '</div>' +
@@ -9607,75 +9662,89 @@ function _dhpLinhaPlanoComboV3(venda) {
 
 function _dhpBlocoPlanoV6(venda, index, extraHtml) {
   if (!venda) return '';
-  var prodCls = _dhpProdutoClsV3(venda.produto);
-  var planoValor = _dhpPlanoValorV3(venda);
-  var idLabel = '';
-  if (venda.linhaMovel) {
-    idLabel = 'Linha ' + venda.linhaMovel;
-  } else if (venda.contrato) {
-    idLabel = 'ID Contrato ' + venda.contrato;
-  }
-  return '<div class="dhp-combo-plano-bloco">' +
-    // Linha 1: Tipo | bolinha | Plano | Valor
-    '<div class="vi-pv-row">' +
-      (venda.produto ? '<span class="vi-produto ' + prodCls + '">' + esc(_produtoComEmoji(venda.produto)) + '</span>' : '') +
-      (venda.veroStatus ? '<span class="vi-vero-status" title="' + (venda.veroStatus.substring(0,2) === '🟢' ? 'Encontrado: aba ' + (venda.veroStatus.substring(3) || 'Vero') : 'Não encontrado no relatório Vero') + '">' + venda.veroStatus.substring(0,2) + '</span>' : '') +
-      (planoValor ? '<span class="vi-plano-val">' + esc(planoValor) + '</span>' : '') +
+  var prodCls   = _dhpProdutoClsV3(venda.produto);
+  var planoNome = _limparNomePlano(venda.plano);
+  var valorFmt  = _formatarValorBR(venda.valor);
+  var idLabel   = '';
+  if (venda.linhaMovel)     idLabel = 'Linha ' + venda.linhaMovel;
+  else if (venda.contrato)  idLabel = 'ID ' + venda.contrato;
+
+  // Cor do status DESTE plano (Fibra e Móvel podem diferir)
+  var coresPlano = STATUS_CORES[venda.status] || { text: '#9ba4c2' };
+  var corStatus  = coresPlano.text || coresPlano.border || '#9ba4c2';
+
+  return '<div class="vi-plano-row">' +
+    (venda.produto ? '<span class="vi-produto ' + prodCls + '">' + esc(_produtoComEmoji(venda.produto)) + '</span>' : '') +
+    '<div class="vi-plano-meio">' +
+      '<div class="vi-plano-nome">' +
+        (venda.veroStatus ? '<span class="vi-vero-status" title="' + (venda.veroStatus.substring(0,2) === '🟢' ? 'Encontrado: aba ' + (venda.veroStatus.substring(3) || 'Vero') : 'Não encontrado no relatório Vero') + '">' + venda.veroStatus.substring(0,2) + '</span> ' : '') +
+        esc(planoNome || '—') +
+      '</div>' +
+      '<div class="vi-plano-substatus" style="color:' + corStatus + '">' +
+        '<span class="vi-plano-substatus-dot" style="background:' + corStatus + '"></span>' +
+        esc(venda.status || '—') +
+        (idLabel ? ' <span class="vi-plano-substatus-meta">· ' + esc(idLabel) + '</span>' : '') +
+        (extraHtml || '') +
+      '</div>' +
     '</div>' +
-    // Linha 2: Status / ID Contrato
-    '<div class="vi-status-row">' +
-      '<span class="vi-status-inline">' + esc(venda.status || '—') + '</span>' +
-      (idLabel ? '<span class="vi-id-sep">/</span><span class="vi-id-inline">' + esc(idLabel) + '</span>' : '') +
-      (extraHtml || '') +
-    '</div>' +
+    (valorFmt ? '<span class="vi-plano-valor">' + esc(valorFmt) + '</span>' : '') +
   '</div>';
 }
 
 function _dhpCriarItemVendaAgrupadaV3(v, index) {
-  var cores = STATUS_CORES[v.status] || { bg: 'transparent', text: '#D90000', border: '#D90000' };
-  var topColor = cores.border || cores.text || '#555';
-  var badgeStyle = 'background:' + cores.bg + ';color:' + cores.text + ';border:1.5px solid ' + (cores.border || cores.text) + ';';
-  var respHtml = _dhpResponsavelHtmlV3(v);
-  var datasHtml = _dhpDatasHtmlVendaV3(v);
   var statusNorm = _normalizarTexto(v.status || '');
+  var respHtml   = _dhpResponsavelHtmlV3(v);
 
-  // Side info (vhub/viab) — ancorado ao lado do status da Fibra (linha 2 do bloco Fibra)
-  var sideFibra = '';
+  // Datas (sem Lanç. — foi pra band do topo)
+  var datasHtml = '';
+  var dataAtivFormatada = _fmtData(v.dataAtiv);
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataAtivFormatada)) {
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ativ.</span><span class="vi-dval ok">' + esc(dataAtivFormatada.substring(0,5)) + '</span></span>';
+  }
+  if (v.agenda) {
+    var agCls = v.instal ? ' ok' : ' pend';
+    var turnoAbrev = v.turno ? (v.turno.toUpperCase().indexOf('TARDE') > -1 ? ' T' : ' M') : '';
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Ag.</span><span class="vi-dval' + agCls + '">' + esc(_fmtData(v.agenda).substring(0,5)) + turnoAbrev + '</span></span>';
+  }
+  if (v.instal) {
+    datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
+  }
+
+  // Extra inline na band: VeroHub + Viabilidade badge
+  var bandExtra = '';
   if (statusNorm === '1- CONFERENCIA/ATIVACAO') {
-    sideFibra += _veroHubPedidoHtml(v, index);
+    bandExtra += _veroHubPedidoHtml(v, index);
   }
   if (v.viabilidade) {
-    sideFibra += '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>';
+    bandExtra += '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>';
+  } else {
+    bandExtra += '<div id="viab-badge-' + index + '" style="display:none"></div>';
   }
-  var extraFibra = sideFibra ? '<span style="margin-left:auto;display:flex;align-items:center;gap:6px;">' + sideFibra + '</span>' : '';
 
-  return '<div class="venda-item dhp-combo-card" id="item_' + index + '" onclick="selecionarVenda(' + index + ',this)" style="border-top:2px solid ' + topColor + '">' +
+  return '<div class="venda-item dhp-combo-card" id="item_' + index + '" onclick="selecionarVenda(' + index + ',this)">' +
+    _statusBandHtml(v, index, bandExtra) +
     '<div class="vi-body">' +
       '<div class="vi-top">' +
         '<div class="vi-nome-bloco">' +
           '<div class="dhp-nome-wrap">' +
-            '<span class="vi-nome" style="color:' + cores.text + ' !important;">' + esc(v.cliente || 'Sem nome') + '</span>' +
+            '<span class="vi-nome">' + esc(v.cliente || 'Sem nome') + '</span>' +
           '</div>' +
           '<div class="vi-ids">' +
             (v.cpf ? '<span class="vi-id">' + esc(v.cpf) + '</span>' : '') +
-            (v.contrato ? '<span class="vi-id-sep"> | </span><span class="vi-id">ID Contrato ' + esc(v.contrato) + '</span>' : '') +
+            (v.contrato ? '<span class="vi-id-sep">·</span><span class="vi-id">ID Contrato ' + esc(v.contrato) + '</span>' : '') +
           '</div>' +
         '</div>' +
-        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">' +
-          '<div style="display:flex;align-items:center;gap:6px;">' +
-            (v.preStatus && statusNorm === '1- CONFERENCIA/ATIVACAO' ? '<span class="vi-prestatus-badge">' + esc(v.preStatus) + '</span>' : '') +
-            '<span class="vi-status" style="' + badgeStyle + '">' + esc(v.status || '-') + '</span>' +
-          '</div>' +
-          (respHtml ? '<div class="vi-row-resp" style="justify-content:flex-end">' + respHtml + '</div>' : '') +
-        '</div>' +
+        (respHtml ? '<div class="vi-row-resp" style="justify-content:flex-end;flex-shrink:0">' + respHtml + '</div>' : '') +
       '</div>' +
       '<div class="vi-divider"></div>' +
-      // ZONA 2 v6 — Fibra (2 linhas) + Móvel (2 linhas) + Datas
+      // ZONA 2 v7 — Fibra + Móvel (cada um com seu status) + bottom row
       '<div class="vi-bot-v6">' +
-        _dhpBlocoPlanoV6(v, index, extraFibra) +
+        _dhpBlocoPlanoV6(v, index, '') +
         _dhpBlocoPlanoV6(v.vendaMovelResumo, index, '') +
-        (datasHtml ? '<div class="vi-row-dates">' + datasHtml + '</div>' : '') +
-        _dhpAcoesVendaV3(index, v) +
+        '<div class="vi-bottom-row">' +
+          '<div class="vi-row-dates">' + datasHtml + '</div>' +
+          _dhpAcoesVendaV3(index, v) +
+        '</div>' +
       '</div>' +
     '</div>' +
   '</div>';
