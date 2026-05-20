@@ -856,13 +856,13 @@
 
     /* Ações do painel */
     .painel-acoes {
-      padding: 12px 16px;
+      padding: 8px 14px 10px;
       border-top: 1px solid var(--border);
-      display: flex; flex-direction: column; gap: 8px;
+      display: flex; flex-direction: column; gap: 5px;
       flex-shrink: 0;
     }
-    .painel-acoes-row { display: flex; gap: 8px; }
-    .painel-acoes .btn { flex: 1; font-size: 11px; padding: 9px 10px; }
+    .painel-acoes-row { display: flex; gap: 6px; }
+    .painel-acoes .btn { flex: 1; font-size: 11px; padding: 7px 10px; }
 
     /* ── Painel inline editável ── */
     /* Sprint 3.3 (12/05/2026): painelInlineForm passa a ser ÚNICO contêiner (leitura+edição).
@@ -977,7 +977,14 @@
       display: flex; align-items: center; gap: 6px;
       font-weight: 600;
       min-width: 0;
-      flex-wrap: wrap;
+      flex: 1;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .pif-status-band-status #pif-band-status-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
     }
     .pif-status-dot {
       width: 7px; height: 7px; border-radius: 50%;
@@ -1009,7 +1016,7 @@
     .pif-status-band select option { background: var(--surface); color: var(--text); }
 
     /* Conteúdo do hero — dentro de painel-topo, abaixo da band */
-    .painel-hero-content { padding: 10px 14px 8px; }
+    .painel-hero-content { padding: 10px 14px 8px; flex-shrink: 0; }
     .painel-hero-chips {
       display: flex; gap: 4px; flex-wrap: wrap;
       margin-top: 6px;
@@ -1116,13 +1123,18 @@
     .pif-secao.pif-collapsible .pif-titulo:hover {
       background: rgba(255,255,255,.03);
     }
-    .pif-collapse-titulo-txt { flex-shrink: 0; }
+    .pif-collapse-titulo-txt {
+      flex-shrink: 0;
+      min-width: 140px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
     .pif-collapse-summary {
       flex: 1; min-width: 0;
       font-family: 'DM Mono', monospace;
       font-size: 9px;
       color: var(--muted);
-      opacity: 0.6;
+      opacity: 0.55;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -3300,18 +3312,17 @@
 
             </div><!-- /painelInlineForm -->
 
-            <!-- Botões normais (visualização) -->
+            <!-- Botões normais (visualização) — Dir.C 20/05/2026: compacto, sem WhatsApp -->
             <div class="painel-acoes" id="painelAcoesNormal">
               <div class="painel-acoes-row">
                 <button class="btn" id="pBtnEditar" onclick="painelToggleEdicao()">✏️ Editar</button>
-                <button class="btn btn-ghost" id="pBtnWhats" onclick="abrirWhatsPanel()" style="display:none;">📲 WhatsApp</button>
-              </div>
-              <div class="painel-acoes-row">
-                <button class="btn btn-ghost" id="pBtnDuplicarMovel" onclick="_abrirModalMovelDoPainel()" style="display:none;background:rgba(79,158,255,0.08);border-color:rgba(79,158,255,0.25);color:var(--blue);">📱 Duplicar para Móvel</button>
-              </div>
-              <div class="painel-acoes-row">
                 <button class="btn btn-ghost" onclick="copiarDadosPanel()" style="background:rgba(230,62,109,0.08);border-color:rgba(230,62,109,0.25);color:var(--accent);">📋 Copiar Resumo</button>
               </div>
+              <div class="painel-acoes-row" id="pBtnDuplicarMovelRow" style="display:none">
+                <button class="btn btn-ghost" id="pBtnDuplicarMovel" onclick="_abrirModalMovelDoPainel()" style="background:rgba(79,158,255,0.08);border-color:rgba(79,158,255,0.25);color:var(--blue);">📱 Duplicar para Móvel</button>
+              </div>
+              <!-- pBtnWhats removido (Dir.C 20/05/2026) -->
+              <button class="btn btn-ghost" id="pBtnWhats" onclick="abrirWhatsPanel()" style="display:none;">📲 WhatsApp</button>
             </div>
 
             <!-- Botões inline (edição) -->

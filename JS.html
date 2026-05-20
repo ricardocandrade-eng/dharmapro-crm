@@ -2919,6 +2919,31 @@ var _funilDragOrigem = null;
 var _finalizadaOffset = 0;  // paginação da coluna Finalizada/Instalada
 var _finalizadaPageSize = 10;
 
+// Funil 20/05: sessionStorage do board (stale-while-revalidate, igual à Lista).
+// Sobrevive a F5 / troca de aba dentro da sessão. TTL 120s.
+var _FUNIL_SS_KEY = 'dharmapro_funil_v1';
+var _FUNIL_SS_TTL = 120 * 1000; // 120s
+function _funilCacheSalvarSS() {
+  try {
+    if (!_funilDados || !_funilDados.length) return;
+    sessionStorage.setItem(_FUNIL_SS_KEY, JSON.stringify({ ts: Date.now(), dados: _funilDados }));
+  } catch(e) { /* quota/indisponível — silencia */ }
+}
+function _funilCacheCarregarSS() {
+  try {
+    var raw = sessionStorage.getItem(_FUNIL_SS_KEY);
+    if (!raw) return false;
+    var p = JSON.parse(raw);
+    if (!p || !p.ts || !Array.isArray(p.dados)) return false;
+    if ((Date.now() - p.ts) > _FUNIL_SS_TTL) { sessionStorage.removeItem(_FUNIL_SS_KEY); return false; }
+    _funilDados = p.dados;
+    return true;
+  } catch(e) { return false; }
+}
+function _funilCacheLimparSS() {
+  try { sessionStorage.removeItem(_FUNIL_SS_KEY); } catch(e) {}
+}
+
 // Configuração fixa das 3 colunas
 var FUNIL_COLUNAS = [
   {
@@ -2962,27 +2987,30 @@ var _funilMovePendente = null;
 
 // ── CARREGAR DADOS ────────────────────────────────────────────
 function carregarFunil() {
-  // Reseta colunas com loading
-  FUNIL_COLUNAS.forEach(function(col) {
-    var el = document.getElementById(col.id);
-    if (el) el.innerHTML = '<div class="funil-empty">⏳ Carregando...</div>';
-    var cnt = document.getElementById(col.countId);
-    if (cnt) cnt.textContent = '—';
-  });
-  document.getElementById('funilCount').textContent = '⏳ Carregando...';
+  // Funil 20/05: stale-while-revalidate. Se há cache em sessionStorage, renderiza
+  // imediato (sobrevive a F5 / troca de aba) e revalida em background sem loading.
+  var tinhaStale = _funilCacheCarregarSS() && _funilDados.length > 0;
+  if (tinhaStale) {
+    _renderizarFunil();
+  } else {
+    FUNIL_COLUNAS.forEach(function(col) {
+      var el = document.getElementById(col.id);
+      if (el) el.innerHTML = '<div class="funil-empty">⏳ Carregando...</div>';
+      var cnt = document.getElementById(col.countId);
+      if (cnt) cnt.textContent = '—';
+    });
+    document.getElementById('funilCount').textContent = '⏳ Carregando...';
+  }
 
-  // Usa função dedicada que filtra só os 3 status do funil
+  // Usa função dedicada que filtra só os 3 status do funil (cache backend funil_v2
+  // com update fino + TTL 30min → geralmente HIT rápido na revalidação).
   google.script.run
     .withSuccessHandler(function(res) {
       try {
-        // Trata erro retornado pelo backend
-        if (!res) {
-          throw new Error('Servidor retornou resposta vazia.');
-        }
-        if (res.erro) {
-          throw new Error(res.erro);
-        }
+        if (!res) throw new Error('Servidor retornou resposta vazia.');
+        if (res.erro) throw new Error(res.erro);
         _funilDados = res.dados || [];
+        _funilCacheSalvarSS();
         if (_funilDados.length === 0) {
           FUNIL_COLUNAS.forEach(function(col) {
             var el = document.getElementById(col.id);
@@ -2995,6 +3023,8 @@ function carregarFunil() {
         }
         _renderizarFunil();
       } catch(jsErr) {
+        // Se já havia dados stale na tela, mantém e só avisa discreto.
+        if (tinhaStale) { mostrarToast('⚠️ Funil: não atualizou (' + jsErr.message + ')', 'error'); return; }
         FUNIL_COLUNAS.forEach(function(col) {
           var el = document.getElementById(col.id);
           if (el) el.innerHTML = '<div class="funil-empty" style="color:var(--accent);">❌ ' + esc(jsErr.message) + '</div>';
@@ -3007,6 +3037,8 @@ function carregarFunil() {
     })
     .withFailureHandler(function(err) {
       var msg = (err && err.message) ? err.message : 'Erro desconhecido. Verifique o Apps Script.';
+      // Stale-while-revalidate: se há dados na tela, preserva e avisa discreto.
+      if (tinhaStale) { mostrarToast('⚠️ Funil: revalidação falhou (' + msg + ')', 'error'); return; }
       FUNIL_COLUNAS.forEach(function(col) {
         var el = document.getElementById(col.id);
         if (el) el.innerHTML = '<div class="funil-empty" style="color:var(--accent);">❌ ' + esc(msg) + '</div>';
@@ -3498,6 +3530,7 @@ function _confirmarMoveFunil() {
         venda.status = colCfg.status;
         if (payload.campoExtra) venda[payload.campoExtra] = payload.valorExtra;
         _atualizarContadoresFunil();
+        _funilCacheSalvarSS(); // Funil 20/05: persiste novo estado pro SS (F5 mostra correto)
       } else {
         mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
         _renderizarFunil(); // reverte
@@ -9341,6 +9374,7 @@ function inicializarSino() {
       .withSuccessHandler(function(res) {
         if (res && res.dados && res.dados.length > 0) {
           _funilDados = res.dados;
+          _funilCacheSalvarSS(); // Funil 20/05: pré-aquece o SS (Funil abre instantâneo depois)
           _atualizarSinoPorFunil();
         }
       })
@@ -9539,8 +9573,13 @@ _criarItemVenda = function(v, index) {
 // visível quando a Fibra Combo ainda não tem Móvel vinculado.
 var _dhpMostrarPainelOriginal = mostrarPainel;
 mostrarPainel = function(v) {
+  // Dir.C 20/05/2026: o botão "Duplicar para Móvel" agora vive numa row
+  // dedicada — alterna a row inteira (mantém compat com o ID antigo se existir)
+  var rowDM = document.getElementById('pBtnDuplicarMovelRow');
   var btnDM = document.getElementById('pBtnDuplicarMovel');
-  if (btnDM) btnDM.style.display = v && v.comboMovelPendente ? 'flex' : 'none';
+  var visivel = !!(v && v.comboMovelPendente);
+  if (rowDM) rowDM.style.display = visivel ? '' : 'none';
+  if (btnDM) btnDM.style.display = visivel ? 'flex' : 'none';
   _dhpMostrarPainelOriginal(v);
 };
 
