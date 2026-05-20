@@ -7746,8 +7746,7 @@ function mostrarPainel(v) {
   if (acoesNorm) acoesNorm.style.display = '';
   if (acoesInl)  acoesInl.classList.remove('ativo');
   if (btnEdit)   btnEdit.textContent = '✏️ Editar';
-  var whatsBtn = document.getElementById('pBtnWhats');
-  if (whatsBtn) whatsBtn.style.display = v.whats ? 'flex' : 'none';
+  // Botão WhatsApp removido do painel (Dir.C 20/05/2026).
 }
 
 function _secaoPainel(titulo, linhas) {

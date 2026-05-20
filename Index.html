@@ -854,15 +854,26 @@
     }
     .painel-linha-full { grid-column: 1 / -1; }
 
-    /* Ações do painel */
+    /* Ações do painel — Dir.C 20/05: compacto, sobra mais altura pro scroll dos blocos */
     .painel-acoes {
-      padding: 8px 14px 10px;
+      padding: 6px 14px 7px;
       border-top: 1px solid var(--border);
       display: flex; flex-direction: column; gap: 5px;
       flex-shrink: 0;
     }
     .painel-acoes-row { display: flex; gap: 6px; }
-    .painel-acoes .btn { flex: 1; font-size: 11px; padding: 7px 10px; }
+    .painel-acoes .btn { flex: 1; font-size: 11px; padding: 6px 10px; }
+    /* Botão só-ícone (Copiar / WhatsApp): largura fixa, não estica como o Editar.
+       align/justify centram o emoji quando o JS mostra o WhatsApp via display:flex. */
+    .painel-acoes .btn.painel-acoes-icon {
+      flex: 0 0 auto;
+      width: 40px;
+      padding: 6px 0;
+      font-size: 15px;
+      line-height: 1;
+      align-items: center;
+      justify-content: center;
+    }
 
     /* ── Painel inline editável ── */
     /* Sprint 3.3 (12/05/2026): painelInlineForm passa a ser ÚNICO contêiner (leitura+edição).
@@ -3140,17 +3151,19 @@
                     <span class="pif-hint" id="pif-produtoHint"></span>
                   </div>
                   <div class="pif-group">
-                    <label>Plano</label>
-                    <select id="pif-plano" onchange="pifOnPlanoChange()">
-                      <option value="">—</option>
-                    </select>
-                  </div>
-                  <div class="pif-group">
                     <label>Forma de Pagamento</label>
                     <select id="pif-formaPagamento" onchange="pifOnFormaPagamentoChange()">
                       <option value="">—</option>
                       <option value="BOLETO">💰 Boleto</option>
                       <option value="RECORRENTE">🔁 Recorrente</option>
+                    </select>
+                  </div>
+                  <!-- Dir.C 20/05: Plano em largura total (span2) — nome do plano é longo
+                       e era cortado na coluna estreita. Usa o espaço vazio que sobrava. -->
+                  <div class="pif-group span2">
+                    <label>Plano</label>
+                    <select id="pif-plano" onchange="pifOnPlanoChange()">
+                      <option value="">—</option>
                     </select>
                   </div>
                   <div class="pif-group">
@@ -3318,17 +3331,16 @@
 
             </div><!-- /painelInlineForm -->
 
-            <!-- Botões normais (visualização) — Dir.C 20/05/2026: compacto, sem WhatsApp -->
+            <!-- Botões normais (visualização) — Dir.C 20/05/2026: Editar com texto,
+                 Copiar/WhatsApp como ícones numa linha só (mais espaço pro scroll). -->
             <div class="painel-acoes" id="painelAcoesNormal">
               <div class="painel-acoes-row">
                 <button class="btn" id="pBtnEditar" onclick="painelToggleEdicao()">✏️ Editar</button>
-                <button class="btn btn-ghost" onclick="copiarDadosPanel()" style="background:rgba(230,62,109,0.08);border-color:rgba(230,62,109,0.25);color:var(--accent);">📋 Copiar Resumo</button>
+                <button class="btn btn-ghost painel-acoes-icon" onclick="copiarDadosPanel()" title="Copiar Resumo" style="background:rgba(230,62,109,0.08);border-color:rgba(230,62,109,0.25);color:var(--accent);">📋</button>
               </div>
               <div class="painel-acoes-row" id="pBtnDuplicarMovelRow" style="display:none">
                 <button class="btn btn-ghost" id="pBtnDuplicarMovel" onclick="_abrirModalMovelDoPainel()" style="background:rgba(79,158,255,0.08);border-color:rgba(79,158,255,0.25);color:var(--blue);">📱 Duplicar para Móvel</button>
               </div>
-              <!-- pBtnWhats removido (Dir.C 20/05/2026) -->
-              <button class="btn btn-ghost" id="pBtnWhats" onclick="abrirWhatsPanel()" style="display:none;">📲 WhatsApp</button>
             </div>
 
             <!-- Botões inline (edição) -->
