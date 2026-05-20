@@ -5126,7 +5126,7 @@ function _resetarTimerInatividade() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal','viabilidade']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal','viabilidade','vinculosPendentes']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -5146,7 +5146,8 @@ var _menuMap = {
   'disparos':    'menuDisparos',
   'usuarios':    'menuUsuarios',
   'waPessoal':   'menuWaPessoal',
-  'viabilidade': 'menuViabilidade'
+  'viabilidade': 'menuViabilidade',
+  'vinculosPendentes': 'menuVinculosPendentes'
 };
 
 function _aplicarMenus(menus) {
@@ -5500,6 +5501,30 @@ function navegar(pagina) {
         vbc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Viabilidade: ' + e.message + '</div>';
       })
       .getViabilidadeHtml();
+
+  } else if (pagina === 'vinculosPendentes') {
+    document.getElementById('menuVinculosPendentes').classList.add('ativo');
+    document.getElementById('pageVinculosPendentes').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Vínculos Pendentes';
+    var vpc = document.getElementById('vinculosPendentesContainer');
+    // Recarrega a cada visita pra refletir vínculos resolvidos noutras telas
+    vpc.removeAttribute('data-loaded');
+    vpc.setAttribute('data-loaded', '1');
+    google.script.run
+      .withSuccessHandler(function(html) {
+        vpc.innerHTML = html;
+        vpc.querySelectorAll('script').forEach(function(s) {
+          var ns = document.createElement('script');
+          ns.textContent = s.textContent;
+          document.body.appendChild(ns);
+        });
+        if (typeof vinculosPendentesInit === 'function') vinculosPendentesInit();
+      })
+      .withFailureHandler(function(e) {
+        vpc.removeAttribute('data-loaded');
+        vpc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Vínculos Pendentes: ' + e.message + '</div>';
+      })
+      .getVinculosPendentesHtml();
   }
 }
 

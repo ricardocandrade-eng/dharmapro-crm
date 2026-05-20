@@ -6164,6 +6164,208 @@ function repararVinculosCombosOrfaos() {
   return resumo.join('\n');
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+//  VÍNCULOS PENDENTES — triagem manual de combos órfãos no CRM (admin only)
+//  Página que lista Fibra Combos sem Móvel vinculado e deixa o operador
+//  aprovar o par certo (quando há candidatos) ou ignorar (sem combo móvel).
+//  Complementa repararVinculosCombosOrfaos, que só religa o caso de 1 candidato.
+// ══════════════════════════════════════════════════════════════════════════
+
+var _VINCULOS_IGNORADOS_PROP = 'VINCULOS_PENDENTES_IGNORADOS';
+
+// Conjunto de linhas-mãe (Fibra Combo) marcadas como "revisadas, sem combo móvel".
+// Retorna um objeto { linha: true } para lookup O(1).
+function _getVinculosIgnorados_() {
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty(_VINCULOS_IGNORADOS_PROP);
+    if (!raw) return {};
+    var arr = JSON.parse(raw);
+    var set = {};
+    (arr || []).forEach(function(l) { var n = parseInt(l, 10); if (!isNaN(n)) set[n] = true; });
+    return set;
+  } catch (e) {
+    Logger.log('_getVinculosIgnorados_ erro: ' + e);
+    return {};
+  }
+}
+
+function _setVinculoIgnorado_(maeLinha, ignorar) {
+  var n = parseInt(maeLinha, 10);
+  if (isNaN(n)) return;
+  var set = _getVinculosIgnorados_();
+  if (ignorar) set[n] = true; else delete set[n];
+  PropertiesService.getScriptProperties()
+    .setProperty(_VINCULOS_IGNORADOS_PROP, JSON.stringify(Object.keys(set).map(Number)));
+}
+
+// Injeta a página VinculosPendentes.html no CRM (mesmo padrão de getUsuariosHtml).
+function getVinculosPendentesHtml() {
+  return HtmlService.createHtmlOutputFromFile('VinculosPendentes').getContent();
+}
+
+// Lista Fibra Combos sem Móvel vinculado, agrupados por terem ou não candidatos.
+// Mesma heurística de pareamento da passagem 2 de repararVinculosCombosOrfaos
+// (mesmo CPF/WhatsApp, janela ±7 dias), mas SEM agir — só devolve pro frontend.
+function getVinculosPendentes(adminUsuario) {
+  _assertAdmin_(adminUsuario);
+
+  var sheet = _getSheet();
+  var c = CONFIG.COLUNAS;
+  var tz = Session.getScriptTimeZone();
+  var ignorados = _getVinculosIgnorados_();
+  var resultado = {
+    comCandidatos: [],
+    semPar: [],
+    totalJaOk: 0,
+    totalIgnorados: Object.keys(ignorados).length,
+    geradoEm: Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm')
+  };
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 3) return resultado;
+
+  var raw = sheet.getRange(3, 1, lastRow - 2, CONFIG.TOTAL_COLUNAS).getValues();
+  var vinculosMap = _getVinculosVendasMap_();
+
+  function fmtTs(ts) { return ts ? Utilities.formatDate(new Date(ts), tz, 'dd/MM/yyyy') : ''; }
+
+  function lerItem(row, lnum) {
+    var tsRaw = row[c.CRIADO_EM];
+    var ts = (tsRaw instanceof Date) ? tsRaw.getTime() : (tsRaw ? new Date(tsRaw).getTime() : 0);
+    return {
+      linha:    lnum,
+      cliente:  String(row[c.CLIENTE] || '').trim(),
+      cpf:      String(row[c.CPF]   || '').replace(/[^0-9]/g, ''),
+      whats:    String(row[c.WHATS] || '').replace(/[^0-9]/g, ''),
+      plano:    String(row[c.PLANO] || '').trim(),
+      contrato: String(row[c.CONTRATO] || '').trim(),
+      valor:    String(row[c.VALOR] || '').trim(),
+      status:   String(row[c.STATUS] || '').trim(),
+      ts:       ts,
+      criadoEm: fmtTs(ts)
+    };
+  }
+
+  // Separa Fibra Combos e Móveis ainda sem vínculo como filha.
+  var fibraCombos = [];
+  var moveisLivres = [];
+  for (var ri = 0; ri < raw.length; ri++) {
+    var row = raw[ri];
+    var lnum = ri + 3;
+    var produto = _normalizarTexto(row[c.PRODUTO] || '');
+    if (!produto) continue;
+    if (produto === 'FIBRA COMBO') {
+      fibraCombos.push(lerItem(row, lnum));
+    } else if (produto.indexOf('MOVEL') !== -1) {
+      if (!vinculosMap.maePorFilha[lnum]) moveisLivres.push(lerItem(row, lnum));
+    }
+  }
+
+  for (var fi = 0; fi < fibraCombos.length; fi++) {
+    var fibra = fibraCombos[fi];
+    if (ignorados[fibra.linha]) continue; // já revisado manualmente
+
+    // Já tem um Móvel válido vinculado?
+    var filhos = vinculosMap.filhasPorMae[fibra.linha] || [];
+    var temMovel = false;
+    for (var fj = 0; fj < filhos.length; fj++) {
+      var fIdx = filhos[fj].vendaFilhaLinha - 3;
+      if (fIdx >= 0 && fIdx < raw.length &&
+          _normalizarTexto(raw[fIdx][c.PRODUTO] || '').indexOf('MOVEL') !== -1) {
+        temMovel = true; break;
+      }
+    }
+    if (temMovel) { resultado.totalJaOk++; continue; }
+
+    // Candidatos: mesmo CPF (>=11) ou WhatsApp (>=8), janela ±7 dias.
+    var candidatos = [];
+    for (var mj = 0; mj < moveisLivres.length; mj++) {
+      var movel = moveisLivres[mj];
+      var matchCpf   = fibra.cpf.length   >= 11 && fibra.cpf   === movel.cpf;
+      var matchWhats = fibra.whats.length >=  8 && fibra.whats === movel.whats;
+      if (!matchCpf && !matchWhats) continue;
+      var deltaDias = '';
+      if (fibra.ts && movel.ts) {
+        var diff = Math.abs(movel.ts - fibra.ts);
+        if (diff > 7 * 86400000) continue;
+        deltaDias = Math.round(diff / 86400000);
+      }
+      candidatos.push({
+        linha:    movel.linha,
+        cliente:  movel.cliente,
+        plano:    movel.plano,
+        contrato: movel.contrato,
+        valor:    movel.valor,
+        status:   movel.status,
+        criadoEm: movel.criadoEm,
+        matchPor: matchCpf ? 'CPF' : 'WhatsApp',
+        deltaDias: deltaDias
+      });
+    }
+
+    var fibraOut = {
+      linha:    fibra.linha,
+      cliente:  fibra.cliente,
+      cpf:      fibra.cpf,
+      whats:    fibra.whats,
+      plano:    fibra.plano,
+      contrato: fibra.contrato,
+      valor:    fibra.valor,
+      status:   fibra.status,
+      criadoEm: fibra.criadoEm
+    };
+
+    if (candidatos.length === 0) {
+      resultado.semPar.push({ fibra: fibraOut });
+    } else {
+      resultado.comCandidatos.push({ fibra: fibraOut, candidatos: candidatos });
+    }
+  }
+
+  return resultado;
+}
+
+// Aprova um pareamento Fibra Combo → Móvel escolhido pelo operador.
+function aprovarVinculoCombo(adminUsuario, maeLinha, filhaLinha) {
+  _assertAdmin_(adminUsuario);
+  var mae   = parseInt(maeLinha, 10);
+  var filha = parseInt(filhaLinha, 10);
+  if (isNaN(mae) || isNaN(filha)) return { ok: false, mensagem: 'Linhas inválidas.' };
+
+  var sheet  = _getSheet();
+  var c      = CONFIG.COLUNAS;
+  var ultima = sheet.getLastRow();
+  if (mae < 3 || mae > ultima || filha < 3 || filha > ultima) {
+    return { ok: false, mensagem: 'Linha fora do intervalo da planilha.' };
+  }
+
+  var prodMae   = _normalizarTexto(sheet.getRange(mae,   c.PRODUTO + 1).getValue() || '');
+  var prodFilha = _normalizarTexto(sheet.getRange(filha, c.PRODUTO + 1).getValue() || '');
+  if (prodMae !== 'FIBRA COMBO') return { ok: false, mensagem: 'A linha mãe não é Fibra Combo.' };
+  if (prodFilha.indexOf('MOVEL') === -1) return { ok: false, mensagem: 'A linha filha não é uma venda Móvel.' };
+
+  // Impede reaproveitar um Móvel que já é filho de outra Fibra.
+  var vinculosMap = _getVinculosVendasMap_();
+  var paiExistente = vinculosMap.maePorFilha[filha];
+  if (paiExistente && parseInt(paiExistente.vendaMaeLinha, 10) !== mae) {
+    return { ok: false, mensagem: 'Esse Móvel (linha ' + filha + ') já está vinculado à Fibra linha ' + paiExistente.vendaMaeLinha + '.' };
+  }
+
+  _registrarVinculoVenda_(mae, filha, 'COMBO_MOVEL'); // já arquiva ativos anteriores da mãe + invalida cache de vínculos
+  _setVinculoIgnorado_(mae, false); // se estava ignorada, deixa de estar
+  _limparCache();
+  return { ok: true, mensagem: 'Vínculo criado: Fibra linha ' + mae + ' → Móvel linha ' + filha + '.' };
+}
+
+// Marca uma Fibra Combo como revisada sem combo móvel — some da lista de pendentes.
+function ignorarVinculoPendente(adminUsuario, maeLinha) {
+  _assertAdmin_(adminUsuario);
+  var mae = parseInt(maeLinha, 10);
+  if (isNaN(mae)) return { ok: false, mensagem: 'Linha inválida.' };
+  _setVinculoIgnorado_(mae, true);
+  return { ok: true, mensagem: 'Marcada como revisada (sem combo móvel). Não aparece mais na lista.' };
+}
+
 function _extrairValorDoPlano_(plano) {
   var texto = String(plano || '');
   var match = texto.match(/R\$\s*([\d\.,]+)/i);

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<!-- VinculosPendentes.html — DharmaPro CRM · Triagem manual de vínculos de combo (admin) -->
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    #vinculosPendentesContainer { font-family: 'Sora', sans-serif; color: #e4e8f5; }
+    .vp-wrap { padding: 28px 32px; max-width: 1040px; }
+
+    .vp-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+    .vp-title { font-size: 20px; font-weight: 700; }
+    .vp-subtitle { font-size: 13px; color: #7a82a0; margin-top: 3px; max-width: 720px; line-height: 1.5; }
+    .vp-stats { font-size: 12px; color: #7a82a0; font-family: 'DM Mono', monospace; margin: 14px 0 22px; }
+    .vp-stats b { color: #e4e8f5; font-weight: 500; }
+
+    .vp-btn {
+      font-family: 'Sora', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer;
+      border-radius: 9px; padding: 9px 16px; border: 1px solid #353d58; background: #1c2030;
+      color: #e4e8f5; transition: background .15s, border-color .15s, opacity .15s; white-space: nowrap;
+    }
+    .vp-btn:hover { background: #252a3a; }
+    .vp-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .vp-btn--ok { background: #22d98a; border-color: #22d98a; color: #07130d; }
+    .vp-btn--ok:hover { background: #1ec07a; }
+    .vp-btn--ghost { background: transparent; }
+
+    .vp-section-title {
+      font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+      color: #7a82a0; margin: 26px 0 12px; display: flex; align-items: center; gap: 8px;
+    }
+    .vp-pill {
+      font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
+      background: #1c2030; border: 1px solid #353d58; color: #e4e8f5; font-family: 'DM Mono', monospace;
+    }
+
+    .vp-card {
+      background: #141720; border: 1px solid #252a3a; border-radius: 12px;
+      padding: 16px 18px; margin-bottom: 12px;
+    }
+    .vp-card--orphan { border-left: 3px solid #e6a23e; }
+    .vp-card--cand   { border-left: 3px solid #4f9eff; }
+
+    .vp-fibra { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .vp-fibra-nome { font-size: 15px; font-weight: 700; }
+    .vp-fibra-meta { font-size: 12px; color: #7a82a0; font-family: 'DM Mono', monospace; }
+    .vp-fibra-sub  { font-size: 12.5px; color: #aab2cf; margin-top: 4px; }
+    .vp-tag-fibra {
+      font-size: 10.5px; font-weight: 700; color: #4f9eff;
+      border: 1px solid #2c456b; background: #122033; border-radius: 5px; padding: 1px 6px; margin-right: 6px;
+    }
+
+    .vp-cands { margin: 12px 0 4px; display: flex; flex-direction: column; gap: 7px; }
+    .vp-cand {
+      display: flex; align-items: flex-start; gap: 10px; padding: 9px 11px;
+      background: #1c2030; border: 1px solid #252a3a; border-radius: 9px; cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .vp-cand:hover { border-color: #353d58; }
+    .vp-cand input { margin-top: 3px; accent-color: #4f9eff; cursor: pointer; }
+    .vp-cand-body { flex: 1; min-width: 0; }
+    .vp-cand-top { font-size: 13.5px; font-weight: 600; }
+    .vp-cand-meta { font-size: 11.5px; color: #7a82a0; font-family: 'DM Mono', monospace; margin-top: 2px; }
+    .vp-match { font-size: 10.5px; font-weight: 600; color: #22d98a; border: 1px solid #1d5a40; background: #0e2018; border-radius: 5px; padding: 1px 6px; }
+    .vp-delta { font-size: 10.5px; color: #aab2cf; }
+
+    .vp-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+    .vp-empty { color: #7a82a0; font-size: 13px; padding: 14px 4px; }
+    .vp-loading { color: #7a82a0; font-size: 13px; padding: 30px 4px; display: flex; align-items: center; gap: 10px; }
+    .vp-spinner {
+      width: 16px; height: 16px; border: 2px solid #353d58; border-top-color: #4f9eff;
+      border-radius: 50%; animation: vpspin .7s linear infinite; display: inline-block;
+    }
+    @keyframes vpspin { to { transform: rotate(360deg); } }
+
+    #vpToast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: #141720; border: 1px solid #353d58; border-radius: 10px; padding: 11px 20px;
+      font-size: 13px; z-index: 99999; opacity: 0; transition: opacity .3s, transform .3s;
+      pointer-events: none; white-space: nowrap; max-width: 90vw; font-family: 'Sora', sans-serif;
+    }
+    #vpToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #vpToast.ok  { border-color: #22d98a; color: #22d98a; }
+    #vpToast.err { border-color: #e63e6d; color: #e63e6d; }
+  </style>
+</head>
+<body>
+  <div class="vp-wrap">
+    <div class="vp-header">
+      <div>
+        <div class="vp-title">🔗 Vínculos Pendentes de Combo</div>
+        <div class="vp-subtitle">
+          Fibra Combos sem Móvel vinculado na aba <i>Vinculos Vendas</i>. Aprove o par certo
+          quando houver candidatos, ou marque como revisado (sem combo móvel) para tirar da lista.
+        </div>
+      </div>
+      <button class="vp-btn vp-btn--ghost" id="vpBtnRefresh" onclick="vpCarregar()">↻ Atualizar</button>
+    </div>
+    <div class="vp-stats" id="vpStats"></div>
+    <div id="vpBody">
+      <div class="vp-loading"><span class="vp-spinner"></span> Carregando vínculos pendentes…</div>
+    </div>
+  </div>
+  <div id="vpToast"></div>
+
+  <script>
+    var _vpAdmin = '';
+    var _vpBusy = false;
+
+    function vinculosPendentesInit() {
+      _vpAdmin = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('crm_usuario')) ||
+                 (typeof AppState !== 'undefined' && AppState.get ? (AppState.get('usuario') || '') : '');
+      vpCarregar();
+    }
+
+    function vpEsc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function vpToast(msg, tipo) {
+      var t = document.getElementById('vpToast');
+      if (!t) return;
+      t.textContent = msg;
+      t.className = 'show ' + (tipo === 'err' ? 'err' : 'ok');
+      clearTimeout(t._tmr);
+      t._tmr = setTimeout(function () { t.className = ''; }, 3600);
+    }
+
+    function vpCarregar() {
+      var body = document.getElementById('vpBody');
+      body.innerHTML = '<div class="vp-loading"><span class="vp-spinner"></span> Carregando vínculos pendentes…</div>';
+      document.getElementById('vpStats').textContent = '';
+      google.script.run
+        .withSuccessHandler(vpRender)
+        .withFailureHandler(function (e) {
+          body.innerHTML = '<div class="vp-empty" style="color:#e63e6d">Erro ao carregar: ' + vpEsc(e && e.message) + '</div>';
+        })
+        .getVinculosPendentes(_vpAdmin);
+    }
+
+    function vpRender(data) {
+      data = data || { comCandidatos: [], semPar: [], totalJaOk: 0, totalIgnorados: 0, geradoEm: '' };
+      var stats = document.getElementById('vpStats');
+      stats.innerHTML =
+        '<b>' + (data.comCandidatos.length) + '</b> com candidatos · ' +
+        '<b>' + (data.semPar.length) + '</b> sem par · ' +
+        '<b>' + (data.totalJaOk || 0) + '</b> já OK · ' +
+        '<b>' + (data.totalIgnorados || 0) + '</b> ignorados' +
+        (data.geradoEm ? ' · gerado ' + vpEsc(data.geradoEm) : '');
+
+      var html = '';
+
+      // ── Com candidatos ────────────────────────────────────────────────
+      html += '<div class="vp-section-title">Com candidatos a Móvel <span class="vp-pill">' + data.comCandidatos.length + '</span></div>';
+      if (!data.comCandidatos.length) {
+        html += '<div class="vp-empty">Nenhuma Fibra Combo com candidato pendente. 🎉</div>';
+      } else {
+        data.comCandidatos.forEach(function (item) { html += vpCardComCandidatos(item); });
+      }
+
+      // ── Sem par ───────────────────────────────────────────────────────
+      html += '<div class="vp-section-title">Sem par encontrado <span class="vp-pill">' + data.semPar.length + '</span></div>';
+      if (!data.semPar.length) {
+        html += '<div class="vp-empty">Nenhuma Fibra Combo sem par. 🎉</div>';
+      } else {
+        data.semPar.forEach(function (item) { html += vpCardSemPar(item); });
+      }
+
+      document.getElementById('vpBody').innerHTML = html;
+    }
+
+    function vpFibraHeader(f) {
+      var meta = [];
+      if (f.contrato) meta.push('Contrato ' + vpEsc(f.contrato));
+      meta.push('L.' + f.linha);
+      if (f.criadoEm) meta.push(vpEsc(f.criadoEm));
+      var sub = [];
+      if (f.plano) sub.push(vpEsc(f.plano));
+      if (f.status) sub.push(vpEsc(f.status));
+      var docinfo = [];
+      if (f.cpf) docinfo.push('CPF ' + vpEsc(f.cpf));
+      if (f.whats) docinfo.push('Zap ' + vpEsc(f.whats));
+      return '' +
+        '<div class="vp-fibra">' +
+          '<div class="vp-fibra-nome"><span class="vp-tag-fibra">FIBRA</span>' + vpEsc(f.cliente || '(sem nome)') + '</div>' +
+          '<div class="vp-fibra-meta">' + meta.join(' · ') + '</div>' +
+        '</div>' +
+        (sub.length ? '<div class="vp-fibra-sub">' + sub.join(' · ') + '</div>' : '') +
+        (docinfo.length ? '<div class="vp-fibra-meta" style="margin-top:3px">' + docinfo.join(' · ') + '</div>' : '');
+    }
+
+    function vpCardComCandidatos(item) {
+      var f = item.fibra;
+      var rname = 'vpcand_' + f.linha;
+      var cands = item.candidatos.map(function (cd, i) {
+        var meta = [];
+        if (cd.plano) meta.push(vpEsc(cd.plano));
+        if (cd.contrato) meta.push('Contrato ' + vpEsc(cd.contrato));
+        meta.push('L.' + cd.linha);
+        if (cd.criadoEm) meta.push(vpEsc(cd.criadoEm));
+        if (cd.status) meta.push(vpEsc(cd.status));
+        var tags = '<span class="vp-match">match por ' + vpEsc(cd.matchPor) + '</span>';
+        if (cd.deltaDias !== '' && cd.deltaDias != null) tags += ' <span class="vp-delta">Δ ' + cd.deltaDias + 'd</span>';
+        return '' +
+          '<label class="vp-cand">' +
+            '<input type="radio" name="' + rname + '" value="' + cd.linha + '"' + (item.candidatos.length === 1 ? ' checked' : '') + '>' +
+            '<div class="vp-cand-body">' +
+              '<div class="vp-cand-top"><span style="color:#22d98a">MÓVEL</span> · ' + vpEsc(cd.cliente || '(sem nome)') + ' &nbsp; ' + tags + '</div>' +
+              '<div class="vp-cand-meta">' + meta.join(' · ') + '</div>' +
+            '</div>' +
+          '</label>';
+      }).join('');
+
+      return '' +
+        '<div class="vp-card vp-card--cand" id="vpcard_' + f.linha + '">' +
+          vpFibraHeader(f) +
+          '<div class="vp-cands">' + cands + '</div>' +
+          '<div class="vp-actions">' +
+            '<button class="vp-btn vp-btn--ok" onclick="vpAprovar(' + f.linha + ',\'' + rname + '\')">✓ Aprovar selecionado</button>' +
+            '<button class="vp-btn" onclick="vpIgnorar(' + f.linha + ')">Ignorar (sem combo)</button>' +
+          '</div>' +
+        '</div>';
+    }
+
+    function vpCardSemPar(item) {
+      var f = item.fibra;
+      return '' +
+        '<div class="vp-card vp-card--orphan" id="vpcard_' + f.linha + '">' +
+          vpFibraHeader(f) +
+          '<div class="vp-actions">' +
+            '<button class="vp-btn" onclick="vpIgnorar(' + f.linha + ')">Ignorar (sem combo)</button>' +
+          '</div>' +
+        '</div>';
+    }
+
+    function vpRemoverCard(maeLinha) {
+      var el = document.getElementById('vpcard_' + maeLinha);
+      if (el) el.parentNode.removeChild(el);
+    }
+
+    function vpAprovar(maeLinha, rname) {
+      if (_vpBusy) return;
+      var sel = document.querySelector('input[name="' + rname + '"]:checked');
+      if (!sel) { vpToast('Selecione um Móvel candidato primeiro.', 'err'); return; }
+      var filha = parseInt(sel.value, 10);
+      _vpBusy = true;
+      vpToast('Vinculando…', 'ok');
+      google.script.run
+        .withSuccessHandler(function (r) {
+          _vpBusy = false;
+          if (r && r.ok) { vpToast(r.mensagem || 'Vínculo criado.', 'ok'); vpRemoverCard(maeLinha); }
+          else { vpToast((r && r.mensagem) || 'Falha ao vincular.', 'err'); }
+        })
+        .withFailureHandler(function (e) {
+          _vpBusy = false;
+          vpToast('Erro: ' + (e && e.message), 'err');
+        })
+        .aprovarVinculoCombo(_vpAdmin, maeLinha, filha);
+    }
+
+    function vpIgnorar(maeLinha) {
+      if (_vpBusy) return;
+      _vpBusy = true;
+      google.script.run
+        .withSuccessHandler(function (r) {
+          _vpBusy = false;
+          if (r && r.ok) { vpToast(r.mensagem || 'Marcada como revisada.', 'ok'); vpRemoverCard(maeLinha); }
+          else { vpToast((r && r.mensagem) || 'Falha.', 'err'); }
+        })
+        .withFailureHandler(function (e) {
+          _vpBusy = false;
+          vpToast('Erro: ' + (e && e.message), 'err');
+        })
+        .ignorarVinculoPendente(_vpAdmin, maeLinha);
+    }
+  </script>
+</body>
+</html>
