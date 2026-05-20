@@ -125,6 +125,7 @@
 #painelAdsContainer .pa-card.c-amber { border-color:rgba(255,170,0,.3);   background:linear-gradient(135deg,rgba(255,170,0,.14) 0%,var(--s1) 28%,rgba(255,143,69,.08) 100%); box-shadow:0 14px 34px rgba(144,88,0,.16); }
 #painelAdsContainer .pa-card.c-red   { border-color:rgba(255,69,112,.3);  background:linear-gradient(135deg,rgba(255,69,112,.14) 0%,var(--s1) 30%,rgba(167,139,250,.05) 100%); box-shadow:0 14px 34px rgba(130,30,55,.18); }
 #painelAdsContainer .pa-card.c-purple{ border-color:rgba(167,139,250,.32); background:linear-gradient(135deg,rgba(167,139,250,.16) 0%,var(--s1) 28%,rgba(0,212,255,.06) 100%); box-shadow:0 14px 34px rgba(81,61,140,.18); }
+#painelAdsContainer .pa-card.c-dim   { border-color:var(--rim); background:var(--s1); box-shadow:none; opacity:.62; }
 
 /* card head */
 #painelAdsContainer .pa-card-head { display:flex; align-items:baseline; justify-content:space-between; margin-bottom:12px; }
@@ -405,8 +406,8 @@
   <div class="pa-toolbar-right">
   <div class="pa-periodo">
     <button class="pa-per-btn" id="paPerHoje"  onclick="paCarregar('hoje')">Hoje</button>
-    <button class="pa-per-btn ativo" id="paPer3d"  onclick="paCarregar('3d')">3 dias</button>
-    <button class="pa-per-btn" id="paPer7d"  onclick="paCarregar('7d')">7 dias</button>
+    <button class="pa-per-btn" id="paPer3d"  onclick="paCarregar('3d')">3 dias</button>
+    <button class="pa-per-btn ativo" id="paPer7d"  onclick="paCarregar('7d')">7 dias</button>
     <button class="pa-per-btn" id="paPer30d" onclick="paCarregar('30d')">30 dias</button>
   </div>
 
@@ -443,14 +444,14 @@
 (function() {
   'use strict';
 
-  var paAtualPeriodo = '3d';
+  var paAtualPeriodo = '7d';
   var paCache = {};
   var paCarregando = false;
   var paLastFetched = {};
 
   // ── INICIALIZAÇÃO ───────────────────────────────────────────────────────────
   window.paInit = function() {
-    paCarregar('3d');
+    paCarregar('7d');
   };
 
   window.paRefresh = function() {
@@ -889,11 +890,12 @@
     var cplStr = camp.cpl ? 'R$' + parseFloat(camp.cpl).toFixed(2) : '—';
     var ctrStr = camp.ctr ? parseFloat(camp.ctr).toFixed(2) + '%' : '—';
     var freqStr = camp.frequencia ? parseFloat(camp.frequencia).toFixed(1) + 'x' : '—';
-    var statusClasse = camp.status === 'erro' ? 'red' : camp.status === 'aviso' ? 'amber' : 'lime';
-    var statusLabel  = camp.status === 'erro' ? 'Alerta' : camp.status === 'aviso' ? 'Atenção' : 'Normal';
+    var pausada = camp.status === 'pausada';
+    var statusClasse = pausada ? 'dim' : camp.status === 'erro' ? 'red' : camp.status === 'aviso' ? 'amber' : 'lime';
+    var statusLabel  = pausada ? 'PAUSADA' : camp.status === 'erro' ? 'Alerta' : camp.status === 'aviso' ? 'Atenção' : 'Normal';
     var cplClasse = !camp.cpl ? 'dim' : (camp.cpl <= 15 ? 'ok' : camp.cpl <= 30 ? 'aviso' : 'erro');
     var ctrClasse = !camp.ctr ? 'dim' : (camp.ctr >= 1.5 ? 'ok' : camp.ctr >= 0.5 ? 'aviso' : 'erro');
-    var cardTone = camp.status === 'erro' ? 'c-red' : camp.status === 'aviso' ? 'c-amber' : 'c-cyan';
+    var cardTone = pausada ? 'c-dim' : camp.status === 'erro' ? 'c-red' : camp.status === 'aviso' ? 'c-amber' : 'c-cyan';
 
     var html = '<div class="pa-card ' + cardTone + '">';
     html += '<div class="pa-card-head"><span class="pa-badge ' + statusClasse + '">' + statusLabel + '</span><span class="pa-badge dim">◈ Meta</span></div>';
