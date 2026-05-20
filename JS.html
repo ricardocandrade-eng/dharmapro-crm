@@ -7305,12 +7305,19 @@ function _limparNomePlano(plano) {
 }
 function _formatarValorBR(valor) {
   if (valor === null || valor === undefined || valor === '') return '';
-  var num = parseFloat(String(valor).replace(/[^\d.,-]/g, '').replace(/\./g, '').replace(',', '.'));
-  if (isNaN(num)) {
-    var num2 = parseFloat(String(valor).replace(/[^\d.-]/g, ''));
-    if (isNaN(num2)) return String(valor);
-    num = num2;
+  var num;
+  if (typeof valor === 'number') {
+    num = valor;
+  } else {
+    var s = String(valor).replace(/[R$\s]/g, '').trim();
+    if (s.indexOf(',') !== -1) {
+      // Formato BR: vírgula é decimal, ponto é milhar (ex: "1.234,56" ou "112,90")
+      s = s.replace(/\./g, '').replace(',', '.');
+    }
+    // Sem vírgula: trata o ponto como decimal (ex: "112.9", "1234.56")
+    num = parseFloat(s);
   }
+  if (isNaN(num)) return String(valor);
   return 'R$ ' + num.toFixed(2).replace('.', ',');
 }
 function _statusBandHtml(v, index, extraInline) {
