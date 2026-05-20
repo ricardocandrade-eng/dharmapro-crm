@@ -2406,10 +2406,7 @@ var _varreduraConfig       = { delayMs: 5000 };
 var _paginaAtualOriginal   = null;  // backup p/ swap durante varredura server-side
 
 function _varreduraAbrir() {
-  if (AppState.get('perfil') !== 'admin') {
-    mostrarToast('Modo Varredura disponível apenas para admin.', 'warning');
-    return;
-  }
+  // Disponível para todos os perfis (botão global da topbar) — sem gating.
   var modal = document.getElementById('modalVarredura');
   if (!modal) return;
 
