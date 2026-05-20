@@ -159,3 +159,49 @@ pago**, n8n `rZi4ZpL1Sj8tvcMz`) ainda lê **só** `act_971543562231015` (conta a
 Como a operação migrou pra Vero 02, esse alerta diário está reportando a conta errada.
 Não foi alterado aqui por ser um **contrato** consumido por n8n — mudar exige
 confirmação. Decidir se aponta pra agência ou agrega as duas.
+
+---
+
+## Fase 3 — Automações Vendas → Leads (20/05/2026)
+
+Branch `feat/reforma-paineis-fase3-automacoes`. **Direção única: Vendas → Leads.**
+Nunca cria venda a partir do lead.
+
+### 3.1 — Trigger: venda META ADS em status 2/3 → lead "Converteu"
+
+- `vincularVendaLeadMetaAds(telefone, idContrato, dataVenda)` (`MetaAdsAPI.js`)
+  reescrito (antes era `(telefone)` e estava **órfão** — nunca chamado): além de
+  marcar `Converteu` + `data_status`, grava **rastreabilidade** nas cols M
+  (`data_venda`) e N (`id_contrato`) do lead (helper `_registrarRastreabilidadeVenda_`,
+  cria cabeçalhos M1/N1 se faltarem). Match por telefone normalizado (últimos 11
+  dígitos), janela 30 dias, idempotente. Retorno tri-estado: **>0** vinculou ·
+  **0** existe lead mas já finalizado/fora da janela (não é miss) · **null** nenhum
+  lead com o telefone (miss real).
+- Hook `_reconciliarVendaMetaAdsAposSave_(linha)` (lê a venda, confere canal=META ADS,
+  extrai telefone WHATS→TEL, contrato, data) chamado **fora do lock, não-bloqueante**
+  nos 3 caminhos de transição de status em `Code.js`: `salvarVenda` (painel inline,
+  só na transição p/ 2 ou 3), `moverLeadAguardando`, `moverVendaFunil` (drag).
+- Sem match (`null`) → registra em **"Reconciliação Pendente"** (`venda_sem_lead`).
+
+### 3.2 — Reconciliação noturna (cron 23h)
+
+- `reconciliarMetaAdsNoturno()`: cruza vendas META ADS em status 2/3 (por telefone)
+  com leads "Converteu". (1) Venda sem lead refletido → tenta vincular (catch-up);
+  se ainda assim não achar lead, registra `venda_sem_lead`. (2) Lead "Converteu" sem
+  venda META 2/3 → registra `lead_sem_venda`. Reescreve a aba "Reconciliação Pendente"
+  com o retrato atual (limpa as linhas anteriores). Aba auto-criada por
+  `_getAbaReconciliacaoMeta_` (cols: detectado_em, tipo, descricao, resolvido).
+- Trigger instalado por `configurarTriggerReconciliacaoMetaAds()` (23h diário,
+  idempotente; `removerTriggerReconciliacaoMetaAds()` desliga). **Rodar UMA VEZ no
+  editor** (mesmo padrão de `configurarTriggerRelatorioDiarioAds`). `clasp run`
+  indisponível.
+
+### NÃO implementado (por decisão da spec)
+
+Criação automática de venda a partir de "Converteu" no Leads Meta Ads — o vendedor
+cadastra manualmente (precisa de CPF, contrato, plano).
+
+**Validação**: `node --check` em `MetaAdsAPI.js` e `Code.js`. Teste funcional
+(criar venda META ADS de teste em status 2 com telefone de lead conhecido →
+conferir lead "Converteu" + cols M/N; forçar `reconciliarMetaAdsNoturno` no editor)
+fica com o Ricardo após deploy + instalar o trigger.

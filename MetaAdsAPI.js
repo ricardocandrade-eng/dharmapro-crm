@@ -244,14 +244,21 @@ function testeRegistrarLead() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Chamado por salvarVenda() quando Canal=META ADS e Status=Finalizada/Instalada.
- * Busca o lead pelo telefone e marca como "Converteu" se ainda estiver pendente.
- * Não lança erro — falha silenciosa para não bloquear o save da venda.
+ * Marca o lead Meta Ads como "Converteu" a partir de uma venda
+ * (direção única Vendas → Leads). Match por telefone normalizado, janela de
+ * 30 dias, idempotente (pula lead que já tem status_final). Registra contrato
+ * e data da venda (cols M/N) pra rastreabilidade. Não lança erro — falha
+ * silenciosa para não bloquear o save da venda.
  *
- * @param {string} telefone  Telefone da venda (qualquer formato)
- * @returns {number|null}    Número da linha atualizada, ou null se não encontrado
+ * @param {string} telefone        Telefone da venda (qualquer formato)
+ * @param {string} [idContrato]    ID do contrato/OS da venda
+ * @param {Date|string} [dataVenda] Data da venda
+ * @returns {number|null}          >0 = linha recém-marcada "Converteu";
+ *                                 0  = existe lead com esse telefone mas não foi
+ *                                      vinculado (já finalizado ou fora da janela);
+ *                                 null = nenhum lead com esse telefone (miss real).
  */
-function vincularVendaLeadMetaAds(telefone) {
+function vincularVendaLeadMetaAds(telefone, idContrato, dataVenda) {
   var tel = String(telefone || '').replace(/\D/g, '');
   if (tel.length > 11) tel = tel.slice(-11); // remove DDI 55
   if (!tel || tel.length < 8) return null;
@@ -265,13 +272,15 @@ function vincularVendaLeadMetaAds(telefone) {
 
   var JANELA_DIAS = 30;
   var agora = new Date();
+  var matched = false; // achou lead com o telefone (independente de status/janela)
 
   var dados = aba.getRange(2, 1, lastRow - 1, 12).getValues();
   for (var i = 0; i < dados.length; i++) {
     var leadTel = String(dados[i][2] || '').replace(/\D/g, '');
     if (leadTel.length > 11) leadTel = leadTel.slice(-11);
     if (leadTel !== tel) continue;
-    if (dados[i][8]) continue; // já tem status_final
+    matched = true;
+    if (dados[i][8]) continue; // já tem status_final — tenta próximo match (lead duplicado)
 
     // Só vincula se o lead entrou nos últimos 30 dias
     var dataEntrada = dados[i][0];
@@ -285,10 +294,29 @@ function vincularVendaLeadMetaAds(telefone) {
     var linha = i + 2;
     aba.getRange(linha, 9).setValue('Converteu');  // col I: status_final
     aba.getRange(linha, 11).setValue(new Date());  // col K: data_status
-    Logger.log('vincularVendaLeadMetaAds: tel ' + tel + ' → linha ' + linha + ' = Converteu (auto, ' + diasDesdeEntrada.toFixed(0) + ' dias)');
+    _registrarRastreabilidadeVenda_(aba, linha, idContrato, dataVenda); // cols M/N
+    Logger.log('vincularVendaLeadMetaAds: tel ' + tel + ' → linha ' + linha + ' = Converteu (contrato ' + (idContrato || '-') + ', ' + diasDesdeEntrada.toFixed(0) + ' dias)');
     return linha;
   }
-  return null;
+  return matched ? 0 : null;
+}
+
+/**
+ * Grava data_venda (col M=13) e id_contrato (col N=14) no lead pra
+ * rastreabilidade. Cria os cabeçalhos M1/N1 se ainda não existirem. Não lança.
+ */
+function _registrarRastreabilidadeVenda_(aba, linha, idContrato, dataVenda) {
+  try {
+    if (!String(aba.getRange(1, 13).getValue() || '').trim()) {
+      aba.getRange(1, 13, 1, 2).setValues([['data_venda', 'id_contrato']]);
+    }
+    var dv = dataVenda instanceof Date ? dataVenda : (dataVenda ? new Date(dataVenda) : new Date());
+    if (isNaN(dv.getTime())) dv = new Date();
+    aba.getRange(linha, 13).setValue(dv);
+    aba.getRange(linha, 14).setValue(String(idContrato || ''));
+  } catch (e) {
+    Logger.log('_registrarRastreabilidadeVenda_ falhou: ' + e.message);
+  }
 }
 
 
@@ -1667,6 +1695,185 @@ function removerTriggerRelatorioDiarioAds() {
   var n = 0;
   for (var i = 0; i < triggers.length; i++) {
     if (triggers[i].getHandlerFunction() === 'gerarRelatorioDiarioAds') {
+      ScriptApp.deleteTrigger(triggers[i]);
+      n++;
+    }
+  }
+  Logger.log('Triggers removidos: ' + n);
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+//  RECONCILIAÇÃO VENDAS ↔ LEADS META ADS (Fase 3 — direção única Vendas → Leads)
+//  Trigger: venda META ADS vira status 2/3 → marca lead "Converteu" (hook no
+//  salvarVenda). Cron noturno cruza os dois lados e lista inconsistências.
+//  NUNCA cria venda a partir do lead (vendedor cadastra manualmente).
+// ════════════════════════════════════════════════════════════════════════════
+
+var ABA_RECONCILIACAO_META = 'Reconciliação Pendente';
+
+/** Aba de inconsistências; cria com cabeçalho na primeira vez. */
+function _getAbaReconciliacaoMeta_() {
+  var ss  = _getSpreadsheet_();
+  var aba = ss.getSheetByName(ABA_RECONCILIACAO_META);
+  if (!aba) {
+    aba = ss.insertSheet(ABA_RECONCILIACAO_META);
+    aba.getRange(1, 1, 1, 4).setValues([['detectado_em', 'tipo', 'descricao', 'resolvido']]);
+    aba.getRange(1, 1, 1, 4).setFontWeight('bold');
+    aba.setFrozenRows(1);
+  }
+  return aba;
+}
+
+/** Append de uma inconsistência (fire-and-forget). */
+function _logReconciliacaoMeta_(tipo, descricao) {
+  try {
+    _getAbaReconciliacaoMeta_().appendRow([new Date(), tipo, descricao, '']);
+  } catch (e) {
+    Logger.log('_logReconciliacaoMeta_ falhou: ' + e.message);
+  }
+}
+
+/** Normaliza telefone BR para os últimos 11 dígitos (sem DDI). '' se < 8 dígitos. */
+function _normTel11_(s) {
+  var t = String(s || '').replace(/\D/g, '');
+  if (t.length > 11) t = t.slice(-11);
+  return t.length >= 8 ? t : '';
+}
+
+/**
+ * Hook pós-save do salvarVenda (Code.js). Se a venda na linha for META ADS,
+ * marca o lead correspondente como "Converteu" (Vendas → Leads). Sem match,
+ * registra em "Reconciliação Pendente". Não lança — não bloqueia o save.
+ * @param {number} linha  Linha da venda em "1 - Vendas"
+ */
+function _reconciliarVendaMetaAdsAposSave_(linha) {
+  try {
+    var c = CONFIG.COLUNAS;
+    var sheet = _getSheet();
+    var row = sheet.getRange(linha, 1, 1, c.TEL + 1).getValues()[0];
+    var canal = String(row[c.CANAL] || '').trim().toUpperCase();
+    if (canal !== 'META ADS') return;
+
+    var telefone = String(row[c.WHATS] || '').trim() || String(row[c.TEL] || '').trim();
+    var contrato = String(row[c.CONTRATO] || '').trim();
+    var dataVenda = row[c.DATA_ATIV] || new Date();
+
+    var res = vincularVendaLeadMetaAds(telefone, contrato, dataVenda);
+    if (res === null) { // null = nenhum lead com esse telefone (0 = existe, já finalizado)
+      _logReconciliacaoMeta_('venda_sem_lead',
+        'Venda META ADS (linha ' + linha + ', ' + String(row[c.CLIENTE] || '') +
+        ', contrato ' + (contrato || '-') + ', tel ' + (telefone || '-') +
+        ') sem lead correspondente em Leads Meta Ads.');
+    }
+  } catch (e) {
+    Logger.log('_reconciliarVendaMetaAdsAposSave_ falhou: ' + e.message);
+  }
+}
+
+/**
+ * Cron diário (23h): cruza vendas META ADS em status 2/3 com leads "Converteu".
+ * (1) Vendas sem lead refletido → tenta vincular; se falhar, registra. (2) Leads
+ * "Converteu" sem venda META ADS correspondente → registra. Reescreve a aba
+ * "Reconciliação Pendente" com o retrato atual. Alvo do trigger noturno.
+ */
+function reconciliarMetaAdsNoturno() {
+  try {
+    var c = CONFIG.COLUNAS;
+    var sheet = _getSheet();
+    var ultV = sheet.getLastRow();
+    var ss = _getSpreadsheet_();
+    var abaLeads = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+
+    // Vendas META ADS em status 2/3, indexadas por telefone normalizado.
+    var vendasMetaTel = {};
+    if (ultV >= 2) {
+      var vrows = sheet.getRange(2, 1, ultV - 1, c.TEL + 1).getValues();
+      for (var i = 0; i < vrows.length; i++) {
+        if (String(vrows[i][c.CANAL] || '').trim().toUpperCase() !== 'META ADS') continue;
+        var st = String(vrows[i][c.STATUS] || '').trim();
+        if (st !== '2- Aguardando Instalação' && st !== '3 - Finalizada/Instalada') continue;
+        var tel = _normTel11_(String(vrows[i][c.WHATS] || '') || String(vrows[i][c.TEL] || ''));
+        if (tel) vendasMetaTel[tel] = {
+          linha:     i + 2,
+          cliente:   String(vrows[i][c.CLIENTE]  || ''),
+          contrato:  String(vrows[i][c.CONTRATO] || ''),
+          dataVenda: vrows[i][c.DATA_ATIV]
+        };
+      }
+    }
+
+    // Leads "Converteu", indexados por telefone normalizado.
+    var leadsConvTel = {};
+    if (abaLeads && abaLeads.getLastRow() >= 2) {
+      var lrows = abaLeads.getRange(2, 1, abaLeads.getLastRow() - 1, 12).getValues();
+      for (var j = 0; j < lrows.length; j++) {
+        if (String(lrows[j][8] || '').trim() !== 'Converteu') continue;
+        var ltel = _normTel11_(String(lrows[j][2] || ''));
+        if (ltel) leadsConvTel[ltel] = j + 2;
+      }
+    }
+
+    var inconsist = [];
+
+    // (1) Venda META 2/3 sem lead Converteu → tenta vincular (catch-up); senão registra.
+    Object.keys(vendasMetaTel).forEach(function(tel) {
+      if (leadsConvTel[tel]) return;
+      var v = vendasMetaTel[tel];
+      var linkado = vincularVendaLeadMetaAds(tel, v.contrato, v.dataVenda);
+      if (linkado === null) { // null = miss real; 0 = lead existe mas já finalizado
+        inconsist.push(['venda_sem_lead',
+          'Venda META ADS L' + v.linha + ' (' + v.cliente + ', contrato ' + (v.contrato || '-') +
+          ', tel ' + tel + ') sem lead correspondente.']);
+      }
+    });
+
+    // (2) Lead "Converteu" sem venda META ADS em status 2/3.
+    Object.keys(leadsConvTel).forEach(function(tel) {
+      if (!vendasMetaTel[tel]) {
+        inconsist.push(['lead_sem_venda',
+          'Lead "Converteu" (linha ' + leadsConvTel[tel] + ', tel ' + tel +
+          ') sem venda META ADS em status 2/3.']);
+      }
+    });
+
+    // Reescreve a aba com o retrato atual (limpa as linhas anteriores).
+    var abaR = _getAbaReconciliacaoMeta_();
+    if (abaR.getLastRow() > 1) abaR.getRange(2, 1, abaR.getLastRow() - 1, 4).clearContent();
+    if (inconsist.length) {
+      var agora = new Date();
+      var out = inconsist.map(function(it) { return [agora, it[0], it[1], '']; });
+      abaR.getRange(2, 1, out.length, 4).setValues(out);
+    }
+    Logger.log('reconciliarMetaAdsNoturno: ' + inconsist.length + ' inconsistência(s).');
+    return { ok: true, inconsistencias: inconsist.length };
+  } catch (e) {
+    Logger.log('reconciliarMetaAdsNoturno erro: ' + e.message);
+    return { ok: false, erro: e.message };
+  }
+}
+
+/** Instala o trigger noturno (23h). Rodar UMA VEZ no editor. Idempotente. */
+function configurarTriggerReconciliacaoMetaAds() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'reconciliarMetaAdsNoturno') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger('reconciliarMetaAdsNoturno')
+    .timeBased()
+    .atHour(23)
+    .everyDays(1)
+    .create();
+  Logger.log('Trigger diário criado: reconciliarMetaAdsNoturno @ 23h');
+}
+
+function removerTriggerReconciliacaoMetaAds() {
+  var triggers = ScriptApp.getProjectTriggers();
+  var n = 0;
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'reconciliarMetaAdsNoturno') {
       ScriptApp.deleteTrigger(triggers[i]);
       n++;
     }
