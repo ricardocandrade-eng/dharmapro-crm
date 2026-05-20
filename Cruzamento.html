@@ -477,6 +477,7 @@ var _cruzCorrecoesAplicadas = false;
 var _cruzOrigemAtual = '';          // 'manual' | 'auto'
 var _cruzQuando = 0;                // timestamp ms do ultimo import
 var _CRUZ_LS_KEY = 'dharmapro_cruzamento_v1';
+var _cruzCodigosMap = {};           // { "4624": {nome, conf} } — codigo Vero -> nome_crm (sobrescrita de plano)
 
 function _cruzSetStatus(texto, tipo) {
   var status = document.getElementById('cruzStatus');
@@ -528,6 +529,7 @@ function _cruzamentoImportar(inputEl) {
         google.script.run
           .withSuccessHandler(function(res) {
             _cruzDadosCRM = res && res.dados ? res.dados : [];
+            _cruzCodigosMap = (res && res.codigosVero) ? res.codigosVero : {};
             document.getElementById('cruzTabs').style.display = 'flex';
             document.getElementById('cruzBtnLimpar').style.display = '';
             _cruzCorrecoes = _cruzComputarCorrecoes();
@@ -723,6 +725,7 @@ function _cruzamentoLimpar() {
   _cruzCorrecoesAplicadas = false;
   _cruzOrigemAtual = '';
   _cruzQuando = 0;
+  _cruzCodigosMap = {};
   _cruzLimparStorage();
   _cruzRemoverIconesLista();
   _cruzSetStatus('Nenhum arquivo importado', '');
@@ -1490,6 +1493,17 @@ function _cruzValorBR(n) {
   return num.toFixed(2).replace('.', ',');
 }
 
+function _cruzExtrairCodigoPlano(s) {
+  if (!s) return '';
+  var m = String(s).match(/(\d{3,5})\s*-\s/);
+  return m ? m[1] : '';
+}
+
+function _cruzPlanoCore(s) {
+  if (!s) return '';
+  return String(s).replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/i, '').trim();
+}
+
 function _cruzMontarObsCancelamentoCli(row) {
   var data = row.DATA_CANCELAMENTO || '';
   var tipo = row.TIPO_CANCELAMENTO || '';
@@ -1514,6 +1528,7 @@ function _cruzConsolidarCamposVeroCli() {
     if (row.COD_CLIENTE && !o.codCli) o.codCli = row.COD_CLIENTE;
     if (row.CIDADE_HIERARQUIA && !o.cidade) o.cidade = row.CIDADE_HIERARQUIA;
     if (row.DATA_CADASTRO && !o.dataAtiv) o.dataAtiv = row.DATA_CADASTRO;
+    if (row.NOME_PLANO_ATUAL && !o.planoCodigo) o.planoCodigo = _cruzExtrairCodigoPlano(row.NOME_PLANO_ATUAL);
   });
 
   (d.vendas || []).forEach(function(row) {
@@ -1523,6 +1538,7 @@ function _cruzConsolidarCamposVeroCli() {
     if (row.COD_CLIENTE && !o.codCli) o.codCli = row.COD_CLIENTE;
     if (row.CIDADE_HIERARQUIA && !o.cidade) o.cidade = row.CIDADE_HIERARQUIA;
     if (row.DATA_CADASTRO && !o.dataAtiv) o.dataAtiv = row.DATA_CADASTRO;
+    if (row.NOME_PLANO_ATUAL && !o.planoCodigo) o.planoCodigo = _cruzExtrairCodigoPlano(row.NOME_PLANO_ATUAL);
   });
 
   (d.movel || []).forEach(function(row) {
@@ -1535,6 +1551,7 @@ function _cruzConsolidarCamposVeroCli() {
     if (row.DATA_VENDA && !o.dataAtiv) o.dataAtiv = row.DATA_VENDA;
     if (row.DATAHABILITACAO && !o.instal) o.instal = row.DATAHABILITACAO;
     if (row.CIDADE && !o.cidade) o.cidade = row.CIDADE;
+    if (row.PLANO && !o.planoCodigo) o.planoCodigo = _cruzExtrairCodigoPlano(row.PLANO);
   });
 
   (d.cancelamentos || []).forEach(function(row) {
@@ -1592,6 +1609,17 @@ function _cruzComputarCorrecoes() {
       if (String(item.observacao || '').indexOf(lo) === -1) {
         campos.OBSERVACAO_APPEND = lo;
         diffs.push({ label: 'Observação (+)', atual: item.observacao || '', novo: lo });
+      }
+    }
+    if (v.planoCodigo && _cruzCodigosMap[v.planoCodigo]) {
+      var alvoPl = _cruzCodigosMap[v.planoCodigo];
+      if (alvoPl.nome && (alvoPl.conf === 'alta' || alvoPl.conf === 'media')) {
+        var atualCore = _cruzPlanoCore(item.plano);
+        var novoCore  = _cruzPlanoCore(alvoPl.nome);
+        if (novoCore && _cruzNormalizarTexto(novoCore) !== _cruzNormalizarTexto(atualCore)) {
+          campos.PLANO = alvoPl.nome;
+          diffs.push({ label: 'Plano' + (alvoPl.conf === 'media' ? ' (conf. média)' : ''), atual: item.plano || '', novo: alvoPl.nome });
+        }
       }
     }
 

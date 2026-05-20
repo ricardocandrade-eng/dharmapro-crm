@@ -982,6 +982,7 @@ function getContratosParaCruzamento() {
       var cidade     = String(row[c.CIDADE]     || '').trim();
       var observacao = String(row[c.OBSERVACAO] || '').trim();
       var valor      = _normalizarValorParaNumero_(row[c.VALOR]);
+      var plano      = String(row[c.PLANO]      || '').trim();
 
       var dAtivRaw = row[c.DATA_ATIV];
       var dataAtiv = '';
@@ -1021,12 +1022,13 @@ function getContratosParaCruzamento() {
         codCli:     codCli,
         cidade:     cidade,
         observacao: observacao,
-        valor:      valor
+        valor:      valor,
+        plano:      plano
       });
     }
 
     Logger.log('getContratosParaCruzamento: retornando ' + dados.length + ' contratos');
-    
+
     // Log dos primeiros 3 registros para debug
     if (dados.length > 0) {
       Logger.log('Exemplo 1: ' + JSON.stringify(dados[0]));
@@ -1034,7 +1036,9 @@ function getContratosParaCruzamento() {
       if (dados.length > 2) Logger.log('Exemplo 3: ' + JSON.stringify(dados[2]));
     }
 
-    return { dados: dados };
+    // Mapa flat codigo Vero -> {nome_crm, conf} para o cruzamento sobrescrever PLANO.
+    // Aditivo: se o JSON de codigos faltar, vem {} e o plano simplesmente nao e' corrigido.
+    return { dados: dados, codigosVero: _getCodigosVeroMapaFlat_() };
     
   } catch(e) {
     Logger.log('getContratosParaCruzamento ERRO: ' + e.message + ' | Stack: ' + e.stack);
@@ -1146,6 +1150,11 @@ function aplicarCorrecaoVero(correcoes) {
       if (campos.VALOR !== undefined && campos.VALOR !== null && campos.VALOR !== '') {
         var valNum = _normalizarValorParaNumero_(campos.VALOR);
         if (valNum !== '') { sheet.getRange(linha, c.VALOR + 1).setValue(valNum); celulasAfetadas++; mexeu = true; }
+      }
+      // PLANO (N) — nome canonico do CRM resolvido via codigo Vero (alta/media)
+      if (campos.PLANO !== undefined && campos.PLANO !== null && String(campos.PLANO).trim() !== '') {
+        sheet.getRange(linha, c.PLANO + 1).setValue(String(campos.PLANO).trim());
+        celulasAfetadas++; mexeu = true;
       }
       // CIDADE (AF) + relookup SISTEMA (AH) / SEGMENTACAO (AI)
       if (campos.CIDADE !== undefined && campos.CIDADE !== null && String(campos.CIDADE).trim() !== '') {
@@ -3409,6 +3418,31 @@ function _getCodigosVero() {
     if (json.length < 95000) cache.put(key, json, 600);
   } catch(e) {}
   return parsed;
+}
+
+// Mapa flat para o cruzamento: { "4624": { nome: "<nome_crm>", conf: "alta" }, ... }
+// Direcao codigo->nome e' deterministica (cada codigo -> 1 nome_crm). Em duplicatas
+// (mesmo codigo em coletas diferentes), mantem a de maior confianca. Ignora
+// nome_crm_match null (SKU Vero sem par no CRM). Tolerante a falha (retorna {}).
+function _getCodigosVeroMapaFlat_() {
+  var out = {};
+  var rank = { alta: 3, media: 2, baixa: 1, '': 0 };
+  try {
+    var cv = _getCodigosVero();
+    (cv.coletas || []).forEach(function(col) {
+      (col.planos || []).forEach(function(p) {
+        if (!p || !p.codigo || !p.nome_crm_match) return;
+        var cod  = String(p.codigo).trim();
+        var conf = String(p.confianca || '').toLowerCase();
+        if (!out[cod] || (rank[conf] || 0) > (rank[out[cod].conf] || 0)) {
+          out[cod] = { nome: String(p.nome_crm_match).trim(), conf: conf };
+        }
+      });
+    });
+  } catch (e) {
+    Logger.log('_getCodigosVeroMapaFlat_ erro: ' + e.message);
+  }
+  return out;
 }
 
 // ─── VALIDAÇÃO CÓDIGOS VERO — cruza planos_vero.json vs planos_vero_codigos.json

@@ -439,6 +439,7 @@ function _cruzEhStatusVendaServer_(status) {
 // ══════════════════════════════════════════════════════════════════════════
 function _cruzComputarCorrecoesServer_(dados, crmRows) {
   var mapaVero = _cruzConsolidarCamposVeroServer_(dados);
+  var mapaCodigos = _getCodigosVeroMapaFlat_();
   var correcoes = [];
 
   (crmRows || []).forEach(function(item) {
@@ -505,6 +506,22 @@ function _cruzComputarCorrecoesServer_(dados, crmRows) {
         diffs.push({ campo: 'OBSERVACAO', label: 'Observação (+)', atual: item.observacao || '', novo: linhaObs });
       }
     }
+    // PLANO (codigo Vero -> nome_crm canonico; so confianca alta/media)
+    if (v.planoCodigo && mapaCodigos[v.planoCodigo]) {
+      var alvoPl = mapaCodigos[v.planoCodigo];
+      if (alvoPl.nome && (alvoPl.conf === 'alta' || alvoPl.conf === 'media')) {
+        var atualCore = _cruzPlanoCore_(item.plano);
+        var novoCore  = _cruzPlanoCore_(alvoPl.nome);
+        if (novoCore && _cruzNormalizarTextoServer_(novoCore) !== _cruzNormalizarTextoServer_(atualCore)) {
+          campos.PLANO = alvoPl.nome;
+          diffs.push({
+            campo: 'PLANO',
+            label: 'Plano' + (alvoPl.conf === 'media' ? ' (conf. média)' : ''),
+            atual: item.plano || '', novo: alvoPl.nome
+          });
+        }
+      }
+    }
 
     if (diffs.length) {
       correcoes.push({
@@ -538,6 +555,7 @@ function _cruzConsolidarCamposVeroServer_(dados) {
     if (row.COD_CLIENTE && !o.codCli) o.codCli = row.COD_CLIENTE;
     if (row.CIDADE_HIERARQUIA && !o.cidade) o.cidade = row.CIDADE_HIERARQUIA;
     if (row.DATA_CADASTRO && !o.dataAtiv) o.dataAtiv = row.DATA_CADASTRO;
+    if (row.NOME_PLANO_ATUAL && !o.planoCodigo) o.planoCodigo = _cruzExtrairCodigoPlano_(row.NOME_PLANO_ATUAL);
   });
 
   (dados.vendas || []).forEach(function(row) {
@@ -547,6 +565,7 @@ function _cruzConsolidarCamposVeroServer_(dados) {
     if (row.COD_CLIENTE && !o.codCli) o.codCli = row.COD_CLIENTE;
     if (row.CIDADE_HIERARQUIA && !o.cidade) o.cidade = row.CIDADE_HIERARQUIA;
     if (row.DATA_CADASTRO && !o.dataAtiv) o.dataAtiv = row.DATA_CADASTRO;
+    if (row.NOME_PLANO_ATUAL && !o.planoCodigo) o.planoCodigo = _cruzExtrairCodigoPlano_(row.NOME_PLANO_ATUAL);
   });
 
   (dados.movel || []).forEach(function(row) {
@@ -559,6 +578,7 @@ function _cruzConsolidarCamposVeroServer_(dados) {
     if (row.DATA_VENDA && !o.dataAtiv) o.dataAtiv = row.DATA_VENDA;
     if (row.DATAHABILITACAO && !o.instal) o.instal = row.DATAHABILITACAO;
     if (row.CIDADE && !o.cidade) o.cidade = row.CIDADE;
+    if (row.PLANO && !o.planoCodigo) o.planoCodigo = _cruzExtrairCodigoPlano_(row.PLANO);
   });
 
   (dados.cancelamentos || []).forEach(function(row) {
@@ -595,4 +615,18 @@ function _cruzValorBRServer_(n) {
   var num = Number(n);
   if (!isFinite(num)) return String(n);
   return num.toFixed(2).replace('.', ',');
+}
+
+// Extrai o codigo numerico do nome do plano Vero. Aceita "4624 - VERO MAIS ..."
+// e "VERO 4390 - VERO CONTROLE ..." (Movel). Sem match -> ''.
+function _cruzExtrairCodigoPlano_(s) {
+  if (!s) return '';
+  var m = String(s).match(/(\d{3,5})\s*-\s/);
+  return m ? m[1] : '';
+}
+
+// Remove o sufixo de preco "| R$ XX,XX" do nome do plano pra comparar so o nome.
+function _cruzPlanoCore_(s) {
+  if (!s) return '';
+  return String(s).replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/i, '').trim();
 }
