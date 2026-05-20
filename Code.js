@@ -2677,6 +2677,12 @@ function moverLeadAguardando(payload) {
     } catch (eAlerta) { Logger.log('Alerta leadAguardando — erro: ' + (eAlerta && eAlerta.message || eAlerta)); }
   }
 
+  // Meta Ads (Fase 3): entra em status 2 → marca lead "Converteu" se canal META ADS.
+  if (resultado.sucesso && linha) {
+    try { _reconciliarVendaMetaAdsAposSave_(linha); }
+    catch (eMA) { Logger.log('Reconciliacao Meta Ads (leadAguardando) — erro: ' + (eMA && eMA.message || eMA)); }
+  }
+
   return resultado;
 }
 
@@ -4884,6 +4890,20 @@ function salvarVenda(dados) {
     } catch (eAlerta) { Logger.log('Alerta transicao status — erro: ' + (eAlerta && eAlerta.message || eAlerta)); }
   }
 
+  // Meta Ads (Fase 3): venda META ADS que entra em status 2/3 marca o lead
+  // correspondente como "Converteu" (direção única Vendas → Leads). Só na
+  // transição (status mudou), fora do lock. Não-bloqueante.
+  if (resultado.sucesso && resultado.linha) {
+    try {
+      var _novoStatusMA = String(dados.status || '').trim();
+      var _transicaoMA = String(_statusAntigoAlerta || '').trim() !== _novoStatusMA;
+      if (_transicaoMA &&
+          (_novoStatusMA === '2- Aguardando Instalação' || _novoStatusMA === '3 - Finalizada/Instalada')) {
+        _reconciliarVendaMetaAdsAposSave_(resultado.linha);
+      }
+    } catch (eMA) { Logger.log('Reconciliacao Meta Ads — erro: ' + (eMA && eMA.message || eMA)); }
+  }
+
   return resultado;
 }
 
@@ -5215,6 +5235,13 @@ function moverVendaFunil(payload) {
       var _statAnt = (typeof statusAnt !== 'undefined') ? statusAnt : '';
       _dispararAlertaTransicaoStatus_(linha, _statAnt, novoStatus);
     } catch (eAlerta) { Logger.log('Alerta funil — erro: ' + (eAlerta && eAlerta.message || eAlerta)); }
+  }
+
+  // Meta Ads (Fase 3): drag para status 2/3 marca lead "Converteu" se canal META ADS.
+  if (resultado.sucesso && linha &&
+      (novoStatus === '2- Aguardando Instalação' || novoStatus === '3 - Finalizada/Instalada')) {
+    try { _reconciliarVendaMetaAdsAposSave_(linha); }
+    catch (eMA) { Logger.log('Reconciliacao Meta Ads (funil) — erro: ' + (eMA && eMA.message || eMA)); }
   }
 
   return resultado;
