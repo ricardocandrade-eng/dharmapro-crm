@@ -374,7 +374,7 @@
     }
   }
 
-  /* Painel de correcoes (sobrescrita planilha -> CRM) */
+  /* Painel de correcoes (sobrescrita planilha -> CRM) — revisao caso a caso */
   .cruz-corr {
     margin: 16px 24px 0;
     border: 1px solid rgba(230, 62, 109, 0.4);
@@ -384,42 +384,81 @@
   }
   .cruz-corr-top {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 12px; flex-wrap: wrap;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 12px;
   }
   .cruz-corr-titulo { font-size: 13px; font-weight: 800; color: var(--text); }
   .cruz-corr-sub { font-weight: 600; color: var(--muted); font-size: 11px; }
-  .cruz-corr-acoes { display: flex; align-items: center; gap: 8px; }
+
+  .cruz-corr-lista {
+    max-height: 460px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .cruz-corr-lista::-webkit-scrollbar { width: 4px; }
+  .cruz-corr-lista::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .cruz-corr-card {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; transition: opacity 0.15s;
+  }
+  .cruz-corr-card.pulado { opacity: 0.45; }
+  .cruz-corr-card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-bottom: 8px; flex-wrap: wrap;
+  }
+  .cruz-corr-card-id { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .cruz-corr-card-id strong { font-size: 12.5px; color: var(--text); }
+  .cruz-corr-meta { font-size: 10px; color: var(--muted); font-family: "DM Mono", monospace; }
+  .cruz-corr-skip {
+    background: none; border: 1px solid var(--border2); color: var(--muted);
+    border-radius: 6px; padding: 3px 10px; font-size: 10.5px; font-weight: 700;
+    font-family: "Sora", sans-serif; cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .cruz-corr-skip:hover { border-color: var(--accent); color: var(--accent); }
+
+  .cruz-corr-warn {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 10.5px; color: var(--yellow);
+    background: rgba(230, 179, 55, 0.1); border: 1px solid rgba(230, 179, 55, 0.3);
+    border-radius: 6px; padding: 5px 9px; margin-bottom: 8px; line-height: 1.4;
+  }
+
+  .cruz-corr-field {
+    display: flex; align-items: center; gap: 10px; padding: 6px 0;
+    border-top: 1px solid var(--border); font-size: 11.5px; cursor: pointer;
+  }
+  .cruz-corr-field:first-of-type { border-top: none; }
+  .cruz-corr-field input[type=checkbox] {
+    width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0;
+  }
+  .cruz-corr-field.off { opacity: 0.4; }
+  .cruz-corr-fname {
+    min-width: 110px; font-weight: 700; color: var(--text); font-family: "Sora", sans-serif;
+  }
+  .cruz-corr-vals {
+    flex: 1; display: flex; align-items: center; gap: 8px;
+    font-family: "DM Mono", monospace; flex-wrap: wrap;
+  }
+  .cruz-corr-de { color: var(--muted); text-decoration: line-through; opacity: 0.8; }
+  .cruz-corr-seta { color: var(--accent); }
+  .cruz-corr-para { color: var(--green); font-weight: 700; }
+  .cruz-corr-fonte {
+    font-size: 9.5px; font-family: "DM Mono", monospace;
+    color: var(--muted); background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 2px 7px; white-space: nowrap; flex-shrink: 0;
+  }
+
+  .cruz-corr-footer {
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+  }
   .cruz-corr-aplicar {
-    padding: 8px 16px; background: var(--accent); color: #fff; border: none;
+    padding: 9px 18px; background: var(--accent); color: #fff; border: none;
     border-radius: 8px; font-size: 12px; font-weight: 800;
     font-family: "Sora", sans-serif; cursor: pointer; transition: all 0.2s;
   }
   .cruz-corr-aplicar:hover { filter: brightness(1.1); }
-  .cruz-corr-aplicar:disabled { opacity: 0.6; cursor: default; }
-  .cruz-corr-lista {
-    margin-top: 12px; max-height: 340px; overflow-y: auto;
-    display: flex; flex-direction: column; gap: 8px;
-  }
-  .cruz-corr-lista::-webkit-scrollbar { width: 4px; }
-  .cruz-corr-lista::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
-  .cruz-corr-item {
-    background: var(--bg); border: 1px solid var(--border);
-    border-radius: 9px; padding: 10px 12px;
-  }
-  .cruz-corr-item-head {
-    display: flex; align-items: baseline; gap: 8px;
-    margin-bottom: 6px; flex-wrap: wrap;
-  }
-  .cruz-corr-item-head strong { font-size: 12px; color: var(--text); }
-  .cruz-corr-meta { font-size: 10px; color: var(--muted); font-family: "DM Mono", monospace; }
-  .cruz-corr-diff {
-    display: flex; align-items: center; gap: 8px; margin: 2px 0;
-    font-size: 11px; font-family: "DM Mono", monospace; flex-wrap: wrap;
-  }
-  .cruz-corr-campo { min-width: 120px; color: var(--muted); }
-  .cruz-corr-de { color: var(--muted); text-decoration: line-through; opacity: 0.8; }
-  .cruz-corr-seta { color: var(--accent); }
-  .cruz-corr-para { color: var(--green); font-weight: 700; }
+  .cruz-corr-aplicar:disabled { opacity: 0.5; cursor: default; }
   .cruz-corr-ok {
     margin: 16px 24px 0; border: 1px solid rgba(43, 191, 123, 0.4);
     background: rgba(43, 191, 123, 0.08); border-radius: 12px;
@@ -1517,48 +1556,56 @@ function _cruzConsolidarCamposVeroCli() {
   var d = _cruzDados || {};
   var mapa = {};
   function ensure(id) { if (!mapa[id]) mapa[id] = {}; return mapa[id]; }
+  // Grava valor + fonte na primeira aba que trouxer o campo (first-wins),
+  // pra o painel mostrar de qual relatorio veio cada correcao.
+  function setF(o, key, val, fonte) {
+    if (val === undefined || val === null || val === '') return;
+    if (o[key] !== undefined && o[key] !== '') return;
+    o[key] = val;
+    o[key + '_fonte'] = fonte;
+  }
 
   (d.instalacoes || []).forEach(function(row) {
     var id = _cruzNormId(row.ID_CONTRATO || row.CONTRATO || row.Contrato);
     if (!id) return;
     var o = ensure(id);
     var hab = row.DATA_HABILITACAO || row['DATA_HABILITAÇÃO'] || row['DATA_HABILITAÇAO'] || '';
-    if (hab && !o.instal) o.instal = hab;
-    if ((row.VALOR_CONTRATO || row.VALOR_CONTRATO === 0) && o.valor === undefined) o.valor = row.VALOR_CONTRATO;
-    if (row.COD_CLIENTE && !o.codCli) o.codCli = row.COD_CLIENTE;
-    if (row.CIDADE_HIERARQUIA && !o.cidade) o.cidade = row.CIDADE_HIERARQUIA;
-    if (row.DATA_CADASTRO && !o.dataAtiv) o.dataAtiv = row.DATA_CADASTRO;
-    if (row.NOME_PLANO_ATUAL && !o.planoCodigo) o.planoCodigo = _cruzExtrairCodigoPlano(row.NOME_PLANO_ATUAL);
+    setF(o, 'instal', hab, 'Instalações');
+    if (row.VALOR_CONTRATO || row.VALOR_CONTRATO === 0) setF(o, 'valor', row.VALOR_CONTRATO, 'Instalações');
+    setF(o, 'codCli', row.COD_CLIENTE, 'Instalações');
+    setF(o, 'cidade', row.CIDADE_HIERARQUIA, 'Instalações');
+    setF(o, 'dataAtiv', row.DATA_CADASTRO, 'Instalações');
+    if (row.NOME_PLANO_ATUAL) setF(o, 'planoCodigo', _cruzExtrairCodigoPlano(row.NOME_PLANO_ATUAL), 'Instalações');
   });
 
   (d.vendas || []).forEach(function(row) {
     var id = _cruzNormId(row.ID_CONTRATO || row.CONTRATO || row.Contrato);
     if (!id) return;
     var o = ensure(id);
-    if (row.COD_CLIENTE && !o.codCli) o.codCli = row.COD_CLIENTE;
-    if (row.CIDADE_HIERARQUIA && !o.cidade) o.cidade = row.CIDADE_HIERARQUIA;
-    if (row.DATA_CADASTRO && !o.dataAtiv) o.dataAtiv = row.DATA_CADASTRO;
-    if (row.NOME_PLANO_ATUAL && !o.planoCodigo) o.planoCodigo = _cruzExtrairCodigoPlano(row.NOME_PLANO_ATUAL);
+    setF(o, 'codCli', row.COD_CLIENTE, 'Vendas');
+    setF(o, 'cidade', row.CIDADE_HIERARQUIA, 'Vendas');
+    setF(o, 'dataAtiv', row.DATA_CADASTRO, 'Vendas');
+    if (row.NOME_PLANO_ATUAL) setF(o, 'planoCodigo', _cruzExtrairCodigoPlano(row.NOME_PLANO_ATUAL), 'Vendas');
   });
 
   (d.movel || []).forEach(function(row) {
     var id = _cruzNormId(row.IDCONTRATO || row.ID_CONTRATO || row.CONTRATO || row.Contrato);
     if (!id) return;
     var o = ensure(id);
-    if (row.IDCLIENTE && !o.codCli) o.codCli = row.IDCLIENTE;
+    setF(o, 'codCli', row.IDCLIENTE, 'Móvel');
     var vm = row.VALOR_CONTRATO_MOVEL || row.VALOR_CONTRATO;
-    if ((vm || vm === 0) && o.valor === undefined) o.valor = vm;
-    if (row.DATA_VENDA && !o.dataAtiv) o.dataAtiv = row.DATA_VENDA;
-    if (row.DATAHABILITACAO && !o.instal) o.instal = row.DATAHABILITACAO;
-    if (row.CIDADE && !o.cidade) o.cidade = row.CIDADE;
-    if (row.PLANO && !o.planoCodigo) o.planoCodigo = _cruzExtrairCodigoPlano(row.PLANO);
+    if (vm || vm === 0) setF(o, 'valor', vm, 'Móvel');
+    setF(o, 'dataAtiv', row.DATA_VENDA, 'Móvel');
+    setF(o, 'instal', row.DATAHABILITACAO, 'Móvel');
+    setF(o, 'cidade', row.CIDADE, 'Móvel');
+    if (row.PLANO) setF(o, 'planoCodigo', _cruzExtrairCodigoPlano(row.PLANO), 'Móvel');
   });
 
   (d.cancelamentos || []).forEach(function(row) {
     var id = _cruzNormId(row.ID_CONTRATO || row.CONTRATO || row.Contrato);
     if (!id) return;
     var o = ensure(id);
-    if (!o.obsAppend) o.obsAppend = _cruzMontarObsCancelamentoCli(row);
+    setF(o, 'obsAppend', _cruzMontarObsCancelamentoCli(row), 'Cancelamento');
   });
 
   return mapa;
@@ -1579,36 +1626,36 @@ function _cruzComputarCorrecoes() {
     if (v.codCli && String(v.codCli).trim() !== '' &&
         String(v.codCli).trim() !== String(item.codCli || '').trim()) {
       campos.COD_CLI = String(v.codCli).trim();
-      diffs.push({ label: 'Cód. cliente', atual: item.codCli || '', novo: campos.COD_CLI });
+      diffs.push({ campo: 'COD_CLI', label: 'Cód. cliente', atual: item.codCli || '', novo: campos.COD_CLI, fonte: v.codCli_fonte || 'Relatório' });
     }
     if (v.instal) {
       var ni = _cruzToBR(v.instal), ai = _cruzToBR(item.instal);
-      if (ni && ni !== ai) { campos.INSTAL = ni; diffs.push({ label: 'Data instalação', atual: ai, novo: ni }); }
+      if (ni && ni !== ai) { campos.INSTAL = ni; diffs.push({ campo: 'INSTAL', label: 'Data instalação', atual: ai, novo: ni, fonte: v.instal_fonte || 'Relatório' }); }
     }
     if (v.dataAtiv) {
       var na = _cruzToBR(v.dataAtiv), aa = _cruzToBR(item.dataAtiv);
-      if (na && na !== aa) { campos.DATA_ATIV = na; diffs.push({ label: 'Data ativação', atual: aa, novo: na }); }
+      if (na && na !== aa) { campos.DATA_ATIV = na; diffs.push({ campo: 'DATA_ATIV', label: 'Data ativação', atual: aa, novo: na, fonte: v.dataAtiv_fonte || 'Relatório' }); }
     }
     if (v.valor !== undefined && v.valor !== null && v.valor !== '') {
       var nv = _cruzNormValor(v.valor);
       var av = (item.valor === '' || item.valor === undefined || item.valor === null) ? '' : _cruzNormValor(item.valor);
       if (nv !== '' && nv !== av) {
         campos.VALOR = nv;
-        diffs.push({ label: 'Valor', atual: (av === '' ? '' : 'R$ ' + _cruzValorBR(av)), novo: 'R$ ' + _cruzValorBR(nv) });
+        diffs.push({ campo: 'VALOR', label: 'Valor', atual: (av === '' ? '' : 'R$ ' + _cruzValorBR(av)), novo: 'R$ ' + _cruzValorBR(nv), fonte: v.valor_fonte || 'Relatório' });
       }
     }
     if (v.cidade && String(v.cidade).trim() !== '') {
       var nc = String(v.cidade).trim();
       if (_cruzNormalizarTexto(nc) !== _cruzNormalizarTexto(item.cidade || '')) {
         campos.CIDADE = nc;
-        diffs.push({ label: 'Cidade', atual: item.cidade || '', novo: nc });
+        diffs.push({ campo: 'CIDADE', label: 'Cidade', atual: item.cidade || '', novo: nc, fonte: v.cidade_fonte || 'Relatório' });
       }
     }
     if (v.obsAppend && String(v.obsAppend).trim() !== '') {
       var lo = String(v.obsAppend).trim();
       if (String(item.observacao || '').indexOf(lo) === -1) {
         campos.OBSERVACAO_APPEND = lo;
-        diffs.push({ label: 'Observação (+)', atual: item.observacao || '', novo: lo });
+        diffs.push({ campo: 'OBSERVACAO_APPEND', label: 'Observação (+)', atual: item.observacao || '', novo: lo, fonte: v.obsAppend_fonte || 'Cancelamento' });
       }
     }
     if (v.planoCodigo && _cruzCodigosMap[v.planoCodigo]) {
@@ -1618,7 +1665,7 @@ function _cruzComputarCorrecoes() {
         var novoCore  = _cruzPlanoCore(alvoPl.nome);
         if (novoCore && _cruzNormalizarTexto(novoCore) !== _cruzNormalizarTexto(atualCore)) {
           campos.PLANO = alvoPl.nome;
-          diffs.push({ label: 'Plano' + (alvoPl.conf === 'media' ? ' (conf. média)' : ''), atual: item.plano || '', novo: alvoPl.nome });
+          diffs.push({ campo: 'PLANO', label: 'Plano' + (alvoPl.conf === 'media' ? ' (conf. média)' : ''), atual: item.plano || '', novo: alvoPl.nome, fonte: 'Dicionário · cód. ' + v.planoCodigo });
         }
       }
     }
@@ -1628,7 +1675,7 @@ function _cruzComputarCorrecoes() {
   return out;
 }
 
-// ── Painel de diff ────────────────────────────────────────────────────────
+// ── Painel de diff (revisao caso a caso) ───────────────────────────────────
 function _cruzPainelCorrecoesHtml() {
   if (_cruzCorrecoesAplicadas) {
     return '<div class="cruz-corr cruz-corr-ok">' +
@@ -1641,43 +1688,96 @@ function _cruzPainelCorrecoesHtml() {
   var nCampos = 0;
   _cruzCorrecoes.forEach(function(c) { nCampos += (c.diffs || []).length; });
 
-  var itens = _cruzCorrecoes.map(function(c) {
-    var ds = (c.diffs || []).map(function(d) {
-      return '<div class="cruz-corr-diff">' +
-        '<span class="cruz-corr-campo">' + _escapeHtml(d.label) + '</span>' +
-        '<span class="cruz-corr-de">' + _escapeHtml(d.atual || '—') + '</span>' +
-        '<span class="cruz-corr-seta">→</span>' +
-        '<span class="cruz-corr-para">' + _escapeHtml(d.novo) + '</span>' +
-      '</div>';
+  var cards = _cruzCorrecoes.map(function(c) {
+    var temValor = false, temPlano = false;
+    var fields = (c.diffs || []).map(function(d) {
+      if (d.campo === 'VALOR') temValor = true;
+      if (d.campo === 'PLANO') temPlano = true;
+      return '<label class="cruz-corr-field">' +
+          '<input type="checkbox" checked ' +
+            'data-linha="' + c.linha + '" data-campo="' + _escapeHtml(d.campo) + '" ' +
+            'onchange="_cruzOnToggleCampo(this)">' +
+          '<span class="cruz-corr-fname">' + _escapeHtml(d.label) + '</span>' +
+          '<span class="cruz-corr-vals">' +
+            '<span class="cruz-corr-de">' + _escapeHtml(d.atual || '—') + '</span>' +
+            '<span class="cruz-corr-seta">→</span>' +
+            '<span class="cruz-corr-para">' + _escapeHtml(d.novo) + '</span>' +
+          '</span>' +
+          '<span class="cruz-corr-fonte">' + _escapeHtml(d.fonte || 'Relatório') + '</span>' +
+        '</label>';
     }).join('');
-    return '<div class="cruz-corr-item">' +
-        '<div class="cruz-corr-item-head">' +
-          '<strong>' + _escapeHtml(c.cliente || ('Contrato ' + c.contrato)) + '</strong>' +
-          '<span class="cruz-corr-meta">contrato ' + _escapeHtml(c.contrato) + ' · linha ' + c.linha + '</span>' +
-        '</div>' + ds +
+
+    var warn = (temValor && temPlano)
+      ? '<div class="cruz-corr-warn">⚠ Valor e Plano vêm de fontes diferentes — confirme se são compatíveis antes de aplicar.</div>'
+      : '';
+
+    return '<div class="cruz-corr-card" id="cruzCard_' + c.linha + '" data-linha="' + c.linha + '">' +
+        '<div class="cruz-corr-card-head">' +
+          '<div class="cruz-corr-card-id">' +
+            '<strong>' + _escapeHtml(c.cliente || ('Contrato ' + c.contrato)) + '</strong>' +
+            '<span class="cruz-corr-meta">contrato ' + _escapeHtml(c.contrato) + ' · linha ' + c.linha + '</span>' +
+          '</div>' +
+          '<button type="button" class="cruz-corr-skip" onclick="_cruzPularContrato(' + c.linha + ')">Pular este contrato</button>' +
+        '</div>' +
+        warn + fields +
       '</div>';
   }).join('');
 
   return '<div class="cruz-corr">' +
       '<div class="cruz-corr-top">' +
-        '<div class="cruz-corr-titulo">📝 ' + nLinhas + ' venda(s) a corrigir pelo relatório Vero ' +
-          '<span class="cruz-corr-sub">(' + nCampos + ' campo(s) · planilha é a fonte da verdade · status preservado)</span></div>' +
-        '<div class="cruz-corr-acoes">' +
-          '<button class="btn btn-ghost btn-sm" id="cruzCorrToggle" onclick="_cruzToggleDetalhesCorrecoes()">Ver detalhes</button>' +
-          '<button class="cruz-corr-aplicar" id="cruzCorrAplicar" onclick="_cruzAplicarCorrecoes()">Aplicar correções (' + nLinhas + ')</button>' +
-        '</div>' +
+        '<div class="cruz-corr-titulo">📝 Correções detectadas pelo relatório Vero ' +
+          '<span class="cruz-corr-sub">(' + nLinhas + ' contrato(s) · ' + nCampos + ' campo(s) · marque o que aplicar · status preservado)</span></div>' +
       '</div>' +
-      '<div class="cruz-corr-lista" id="cruzCorrLista" style="display:none">' + itens + '</div>' +
+      '<div class="cruz-corr-lista">' + cards + '</div>' +
+      '<div class="cruz-corr-footer">' +
+        '<button class="cruz-corr-aplicar" id="cruzCorrAplicar" onclick="_cruzAplicarCorrecoes()">Aplicar campos selecionados (' + nCampos + ' campos em ' + nLinhas + ' contratos)</button>' +
+      '</div>' +
     '</div>';
 }
 
-function _cruzToggleDetalhesCorrecoes() {
-  var lista = document.getElementById('cruzCorrLista');
-  var btn = document.getElementById('cruzCorrToggle');
-  if (!lista) return;
-  var aberto = lista.style.display !== 'none';
-  lista.style.display = aberto ? 'none' : 'block';
-  if (btn) btn.textContent = aberto ? 'Ver detalhes' : 'Ocultar detalhes';
+function _cruzAplicarEstadoCampo(ch) {
+  var field = ch.closest ? ch.closest('.cruz-corr-field') : null;
+  if (field) field.classList.toggle('off', !ch.checked);
+}
+
+function _cruzOnToggleCampo(ch) {
+  _cruzAplicarEstadoCampo(ch);
+  // Se voltou a marcar algo num card "pulado", tira o estado de pulado.
+  var card = ch.closest ? ch.closest('.cruz-corr-card') : null;
+  if (card && ch.checked) {
+    card.classList.remove('pulado');
+    var b = card.querySelector('.cruz-corr-skip');
+    if (b) b.textContent = 'Pular este contrato';
+  }
+  _cruzAtualizarContadorCorrecoes();
+}
+
+function _cruzPularContrato(linha) {
+  var card = document.getElementById('cruzCard_' + linha);
+  if (!card) return;
+  var btn = card.querySelector('.cruz-corr-skip');
+  var checks = card.querySelectorAll('input[type=checkbox]');
+  var algumMarcado = false;
+  checks.forEach(function(ch) { if (ch.checked) algumMarcado = true; });
+  var novoEstado = !algumMarcado; // algo marcado -> desmarca tudo; nada marcado -> remarca tudo
+  checks.forEach(function(ch) { ch.checked = novoEstado; _cruzAplicarEstadoCampo(ch); });
+  card.classList.toggle('pulado', !novoEstado);
+  if (btn) btn.textContent = novoEstado ? 'Pular este contrato' : 'Reativar contrato';
+  _cruzAtualizarContadorCorrecoes();
+}
+
+function _cruzAtualizarContadorCorrecoes() {
+  var btn = document.getElementById('cruzCorrAplicar');
+  if (!btn) return;
+  var checks = document.querySelectorAll('.cruz-corr-lista input[type=checkbox]:checked');
+  var nCampos = checks.length;
+  var linhasSet = {};
+  checks.forEach(function(ch) { linhasSet[ch.getAttribute('data-linha')] = true; });
+  var nLinhas = Object.keys(linhasSet).length;
+  btn.disabled = nCampos === 0;
+  btn.textContent = nCampos === 0
+    ? 'Nenhum campo selecionado'
+    : 'Aplicar campos selecionados (' + nCampos + ' campos em ' + nLinhas + ' contratos)';
 }
 
 function _cruzInjetarPainelCorrecoes() {
@@ -1687,35 +1787,84 @@ function _cruzInjetarPainelCorrecoes() {
   if (html) body.insertAdjacentHTML('afterbegin', html);
 }
 
+// Remove do estado local apenas os campos efetivamente aplicados (porLinha = {linha:{campo:true}}).
+// Campos pulados continuam pendentes no painel; contratos zerados saem da lista.
+function _cruzRemoverCorrecoesAplicadas(porLinha) {
+  var novas = [];
+  (_cruzCorrecoes || []).forEach(function(c) {
+    var aplicados = porLinha[c.linha];
+    if (!aplicados) { novas.push(c); return; }
+    var campos = {}, diffs = [];
+    (c.diffs || []).forEach(function(d) {
+      if (aplicados[d.campo]) return; // foi aplicado
+      diffs.push(d);
+      if (c.campos.hasOwnProperty(d.campo)) campos[d.campo] = c.campos[d.campo];
+    });
+    if (diffs.length) novas.push({ linha: c.linha, contrato: c.contrato, cliente: c.cliente, campos: campos, diffs: diffs });
+  });
+  _cruzCorrecoes = novas;
+}
+
 function _cruzAplicarCorrecoes() {
   if (!_cruzCorrecoes || !_cruzCorrecoes.length) return;
   var btn = document.getElementById('cruzCorrAplicar');
-  var total = _cruzCorrecoes.length;
+
+  // Monta o payload só com os campos marcados.
+  var porLinha = {};
+  document.querySelectorAll('.cruz-corr-lista input[type=checkbox]:checked').forEach(function(ch) {
+    var linha = parseInt(ch.getAttribute('data-linha'), 10);
+    var campo = ch.getAttribute('data-campo');
+    if (!linha || !campo) return;
+    if (!porLinha[linha]) porLinha[linha] = {};
+    porLinha[linha][campo] = true;
+  });
+
+  var mapaCorr = {};
+  _cruzCorrecoes.forEach(function(c) { mapaCorr[c.linha] = c; });
+
+  var payload = [];
+  Object.keys(porLinha).forEach(function(linhaStr) {
+    var linha = parseInt(linhaStr, 10);
+    var corr = mapaCorr[linha];
+    if (!corr) return;
+    var campos = {};
+    Object.keys(corr.campos).forEach(function(k) {
+      if (porLinha[linha][k]) campos[k] = corr.campos[k];
+    });
+    if (Object.keys(campos).length) payload.push({ linha: linha, campos: campos });
+  });
+
+  if (!payload.length) {
+    _cruzSetStatus('Nenhum campo selecionado para aplicar.', 'err');
+    return;
+  }
+
   if (btn) { btn.disabled = true; btn.textContent = 'Aplicando...'; }
 
   if (typeof google === 'undefined' || !google.script || !google.script.run) {
     _cruzSetStatus('Ambiente sem backend — correções não aplicadas.', 'err');
-    if (btn) { btn.disabled = false; btn.textContent = 'Aplicar correções (' + total + ')'; }
+    if (btn) { btn.disabled = false; _cruzAtualizarContadorCorrecoes(); }
     return;
   }
-
-  var payload = _cruzCorrecoes.map(function(c) { return { linha: c.linha, campos: c.campos }; });
 
   google.script.run
     .withSuccessHandler(function(res) {
       if (!res || !res.sucesso) {
         _cruzSetStatus('Erro ao aplicar correções: ' + ((res && res.mensagem) || 'falha'), 'err');
-        if (btn) { btn.disabled = false; btn.textContent = 'Aplicar correções (' + total + ')'; }
+        if (btn) { btn.disabled = false; _cruzAtualizarContadorCorrecoes(); }
         return;
       }
-      _cruzCorrecoesAplicadas = true;
-      _cruzSetStatus('Correções aplicadas: ' + (res.atualizados || 0) + ' venda(s), ' + (res.celulas || 0) + ' campo(s).', 'ok');
+      _cruzRemoverCorrecoesAplicadas(porLinha);
+      var aplicouTudo = !_cruzCorrecoes.length;
+      _cruzCorrecoesAplicadas = aplicouTudo;
+      _cruzSetStatus('Correções aplicadas: ' + (res.atualizados || 0) + ' venda(s), ' + (res.celulas || 0) + ' campo(s).' +
+        (aplicouTudo ? '' : ' ' + _cruzCorrecoes.length + ' contrato(s) ainda pendente(s) no painel.'), 'ok');
       _cruzPersistir(_cruzOrigemAtual);
       _cruzRenderizar();
     })
     .withFailureHandler(function(err) {
       _cruzSetStatus('Falha ao aplicar correções: ' + ((err && err.message) || 'tente novamente'), 'err');
-      if (btn) { btn.disabled = false; btn.textContent = 'Aplicar correções (' + total + ')'; }
+      if (btn) { btn.disabled = false; _cruzAtualizarContadorCorrecoes(); }
     })
     .aplicarCorrecaoVero(payload);
 }
