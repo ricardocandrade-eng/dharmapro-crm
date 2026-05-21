@@ -312,11 +312,10 @@
           <div>
             <label class="lma-form-label">Campanha *</label>
             <select id="mlCampanha" class="lma-select" style="width:100%;" onchange="atualizarOpcoesCriativo()">
-              <option value="">Selecione...</option>
-              <option value="AG - Vero Fibra Amplo">AG — Vero Fibra Amplo</option>
-              <option value="VENDAS - Teste Engajamento">VENDAS — Teste Engajamento</option>
-              <option value="Orgânico / Indicação">Orgânico / Indicação</option>
+              <option value="">Carregando campanhas…</option>
             </select>
+            <button type="button" id="mlCampanhaRetry" onclick="_lmaCarregarCampanhasDropdown()"
+              style="display:none; margin-top:6px; font-size:11px; cursor:pointer; background:none; border:none; color:var(--g2); text-decoration:underline; padding:0;">↻ Tentar carregar de novo</button>
           </div>
           <div>
             <label class="lma-form-label">Criativo / Conjunto</label>
@@ -676,15 +675,48 @@ function _lmaSalvarCidade(linha, valor) {
 
 // ─── Registro Manual de Lead ───────────────────────────────────────────────
 
-var CRIATIVOS_POR_CAMPANHA = {
-  'AG - Vero Fibra Amplo':      ['P2 (cópia)', 'P2 (Andromeda)', 'Indefinido'],
-  'VENDAS - Teste Engajamento': ['Cel Certo — engajamento geral'],
-  'Orgânico / Indicação':       ['Orgânico', 'Indicação de cliente', 'Outro']
-};
+// Mapa campanha→criativos, preenchido dinamicamente por _lmaCarregarCampanhasDropdown()
+// a partir da Meta API (backend getCampanhasAtivasParaDropdown). Sem lista hardcoded.
+var CRIATIVOS_POR_CAMPANHA = {};
 
 function abrirModalManual() {
   document.getElementById('modalManual').classList.add('ativo');
+  _lmaCarregarCampanhasDropdown();
   document.getElementById('mlNome').focus();
+}
+
+// Carrega o dropdown de Campanha dinamicamente da Meta API (campanhas ATIVAS).
+function _lmaCarregarCampanhasDropdown() {
+  var sel = document.getElementById('mlCampanha');
+  var retry = document.getElementById('mlCampanhaRetry');
+  if (retry) retry.style.display = 'none';
+  sel.innerHTML = '<option value="">Carregando campanhas…</option>';
+
+  google.script.run
+    .withSuccessHandler(function(resp) {
+      if (!resp || !resp.ok || !resp.campanhas) {
+        // Falha conhecida do backend (Meta API fora) — sinaliza, sem fallback silencioso.
+        sel.innerHTML = '<option value="">(sem conexão Meta — recarregue)</option>';
+        if (retry) retry.style.display = 'inline';
+        CRIATIVOS_POR_CAMPANHA = {};
+        return;
+      }
+      var mapa = {};
+      var html = '<option value="">Selecione...</option>';
+      resp.campanhas.forEach(function(c) {
+        mapa[c.label] = c.anuncios || [];
+        html += '<option value="' + _esc(c.label) + '">' + _esc(c.label) + '</option>';
+      });
+      sel.innerHTML = html;
+      CRIATIVOS_POR_CAMPANHA = mapa;
+      atualizarOpcoesCriativo();
+    })
+    .withFailureHandler(function(e) {
+      sel.innerHTML = '<option value="">(sem conexão Meta — recarregue)</option>';
+      if (retry) retry.style.display = 'inline';
+      CRIATIVOS_POR_CAMPANHA = {};
+    })
+    .getCampanhasAtivasParaDropdown();
 }
 
 function fecharModalManual() {

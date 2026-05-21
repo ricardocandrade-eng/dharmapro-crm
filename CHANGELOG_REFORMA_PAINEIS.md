@@ -258,3 +258,38 @@ Fases 1–4 implementadas e deployadas.
   n8n do alerta 7 (`rZi4ZpL1Sj8tvcMz`, `?action=resumo_trafego`) segue funcionando;
   os números passam a refletir a operação real (Vero 02). Resolve a pendência
   transversal. `node --check` OK.
+- **`enviarResumoTrafegoAgora()`** (`MetaAdsAPI.js`) — dispara o alerta 7 sob demanda
+  no DM do Ricardo via `enviarParaGrupoWhatsApp(msg,'ricardo')`. Validado em prod
+  (R$120 hoje). Formato próprio (o layout bonito 🌙 vive no n8n).
+
+## Ajuste pós-validação — Dropdown dinâmico de Campanha (20/05/2026)
+
+Na validação visual notou-se que o dropdown manual de Campanha em
+`LeadsMetaAds.html` ainda era **hardcoded** (AG + VENDAS pausada + Orgânico). Em vez
+de só remover VENDAS, tornou-se **dinâmico (lê da Meta API)**: campanha que a
+agência criar aparece sozinha; pausada some; zero manutenção no código.
+
+### Alterações
+- **Backend** (`MetaAdsAPI.js`): nova `getCampanhasAtivasParaDropdown()` — itera
+  `CFG_META.AD_ACCOUNT_IDS`, pega campanhas ACTIVE via `_listarCampanhasAtivas_(conta)`,
+  mapeia pro rótulo CRM, agrupa rótulos únicos + sentinela "Orgânico / Indicação".
+  **Cache `CacheService` 15min** (`meta:dropdown_campanhas`). Falha da Meta API →
+  `ok:false` + lista mínima (não cacheada). Retorna
+  `{ok, campanhas:[{label, anuncios[]}]}`.
+- **Backend**: aba **"Mapeamento Campanhas Meta"** (auto-criada + seed: P2→AG,
+  VENDAS, D - Conversas) lida por `_getMapaCampanhasMeta_()`; matching "contém"
+  (case-insensitive) via `_mapearCampanhaMetaParaCRM_(nome, mapa)`; sem match →
+  nome truncado (30 chars) + `['Indefinido']`.
+- **Frontend** (`LeadsMetaAds.html`): `abrirModalManual` chama
+  `_lmaCarregarCampanhasDropdown()` (loading → popula `#mlCampanha` +
+  `CRIATIVOS_POR_CAMPANHA`). Erro → `(sem conexão Meta — recarregue)` + botão de
+  retry, **sem fallback silencioso**. Removidos os `<option>` hardcoded.
+
+### Antes/Depois
+- Lista fixa de 3 opções → lista dinâmica da Meta API (só campanhas ATIVAS) +
+  sentinela "Orgânico / Indicação".
+
+### Validação
+- `node --check` no backend + no `<script>` do HTML.
+- Endpoint/Meta confirmam: hoje só **AG** ativa (Vero 02) → dropdown mostra
+  AG + Orgânico/Indicação; VENDAS/A/B/C/D não aparecem.
