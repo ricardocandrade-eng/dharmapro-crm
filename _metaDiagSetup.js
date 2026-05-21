@@ -1,9 +1,9 @@
 // ════════════════════════════════════════════════════════════════════════════
 //  DIAGNÓSTICO — acesso do token do DharmaPro às contas Meta.
-//  Rodar _diagAcessoContasMeta_() no editor e colar o Log.
+//  Rodar diagAcessoContasMeta() no editor e colar o Log.
 //  Remover este arquivo depois.
 // ════════════════════════════════════════════════════════════════════════════
-function _diagAcessoContasMeta_() {
+function diagAcessoContasMeta() {
   var contas = _getContasMetaAds_();
   Logger.log('Contas configuradas (_getContasMetaAds_): ' + JSON.stringify(contas));
   Logger.log('CFG_META.AD_ACCOUNT_ID (primária): ' + CFG_META.AD_ACCOUNT_ID);
