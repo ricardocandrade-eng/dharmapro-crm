@@ -30,6 +30,7 @@ var CONFIG = {
   TABELA_JSON_FILE_ID: '1wB9jncB_eBhGnBE-OpiZZ5UfVnvmv-ro',  // _getTabela() lê deste JSON no Drive (substitui aba TABELA)
   CIDADES_JSON_FILE_ID: '17CQ8KmZdyUtgQChPFC2b7pq2tsU6riV1',  // _getCidadesJson() lê do JSON no Drive (substitui aba CIDADES)
   CODIGOS_VERO_JSON_FILE_ID: '',  // _getCodigosVero() — vazio = fallback p/ busca por nome 'planos_vero_codigos.json'
+  PONTUACAO_JSON_FILE_ID: '',  // _getPontuacaoPlanos() — vazio = fallback p/ busca por nome 'pontuacao_planos.json' (Módulo Financeiro §11.9)
   COLUNAS: {
     // ── Bloco 1: Venda (A–G) ────────────────────────────────────────
     CANAL:              0,  // A  - Canal de venda (PAP, META ADS, INDICAÇÃO, ATIVO, GOOGLE ADS)
@@ -3467,6 +3468,89 @@ function _getCodigosVeroMapaFlat_() {
     Logger.log('_getCodigosVeroMapaFlat_ erro: ' + e.message);
   }
   return out;
+}
+
+// ─── PONTUAÇÃO DE PLANOS — Módulo Financeiro (§11.9 / §4.1) ───────────────────
+// Lê pontuacao_planos.json no Drive. Pontos por código + segmentação (BL) e
+// pontos do Móvel combo. RECEITA = (pontuacao_bl[seg] + pontos_movel) × fator.
+// Cache 600s. Se PONTUACAO_JSON_FILE_ID vazio, busca por nome e cacheia o ID.
+// Mesma estrutura de _getCodigosVero.
+function _getPontuacaoPlanos() {
+  var cache = CacheService.getScriptCache();
+  var key   = CONFIG.CACHE_PREFIX + 'pontuacao_planos_v1';
+  try {
+    var hit = cache.get(key);
+    if (hit) return JSON.parse(hit);
+  } catch(e) {}
+
+  var fileId = CONFIG.PONTUACAO_JSON_FILE_ID;
+  if (!fileId) {
+    try {
+      var props = PropertiesService.getScriptProperties();
+      fileId = props.getProperty('PONTUACAO_PLANOS_FILE_ID') || '';
+    } catch(e) {}
+  }
+  if (!fileId) {
+    try {
+      var iter = DriveApp.getFilesByName('pontuacao_planos.json');
+      if (iter.hasNext()) {
+        fileId = iter.next().getId();
+        try { PropertiesService.getScriptProperties().setProperty('PONTUACAO_PLANOS_FILE_ID', fileId); } catch(e) {}
+      }
+    } catch(e) {
+      throw new Error('Falha ao buscar pontuacao_planos.json no Drive: ' + e.message);
+    }
+  }
+  if (!fileId) {
+    throw new Error('pontuacao_planos.json não encontrado no Drive. Configure CONFIG.PONTUACAO_JSON_FILE_ID ou suba o arquivo.');
+  }
+
+  var content = DriveApp.getFileById(fileId).getBlob().getDataAsString();
+  var parsed = JSON.parse(content);
+  try {
+    var json = JSON.stringify(parsed);
+    if (json.length < 95000) cache.put(key, json, 600);
+  } catch(e) {}
+  return parsed;
+}
+
+// Mapa flat por código: { "4279": <entry>, ... }. Tolerante a falha (retorna {}).
+function _getPontuacaoMapaPorCodigo_() {
+  var out = {};
+  try {
+    var pj = _getPontuacaoPlanos();
+    (pj.planos || []).forEach(function(p) {
+      if (p && p.codigo) out[String(p.codigo).trim()] = p;
+    });
+  } catch (e) {
+    Logger.log('_getPontuacaoMapaPorCodigo_ erro: ' + e.message);
+  }
+  return out;
+}
+
+// Resolve os pontos de uma venda a partir do código do plano + segmentação.
+// Retorna { pontos_bl, pontos_movel, produto_tipo, encontrado } ou null em erro.
+// pontos_bl = pontuação da Fibra na segmentação; pontos_movel = pontos do Móvel
+// combo (0 se não houver). A receita prevista é (pontos_bl + pontos_movel) × fator.
+function getPontuacaoVenda(codigo, segmentacao) {
+  try {
+    if (!codigo) return { encontrado: false, pontos_bl: 0, pontos_movel: 0, produto_tipo: '' };
+    var mapa = _getPontuacaoMapaPorCodigo_();
+    var p = mapa[String(codigo).trim()];
+    if (!p) return { encontrado: false, pontos_bl: 0, pontos_movel: 0, produto_tipo: '' };
+    var seg = String(segmentacao || 'PADRAO').trim().toUpperCase();
+    if (seg === 'ESPECIAIS') seg = 'ESPECIAL';
+    if (seg === 'PADRÃO')    seg = 'PADRAO';
+    var bl = 0;
+    if (p.pontuacao_bl) {
+      bl = (p.pontuacao_bl[seg] != null) ? Number(p.pontuacao_bl[seg]) : Number(p.pontuacao_bl.PADRAO || 0);
+    }
+    var mv = (p.movel_vinculado && p.movel_vinculado.pontos_movel_combo) ? Number(p.movel_vinculado.pontos_movel_combo) : 0;
+    return { encontrado: true, pontos_bl: bl, pontos_movel: mv, produto_tipo: p.produto_tipo || '', nome_crm: p.nome_crm || '' };
+  } catch (e) {
+    Logger.log('getPontuacaoVenda erro: ' + e.message);
+    return null;
+  }
 }
 
 // Reverse lookup pra captura forward-only no cadastro de venda:
