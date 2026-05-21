@@ -3,9 +3,10 @@
 //  Roda em ng.vero.objective.com.br (document_start)
 //
 //  Modo de operação:
-//    QUERY — popup aberto pelo DharmaPro com #dhp?cpf=...&user=...&pass=...
-//            Deixa Wing carregar, faz login se necessário, busca CPF via DOM,
-//            lê resultado dos controllers Wing e devolve via postMessage.
+//    QUERY — popup aberto pelo DharmaPro com #dhp?contrato=...&user=...&pass=...
+//            Deixa Wing carregar, faz login se necessário, busca o contrato no
+//            campo de pesquisa, lê o contrato certo dos controllers Wing e
+//            devolve via postMessage.
 //    PASSIVO — se não há hash #dhp?, não faz nada (não interfere no uso normal)
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -16,10 +17,10 @@
   if (hash.indexOf('#dhp?') !== 0) return; // nao e consulta DharmaPro
 
   var params = new URLSearchParams(hash.substring(4));
-  var cpf  = params.get('cpf');
+  var contrato = params.get('contrato');
   var user = params.get('user');
   var pass = params.get('pass');
-  if (!cpf || !user || !pass) return;
+  if (!contrato || !user || !pass) return;
 
   // Limpar hash (segurança)
   if (window.history && window.history.replaceState) {
@@ -31,7 +32,16 @@
   function enviar(dados) {
     dados.type = 'dhp_ng_result';
     try { if (window.opener) window.opener.postMessage(dados, '*'); } catch(x) {}
-    setTimeout(function() { window.close(); }, 800);
+    // Mantém popup aberto 60s em casos suspeitos (erro OU resultado vazio/inconclusivo)
+    // para permitir inspecionar console (F12). Sucesso confirmado fecha rápido.
+    var suspeito = !!dados.erro ||
+                   (Array.isArray(dados.contratos) && dados.contratos.length === 0) ||
+                   /sem contrato|não identificado|nao identificado/i.test(dados.resumo || '');
+    var delay = suspeito ? 60000 : 800;
+    if (suspeito) {
+      console.warn('[DHP-NG] ⚠ Popup ficará aberto 60s para debug. Abra F12 → Console.');
+    }
+    setTimeout(function() { window.close(); }, delay);
   }
 
   function erroFatal(msg) { enviar({ erro: msg }); }
@@ -68,6 +78,7 @@
       input.dispatchEvent(new Event('input', { bubbles: true }));
     }
     input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.dispatchEvent(new Event('blur', { bubbles: true }));
   }
 
   // Simula Enter no campo
@@ -77,6 +88,39 @@
     input.dispatchEvent(new KeyboardEvent('keyup',    { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
   }
 
+  // Simula clique completo (Wing precisa de pointer+mouse events, não só el.click())
+  function clicarCompleto(el) {
+    if (!el) return;
+    var rect = el.getBoundingClientRect();
+    var cx = rect.left + rect.width / 2;
+    var cy = rect.top + rect.height / 2;
+    var optsBase = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, button: 0, buttons: 1 };
+
+    try { el.focus(); } catch(e) {}
+
+    // PointerEvent (Wing/Objective frequentemente escuta isso)
+    if (typeof PointerEvent !== 'undefined') {
+      var pOpts = Object.assign({}, optsBase, { pointerType: 'mouse', pointerId: 1, isPrimary: true });
+      try { el.dispatchEvent(new PointerEvent('pointerover', pOpts)); } catch(e) {}
+      try { el.dispatchEvent(new PointerEvent('pointerenter', pOpts)); } catch(e) {}
+      try { el.dispatchEvent(new PointerEvent('pointerdown', pOpts)); } catch(e) {}
+    }
+
+    el.dispatchEvent(new MouseEvent('mouseover', optsBase));
+    el.dispatchEvent(new MouseEvent('mouseenter', optsBase));
+    el.dispatchEvent(new MouseEvent('mousedown', optsBase));
+
+    var optsUp = Object.assign({}, optsBase, { buttons: 0 });
+    if (typeof PointerEvent !== 'undefined') {
+      try { el.dispatchEvent(new PointerEvent('pointerup', Object.assign({}, optsUp, { pointerType: 'mouse', pointerId: 1, isPrimary: true }))); } catch(e) {}
+    }
+    el.dispatchEvent(new MouseEvent('mouseup', optsUp));
+    el.dispatchEvent(new MouseEvent('click', optsUp));
+
+    // Fallback: el.click() nativo também
+    try { el.click(); } catch(e) {}
+  }
+
   // Busca controller por tipo (fragmento do nome completo)
   function findCtrlByType(instances, typeFragment) {
     for (var id in instances) {
@@ -84,6 +128,21 @@
       if (ctrl && ctrl.type && ctrl.type.indexOf(typeFragment) > -1) {
         return { id: parseInt(id), ctrl: ctrl };
       }
+    }
+    return null;
+  }
+
+  // Verifica se há um campo de senha *visível* (visibilidade efetiva, não só DOM)
+  function temCampoSenhaVisivel() {
+    var pwFields = document.querySelectorAll('input[type="password"]');
+    for (var i = 0; i < pwFields.length; i++) {
+      var f = pwFields[i];
+      if (f.offsetParent === null) continue; // hidden (display:none ou ancestor hidden)
+      var rect = f.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      var st = window.getComputedStyle(f);
+      if (st.visibility === 'hidden' || st.display === 'none') continue;
+      return f;
     }
     return null;
   }
@@ -101,9 +160,16 @@
 
   async function executar() {
     try {
-      console.log('[DHP-NG] Iniciando consulta. CPF: ' + cpf);
+      console.log('[DHP-NG] Iniciando consulta. Contrato: ' + contrato);
       console.log('[DHP-NG] URL: ' + window.location.href);
       console.log('[DHP-NG] readyState: ' + document.readyState);
+
+      // Validação leve de formato: Wing aceita contratos de ~6 a 12 dígitos.
+      var contratoLimpo = String(contrato).replace(/\D/g, '');
+      if (!/^\d{6,12}$/.test(contratoLimpo)) {
+        erroFatal('contrato_formato_invalido');
+        return;
+      }
 
       // 1. Aguardar Wing carregar
       try {
@@ -153,8 +219,8 @@
         }, 15000, 500, 'Controller Atend360BuscaWComp');
       }
 
-      // 5. Buscar CPF
-      await buscarCPF(cpf.replace(/\D/g, ''));
+      // 5. Buscar contrato
+      await buscarContrato(contratoLimpo);
 
       // 6. Clicar em Visualizar
       await clicarVisualizar();
@@ -165,8 +231,14 @@
       enviar(resultado);
 
     } catch(e) {
-      console.error('[DHP-NG] ✘ ERRO:', e.message || String(e));
-      erroFatal('Erro NG: ' + (e.message || String(e)));
+      var msg = e.message || String(e);
+      console.error('[DHP-NG] ✘ ERRO:', msg);
+      // Preserva tokens de categoria conhecidos para o categorizador do JS.html.
+      if (msg === 'contrato_nao_encontrado' || msg === 'contrato_formato_invalido') {
+        erroFatal(msg);
+      } else {
+        erroFatal('Erro NG: ' + msg);
+      }
     }
   }
 
@@ -174,13 +246,13 @@
 
   function detectarEstado() {
     return aguardar(function() {
-      // Tela de login: tem input type=password
-      var pwField = document.querySelector('input[type="password"]');
-      if (pwField) return 'login';
-
-      // Já está na busca?
+      // Já está na busca? (checa primeiro — se já tem controller, login não é necessário)
       var buscaCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
       if (buscaCtrl) return 'busca';
+
+      // Tela de login: precisa de campo de senha *visível* (DOM oculto não conta).
+      var pwField = temCampoSenhaVisivel();
+      if (pwField) return 'login';
 
       // Menu principal: session READY (pode ter controllers residuais)
       if (Wing.session.READY) {
@@ -200,21 +272,78 @@
       simularDigitacao(userInput, user);
     }
 
-    // Preencher senha
-    var passInput = document.querySelector('input[type="password"]');
+    // Preencher senha (campo visível)
+    var passInput = temCampoSenhaVisivel();
     if (!passInput) throw new Error('Campo de senha não encontrado');
     simularDigitacao(passInput, pass);
 
-    // Clicar em "Iniciar sessão"
-    await aguardar(function() {
-      var buttons = document.querySelectorAll('button');
-      for (var i = 0; i < buttons.length; i++) {
-        if (buttons[i].textContent.indexOf('Iniciar') > -1) return buttons[i];
+    // Pausa pós-blur: NG pode auto-submeter (cookie/sessão pré-existente / autofill).
+    await new Promise(function(r) { setTimeout(r, 800); });
+
+    // Se campo de senha sumiu/escondeu, login já passou — segue direto.
+    if (!temCampoSenhaVisivel()) {
+      console.log('[DHP-NG] ✔ Login auto-completado (senha não mais visível após blur).');
+    } else {
+
+    // Clicar em "Iniciar sessão" — busca ampla (button, input[type=submit], [role=button], a)
+    // e regex de texto (Iniciar/Entrar/Acessar/Login/OK/Confirmar)
+    var TEXTO_LOGIN = /iniciar|entrar|acessar|login|confirmar|^ok$/i;
+    var SELECTOR_LOGIN = 'button, input[type="submit"], input[type="button"], [role="button"], a';
+
+    function buscarBotaoLogin() {
+      // Se senha sumiu/escondeu durante a espera, login transicionou — sai com sentinel
+      if (!temCampoSenhaVisivel()) {
+        return { __autoLogin: true };
+      }
+      var els = document.querySelectorAll(SELECTOR_LOGIN);
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        var txt = (el.textContent || el.value || el.getAttribute('aria-label') || '').trim();
+        if (!txt) continue;
+        if (!TEXTO_LOGIN.test(txt)) continue;
+        var rect = el.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) continue;
+        if (el.disabled) continue;
+        return el;
       }
       return null;
-    }, 5000, 300, 'Botão Iniciar sessão').then(function(btn) {
-      btn.click();
-    });
+    }
+
+    try {
+      var btnLogin = await aguardar(buscarBotaoLogin, 10000, 300, 'Botão Iniciar sessão');
+      if (btnLogin.__autoLogin) {
+        console.log('[DHP-NG] ✔ Login passou automaticamente durante a espera.');
+      } else {
+        console.log('[DHP-NG] Botão login encontrado: <' + btnLogin.tagName +
+                    '> texto="' + (btnLogin.textContent || btnLogin.value || '').trim() +
+                    '" cls="' + btnLogin.className + '"');
+        clicarCompleto(btnLogin);
+      }
+    } catch(loginErr) {
+      // Diagnóstico: listar TODOS os elementos clicáveis na tela de login
+      console.error('[DHP-NG] Botão de login não encontrado. Diagnóstico da tela:');
+      var todos = document.querySelectorAll(SELECTOR_LOGIN);
+      console.log('[DHP-NG]   Total clicáveis: ' + todos.length);
+      for (var k = 0; k < todos.length; k++) {
+        var e = todos[k];
+        var t = (e.textContent || e.value || e.getAttribute('aria-label') || '').trim();
+        var r = e.getBoundingClientRect();
+        console.log('[DHP-NG]   [' + k + '] <' + e.tagName + '> texto="' + t.substring(0, 50) +
+                    '" cls="' + e.className + '" ' + r.width + 'x' + r.height +
+                    (e.disabled ? ' [disabled]' : ''));
+      }
+      // Lista de todos os inputs também (alguns submits podem ser <input> sem aparecer no SELECTOR)
+      var inputs = document.querySelectorAll('input');
+      console.log('[DHP-NG]   Inputs (' + inputs.length + '):');
+      for (var ii = 0; ii < inputs.length; ii++) {
+        var ip = inputs[ii];
+        console.log('[DHP-NG]     [' + ii + '] type="' + ip.type + '" name="' + ip.name +
+                    '" placeholder="' + ip.placeholder + '" value="' + (ip.value || '').substring(0, 30) + '"');
+      }
+      throw loginErr;
+    }
+
+    } // fim do else (caminho com botão de login explícito)
 
     // Aguardar menu carregar (session READY)
     await aguardar(function() {
@@ -278,29 +407,45 @@
         }
         if (hamburger) {
           console.log('[DHP-NG] Clicando hamburger/menu: "' + hamburger.textContent.trim() + '"');
-          hamburger.click();
+          clicarCompleto(hamburger);
           await new Promise(function(r) { setTimeout(r, 1500); });
         }
       }
 
       // ── Passo 1: Encontrar e clicar em "Atendimento" ──
-      // Buscar TODOS os elementos com texto "Atendimento"
+      // Busca ampla: texto, aria-label, title, ou className contendo "atend" (case-insensitive)
       var candidatos = [];
-      var all = document.querySelectorAll('button, div[role="button"], a, span, div');
+      var all = document.querySelectorAll('button, div[role="button"], a, li, span, div, [role="menuitem"], [role="treeitem"]');
+      var REGEX_ATEND = /atend/i;
       for (var i = 0; i < all.length; i++) {
         var el = all[i];
-        var txt = el.textContent.trim();
-        if (txt === 'Atendimento' || (txt.indexOf('Atendimento') === 0 && txt.length < 20)) {
+        var txt = (el.textContent || '').trim();
+        var aria = el.getAttribute('aria-label') || '';
+        var title = el.getAttribute('title') || '';
+        var cls = el.className || '';
+        if (typeof cls !== 'string') cls = '';
+        // Match estrito original (texto exato curto começando com "Atendimento")
+        var matchEstrito = txt === 'Atendimento' || (txt.indexOf('Atendimento') === 0 && txt.length < 20);
+        // Match amplo case-insensitive: texto curto (folha de menu), aria-label, title, ou class
+        var matchAmplo = (txt.length < 30 && REGEX_ATEND.test(txt)) ||
+                         REGEX_ATEND.test(aria) ||
+                         REGEX_ATEND.test(title) ||
+                         REGEX_ATEND.test(cls);
+        if (matchEstrito || matchAmplo) {
           var rect = el.getBoundingClientRect();
           var visivel = rect.width > 0 && rect.height > 0;
           candidatos.push({
             el: el,
             tag: el.tagName,
-            cls: el.className,
+            cls: cls,
             filhos: el.childElementCount,
             visivel: visivel,
             w: rect.width,
             h: rect.height,
+            txt: txt.substring(0, 30),
+            aria: aria,
+            title: title,
+            estrito: matchEstrito,
             iconsHidden: el.classList.contains('w-icons-hidden')
           });
         }
@@ -309,9 +454,37 @@
       console.log('[DHP-NG] Candidatos "Atendimento": ' + candidatos.length);
       for (var c = 0; c < candidatos.length; c++) {
         var cc = candidatos[c];
-        console.log('[DHP-NG]   [' + c + '] <' + cc.tag + '> cls="' + cc.cls + '" filhos=' + cc.filhos +
+        console.log('[DHP-NG]   [' + c + '] <' + cc.tag + '>' + (cc.estrito ? ' [estrito]' : '') +
+                    ' txt="' + cc.txt + '" aria="' + cc.aria + '" title="' + cc.title + '"' +
+                    ' cls="' + cc.cls + '" filhos=' + cc.filhos +
                     ' visível=' + cc.visivel + ' ' + cc.w + 'x' + cc.h +
                     (cc.iconsHidden ? ' [w-icons-hidden]' : ''));
+      }
+
+      // Diagnóstico extra: se nenhum candidato visível, lista TODO o menu lateral
+      var temVisivel = false;
+      for (var cv = 0; cv < candidatos.length; cv++) { if (candidatos[cv].visivel) { temVisivel = true; break; } }
+      if (!temVisivel) {
+        console.warn('[DHP-NG] Nenhum candidato visível. Listando estrutura de menu/nav...');
+        var navs = document.querySelectorAll('nav, aside, [role="menu"], [role="navigation"], [class*="menu" i], [class*="nav" i], [class*="sidebar" i]');
+        console.log('[DHP-NG]   Containers menu/nav encontrados: ' + navs.length);
+        for (var nv = 0; nv < Math.min(navs.length, 5); nv++) {
+          var n = navs[nv];
+          console.log('[DHP-NG]     <' + n.tagName + ' cls="' + (n.className || '').substring(0, 60) + '"> filhos=' + n.children.length +
+                      ' txt(80)="' + (n.textContent || '').trim().substring(0, 80) + '"');
+        }
+        // Lista todos os botões/links visíveis com texto curto (provável menu)
+        var clicaveis = document.querySelectorAll('button, a, [role="button"], [role="menuitem"], li');
+        var menuVis = [];
+        for (var cl = 0; cl < clicaveis.length; cl++) {
+          var elc = clicaveis[cl];
+          var rc = elc.getBoundingClientRect();
+          if (rc.width === 0 || rc.height === 0) continue;
+          var t = (elc.textContent || '').trim();
+          if (!t || t.length > 30) continue;
+          menuVis.push('<' + elc.tagName + '>"' + t + '"');
+        }
+        console.log('[DHP-NG]   Itens clicáveis visíveis curtos (' + menuVis.length + '): ' + menuVis.slice(0, 40).join(' | '));
       }
 
       if (candidatos.length === 0) {
@@ -321,15 +494,21 @@
       }
 
       // Clicar em cada candidato visível, um por um, até BuscaWComp carregar
+      // Priorização: match estrito antes, depois maior largura (label visível, não só ícone)
+      candidatos.sort(function(a, b) {
+        if (a.estrito !== b.estrito) return a.estrito ? -1 : 1;
+        return (b.w || 0) - (a.w || 0);
+      });
       for (var ci = 0; ci < candidatos.length; ci++) {
         var cand = candidatos[ci];
         if (!cand.visivel) continue;
 
-        console.log('[DHP-NG] Clicando candidato [' + ci + ']: <' + cand.tag + '> cls="' + cand.cls + '"');
-        cand.el.click();
+        console.log('[DHP-NG] Clicando candidato [' + ci + ']: <' + cand.tag + '> txt="' + cand.txt +
+                    '" cls="' + cand.cls + '" ' + cand.w + 'x' + cand.h + ' (eventos completos)');
+        clicarCompleto(cand.el);
 
-        // Esperar um pouco para ver se carregou
-        await new Promise(function(r) { setTimeout(r, 2500); });
+        // Esperar um pouco para ver se carregou (3.5s — Wing pode demorar)
+        await new Promise(function(r) { setTimeout(r, 3500); });
 
         // Verificar se BuscaWComp apareceu
         buscaExiste = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
@@ -363,9 +542,12 @@
     }, 15000, 500, 'Controller BuscaWComp (espera final)');
   }
 
-  // ── Buscar CPF ─────────────────────────────────────────────────────────
+  // ── Buscar contrato ──────────────────────────────────────────────────────
+  // O campo de busca do NG aceita "nome, contrato, CPF/CNPJ, telefone, e-mail ou
+  // login PPPoE". Buscar pelo contrato retorna 1 card e abre direto a aba do
+  // contrato certo — elimina a ambiguidade multi-contrato da busca por CPF.
 
-  async function buscarCPF(cpfLimpo) {
+  async function buscarContrato(contratoLimpo) {
     var buscaCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
     if (!buscaCtrl) throw new Error('Tela de busca não encontrada');
 
@@ -376,80 +558,74 @@
     if (!input) {
       // Fallback: buscar por placeholder
       input = document.querySelector('input[placeholder*="CPF"]') ||
-              document.querySelector('input[placeholder*="Buscar"]');
+              document.querySelector('input[placeholder*="Buscar"]') ||
+              document.querySelector('input[placeholder*="contrato"]');
     }
     if (!input) throw new Error('Campo de pesquisa não encontrado');
 
-    // Limpar campo e digitar CPF
+    // Limpar campo e digitar o contrato
     input.focus();
     input.value = '';
     input.dispatchEvent(new Event('input', { bubbles: true }));
-    simularDigitacao(input, cpfLimpo);
+    simularDigitacao(input, contratoLimpo);
 
-    // Pressionar Enter — é o caminho "natural" do Wing pra disparar busca.
-    // Clique no botão pesquisaB às vezes dispara uma rota interna diferente que
-    // causa timeout em "Resultado busca CPF". Enter é mais confiável.
+    // Pressionar Enter — caminho natural do Wing (click no pesquisaB pode
+    // causar timeout intermitente em "Resultado busca")
     console.log('[DHP-NG] Disparando busca via Enter');
     simularEnter(input);
 
-    console.log('[DHP-NG] Digitou CPF e Enter, aguardando resultado...');
+    console.log('[DHP-NG] Digitou contrato e Enter, aguardando resultado...');
 
     // Aguardar resultado (CardRetornoBusca ou resultadoTotalSl com "0")
-    // Guarda inicio pra evitar falso positivo do detector "Nenhum resultado":
-    // Wing pode ter essa string no DOM em estados intermediários ANTES de
-    // processar a busca, fazendo o detector disparar prematuramente.
+    // Evita falso positivo do detector "Nenhum resultado" em estados iniciais
     var _buscaInicio = Date.now();
     await aguardar(function() {
       var cardCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360CardRetornoBuscaWComp');
       if (cardCtrl) return 'encontrado';
 
-      // Só considera "nao_encontrado" após 4s — dá tempo do Wing processar
-      // a busca de verdade. Sem isso, falso positivo derruba CPFs válidos
-      // (vendas recém-criadas, cliente real mas Wing lento, etc).
+      // Só considera "nao_encontrado" após 4s
       if (Date.now() - _buscaInicio < 4000) return null;
 
-      // Verificar se "Resultado: 0" (Wing antigo)
+      // Verificar se "Resultado: 0"
       var buscaItems = buscaCtrl.ctrl.items;
       if (buscaItems.resultadoTotalSl) {
         var label = lerItemTexto(buscaItems.resultadoTotalSl);
         if (label.indexOf(': 0') > -1 || label === 'Resultado: 0') return 'nao_encontrado';
       }
 
-      // Detectar "Nenhum resultado para mostrar" no DOM (Wing novo)
+      // Wing novo: detecta "Nenhum resultado para mostrar" no DOM
       var bodyTxt = document.body ? document.body.textContent : '';
       if (/Nenhum resultado para mostrar/i.test(bodyTxt)) return 'nao_encontrado';
 
       return null;
-    }, 15000, 300, 'Resultado busca CPF');
+    }, 15000, 300, 'Resultado busca contrato');
 
     // Verificar se encontrou
     var cardCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360CardRetornoBuscaWComp');
     if (!cardCtrl) {
-      throw new Error('CPF não encontrado no NG.');
+      // Token de categoria — o catch de executar() repassa cru pro JS.html.
+      throw new Error('contrato_nao_encontrado');
     }
   }
 
-  // ── Clicar em Atender (NÃO Visualizar) ────────────────────────────────
-  // CORRETO: "Atender" abre a tela do Atendimento com o painel Contratos.
-  // ERRADO: "Visualizar" (visualizaPessoaB) abre só um modal de edição de Pessoa,
-  // sem nenhum dado de contrato — caminho que estava sendo usado e gerava
-  // 100% de falso "Sem contrato ativo".
+  // ── Clicar em Visualizar ──────────────────────────────────────────────
+
+  // CORRETO: "Atender" abre o Atendimento completo com painel Contratos.
+  // ERRADO: "Visualizar" (visualizaPessoaB) abre só modal de Pessoa, sem contrato.
   async function clicarVisualizar() {
     var cardCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360CardRetornoBuscaWComp');
     var btnClicado = false;
 
-    // DEBUG: lista os items disponíveis (vai pro r.debug.cardItems)
     if (cardCtrl && cardCtrl.ctrl.items) {
       var itemsKeys = Object.keys(cardCtrl.ctrl.items);
       console.log('[DHP-NG] cardCtrl items:', itemsKeys.join(', '));
       window.__dhpCardItems = itemsKeys;
     }
 
-    // Estratégia 1: clicar via Wing items que casem com "atender" (descartando Pessoa)
+    // Estratégia 1: items Wing que casem com "atender" (descartando Pessoa)
     if (cardCtrl && cardCtrl.ctrl.items) {
       var items = cardCtrl.ctrl.items;
-      var keys = Object.keys(items);
-      var keysAtender = keys.filter(function(k) {
+      var keysAtender = Object.keys(items).filter(function(k) {
         if (/pessoa/i.test(k)) return false;
         return /atend(e|er|imento)/i.test(k);
       });
@@ -469,8 +645,7 @@
       var btnAt = await aguardar(function() {
         var buttons = document.querySelectorAll('button');
         for (var i = 0; i < buttons.length; i++) {
-          var txt = buttons[i].textContent.trim();
-          if (txt === 'Atender') return buttons[i];
+          if (buttons[i].textContent.trim() === 'Atender') return buttons[i];
         }
         return null;
       }, 10000, 300, 'Botão Atender (DOM)');
@@ -480,11 +655,10 @@
       btnClicado = true;
     }
 
-    console.log('[DHP-NG] Clicou Atender, aguardando tela Atendimento + painel Contratos...');
+    console.log('[DHP-NG] Clicou Atender, aguardando painel Contratos...');
 
-    // Aguardar cabeçalho "Contratos (N)" aparecer — sinal de que o painel esquerdo carregou.
-    // Bumped 30s→60s pra acomodar vendas recém-criadas (OS Interna do dia carrega mais)
-    // ou Wing mais lento em popup (sem foco, throttled).
+    // Aguardar cabeçalho "Contratos (N)" no DOM. Bumped 30s→60s pra
+    // vendas recém-criadas / Wing throttled em popup sem foco.
     await aguardar(function() {
       var els = document.querySelectorAll('span, div, h2, h3, h4');
       for (var h = 0; h < els.length; h++) {
@@ -494,8 +668,7 @@
       return null;
     }, 60000, 500, 'Cabeçalho Contratos (N) após Atender');
 
-    // Pausa para renderização do card de contrato (Wing pinta a estrutura primeiro,
-    // depois popula os campos — 5s tolera multi-contract e pages mais pesadas)
+    // Pausa para card renderizar completamente (5s tolera multi-contract)
     console.log('[DHP-NG] Painel Contratos carregou, pausando 5s para card renderizar...');
     await new Promise(function(r) { setTimeout(r, 5000); });
   }
@@ -522,6 +695,35 @@
     }
     r.debug.controllers = ctrlTypes;
     console.log('[DHP-NG] Controllers disponíveis:', ctrlTypes.join(', '));
+
+    // ── DIAGNÓSTICO: dump dos items de cada controller (top-level keys) ──
+    console.group('[DHP-NG] Items por controller');
+    for (var cidD in instances) {
+      var c = instances[cidD];
+      if (!c || !c.type || !c.items) continue;
+      var nome = c.type.split('.').pop();
+      var keys = Object.keys(c.items);
+      if (!keys.length) continue;
+      // Para cada item, mostra valor/text se for primitivo
+      var resumoItems = [];
+      for (var ki = 0; ki < keys.length; ki++) {
+        var k = keys[ki];
+        var it = c.items[k];
+        var v = '';
+        try { v = lerItemTexto(it); } catch(e) {}
+        if (v) v = ' = "' + v.substring(0, 80) + '"';
+        resumoItems.push(k + v);
+      }
+      console.log('[DHP-NG] ' + nome + ' (' + keys.length + '):', resumoItems.join(' | '));
+    }
+    console.groupEnd();
+
+    // ── DIAGNÓSTICO: dump de texto visível da área principal ──
+    var mainArea = document.querySelector('main, [role="main"], .w-content, #content') || document.body;
+    if (mainArea) {
+      var txtArea = (mainArea.textContent || '').replace(/\s+/g, ' ').trim();
+      console.log('[DHP-NG] Texto principal (' + txtArea.length + ' chars):', txtArea.substring(0, 1500));
+    }
 
     // ── Nome da pessoa (Wing) ──
     var pessoaCtrl = findCtrlByType(instances, 'Atend360TabPessoaFisicaWComp');
@@ -629,8 +831,7 @@
     } else if (r.aguardando) {
       r.resumo = 'Aguardando Instalação (sem agendamento)';
     } else if (r.contratos && r.contratos.length > 0 && r.debug.taxaHabilitacao && !r.debug.contratoCancelado) {
-      // Pré-instalação: contrato existe + taxa aplicada + crédito processado,
-      // mas Wing não tem dataInstalacao ainda. Estado real e legítimo.
+      // Pré-instalação: contrato + taxa aplicada, sem dataInstalacao
       var taxaMsg = String(r.debug.taxaHabilitacao || '');
       var mTaxa = taxaMsg.match(/(\d{2}\/\d{2}\/\d{4})/);
       r.resumo = mTaxa
@@ -646,22 +847,20 @@
   // ── Fallback: ler dados diretamente do DOM ────────────────────────────
 
   function lerDadosDom(r) {
-    // Utilitário: busca texto do label seguinte a um rótulo.
-    // Estratégia prioritária: nextElementSibling (irmão imediato — bem mais preciso
-    // que varrer filhos do pai, que pode incluir labels e valores de outros campos
-    // na mesma row e retornar o valor errado).
+    // Utilitário: prioriza nextElementSibling (mais preciso pra label-value pares)
+    // sobre varrer filhos do pai (que pode pegar valor errado em rows com múltiplos campos)
     function lerCampoDOM(rotulo) {
       var spans = document.querySelectorAll('span, div, label, p');
       for (var i = 0; i < spans.length; i++) {
         var txt = spans[i].textContent.trim();
         if (txt === rotulo) {
-          // Estratégia 1 (preferida): irmão imediato
+          // Estratégia 1: irmão imediato
           var next = spans[i].nextElementSibling;
           if (next) {
             var val2 = next.textContent.trim();
             if (val2 && val2 !== rotulo) return val2;
           }
-          // Estratégia 2 (fallback): irmão do pai (caso label esteja embrulhado)
+          // Estratégia 2: irmão do pai
           if (spans[i].parentElement) {
             var parentNext = spans[i].parentElement.nextElementSibling;
             if (parentNext) {
@@ -669,7 +868,7 @@
               if (val3 && val3 !== rotulo) return val3;
             }
           }
-          // Estratégia 3 (último recurso): varrer filhos do pai
+          // Estratégia 3: filhos do pai (último recurso)
           var parent = spans[i].parentElement;
           if (parent) {
             var filhos = parent.querySelectorAll('span, div');
@@ -702,8 +901,7 @@
       }
     }
 
-    // Contrato (card no painel esquerdo: "Contrato", "Tipo de contrato",
-    // "Instalado em", "Cancelado em", "Endereço", "Bairro", "Modalidade", etc.)
+    // Contrato (card no painel esquerdo)
     if (r.contratos.length === 0 && !r.debug.semContratoConfirmado) {
       var numContrato = lerCampoDOM('Contrato');
       var dataInst    = lerCampoDOM('Instalado em');
@@ -714,11 +912,11 @@
       var modalidade  = lerCampoDOM('Modalidade');
       var statusCtr   = lerCampoDOM('Status');
 
-      // Captura valores brutos lidos do DOM pra diagnosticar parser quando der pau
-      r.debug.lidoContrato     = numContrato;
-      r.debug.lidoInstaladoEm  = dataInst;
-      r.debug.lidoCanceladoEm  = cancelEm;
-      r.debug.lidoStatus       = statusCtr;
+      // Captura valores brutos lidos do DOM pra diagnosticar parser
+      r.debug.lidoContrato    = numContrato;
+      r.debug.lidoInstaladoEm = dataInst;
+      r.debug.lidoCanceladoEm = cancelEm;
+      r.debug.lidoStatus      = statusCtr;
 
       if (numContrato) {
         r.contratos.push({
@@ -738,10 +936,6 @@
         console.log('[DHP-NG] DOM contrato:', numContrato, '| instalado:', dataInst,
                     '| cancelado:', cancelEm, '| status:', statusCtr);
 
-        // Lógica de status:
-        // - Cancelado em tem data válida → contrato cancelado → não instalada
-        // - Status "Habilitado" no DOM → instalada
-        // - Tem data de instalação + Cancelado em é "-" ou vazio → instalada
         var foiCancelado = cancelEm && cancelEm !== '-' && cancelEm !== '';
         if (foiCancelado) {
           r.instalada = false;

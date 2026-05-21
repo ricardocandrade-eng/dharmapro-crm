@@ -803,6 +803,9 @@ function getVendasParaVarredura(filtros) {
       resultado.push({
         linha:   i + 3,
         cpf:     cpf,
+        // Consulta NG/Adapter passou a buscar por contrato (não por CPF) — a Varredura
+        // troca _paginaAtual por esta lista, então o contrato precisa vir junto.
+        contrato: String(row[c.CONTRATO] || '').trim().replace(/\.0$/, ''),
         sistema: sistema,
         sistemaFallback: sistemaFallback, // null se cidade não é ambígua
         cidade:  cidade,

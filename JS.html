@@ -1735,6 +1735,10 @@ function _logConsulta(dados) {
 function _categorizarErroConsulta(msg) {
   var m = String(msg || '');
   if (/login falhou|HTTP 401|HTTP 403|n[aã]o autorizad|invalid.*credentia|usuari?o.*senha/i.test(m)) return 'auth';
+  // Busca por contrato (refator 21/05/2026): contrato inexistente ou com formato inválido.
+  // Vem antes da regra de CPF — `cpf_nao_encontrado` fica só por compat com logs históricos.
+  if (/contrato.*(formato|inv[aá]lid)|contrato_formato_invalido/i.test(m))                            return 'contrato_formato_invalido';
+  if (/contrato.*(encontrad|inexist|cadastr)|contrato_nao_encontrado/i.test(m))                       return 'contrato_nao_encontrado';
   if (/cpf.*(encontrad|cadastr)|n[aã]o encontrado|sem contrato/i.test(m))                            return 'cpf_nao_encontrado';
   if (/timeout|tempo esgotado|aguardar/i.test(m))                                                    return 'timeout_extensao';
   if (/HTTP 5\d\d|server error|internal/i.test(m))                                                   return 'http_5xx';
@@ -1750,6 +1754,8 @@ function _mensagemErroHumana(categoria, sistema) {
   var sis = sistema === 'NG' ? 'NG' : 'Adapter';
   switch (categoria) {
     case 'auth':               return 'Usuário/senha do ' + sis + ' inválidos ou expirados. Atualize em Config.';
+    case 'contrato_nao_encontrado':   return 'Contrato não encontrado no sistema. Confira o número da venda no CRM e tente novamente.';
+    case 'contrato_formato_invalido': return 'Número de contrato inválido. Confira o contrato cadastrado na venda.';
     case 'cpf_nao_encontrado': return 'CPF não está cadastrado no Vero ainda.';
     case 'timeout_extensao':   return 'Portal Vero não respondeu a tempo. Pode ser VPN ou portal lento. Tente em 30s.';
     case 'timeout_frontend':   return 'A extensão não respondeu. Verifique se está instalada e se o popup não foi bloqueado.';
@@ -1792,7 +1798,7 @@ function _tornarPopupInvisivel(p) {
 function _consultarNGVenda(index, _tentativa) {
   _tentativa = _tentativa || 1;
   var v = _paginaAtual[index];
-  if (!v || !v.cpf) { mostrarToast('Venda sem CPF.', 'error'); return; }
+  if (!v) { mostrarToast('Venda não encontrada.', 'error'); return; }
 
   // Aviso prévio se NG ou VPN estão off (health check). Só na 1ª tentativa
   // (retry deve seguir mesmo com o aviso). Não bloqueia — só informa.
@@ -1804,14 +1810,12 @@ function _consultarNGVenda(index, _tentativa) {
     }
   }
 
-  // Validação prévia: CPF tem que ser 11 dígitos (rejeita CNPJ, lixo, etc)
-  var _cpfDigitos = String(v.cpf).replace(/\D/g, '');
-  if (_cpfDigitos.length !== 11) {
-    var _msgCpf = _cpfDigitos.length === 14
-      ? 'Esta venda tem CNPJ. Consulta NG funciona só com CPF de pessoa física.'
-      : 'CPF inválido (' + _cpfDigitos.length + ' dígitos — esperado 11). Verifique o cadastro.';
-    _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'cpf_invalido', categoria: 'cpf_invalido', mensagem: _cpfDigitos.length + ' digitos' });
-    mostrarToast(_msgCpf, 'error');
+  // Validação prévia: a venda precisa ter número de contrato (coluna H da aba "1 - Vendas").
+  // 100% das vendas em status 2/3 têm contrato; pré-venda (status 1) não tem e é rejeitada cedo.
+  var contrato = String(v.contrato || '').trim().replace(/\D/g, '');
+  if (!contrato) {
+    _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'erro', categoria: 'contrato_ausente', mensagem: 'Venda sem número de contrato' });
+    mostrarToast('Esta venda ainda não tem contrato. Cadastre o contrato antes de consultar.', 'error');
     return;
   }
 
@@ -1824,7 +1828,7 @@ function _consultarNGVenda(index, _tentativa) {
   }
 
   var modal = document.getElementById('modalNG');
-  document.getElementById('mng-info').textContent = v.cliente + ' | CPF: ' + v.cpf;
+  document.getElementById('mng-info').textContent = v.cliente + ' | Contrato: ' + contrato;
   document.getElementById('mng-loading').style.display = 'block';
   document.getElementById('mng-resultado').style.display = 'none';
   document.getElementById('mng-erro').style.display = 'none';
@@ -1848,8 +1852,8 @@ function _consultarNGVenda(index, _tentativa) {
       // Auto-fallback NG → Adapter: cidade ambígua (rede neutra MG/GO), cliente
       // pode estar no Adapter. Só dispara na 1ª tentativa pra evitar loop.
       var _fallback = (v.sistemaFallback || '').toString().toUpperCase();
-      if (_tentativa === 1 && _cat === 'cpf_nao_encontrado' && _fallback === 'ADAPTER') {
-        _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'fallback_para_adapter', categoria: 'cpf_nao_encontrado', ms: _ms, mensagem: 'Cidade ambigua — tentando Adapter' });
+      if (_tentativa === 1 && (_cat === 'contrato_nao_encontrado' || _cat === 'cpf_nao_encontrado') && _fallback === 'ADAPTER') {
+        _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'fallback_para_adapter', categoria: _cat, ms: _ms, mensagem: 'Cidade ambigua — tentando Adapter' });
         if (_popup && !_popup.closed) { try { _popup.close(); } catch(x) {} }
         mostrarToast('Não encontrado no NG. Tentando no Adapter (cidade aceita ambos)...', 'info');
         document.getElementById('modalNG').classList.remove('ativo');
@@ -1978,8 +1982,8 @@ function _consultarNGVenda(index, _tentativa) {
       // sem reload — bug onde content-ng.js não roda porque só o hash mudou).
       if (_ngPopupAtual && !_ngPopupAtual.closed) { try { _ngPopupAtual.close(); } catch(x) {} }
 
-      // Abrir popup no domínio NG com CPF + credenciais no hash + nome único por consulta
-      var _hash = '#dhp?cpf=' + encodeURIComponent(_cpfDigitos) +
+      // Abrir popup no domínio NG com contrato + credenciais no hash + nome único por consulta
+      var _hash = '#dhp?contrato=' + encodeURIComponent(contrato) +
                   '&user='    + encodeURIComponent(creds.user) +
                   '&pass='    + encodeURIComponent(creds.pass);
       // Popup stealth: reduzido pra 250x180 (testando o mínimo que o Wing
@@ -2108,7 +2112,7 @@ var _adapterDadosTemp = null;
 function _consultarAdapterVenda(index, _tentativa) {
   _tentativa = _tentativa || 1;
   var v = _paginaAtual[index];
-  if (!v || !v.cpf) { mostrarToast('Venda sem CPF.', 'error'); return; }
+  if (!v) { mostrarToast('Venda não encontrada.', 'error'); return; }
 
   // Aviso prévio se Adapter ou VPN estão off (health check)
   if (_tentativa === 1 && _healthState.timestamp > 0 && (Date.now() - _healthState.timestamp < 120000)) {
@@ -2119,14 +2123,12 @@ function _consultarAdapterVenda(index, _tentativa) {
     }
   }
 
-  // Validação prévia: CPF tem que ser 11 dígitos (rejeita CNPJ, lixo, etc)
-  var _cpfDigitos = String(v.cpf).replace(/\D/g, '');
-  if (_cpfDigitos.length !== 11) {
-    var _msgCpf = _cpfDigitos.length === 14
-      ? 'Esta venda tem CNPJ. Consulta Adapter funciona só com CPF de pessoa física.'
-      : 'CPF inválido (' + _cpfDigitos.length + ' dígitos — esperado 11). Verifique o cadastro.';
-    _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'cpf_invalido', categoria: 'cpf_invalido', mensagem: _cpfDigitos.length + ' digitos' });
-    mostrarToast(_msgCpf, 'error');
+  // Validação prévia: a venda precisa ter número de contrato (coluna H da aba "1 - Vendas").
+  // 100% das vendas em status 2/3 têm contrato; pré-venda (status 1) não tem e é rejeitada cedo.
+  var contrato = String(v.contrato || '').trim().replace(/\D/g, '');
+  if (!contrato) {
+    _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'erro', categoria: 'contrato_ausente', mensagem: 'Venda sem número de contrato' });
+    mostrarToast('Esta venda ainda não tem contrato. Cadastre o contrato antes de consultar.', 'error');
     return;
   }
 
@@ -2139,7 +2141,7 @@ function _consultarAdapterVenda(index, _tentativa) {
   }
 
   var modal = document.getElementById('modalAdapter');
-  document.getElementById('madp-info').textContent = v.cliente + ' | CPF: ' + v.cpf;
+  document.getElementById('madp-info').textContent = v.cliente + ' | Contrato: ' + contrato;
   document.getElementById('madp-loading').style.display = 'block';
   document.getElementById('madp-resultado').style.display = 'none';
   document.getElementById('madp-erro').style.display = 'none';
@@ -2173,8 +2175,8 @@ function _consultarAdapterVenda(index, _tentativa) {
 
           // Auto-fallback Adapter → NG: cidade ambígua, cliente pode estar no NG
           var _fallback = (v.sistemaFallback || '').toString().toUpperCase();
-          if (_tentativa === 1 && _cat === 'cpf_nao_encontrado' && _fallback === 'NG') {
-            _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'fallback_para_ng', categoria: 'cpf_nao_encontrado', ms: _ms, mensagem: 'Cidade ambigua — tentando NG' });
+          if (_tentativa === 1 && (_cat === 'contrato_nao_encontrado' || _cat === 'cpf_nao_encontrado') && _fallback === 'NG') {
+            _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'fallback_para_ng', categoria: _cat, ms: _ms, mensagem: 'Cidade ambigua — tentando NG' });
             if (_popup && !_popup.closed) { try { _popup.close(); } catch(x) {} }
             mostrarToast('Não encontrado no Adapter. Tentando no NG (cidade aceita ambos)...', 'info');
             document.getElementById('modalAdapter').classList.remove('ativo');
@@ -2271,8 +2273,8 @@ function _consultarAdapterVenda(index, _tentativa) {
       // Fecha popup Adapter anterior se ainda aberto (mesmo motivo do NG)
       if (_adapterPopupAtual && !_adapterPopupAtual.closed) { try { _adapterPopupAtual.close(); } catch(x) {} }
 
-      // Abrir popup no Adapter com dados no hash + nome único por consulta
-      var _hash = '#dhp?cpf=' + encodeURIComponent(_cpfDigitos) +
+      // Abrir popup no Adapter com contrato no hash + nome único por consulta
+      var _hash = '#dhp?contrato=' + encodeURIComponent(contrato) +
                   '&user='    + encodeURIComponent(creds.user) +
                   '&pass='    + encodeURIComponent(creds.pass);
       // Popup stealth: Adapter precisa só de cookies + AJAX, então usa o

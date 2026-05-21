@@ -7,15 +7,15 @@
 (function() {
   'use strict';
 
-  // Extrair params do hash: #dhp?cpf=...&user=...&pass=...
+  // Extrair params do hash: #dhp?contrato=...&user=...&pass=...
   var hash = window.location.hash || '';
   if (hash.indexOf('#dhp?') !== 0) return;     // nao e consulta DharmaPro
 
   var params = new URLSearchParams(hash.substring(4)); // remove '#dhp'
-  var cpf  = params.get('cpf');
+  var contrato = params.get('contrato');
   var user = params.get('user');
   var pass = params.get('pass');
-  if (!cpf || !user || !pass) return;
+  if (!contrato || !user || !pass) return;
 
   // Limpa o hash para nao ficar visivel (seguranca)
   if (window.history && window.history.replaceState) {
@@ -62,108 +62,88 @@
         return;
       }
 
-      // 2. Buscar cliente por CPF
-      var cpfLimpo = cpf.replace(/\D/g, '');
-      var clienteResp = await fetch(BASE + '/comercial/clientes/novo/datatables?cpf=' + cpfLimpo, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draw: 1, start: 0, length: 10 })
-      });
-      if (!clienteResp.ok) {
-        erroFatal('Erro ao buscar cliente (HTTP ' + clienteResp.status + ')');
-        return;
-      }
-      var clienteData = await clienteResp.json();
-      var lista = clienteData.data || clienteData.content || [];
-      if (!lista.length) {
-        erroFatal('CPF nao encontrado no Adapter.');
-        return;
-      }
-      var cli = lista[0];
-      var clienteId = cli.IDCliente || cli.id || cli.clienteId || cli.codigo || '';
-
-      // 3. Contratos
-      var contratosResp = await fetch(BASE + '/comercial/contratos/cliente/' + clienteId, {
+      // 2. Buscar o contrato direto pelo ID (busca por contrato, não por CPF).
+      // Elimina a ambiguidade multi-contrato: antes buscava o cliente por CPF e
+      // pegava qualquer HABILITADO da lista; agora consulta exatamente o contrato
+      // da venda. Só GET /comercial/contratos/{id} funciona (os padrões
+      // /contratos/novo/{id}, ?id= e datatables retornam HTTP 500).
+      var contratoLimpo = String(contrato).replace(/\D/g, '');
+      var contratoResp = await fetch(BASE + '/comercial/contratos/' + encodeURIComponent(contratoLimpo), {
         credentials: 'include'
       });
-      var contratosRaw = contratosResp.ok ? await contratosResp.json() : [];
 
-      // Contratos podem vir como array ou objeto agrupado por status
-      var contratos = [];
-      if (Array.isArray(contratosRaw)) {
-        contratos = contratosRaw;
-      } else if (contratosRaw && typeof contratosRaw === 'object') {
-        // Pode ser { data: [...] } ou { "HABILITADO": [...], "AGUARDANDO INSTALACAO": [...] }
-        if (contratosRaw.data) {
-          contratos = contratosRaw.data;
-        } else if (contratosRaw.content) {
-          contratos = contratosRaw.content;
-        } else {
-          // Objeto agrupado por status — ex: { "AGUARDANDO INSTALACAO": [{...}] }
-          var keys = Object.keys(contratosRaw);
-          for (var g = 0; g < keys.length; g++) {
-            var grupo = contratosRaw[keys[g]];
-            if (Array.isArray(grupo)) {
-              for (var gi = 0; gi < grupo.length; gi++) {
-                if (!grupo[gi].statusGrupo) grupo[gi].statusGrupo = keys[g];
-                contratos.push(grupo[gi]);
-              }
+      var c;
+      if (contratoResp.status === 200) {
+        c = await contratoResp.json();
+      } else if (contratoResp.status === 404 || contratoResp.status === 500) {
+        // 500 = padrão do Adapter quando o contrato não existe (testado em produção)
+        erroFatal('contrato_nao_encontrado');
+        return;
+      } else {
+        erroFatal('Erro ao buscar contrato (HTTP ' + contratoResp.status + ')');
+        return;
+      }
+
+      // 3. Processar o contrato consultado (sem loop — é exatamente um)
+      var r = { instalada: false, dataInstalacao: '', dataAgendamento: '',
+                resumo: '', contratos: [], aguardando: false };
+
+      var cStatus = (c.status && typeof c.status === 'object') ? (c.status.descricao || '') : String(c.status || '');
+      var cPlano  = (c.plano  && typeof c.plano  === 'object') ? (c.plano.nome || '')       : String(c.plano || '');
+      var cStatusUp = cStatus.toUpperCase();
+
+      // Mantém o campo `contratos` no payload por compat com o frontend.
+      r.contratos.push({ id: c.id || '', plano: cPlano, status: cStatus });
+
+      if (cStatusUp === 'CANCELADO') {
+        var dtCanc = c.dataCancelamento || '';
+        r.resumo = 'Contrato cancelado' + (dtCanc ? ' em ' + (typeof dtCanc === 'string' && dtCanc.indexOf('/') > -1 ? dtCanc.split(' ')[0] : fmtData(dtCanc)) : '');
+        // CANCELADO é estado terminal — NÃO marca instalada.
+        enviar(r);
+        return;
+      }
+
+      if (cStatusUp === 'HABILITADO') {
+        r.instalada = true;
+        var dtHab = c.dataHabilitacao || c.dataUltimaHabilitacao || '';
+        if (dtHab) r.dataInstalacao = (typeof dtHab === 'string' && dtHab.indexOf('/') > -1) ? dtHab.split(' ')[0] : fmtData(dtHab);
+      }
+
+      if (cStatusUp.indexOf('AGUARDANDO') > -1) {
+        r.aguardando = true;
+      }
+
+      // 4. Agendamento — só busca quando aguardando instalação. Usa o cliente do
+      // próprio payload do contrato (não precisa mais buscar cliente por CPF).
+      if (!r.instalada && r.aguardando) {
+        var clienteId = c.cliente && c.cliente.id ? c.cliente.id : '';
+        if (clienteId) {
+          // Payload padrao DataTables (servidor exige columns, order, search)
+          var dtBody = JSON.stringify({
+            draw: 1, start: 0, length: 50,
+            columns: [{ data: null, name: '', searchable: true, orderable: false, search: { value: '', regex: false } }],
+            order: [{ column: 0, dir: 'asc' }],
+            search: { value: '', regex: false }
+          });
+          var agendadosResp = await fetch(
+            BASE + '/comercial/atendimentos/novo/datatables?clienteId=' + clienteId + '&status=VISITA_AGENDADA',
+            {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: dtBody
             }
-          }
-        }
-      }
+          );
+          var agendadosRaw = agendadosResp.ok ? await agendadosResp.json() : {};
+          var agendados = agendadosRaw.data || agendadosRaw.content || (Array.isArray(agendadosRaw) ? agendadosRaw : []);
 
-      // Payload padrao DataTables (servidor exige columns, order, search)
-      var dtBody = JSON.stringify({
-        draw: 1, start: 0, length: 50,
-        columns: [{ data: null, name: '', searchable: true, orderable: false, search: { value: '', regex: false } }],
-        order: [{ column: 0, dir: 'asc' }],
-        search: { value: '', regex: false }
-      });
-
-      // 4. Atendimentos agendados
-      var agendadosResp = await fetch(BASE + '/comercial/atendimentos/novo/datatables?clienteId=' + clienteId + '&status=VISITA_AGENDADA', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: dtBody
-      });
-      var agendadosRaw = agendadosResp.ok ? await agendadosResp.json() : {};
-      var agendados = agendadosRaw.data || agendadosRaw.content || (Array.isArray(agendadosRaw) ? agendadosRaw : []);
-
-
-      // 6. Processar — foco nos contratos ATIVOS (ignorar CANCELADO)
-      var r = { instalada: false, dataInstalacao: '', dataAgendamento: '', resumo: '', contratos: [], aguardando: false };
-
-      for (var i = 0; i < contratos.length; i++) {
-        var c = contratos[i];
-        var cStatus = (c.status && typeof c.status === 'object') ? (c.status.descricao || '') : String(c.status || '');
-        var cPlano  = (c.plano  && typeof c.plano  === 'object') ? (c.plano.nome || '')       : String(c.plano || '');
-        var cStatusUp = cStatus.toUpperCase();
-
-        r.contratos.push({ id: c.id || '', plano: cPlano, status: cStatus });
-
-        // Ignorar contratos cancelados
-        if (cStatusUp === 'CANCELADO') continue;
-
-        if (cStatusUp === 'HABILITADO') {
-          r.instalada = true;
-          // Pegar data de habilitacao do contrato se disponivel
-          var dtHab = c.dataHabilitacao || c.dataUltimaHabilitacao || '';
-          if (dtHab) r.dataInstalacao = (typeof dtHab === 'string' && dtHab.indexOf('/') > -1) ? dtHab.split(' ')[0] : fmtData(dtHab);
-        }
-        if (cStatusUp.indexOf('AGUARDANDO') > -1) r.aguardando = true;
-      }
-
-      // Se nao esta instalada, verificar agendamentos (visitas agendadas)
-      if (!r.instalada) {
-        for (var k = 0; k < agendados.length; k++) {
-          var a = agendados[k];
-          var dtAg = a.dataAgendamento || '';
-          if (dtAg) {
-            r.dataAgendamento = dtAg;
-            break;
+          // Heurística mantida: primeiro item com dataAgendamento.
+          // Caveat: o endpoint datatables retorna idContrato null, então em
+          // multi-contrato AGUARDANDO no mesmo cliente pode pegar o agendamento
+          // do outro contrato. Edge case secundário, aceitável.
+          for (var k = 0; k < agendados.length; k++) {
+            var dtAg = agendados[k].dataAgendamento || '';
+            if (dtAg) { r.dataAgendamento = dtAg; break; }
           }
         }
       }

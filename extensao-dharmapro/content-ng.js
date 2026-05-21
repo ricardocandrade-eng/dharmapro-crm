@@ -3,9 +3,10 @@
 //  Roda em ng.vero.objective.com.br (document_start)
 //
 //  Modo de operação:
-//    QUERY — popup aberto pelo DharmaPro com #dhp?cpf=...&user=...&pass=...
-//            Deixa Wing carregar, faz login se necessário, busca CPF via DOM,
-//            lê resultado dos controllers Wing e devolve via postMessage.
+//    QUERY — popup aberto pelo DharmaPro com #dhp?contrato=...&user=...&pass=...
+//            Deixa Wing carregar, faz login se necessário, busca o contrato no
+//            campo de pesquisa, lê o contrato certo dos controllers Wing e
+//            devolve via postMessage.
 //    PASSIVO — se não há hash #dhp?, não faz nada (não interfere no uso normal)
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -16,10 +17,10 @@
   if (hash.indexOf('#dhp?') !== 0) return; // nao e consulta DharmaPro
 
   var params = new URLSearchParams(hash.substring(4));
-  var cpf  = params.get('cpf');
+  var contrato = params.get('contrato');
   var user = params.get('user');
   var pass = params.get('pass');
-  if (!cpf || !user || !pass) return;
+  if (!contrato || !user || !pass) return;
 
   // Limpar hash (segurança)
   if (window.history && window.history.replaceState) {
@@ -159,9 +160,16 @@
 
   async function executar() {
     try {
-      console.log('[DHP-NG] Iniciando consulta. CPF: ' + cpf);
+      console.log('[DHP-NG] Iniciando consulta. Contrato: ' + contrato);
       console.log('[DHP-NG] URL: ' + window.location.href);
       console.log('[DHP-NG] readyState: ' + document.readyState);
+
+      // Validação leve de formato: Wing aceita contratos de ~6 a 12 dígitos.
+      var contratoLimpo = String(contrato).replace(/\D/g, '');
+      if (!/^\d{6,12}$/.test(contratoLimpo)) {
+        erroFatal('contrato_formato_invalido');
+        return;
+      }
 
       // 1. Aguardar Wing carregar
       try {
@@ -211,8 +219,8 @@
         }, 15000, 500, 'Controller Atend360BuscaWComp');
       }
 
-      // 5. Buscar CPF
-      await buscarCPF(cpf.replace(/\D/g, ''));
+      // 5. Buscar contrato
+      await buscarContrato(contratoLimpo);
 
       // 6. Clicar em Visualizar
       await clicarVisualizar();
@@ -223,8 +231,14 @@
       enviar(resultado);
 
     } catch(e) {
-      console.error('[DHP-NG] ✘ ERRO:', e.message || String(e));
-      erroFatal('Erro NG: ' + (e.message || String(e)));
+      var msg = e.message || String(e);
+      console.error('[DHP-NG] ✘ ERRO:', msg);
+      // Preserva tokens de categoria conhecidos para o categorizador do JS.html.
+      if (msg === 'contrato_nao_encontrado' || msg === 'contrato_formato_invalido') {
+        erroFatal(msg);
+      } else {
+        erroFatal('Erro NG: ' + msg);
+      }
     }
   }
 
@@ -528,9 +542,12 @@
     }, 15000, 500, 'Controller BuscaWComp (espera final)');
   }
 
-  // ── Buscar CPF ─────────────────────────────────────────────────────────
+  // ── Buscar contrato ──────────────────────────────────────────────────────
+  // O campo de busca do NG aceita "nome, contrato, CPF/CNPJ, telefone, e-mail ou
+  // login PPPoE". Buscar pelo contrato retorna 1 card e abre direto a aba do
+  // contrato certo — elimina a ambiguidade multi-contrato da busca por CPF.
 
-  async function buscarCPF(cpfLimpo) {
+  async function buscarContrato(contratoLimpo) {
     var buscaCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360BuscaWComp');
     if (!buscaCtrl) throw new Error('Tela de busca não encontrada');
 
@@ -541,22 +558,23 @@
     if (!input) {
       // Fallback: buscar por placeholder
       input = document.querySelector('input[placeholder*="CPF"]') ||
-              document.querySelector('input[placeholder*="Buscar"]');
+              document.querySelector('input[placeholder*="Buscar"]') ||
+              document.querySelector('input[placeholder*="contrato"]');
     }
     if (!input) throw new Error('Campo de pesquisa não encontrado');
 
-    // Limpar campo e digitar CPF
+    // Limpar campo e digitar o contrato
     input.focus();
     input.value = '';
     input.dispatchEvent(new Event('input', { bubbles: true }));
-    simularDigitacao(input, cpfLimpo);
+    simularDigitacao(input, contratoLimpo);
 
     // Pressionar Enter — caminho natural do Wing (click no pesquisaB pode
-    // causar timeout intermitente em "Resultado busca CPF")
+    // causar timeout intermitente em "Resultado busca")
     console.log('[DHP-NG] Disparando busca via Enter');
     simularEnter(input);
 
-    console.log('[DHP-NG] Digitou CPF e Enter, aguardando resultado...');
+    console.log('[DHP-NG] Digitou contrato e Enter, aguardando resultado...');
 
     // Aguardar resultado (CardRetornoBusca ou resultadoTotalSl com "0")
     // Evita falso positivo do detector "Nenhum resultado" em estados iniciais
@@ -580,12 +598,13 @@
       if (/Nenhum resultado para mostrar/i.test(bodyTxt)) return 'nao_encontrado';
 
       return null;
-    }, 15000, 300, 'Resultado busca CPF');
+    }, 15000, 300, 'Resultado busca contrato');
 
     // Verificar se encontrou
     var cardCtrl = findCtrlByType(Wing.session.controllerManager.instances, 'Atend360CardRetornoBuscaWComp');
     if (!cardCtrl) {
-      throw new Error('CPF não encontrado no NG.');
+      // Token de categoria — o catch de executar() repassa cru pro JS.html.
+      throw new Error('contrato_nao_encontrado');
     }
   }
 
