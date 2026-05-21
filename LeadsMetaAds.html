@@ -54,7 +54,7 @@
   flex: 1; min-width: 0;                 /* divide a largura igualmente entre os 5 */
   background: var(--surface2); border: 1px solid var(--border);
   border-top-width: 2px;                  /* faixa de cor no topo (identidade) */
-  border-radius: 9px; padding: 6px 12px;
+  border-radius: 9px; padding: 5px 12px;
 }
 .lma-card.c-novos    { border-top-color: rgba(130,130,255,.7); }
 .lma-card.c-pend     { border-top-color: rgba(230,180,62,.8); }
@@ -64,7 +64,7 @@
 .lma-card-label { font-size: 9px; font-weight: 700; color: var(--muted);
   text-transform: uppercase; letter-spacing: .5px; margin-bottom: 1px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lma-card-valor { font-size: 17px; font-weight: 800; font-family: 'DM Mono', monospace; color: var(--text); line-height: 1.1; }
+.lma-card-valor { font-size: 16px; font-weight: 800; font-family: 'DM Mono', monospace; color: var(--text); line-height: 1.1; }
 .lma-card-sub   { font-size: 9px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 1px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -237,6 +237,15 @@
 .lma-period-pills button.ativo { background:var(--accent); color:#fff; border-color:var(--accent); }
 .lma-date { padding:4px 6px; background:var(--surface2); border:1px solid var(--border);
   border-radius:6px; color:var(--text); font-size:11px; }
+.lma-fspacer { flex:1; }
+.lma-fbtn { display:inline-flex; align-items:center; gap:6px; padding:5px 11px; background:var(--surface2);
+  border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; cursor:pointer; font-family:'Sora',sans-serif; }
+.lma-fbtn.ativo { border-color:var(--accent); }
+.lma-fcount { font-size:10px; font-family:'DM Mono',monospace; background:var(--accent); color:#fff; border-radius:20px; padding:0 6px; }
+.lma-flink { font-size:11px; color:var(--muted); background:none; border:none; cursor:pointer; text-decoration:underline; font-family:'Sora',sans-serif; }
+.lma-fpanel { display:none; gap:8px; padding:8px 0 2px; margin-top:2px; flex-wrap:wrap;
+  align-items:center; border-top:1px dashed var(--border); }
+.lma-fpanel.aberto { display:flex; }
 
 /* ── Cabeçalho ordenável ── */
 .lma-th-sort { cursor:pointer; user-select:none; }
@@ -334,7 +343,7 @@
     </div>
   </div>
 
-  <!-- Filtros (2 linhas) -->
+  <!-- Filtros: linha essencial + painel avançado colapsável -->
   <div class="lma-filtros">
     <div class="lma-filtro-linha">
       <div class="lma-period-pills" id="lmaPeriodPills">
@@ -348,9 +357,17 @@
         <input type="date" id="lmaDesde" class="lma-date" onchange="_lmaFiltrar()"> a
         <input type="date" id="lmaAte" class="lma-date" onchange="_lmaFiltrar()">
       </span>
-      <label>Estado</label>
+      <input class="lma-input-busca" id="lmaBusca" type="text" placeholder="Buscar nome ou telefone…" oninput="_lmaFiltrar()">
+      <span class="lma-fspacer"></span>
+      <button class="lma-fbtn" id="lmaFiltrosBtn" onclick="_lmaToggleFiltros()">⚙ Filtros
+        <span class="lma-fcount" id="lmaFCount" style="display:none">0</span>
+        <span id="lmaFCaret">▾</span>
+      </button>
+      <button class="lma-flink" onclick="_lmaLimparFiltros()">Limpar</button>
+    </div>
+    <div class="lma-fpanel" id="lmaFPanel">
       <select class="lma-select" id="lmaFiltroEstado" onchange="_lmaFiltrar()">
-        <option value="">Todos</option>
+        <option value="">Estado: todos</option>
         <option value="__cobertura">Cobertura Vero</option>
         <option value="__fora">Fora cobertura</option>
         <option disabled>──────────</option>
@@ -359,26 +376,17 @@
         <option value="MS">MS</option><option value="BA">BA</option><option value="PR">PR</option>
         <option value="SC">SC</option><option value="RS">RS</option>
       </select>
-      <input class="lma-input-busca" id="lmaBusca" type="text" placeholder="Buscar nome ou telefone…" oninput="_lmaFiltrar()">
-    </div>
-    <div class="lma-filtro-linha">
-      <label>Status</label>
       <select class="lma-select" id="lmaFiltroStatus" onchange="_lmaFiltrar()">
-        <option value="">Todos</option>
+        <option value="">Status: todos</option>
         <option value="pendente">Sem status</option>
         <option value="Converteu">Converteu</option>
         <option value="Em negociação">Em negociação</option>
         <option value="Sem contato">Sem contato</option>
         <option value="Desqualificado">Desqualificado</option>
       </select>
-      <label>Campanha</label>
-      <select class="lma-select" id="lmaFiltroCampanha" onchange="_lmaFiltrar()"><option value="">Todas</option></select>
-      <label>Anúncio</label>
-      <select class="lma-select" id="lmaFiltroAnuncio" onchange="_lmaFiltrar()"><option value="">Todos</option></select>
-      <label>Motivo</label>
-      <select class="lma-select" id="lmaFiltroMotivo" onchange="_lmaFiltrar()"><option value="">Todos</option></select>
-      <button class="lma-btn" onclick="_lmaLimparFiltros()">Limpar filtros</button>
-      <span class="lma-count" id="lmaCount"></span>
+      <select class="lma-select" id="lmaFiltroCampanha" onchange="_lmaFiltrar()"><option value="">Campanha: todas</option></select>
+      <select class="lma-select" id="lmaFiltroAnuncio" onchange="_lmaFiltrar()"><option value="">Anúncio: todos</option></select>
+      <select class="lma-select" id="lmaFiltroMotivo" onchange="_lmaFiltrar()"><option value="">Motivo: todos</option></select>
     </div>
   </div>
 
@@ -558,9 +566,9 @@ function _lmaPopularFiltros() {
     });
     if (atual) sel.value = atual; // preserva seleção
   }
-  popular('lmaFiltroCampanha', function(l) { return l.utm_campaign; }, 'Todas');
-  popular('lmaFiltroAnuncio',  function(l) { return l.utm_ad; },       'Todos');
-  popular('lmaFiltroMotivo',   function(l) { return l.motivo_desq; },  'Todos');
+  popular('lmaFiltroCampanha', function(l) { return l.utm_campaign; }, 'Campanha: todas');
+  popular('lmaFiltroAnuncio',  function(l) { return l.utm_ad; },       'Anúncio: todos');
+  popular('lmaFiltroMotivo',   function(l) { return l.motivo_desq; },  'Motivo: todos');
 }
 
 // ── Intervalo do período selecionado ──
@@ -633,12 +641,12 @@ function _lmaOrdenar(lista) {
 function _lmaFiltrar() {
   var lista = _lmaOrdenar(_lmaDados.filter(function(l) { return _lmaMatch(l, {}); }));
 
-  document.getElementById('lmaCount').textContent = lista.length + ' lead' + (lista.length !== 1 ? 's' : '');
   var pill = document.getElementById('lmaTotalPill');
   if (pill) pill.textContent = lista.length + ' lead' + (lista.length !== 1 ? 's' : '') + ' no período';
 
   _lmaAtualizarKPIs(lista);
   _lmaAtualizarSortInd();
+  _lmaContarFiltrosAtivos();
 
   if (_lmaView === 'kanban') _lmaRenderKanban(lista);
   else _lmaRenderizarTabela(lista);
@@ -1170,6 +1178,26 @@ function _lmaLimparFiltros() {
   _lmaSetPeriodo('mes');
 }
 
+// Abre/fecha o painel de filtros avançados (estado persistido).
+function _lmaToggleFiltros(forcar) {
+  var aberto = (typeof forcar === 'boolean') ? forcar
+    : !document.getElementById('lmaFPanel').classList.contains('aberto');
+  document.getElementById('lmaFPanel').classList.toggle('aberto', aberto);
+  document.getElementById('lmaFCaret').textContent = aberto ? '▴' : '▾';
+  try { localStorage.setItem('leads_meta_ads_filtros_abertos', aberto ? '1' : '0'); } catch (e) {}
+}
+
+// Conta filtros avançados ativos (Estado/Status/Campanha/Anúncio/Motivo) e atualiza o badge.
+function _lmaContarFiltrosAtivos() {
+  var ids = ['lmaFiltroEstado','lmaFiltroStatus','lmaFiltroCampanha','lmaFiltroAnuncio','lmaFiltroMotivo'];
+  var n = 0;
+  ids.forEach(function(id) { var el = document.getElementById(id); if (el && el.value) n++; });
+  var badge = document.getElementById('lmaFCount');
+  var btn = document.getElementById('lmaFiltrosBtn');
+  if (badge) { badge.textContent = n; badge.style.display = n ? 'inline-block' : 'none'; }
+  if (btn) btn.classList.toggle('ativo', n > 0);
+}
+
 // ─── Toggle de visualização Lista | Kanban ──────────────────────────────────
 function _lmaSetView(v) {
   _lmaView = v;
@@ -1336,6 +1364,8 @@ function _lmaDrop(ev, colId) {
     _lmaAutoOn = (ar === null) ? true : (ar === '1'); // default ligado
   } catch (e) {}
   var cb = document.getElementById('lmaAutoRefresh'); if (cb) cb.checked = _lmaAutoOn;
+  // restaura estado do painel de filtros avançados (default: fechado)
+  try { _lmaToggleFiltros(localStorage.getItem('leads_meta_ads_filtros_abertos') === '1'); } catch (e) {}
   // aplica a view salva (atualiza botões + visibilidade)
   var bl = document.getElementById('lmaViewLista'), bk = document.getElementById('lmaViewKanban');
   if (bl && bk) {
