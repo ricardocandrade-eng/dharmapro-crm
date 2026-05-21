@@ -204,6 +204,88 @@
 .lma-form-row { display: flex; flex-direction: column; gap: 14px; }
 #mlStatus { margin: 10px 0 0; font-size: 11px; font-family: 'DM Mono', monospace;
   text-align: center; min-height: 16px; color: var(--muted); }
+
+/* ── Reformulação: toolbar / view toggle / auto-refresh ── */
+.lma-total-pill { font-size:11px; font-family:'DM Mono',monospace; color:var(--muted);
+  background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:3px 10px; }
+.lma-view-toggle { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.lma-view-btn { padding:6px 12px; background:var(--surface2); color:var(--muted); border:none;
+  cursor:pointer; font-size:12px; font-family:'Sora',sans-serif; }
+.lma-view-btn.ativo { background:var(--accent); color:#fff; }
+.lma-autorefresh { display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); cursor:pointer; }
+.lma-refresh-spin { opacity:0; transition:opacity .2s; display:inline-block; }
+.lma-refresh-spin.girando { opacity:1; animation:lmaspin 1s linear; }
+@keyframes lmaspin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+
+/* ── KPIs em 2 faixas ── */
+.lma-kpis { display:flex; gap:18px; padding:18px 24px 14px; background:var(--surface);
+  border-bottom:1px solid var(--border); flex-wrap:wrap; flex-shrink:0; }
+.lma-faixa { display:flex; gap:12px; align-items:stretch; position:relative; padding:12px 12px 10px; border-radius:12px; }
+.lma-faixa-acao  { background:rgba(255,170,0,.06); border:1px solid rgba(255,170,0,.20); }
+.lma-faixa-saude { background:var(--surface2); border:1px solid var(--border); }
+.lma-faixa-tag { position:absolute; top:-8px; left:12px; font-size:9px; font-weight:700;
+  text-transform:uppercase; letter-spacing:1px; color:var(--muted); background:var(--surface); padding:0 6px; }
+.lma-card.c-novos { border-color:rgba(130,130,255,.45); }
+.lma-card.c-nego  { border-color:rgba(62,130,230,.45); cursor:help; }
+
+/* ── Filtros (2 linhas) + pills ── */
+.lma-filtros { background:var(--surface); border-bottom:1px solid var(--border);
+  padding:10px 24px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
+.lma-filtro-linha { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.lma-filtro-linha label { font-size:11px; font-weight:700; color:var(--muted);
+  text-transform:uppercase; letter-spacing:1px; white-space:nowrap; }
+.lma-period-pills { display:inline-flex; gap:4px; flex-wrap:wrap; }
+.lma-period-pills button { padding:5px 11px; background:var(--surface2); border:1px solid var(--border);
+  border-radius:20px; font-size:11px; cursor:pointer; color:var(--muted); font-family:'Sora',sans-serif; }
+.lma-period-pills button.ativo { background:var(--accent); color:#fff; border-color:var(--accent); }
+.lma-date { padding:4px 6px; background:var(--surface2); border:1px solid var(--border);
+  border-radius:6px; color:var(--text); font-size:11px; }
+
+/* ── Cabeçalho ordenável ── */
+.lma-th-sort { cursor:pointer; user-select:none; }
+.lma-th-sort:hover { color:var(--text); }
+.lma-sort-ind { font-size:9px; }
+
+/* ── Chips / links na lista ── */
+.lma-chip-camp { display:inline-block; max-width:160px; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; vertical-align:middle; padding:2px 8px; border-radius:6px; font-size:10px;
+  font-weight:600; color:#fff; font-family:'DM Mono',monospace; }
+.lma-chip-anun { display:inline-block; max-width:140px; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; vertical-align:middle; padding:2px 7px; border-radius:6px; font-size:10px;
+  color:var(--muted); background:var(--surface2); border:1px solid var(--border); font-family:'DM Mono',monospace; }
+.lma-chip-motivo { display:inline-block; padding:2px 8px; border-radius:6px; font-size:10px;
+  color:#c04040; background:rgba(230,62,62,.12); font-family:'DM Mono',monospace; white-space:nowrap; }
+.lma-tel-link { color:var(--accent); text-decoration:none; }
+.lma-tel-link:hover { text-decoration:underline; }
+.lma-table tr.lma-tr-conv td:first-child { box-shadow: inset 3px 0 0 #2ea854; }
+.lma-table tr.lma-tr-risco { background: rgba(255,170,0,.05); }
+.lma-acao-btn-copy { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+.lma-acao-btn-copy:hover { background:var(--border); opacity:1; }
+
+/* ── Kanban ── */
+.lma-kanban { display:flex; gap:12px; padding:16px 24px 40px; align-items:flex-start; overflow-x:auto; height:100%; box-sizing:border-box; }
+.lma-kcol { flex:1; min-width:240px; background:var(--surface2); border:1px solid var(--border);
+  border-radius:12px; display:flex; flex-direction:column; max-height:100%; }
+.lma-kcol.k-over { border-color:var(--accent); background:var(--surface); }
+.lma-kcol-head { padding:10px 14px; font-size:12px; font-weight:700; border-bottom:1px solid var(--border);
+  display:flex; justify-content:space-between; align-items:center; }
+.lma-kcol-count { font-size:11px; font-family:'DM Mono',monospace; color:var(--muted);
+  background:var(--bg); border-radius:20px; padding:1px 8px; }
+.lma-kcol.k-pend .lma-kcol-head { color:var(--muted); }
+.lma-kcol.k-nego .lma-kcol-head { color:#3070c0; }
+.lma-kcol.k-conv .lma-kcol-head { color:#2ea854; }
+.lma-kcol.k-desq .lma-kcol-head { color:#c04040; }
+.lma-kcol-body { padding:10px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
+.lma-kcol-vazio { color:var(--muted); font-size:11px; text-align:center; padding:12px; }
+.lma-kcard { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px; cursor:grab; }
+.lma-kcard:active { cursor:grabbing; }
+.lma-kcard.kc-conv { border-left:3px solid #2ea854; }
+.lma-kcard.kc-risco { border-left:3px solid #e6a93e; }
+.lma-kcard-nome { font-weight:700; font-size:12px; margin-bottom:3px; }
+.lma-kcard-tel { font-size:11px; font-family:'DM Mono',monospace; margin-bottom:4px; }
+.lma-kcard-cidade { font-size:10px; color:var(--muted); margin-bottom:5px; }
+.lma-kcard-tags { display:flex; gap:5px; flex-wrap:wrap; }
+.lma-empty { padding:40px; text-align:center; color:var(--muted); font-size:13px; }
 </style>
 
 <!-- ══ PÁGINA ══ -->
@@ -212,67 +294,117 @@
   <!-- Toolbar -->
   <div class="lma-toolbar">
     <h2>📣 Leads Meta Ads</h2>
+    <span class="lma-total-pill" id="lmaTotalPill">—</span>
+    <div class="lma-view-toggle">
+      <button id="lmaViewLista"  class="lma-view-btn ativo" onclick="_lmaSetView('lista')">☰ Lista</button>
+      <button id="lmaViewKanban" class="lma-view-btn"       onclick="_lmaSetView('kanban')">▦ Kanban</button>
+    </div>
+    <label class="lma-autorefresh" title="Atualiza os dados sozinho a cada 60s">
+      <input type="checkbox" id="lmaAutoRefresh" onchange="_lmaToggleAutoRefresh()"> auto
+      <span id="lmaRefreshSpin" class="lma-refresh-spin">🔄</span>
+    </label>
     <button class="lma-btn" onclick="carregarLeadsMetaAds()">↺ Atualizar</button>
+    <button class="lma-btn" onclick="_lmaExportarCSV()">⬇ Exportar CSV</button>
     <button class="lma-btn lma-btn-primary" onclick="abrirModalManual()">+ Registrar manualmente</button>
   </div>
 
-  <!-- Cards de resumo -->
-  <div class="lma-resumo" id="lmaResumo">
-    <div class="lma-card c-total">
-      <div class="lma-card-label">Total</div>
-      <div class="lma-card-valor" id="lmaTotalVal">—</div>
-      <div class="lma-card-sub">leads recebidos</div>
+  <!-- KPIs em 2 faixas -->
+  <div class="lma-kpis">
+    <div class="lma-faixa lma-faixa-acao">
+      <span class="lma-faixa-tag">Ação imediata</span>
+      <div class="lma-card c-novos" title="Leads que entraram hoje — o pulso diário. Ignora o filtro de período (sempre hoje).">
+        <div class="lma-card-label">🆕 Novos hoje</div>
+        <div class="lma-card-valor" id="kpiNovos">—</div>
+        <div class="lma-card-sub">entraram hoje</div>
+      </div>
+      <div class="lma-card c-pend" title="Leads sem triagem do time. Atribua um status pra fluir o funil.">
+        <div class="lma-card-label">⏳ Pendentes</div>
+        <div class="lma-card-valor" id="kpiPend">—</div>
+        <div class="lma-card-sub">sem triagem</div>
+      </div>
+      <div class="lma-card c-nego" id="kpiNegoCard" title="Leads em negociação. Hover mostra a receita projetada do pipeline.">
+        <div class="lma-card-label">🔥 Em negociação</div>
+        <div class="lma-card-valor" id="kpiNego">—</div>
+        <div class="lma-card-sub" id="kpiNegoRisco">—</div>
+      </div>
     </div>
-    <div class="lma-card c-conv">
-      <div class="lma-card-label">Convertidos</div>
-      <div class="lma-card-valor" id="lmaConvVal">—</div>
-      <div class="lma-card-sub" id="lmaTaxaSub">taxa —%</div>
-    </div>
-    <div class="lma-card c-pend">
-      <div class="lma-card-label">Pendentes</div>
-      <div class="lma-card-valor" id="lmaPendVal">—</div>
-      <div class="lma-card-sub">sem status</div>
-    </div>
-    <div class="lma-card c-desq">
-      <div class="lma-card-label">Desqualificados</div>
-      <div class="lma-card-valor" id="lmaDesqVal">—</div>
-      <div class="lma-card-sub">não avançaram</div>
+    <div class="lma-faixa lma-faixa-saude">
+      <span class="lma-faixa-tag">Saúde do funil</span>
+      <div class="lma-card c-conv" title="Leads que viraram venda. Taxa = convertidos ÷ total no filtro atual.">
+        <div class="lma-card-label">🎯 Convertidos</div>
+        <div class="lma-card-valor" id="kpiConv">—</div>
+        <div class="lma-card-sub" id="kpiTaxa">taxa —%</div>
+      </div>
+      <div class="lma-card c-desq" title="Leads desqualificados, com o breakdown por motivo (top 4).">
+        <div class="lma-card-label">❌ Desqualificados</div>
+        <div class="lma-card-valor" id="kpiDesq">—</div>
+        <div class="lma-card-sub" id="kpiDesqBreak">—</div>
+      </div>
     </div>
   </div>
 
-  <!-- Filtros -->
-  <div class="lma-filtro-wrap">
-    <label>Status</label>
-    <select class="lma-select" id="lmaFiltroStatus" onchange="_lmaFiltrar()">
-      <option value="">Todos</option>
-      <option value="pendente">Sem status</option>
-      <option value="Converteu">Converteu</option>
-      <option value="Em negociação">Em negociação</option>
-      <option value="Sem contato">Sem contato</option>
-      <option value="Desqualificado">Desqualificado</option>
-    </select>
-    <label>Campanha</label>
-    <select class="lma-select" id="lmaFiltroCampanha" onchange="_lmaFiltrar()">
-      <option value="">Todas</option>
-    </select>
-    <input class="lma-input-busca" id="lmaBusca" type="text" placeholder="Buscar nome ou telefone…" oninput="_lmaFiltrar()">
-    <span class="lma-count" id="lmaCount"></span>
+  <!-- Filtros (2 linhas) -->
+  <div class="lma-filtros">
+    <div class="lma-filtro-linha">
+      <div class="lma-period-pills" id="lmaPeriodPills">
+        <button data-p="hoje"   onclick="_lmaSetPeriodo('hoje')">Hoje</button>
+        <button data-p="semana" onclick="_lmaSetPeriodo('semana')">Esta semana</button>
+        <button data-p="mes" class="ativo" onclick="_lmaSetPeriodo('mes')">Este mês</button>
+        <button data-p="30d"    onclick="_lmaSetPeriodo('30d')">30 dias</button>
+        <button data-p="custom" onclick="_lmaSetPeriodo('custom')">Personalizado</button>
+      </div>
+      <span id="lmaCustomRange" style="display:none; font-size:11px; color:var(--muted);">
+        <input type="date" id="lmaDesde" class="lma-date" onchange="_lmaFiltrar()"> a
+        <input type="date" id="lmaAte" class="lma-date" onchange="_lmaFiltrar()">
+      </span>
+      <label>Estado</label>
+      <select class="lma-select" id="lmaFiltroEstado" onchange="_lmaFiltrar()">
+        <option value="">Todos</option>
+        <option value="__cobertura">Cobertura Vero</option>
+        <option value="__fora">Fora cobertura</option>
+        <option disabled>──────────</option>
+        <option value="MG">MG</option><option value="SP">SP</option><option value="RJ">RJ</option>
+        <option value="ES">ES</option><option value="GO">GO</option><option value="DF">DF</option>
+        <option value="MS">MS</option><option value="BA">BA</option><option value="PR">PR</option>
+        <option value="SC">SC</option><option value="RS">RS</option>
+      </select>
+      <input class="lma-input-busca" id="lmaBusca" type="text" placeholder="Buscar nome ou telefone…" oninput="_lmaFiltrar()">
+    </div>
+    <div class="lma-filtro-linha">
+      <label>Status</label>
+      <select class="lma-select" id="lmaFiltroStatus" onchange="_lmaFiltrar()">
+        <option value="">Todos</option>
+        <option value="pendente">Sem status</option>
+        <option value="Converteu">Converteu</option>
+        <option value="Em negociação">Em negociação</option>
+        <option value="Sem contato">Sem contato</option>
+        <option value="Desqualificado">Desqualificado</option>
+      </select>
+      <label>Campanha</label>
+      <select class="lma-select" id="lmaFiltroCampanha" onchange="_lmaFiltrar()"><option value="">Todas</option></select>
+      <label>Anúncio</label>
+      <select class="lma-select" id="lmaFiltroAnuncio" onchange="_lmaFiltrar()"><option value="">Todos</option></select>
+      <label>Motivo</label>
+      <select class="lma-select" id="lmaFiltroMotivo" onchange="_lmaFiltrar()"><option value="">Todos</option></select>
+      <button class="lma-btn" onclick="_lmaLimparFiltros()">Limpar filtros</button>
+      <span class="lma-count" id="lmaCount"></span>
+    </div>
   </div>
 
-  <!-- Tabela -->
+  <!-- Corpo: Lista (default) + Kanban -->
   <div class="lma-body">
-    <div class="lma-scroll">
+    <div class="lma-scroll" id="lmaListaWrap">
       <table class="lma-table">
         <thead>
           <tr>
-            <th>Data entrada</th>
-            <th>Lead</th>
-            <th>Cidade</th>
-            <th>Campanha</th>
-            <th>Anúncio</th>
-            <th>Status</th>
-            <th>Motivo desq.</th>
-            <th>Atualizado em</th>
+            <th class="lma-th-sort" onclick="_lmaSort('data_entrada')">Data entrada <span class="lma-sort-ind" id="sortInd_data_entrada"></span></th>
+            <th class="lma-th-sort" onclick="_lmaSort('nome')">Lead <span class="lma-sort-ind" id="sortInd_nome"></span></th>
+            <th class="lma-th-sort" onclick="_lmaSort('cidade')">Cidade <span class="lma-sort-ind" id="sortInd_cidade"></span></th>
+            <th class="lma-th-sort" onclick="_lmaSort('utm_campaign')">Campanha <span class="lma-sort-ind" id="sortInd_utm_campaign"></span></th>
+            <th class="lma-th-sort" onclick="_lmaSort('utm_ad')">Anúncio <span class="lma-sort-ind" id="sortInd_utm_ad"></span></th>
+            <th class="lma-th-sort" onclick="_lmaSort('status_final')">Status <span class="lma-sort-ind" id="sortInd_status_final"></span></th>
+            <th class="lma-th-sort" onclick="_lmaSort('motivo_desq')">Motivo desq. <span class="lma-sort-ind" id="sortInd_motivo_desq"></span></th>
+            <th class="lma-th-sort" onclick="_lmaSort('data_status')">Atualizado em <span class="lma-sort-ind" id="sortInd_data_status"></span></th>
             <th>Ação</th>
           </tr>
         </thead>
@@ -281,6 +413,7 @@
         </tbody>
       </table>
     </div>
+    <div class="lma-kanban" id="lmaKanbanWrap" style="display:none"></div>
   </div>
 
   <!-- Modal: Registro Manual de Lead Meta Ads -->
@@ -339,6 +472,12 @@
 
 <script>
 var _lmaDados = [];
+var _lmaView    = 'lista';   // 'lista' | 'kanban' (persistido em localStorage)
+var _lmaAutoOn  = false;     // auto-refresh ligado
+var _lmaTimer   = null;      // handle do setInterval
+var _lmaSortCol = 'data_entrada';
+var _lmaSortDir = 'desc';    // 'asc' | 'desc' | '' (sem ordenação)
+var _lmaPeriodo = 'mes';     // hoje | semana | mes | 30d | custom
 
 var MOTIVOS_DESQ = [
   'Preço alto',
@@ -384,8 +523,7 @@ function carregarLeadsMetaAds() {
             return;
           }
           _lmaDados = res.leads || [];
-          _lmaAtualizarResumo(res.resumo || {});
-          _lmaPopularFiltrosCampanha();
+          _lmaPopularFiltros();
           _lmaFiltrar();
         } catch(e) {
           tbody.innerHTML =
@@ -403,42 +541,163 @@ function carregarLeadsMetaAds() {
   }
 }
 
-function _lmaAtualizarResumo(r) {
-  document.getElementById('lmaTotalVal').textContent = r.total || 0;
-  document.getElementById('lmaConvVal').textContent  = r.convertidos || 0;
-  document.getElementById('lmaPendVal').textContent  = r.pendentes || 0;
-  document.getElementById('lmaDesqVal').textContent  = r.desq || 0;
-  document.getElementById('lmaTaxaSub').textContent  = 'taxa ' + (r.taxa_conv || '0') + '%';
+// ── Parsers / helpers ──
+function _lmaParseBR(s) {
+  s = String(s || '').trim();
+  var m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2}))?/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0));
+  var d = new Date(s); return isNaN(d.getTime()) ? null : d;
+}
+function _lmaNormTel(t) {
+  var d = String(t || '').replace(/\D/g, '');
+  if (d.length > 11 && d.indexOf('55') === 0) d = d.slice(2);
+  return d;
+}
+function _lmaInicioHoje() { var d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+
+// ── Popular dropdowns dinâmicos (campanha / anúncio / motivo) a partir dos dados ──
+function _lmaPopularFiltros() {
+  function popular(id, getter, labelTodos) {
+    var sel = document.getElementById(id); if (!sel) return;
+    var atual = sel.value, vals = {};
+    _lmaDados.forEach(function(l) { var v = getter(l); if (v) vals[v] = true; });
+    sel.innerHTML = '<option value="">' + labelTodos + '</option>';
+    Object.keys(vals).sort().forEach(function(v) {
+      sel.innerHTML += '<option value="' + _esc(v) + '">' + _esc(v) + '</option>';
+    });
+    if (atual) sel.value = atual; // preserva seleção
+  }
+  popular('lmaFiltroCampanha', function(l) { return l.utm_campaign; }, 'Todas');
+  popular('lmaFiltroAnuncio',  function(l) { return l.utm_ad; },       'Todos');
+  popular('lmaFiltroMotivo',   function(l) { return l.motivo_desq; },  'Todos');
 }
 
-function _lmaPopularFiltrosCampanha() {
-  var campanhas = {};
-  _lmaDados.forEach(function(l) { if (l.utm_campaign) campanhas[l.utm_campaign] = true; });
-  var sel = document.getElementById('lmaFiltroCampanha');
-  sel.innerHTML = '<option value="">Todas</option>';
-  Object.keys(campanhas).sort().forEach(function(c) {
-    sel.innerHTML += '<option value="' + _esc(c) + '">' + _esc(c) + '</option>';
-  });
+// ── Intervalo do período selecionado ──
+function _lmaIntervaloPeriodo() {
+  var hoje = new Date();
+  if (_lmaPeriodo === 'hoje')   { return { desde: _lmaInicioHoje(), ate: null }; }
+  if (_lmaPeriodo === 'semana') { var s = new Date(); s.setDate(s.getDate() - 6); s.setHours(0,0,0,0); return { desde: s, ate: null }; }
+  if (_lmaPeriodo === 'mes')    { return { desde: new Date(hoje.getFullYear(), hoje.getMonth(), 1), ate: null }; }
+  if (_lmaPeriodo === '30d')    { var d = new Date(); d.setDate(d.getDate() - 29); d.setHours(0,0,0,0); return { desde: d, ate: null }; }
+  if (_lmaPeriodo === 'custom') {
+    var dv = document.getElementById('lmaDesde').value, av = document.getElementById('lmaAte').value;
+    return { desde: dv ? new Date(dv + 'T00:00:00') : null, ate: av ? new Date(av + 'T23:59:59') : null };
+  }
+  return { desde: null, ate: null };
 }
 
-function _lmaFiltrar() {
-  var filtroStatus   = document.getElementById('lmaFiltroStatus').value;
-  var filtroCampanha = document.getElementById('lmaFiltroCampanha').value;
-  var busca          = (document.getElementById('lmaBusca').value || '').toLowerCase();
+// ── Match de um lead contra os filtros (opts.ignorarPeriodo p/ KPI "Novos hoje") ──
+function _lmaMatch(l, opts) {
+  opts = opts || {};
+  var fStatus = document.getElementById('lmaFiltroStatus').value;
+  var fCamp   = document.getElementById('lmaFiltroCampanha').value;
+  var fAnun   = document.getElementById('lmaFiltroAnuncio').value;
+  var fMot    = document.getElementById('lmaFiltroMotivo').value;
+  var fEst    = document.getElementById('lmaFiltroEstado').value;
+  var busca   = (document.getElementById('lmaBusca').value || '').toLowerCase();
 
-  var lista = _lmaDados.filter(function(l) {
-    if (filtroStatus === 'pendente' && l.status_final) return false;
-    if (filtroStatus && filtroStatus !== 'pendente' && l.status_final !== filtroStatus) return false;
-    if (filtroCampanha && l.utm_campaign !== filtroCampanha) return false;
-    if (busca) {
-      var haystack = ((l.nome || '') + ' ' + (l.telefone || '')).toLowerCase();
-      if (haystack.indexOf(busca) < 0) return false;
+  if (fStatus === 'pendente' && l.status_final) return false;
+  if (fStatus && fStatus !== 'pendente' && l.status_final !== fStatus) return false;
+  if (fCamp && l.utm_campaign !== fCamp) return false;
+  if (fAnun && l.utm_ad !== fAnun) return false;
+  if (fMot && l.motivo_desq !== fMot) return false;
+  if (fEst) {
+    var cob = inferirCoberturaPorDDD(l.telefone);
+    if (fEst === '__cobertura') { if (cob !== 'sim' && cob !== 'parcial') return false; }
+    else if (fEst === '__fora') { if (cob !== 'nao') return false; }
+    else if (inferirEstadoPorDDD(l.telefone) !== fEst) return false;
+  }
+  if (busca) {
+    var hay = ((l.nome || '') + ' ' + (l.telefone || '')).toLowerCase();
+    if (hay.indexOf(busca) < 0) return false;
+  }
+  if (!opts.ignorarPeriodo) {
+    var iv = _lmaIntervaloPeriodo();
+    if (iv.desde || iv.ate) {
+      var dt = _lmaParseBR(l.data_entrada);
+      if (!dt) return false;
+      if (iv.desde && dt < iv.desde) return false;
+      if (iv.ate && dt > iv.ate) return false;
     }
-    return true;
+  }
+  return true;
+}
+
+// ── Ordenação ──
+function _lmaOrdenar(lista) {
+  if (!_lmaSortDir) return lista;
+  var col = _lmaSortCol, dir = _lmaSortDir === 'asc' ? 1 : -1;
+  var dateCols = { data_entrada: 1, data_status: 1 };
+  return lista.slice().sort(function(a, b) {
+    if (dateCols[col]) {
+      var da = _lmaParseBR(a[col]), db = _lmaParseBR(b[col]);
+      return ((da ? da.getTime() : 0) - (db ? db.getTime() : 0)) * dir;
+    }
+    var va = String(a[col] || '').toLowerCase(), vb = String(b[col] || '').toLowerCase();
+    return va < vb ? -dir : va > vb ? dir : 0;
   });
+}
+
+// ── Pipeline: filtra + ordena + KPIs + render da view atual ──
+function _lmaFiltrar() {
+  var lista = _lmaOrdenar(_lmaDados.filter(function(l) { return _lmaMatch(l, {}); }));
 
   document.getElementById('lmaCount').textContent = lista.length + ' lead' + (lista.length !== 1 ? 's' : '');
-  _lmaRenderizarTabela(lista);
+  var pill = document.getElementById('lmaTotalPill');
+  if (pill) pill.textContent = lista.length + ' lead' + (lista.length !== 1 ? 's' : '') + ' no período';
+
+  _lmaAtualizarKPIs(lista);
+  _lmaAtualizarSortInd();
+
+  if (_lmaView === 'kanban') _lmaRenderKanban(lista);
+  else _lmaRenderizarTabela(lista);
+}
+
+// ── KPIs client-side (respeitam os filtros) ──
+function _lmaAtualizarKPIs(lista) {
+  var total = lista.length;
+  var ini = _lmaInicioHoje();
+  var novos = _lmaDados.filter(function(l) {
+    if (!_lmaMatch(l, { ignorarPeriodo: true })) return false;
+    var dt = _lmaParseBR(l.data_entrada); return dt && dt >= ini;
+  }).length;
+
+  var pend = lista.filter(function(l) { return !l.status_final; }).length;
+  var nego = lista.filter(function(l) { return l.status_final === 'Em negociação'; });
+  var agora = Date.now();
+  var risco = nego.filter(function(l) {
+    var ref = _lmaParseBR(l.data_status) || _lmaParseBR(l.data_entrada);
+    return ref && (agora - ref.getTime()) > 864e5; // >24h
+  }).length;
+  var conv = lista.filter(function(l) { return l.status_final === 'Converteu'; }).length;
+  var desqList = lista.filter(function(l) { return l.status_final === 'Desqualificado'; });
+  var taxa = total > 0 ? ((conv / total) * 100).toFixed(1) : '0';
+
+  document.getElementById('kpiNovos').textContent = novos;
+  document.getElementById('kpiPend').textContent  = pend;
+  document.getElementById('kpiNego').textContent  = nego.length;
+  document.getElementById('kpiNegoRisco').textContent = risco > 0 ? (risco + ' em risco (>24h)') : 'tudo em dia';
+  document.getElementById('kpiConv').textContent  = conv;
+  document.getElementById('kpiTaxa').textContent  = 'taxa ' + taxa + '%';
+  document.getElementById('kpiDesq').textContent  = desqList.length;
+
+  var receita = nego.length * 0.4 * 313;
+  var card = document.getElementById('kpiNegoCard');
+  if (card) card.title = 'Em negociação: ' + nego.length + ' leads. Receita projetada ~R$ ' +
+    receita.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' (40% fechamento × TM R$313).';
+
+  var mc = {};
+  desqList.forEach(function(l) { var m = l.motivo_desq || 'Sem motivo'; mc[m] = (mc[m] || 0) + 1; });
+  var top = Object.keys(mc).sort(function(a, b) { return mc[b] - mc[a]; }).slice(0, 4)
+    .map(function(m) { return _esc(m) + ': ' + mc[m]; });
+  document.getElementById('kpiDesqBreak').innerHTML = top.length ? top.join(' · ') : 'nenhum';
+}
+
+function _lmaAtualizarSortInd() {
+  ['data_entrada','nome','cidade','utm_campaign','utm_ad','status_final','motivo_desq','data_status'].forEach(function(c) {
+    var el = document.getElementById('sortInd_' + c);
+    if (el) el.textContent = (_lmaSortDir && _lmaSortCol === c) ? (_lmaSortDir === 'asc' ? '▲' : '▼') : '';
+  });
 }
 
 function _lmaRenderizarTabela(lista) {
@@ -453,6 +712,23 @@ function _lmaRenderizarTabela(lista) {
     var dataEntrada = l.data_entrada ? _lmaFmtData(l.data_entrada) : '—';
     var dataStatus  = l.data_status  ? _lmaFmtData(l.data_status)  : '—';
     var isDesq = l.status_final === 'Desqualificado';
+    var risco = _lmaEmRisco(l);
+    var trClass = l.status_final === 'Converteu' ? ' class="lma-tr-conv"' : (risco ? ' class="lma-tr-risco"' : '');
+    var tel = _esc(l.telefone || '');
+    var telNorm = _lmaNormTel(l.telefone);
+    var telCell = telNorm
+      ? '<a class="lma-tel-link" href="https://wa.me/55' + telNorm + '" target="_blank" rel="noopener" title="Abrir no WhatsApp">' + tel + '</a>'
+      : '<span class="lma-sub">' + tel + '</span>';
+    var campChip = l.utm_campaign
+      ? '<span class="lma-chip-camp" style="background:' + _lmaCampanhaCor(l.utm_campaign) + '" title="' + _esc(l.utm_campaign) + '">' + _esc(l.utm_campaign) + '</span>'
+      : '<span class="lma-sub">—</span>';
+    var anunChip = l.utm_ad
+      ? '<span class="lma-chip-anun" title="' + _esc(l.utm_ad) + '">' + _esc(l.utm_ad) + '</span>'
+      : '<span class="lma-sub">—</span>';
+    var motivoChip = (isDesq && l.motivo_desq)
+      ? '<span class="lma-chip-motivo">' + _esc(l.motivo_desq) + '</span>'
+      : '<span class="lma-sub">—</span>';
+
     var acaoHtml = '<div class="lma-acao-wrap">' +
       '<div class="lma-acao-row">' +
         '<select class="lma-acao-sel" id="lmaAcaoSel_' + l.linha + '" onchange="_lmaOnStatusChange(' + l.linha + ')">' +
@@ -463,29 +739,61 @@ function _lmaRenderizarTabela(lista) {
           '<option value="Desqualificado"' + (isDesq ? ' selected' : '') + '>❌ Desqualificado</option>' +
         '</select>' +
         '<button class="lma-acao-btn" id="lmaAcaoBtn_' + l.linha + '" title="Salvar status" onclick="_lmaSalvarAcao(' + l.linha + ')">✓</button>' +
+        '<button class="lma-acao-btn lma-acao-btn-copy" title="Copiar telefone" onclick="_lmaCopiarTelefone(\'' + telNorm + '\')">📋</button>' +
         '<button class="lma-acao-btn lma-acao-btn-del" title="Excluir lead" onclick="_lmaExcluir(' + l.linha + ')">🗑</button>' +
       '</div>' +
       '<div class="lma-acao-row" id="lmaAcaoMotivoRow_' + l.linha + '"' + (isDesq ? '' : ' style="display:none"') + '>' +
         _lmaMotivoSelect(l.linha, l.motivo_desq) +
       '</div>' +
     '</div>';
-    return '<tr>' +
+    return '<tr' + trClass + '>' +
       '<td><span class="lma-mono">' + _esc(dataEntrada) + '</span></td>' +
       '<td>' +
         '<div class="lma-nome">' + _esc(l.nome || '—') + '</div>' +
-        '<div class="lma-sub">' + _esc(l.telefone || '') + '</div>' +
+        '<div class="lma-sub">' + telCell + '</div>' +
       '</td>' +
       '<td class="lma-mono" id="lmaCidadeCell_' + l.linha + '">' + _lmaCidadeInner(l) + '</td>' +
-      '<td class="lma-utmcell" title="' + _esc(l.utm_campaign || '') + '">' + _esc(l.utm_campaign || '—') + '</td>' +
-      '<td class="lma-utmcell" title="' + _esc(l.utm_ad || '') + '">' + _esc(l.utm_ad || '—') + '</td>' +
+      '<td>' + campChip + '</td>' +
+      '<td>' + anunChip + '</td>' +
       '<td>' + badge + '</td>' +
-      '<td class="lma-mono">' + _esc(l.motivo_desq || '—') + '</td>' +
+      '<td>' + motivoChip + '</td>' +
       '<td><span class="lma-mono">' + _esc(dataStatus) + '</span></td>' +
       '<td class="lma-acao-cell">' + acaoHtml + '</td>' +
     '</tr>';
   }).join('');
 
   document.getElementById('lmaTbody').innerHTML = html;
+}
+
+// Lead "Em negociação" há mais de 24h sem atualização (sinal de risco).
+function _lmaEmRisco(l) {
+  if (l.status_final !== 'Em negociação') return false;
+  var ref = _lmaParseBR(l.data_status) || _lmaParseBR(l.data_entrada);
+  return !!ref && (Date.now() - ref.getTime()) > 864e5;
+}
+
+// Cor determinística por nome de campanha (paleta fixa).
+function _lmaCampanhaCor(nome) {
+  var paleta = ['#3a5bbf','#1f8a5b','#a85a1f','#7a3aa8','#1f7a8a','#a83a5b','#5b7a1f','#8a6a1f'];
+  var h = 0, s = String(nome || '');
+  for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return paleta[h % paleta.length];
+}
+
+function _lmaCopiarTelefone(tel) {
+  tel = String(tel || '');
+  if (!tel) { if (typeof mostrarToast === 'function') mostrarToast('Telefone vazio.', 'warning'); return; }
+  function ok() { if (typeof mostrarToast === 'function') mostrarToast('Telefone copiado: ' + tel, 'success'); }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(tel).then(ok, function() { _lmaCopiarFallback(tel); ok(); });
+  } else { _lmaCopiarFallback(tel); ok(); }
+}
+function _lmaCopiarFallback(tel) {
+  var ta = document.createElement('textarea');
+  ta.value = tel; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
 }
 
 function _lmaBadge(status) {
@@ -585,30 +893,82 @@ function _esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ─── Cidade por DDD (sugestão editável) ─────────────────────────────────────
-// Mapa DDD → cidade principal do DDD na área de cobertura Vero (SE do Brasil).
-// É um palpite: o DDD cobre várias cidades, então cai como sugestão pro time
-// editar (ex: DDD 32 sugere Juiz de Fora, que domina o volume da região).
-var DDD_CIDADE = {
-  // Minas Gerais
-  '31': 'Belo Horizonte', '32': 'Juiz de Fora', '33': 'Governador Valadares',
-  '34': 'Uberlândia', '35': 'Poços de Caldas', '37': 'Divinópolis', '38': 'Montes Claros',
-  // Rio de Janeiro
-  '21': 'Rio de Janeiro', '22': 'Campos dos Goytacazes', '24': 'Volta Redonda',
-  // Espírito Santo
-  '27': 'Vitória', '28': 'Cachoeiro de Itapemirim',
-  // São Paulo
-  '11': 'São Paulo', '12': 'São José dos Campos', '13': 'Santos', '14': 'Bauru',
-  '15': 'Sorocaba', '16': 'Ribeirão Preto', '17': 'São José do Rio Preto',
-  '18': 'Presidente Prudente', '19': 'Campinas'
+// ─── DDD → cidade / estado / cobertura Vero ─────────────────────────────────
+// Mapa DDD → cidade principal + UF + cobertura Vero ('sim'|'parcial'|'nao').
+// Palpite (o DDD cobre várias cidades) — cai como sugestão pro time editar.
+// Cobertura: MG/GO/DF/MS = sim (mercados Vero); SE/Sul = parcial (confirmar);
+// DDD fora da tabela = nao (fora da área). Conservador contra falso "sem cobertura".
+var DDD_INFO = {
+  // Minas Gerais — cobertura forte
+  '31': { cidade: 'Belo Horizonte',        uf: 'MG', cob: 'sim' },
+  '32': { cidade: 'Juiz de Fora',          uf: 'MG', cob: 'sim' },
+  '33': { cidade: 'Governador Valadares',  uf: 'MG', cob: 'sim' },
+  '34': { cidade: 'Uberlândia',            uf: 'MG', cob: 'sim' },
+  '35': { cidade: 'Poços de Caldas',       uf: 'MG', cob: 'sim' },
+  '37': { cidade: 'Divinópolis',           uf: 'MG', cob: 'sim' },
+  '38': { cidade: 'Montes Claros',         uf: 'MG', cob: 'sim' },
+  // Centro-Oeste — mercados Vero
+  '61': { cidade: 'Brasília',              uf: 'DF', cob: 'sim' },
+  '62': { cidade: 'Goiânia',               uf: 'GO', cob: 'sim' },
+  '64': { cidade: 'Rio Verde',             uf: 'GO', cob: 'sim' },
+  '67': { cidade: 'Campo Grande',          uf: 'MS', cob: 'sim' },
+  // Rio de Janeiro — parcial
+  '21': { cidade: 'Rio de Janeiro',        uf: 'RJ', cob: 'parcial' },
+  '22': { cidade: 'Campos dos Goytacazes', uf: 'RJ', cob: 'parcial' },
+  '24': { cidade: 'Volta Redonda',         uf: 'RJ', cob: 'parcial' },
+  // Espírito Santo — parcial
+  '27': { cidade: 'Vitória',               uf: 'ES', cob: 'parcial' },
+  '28': { cidade: 'Cachoeiro de Itapemirim', uf: 'ES', cob: 'parcial' },
+  // São Paulo — parcial
+  '11': { cidade: 'São Paulo',             uf: 'SP', cob: 'parcial' },
+  '12': { cidade: 'São José dos Campos',   uf: 'SP', cob: 'parcial' },
+  '13': { cidade: 'Santos',                uf: 'SP', cob: 'parcial' },
+  '14': { cidade: 'Bauru',                 uf: 'SP', cob: 'parcial' },
+  '15': { cidade: 'Sorocaba',              uf: 'SP', cob: 'parcial' },
+  '16': { cidade: 'Ribeirão Preto',        uf: 'SP', cob: 'parcial' },
+  '17': { cidade: 'São José do Rio Preto', uf: 'SP', cob: 'parcial' },
+  '18': { cidade: 'Presidente Prudente',   uf: 'SP', cob: 'parcial' },
+  '19': { cidade: 'Campinas',              uf: 'SP', cob: 'parcial' },
+  // Bahia — parcial
+  '71': { cidade: 'Salvador',              uf: 'BA', cob: 'parcial' },
+  '73': { cidade: 'Itabuna',               uf: 'BA', cob: 'parcial' },
+  '74': { cidade: 'Juazeiro',              uf: 'BA', cob: 'parcial' },
+  '75': { cidade: 'Feira de Santana',      uf: 'BA', cob: 'parcial' },
+  '77': { cidade: 'Vitória da Conquista',  uf: 'BA', cob: 'parcial' },
+  // Paraná — parcial
+  '41': { cidade: 'Curitiba',              uf: 'PR', cob: 'parcial' },
+  '42': { cidade: 'Ponta Grossa',          uf: 'PR', cob: 'parcial' },
+  '43': { cidade: 'Londrina',              uf: 'PR', cob: 'parcial' },
+  '44': { cidade: 'Maringá',               uf: 'PR', cob: 'parcial' },
+  '45': { cidade: 'Foz do Iguaçu',         uf: 'PR', cob: 'parcial' },
+  '46': { cidade: 'Pato Branco',           uf: 'PR', cob: 'parcial' },
+  // Santa Catarina — parcial
+  '47': { cidade: 'Joinville',             uf: 'SC', cob: 'parcial' },
+  '48': { cidade: 'Florianópolis',         uf: 'SC', cob: 'parcial' },
+  '49': { cidade: 'Chapecó',               uf: 'SC', cob: 'parcial' },
+  // Rio Grande do Sul — parcial
+  '51': { cidade: 'Porto Alegre',          uf: 'RS', cob: 'parcial' },
+  '53': { cidade: 'Pelotas',               uf: 'RS', cob: 'parcial' },
+  '54': { cidade: 'Caxias do Sul',         uf: 'RS', cob: 'parcial' },
+  '55': { cidade: 'Santa Maria',           uf: 'RS', cob: 'parcial' }
 };
 
-function inferirCidadePorDDD(telefone) {
+// Retorna {ddd, cidade, uf, cob} ou null se não há DDD confiável.
+// DDD válido fora da tabela → cidade/uf vazios e cob 'nao' (fora da área).
+function _lmaDddInfo(telefone) {
   var d = String(telefone || '').replace(/\D/g, '');
   if (d.length >= 12 && d.indexOf('55') === 0) d = d.slice(2); // remove DDI
-  if (d.length < 10 || d.length > 11) return '';               // sem DDD confiável
-  return DDD_CIDADE[d.slice(0, 2)] || '';
+  if (d.length < 10 || d.length > 11) return null;             // sem DDD confiável
+  var ddd = d.slice(0, 2);
+  var info = DDD_INFO[ddd];
+  return info
+    ? { ddd: ddd, cidade: info.cidade, uf: info.uf, cob: info.cob }
+    : { ddd: ddd, cidade: '', uf: '', cob: 'nao' };
 }
+
+function inferirCidadePorDDD(telefone)    { var i = _lmaDddInfo(telefone); return i ? i.cidade : ''; }
+function inferirEstadoPorDDD(telefone)    { var i = _lmaDddInfo(telefone); return i ? i.uf : ''; }
+function inferirCoberturaPorDDD(telefone) { var i = _lmaDddInfo(telefone); return i ? i.cob : ''; }
 
 function _lmaCidadeReal(l) {
   var c = String((l && l.cidade) || '').trim();
@@ -788,4 +1148,211 @@ function salvarLeadManual() {
     })
     .registrarLeadManual(dados);
 }
+
+// ─── Ordenação por coluna ───────────────────────────────────────────────────
+function _lmaSort(col) {
+  if (_lmaSortCol === col) {
+    _lmaSortDir = _lmaSortDir === 'desc' ? 'asc' : (_lmaSortDir === 'asc' ? '' : 'desc');
+  } else { _lmaSortCol = col; _lmaSortDir = 'desc'; }
+  if (!_lmaSortDir) { _lmaSortCol = 'data_entrada'; _lmaSortDir = 'desc'; } // sem ordenação volta ao default
+  _lmaFiltrar();
+}
+
+// ─── Filtro de período (pills) ──────────────────────────────────────────────
+function _lmaSetPeriodo(p) {
+  _lmaPeriodo = p;
+  var pills = document.querySelectorAll('#lmaPeriodPills button');
+  for (var i = 0; i < pills.length; i++) pills[i].classList.toggle('ativo', pills[i].getAttribute('data-p') === p);
+  document.getElementById('lmaCustomRange').style.display = (p === 'custom') ? 'inline' : 'none';
+  _lmaFiltrar();
+}
+
+function _lmaLimparFiltros() {
+  document.getElementById('lmaFiltroStatus').value = '';
+  document.getElementById('lmaFiltroCampanha').value = '';
+  document.getElementById('lmaFiltroAnuncio').value = '';
+  document.getElementById('lmaFiltroMotivo').value = '';
+  document.getElementById('lmaFiltroEstado').value = '';
+  document.getElementById('lmaBusca').value = '';
+  document.getElementById('lmaDesde').value = '';
+  document.getElementById('lmaAte').value = '';
+  _lmaSetPeriodo('mes');
+}
+
+// ─── Toggle de visualização Lista | Kanban ──────────────────────────────────
+function _lmaSetView(v) {
+  _lmaView = v;
+  try { localStorage.setItem('leads_meta_ads_view', v); } catch (e) {}
+  document.getElementById('lmaViewLista').classList.toggle('ativo', v === 'lista');
+  document.getElementById('lmaViewKanban').classList.toggle('ativo', v === 'kanban');
+  document.getElementById('lmaListaWrap').style.display  = (v === 'lista') ? '' : 'none';
+  document.getElementById('lmaKanbanWrap').style.display = (v === 'kanban') ? '' : 'none';
+  _lmaFiltrar();
+}
+
+// ─── Auto-refresh (60s) ─────────────────────────────────────────────────────
+function _lmaToggleAutoRefresh() {
+  _lmaAutoOn = document.getElementById('lmaAutoRefresh').checked;
+  try { localStorage.setItem('leads_meta_ads_autorefresh', _lmaAutoOn ? '1' : '0'); } catch (e) {}
+  _lmaAgendarAutoRefresh();
+}
+function _lmaAgendarAutoRefresh() {
+  if (_lmaTimer) { clearInterval(_lmaTimer); _lmaTimer = null; }
+  if (!_lmaAutoOn) return;
+  _lmaTimer = setInterval(function() {
+    var pg = document.getElementById('pageLeadsMetaAds');
+    if (!pg || !pg.classList.contains('ativa')) return; // só atualiza se a página está visível
+    _lmaRefetch();
+  }, 60000);
+}
+function _lmaRefetch() {
+  var spin = document.getElementById('lmaRefreshSpin');
+  if (spin) { spin.classList.add('girando'); setTimeout(function() { spin.classList.remove('girando'); }, 1000); }
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res || res.erro) return;
+      _lmaDados = res.leads || [];
+      _lmaPopularFiltros();
+      _lmaFiltrar();
+    })
+    .withFailureHandler(function() {})
+    .getLeadsMetaAds();
+}
+
+// ─── Exportação CSV (client-side, respeita filtros + ordenação) ─────────────
+function _lmaExportarCSV() {
+  var lista = _lmaOrdenar(_lmaDados.filter(function(l) { return _lmaMatch(l, {}); }));
+  if (!lista.length) { if (typeof mostrarToast === 'function') mostrarToast('Nenhum lead pra exportar com esse filtro.', 'warning'); return; }
+
+  var cols = [
+    ['Data entrada', function(l) { return l.data_entrada || ''; }],
+    ['Nome',         function(l) { return l.nome || ''; }],
+    ['Telefone',     function(l) { return l.telefone || ''; }],
+    ['Telefone norm',function(l) { return _lmaNormTel(l.telefone); }],
+    ['Cidade',       function(l) { return _lmaCidadeReal(l) || inferirCidadePorDDD(l.telefone) || ''; }],
+    ['Estado',       function(l) { return inferirEstadoPorDDD(l.telefone) || ''; }],
+    ['Campanha',     function(l) { return l.utm_campaign || ''; }],
+    ['Anuncio',      function(l) { return l.utm_ad || ''; }],
+    ['utm_source',   function(l) { return l.utm_source || ''; }],
+    ['Status',       function(l) { return l.status_final || 'Pendente'; }],
+    ['Motivo desq',  function(l) { return l.motivo_desq || ''; }],
+    ['Atualizado em',function(l) { return l.data_status || ''; }]
+  ];
+  function cel(v) { v = String(v == null ? '' : v).replace(/"/g, '""'); return '"' + v + '"'; }
+  var linhas = [cols.map(function(c) { return cel(c[0]); }).join(';')];
+  lista.forEach(function(l) { linhas.push(cols.map(function(c) { return cel(c[1](l)); }).join(';')); });
+
+  var csv = '﻿' + linhas.join('\r\n'); // BOM UTF-8 p/ Excel pt-BR
+  var hoje = new Date();
+  var ymd = hoje.getFullYear() + ('0' + (hoje.getMonth() + 1)).slice(-2) + ('0' + hoje.getDate()).slice(-2);
+  var nome = 'leads_meta_ads_' + _lmaPeriodo + '_' + ymd + '.csv';
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = nome; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  if (typeof mostrarToast === 'function') mostrarToast('Exportado: ' + nome + ' (' + lista.length + ' leads)', 'success');
+}
+
+// ─── Kanban ─────────────────────────────────────────────────────────────────
+var _LMA_COLUNAS = [
+  { id: 'pendente',      titulo: 'Pendente',      classe: 'k-pend', match: function(l) { return !l.status_final || l.status_final === 'Sem contato'; } },
+  { id: 'Em negociação', titulo: 'Em negociação', classe: 'k-nego', match: function(l) { return l.status_final === 'Em negociação'; } },
+  { id: 'Converteu',     titulo: 'Convertido',    classe: 'k-conv', match: function(l) { return l.status_final === 'Converteu'; } },
+  { id: 'Desqualificado',titulo: 'Desqualificado',classe: 'k-desq', match: function(l) { return l.status_final === 'Desqualificado'; } }
+];
+
+function _lmaRenderKanban(lista) {
+  var wrap = document.getElementById('lmaKanbanWrap');
+  if (!wrap) return;
+  if (!lista.length) {
+    wrap.innerHTML = '<div class="lma-empty">Nenhum lead encontrado pra esse filtro. Tente ampliar o período ou remover filtros.</div>';
+    return;
+  }
+  var html = '';
+  _LMA_COLUNAS.forEach(function(col) {
+    var cards = lista.filter(col.match);
+    html += '<div class="lma-kcol ' + col.classe + '" data-col="' + col.id + '" ' +
+      'ondragover="_lmaDragOver(event)" ondragleave="_lmaDragLeave(event)" ondrop="_lmaDrop(event,\'' + col.id + '\')">';
+    html += '<div class="lma-kcol-head">' + col.titulo + ' <span class="lma-kcol-count">' + cards.length + '</span></div>';
+    html += '<div class="lma-kcol-body">';
+    cards.forEach(function(l) { html += _lmaKanbanCard(l); });
+    if (!cards.length) html += '<div class="lma-kcol-vazio">—</div>';
+    html += '</div></div>';
+  });
+  wrap.innerHTML = html;
+}
+
+function _lmaKanbanCard(l) {
+  var risco = _lmaEmRisco(l);
+  var conv = l.status_final === 'Converteu';
+  var cls = 'lma-kcard' + (conv ? ' kc-conv' : (risco ? ' kc-risco' : ''));
+  var telNorm = _lmaNormTel(l.telefone);
+  var cidade = _lmaCidadeReal(l) || inferirCidadePorDDD(l.telefone);
+  var cidadeHtml = cidade ? '<div class="lma-kcard-cidade">📍 ' + (_lmaCidadeReal(l) ? '' : '≈ ') + _esc(cidade) + '</div>' : '';
+  var telHtml = telNorm
+    ? '<a class="lma-tel-link" href="https://wa.me/55' + telNorm + '" target="_blank" rel="noopener">' + _esc(l.telefone || '') + '</a>'
+    : _esc(l.telefone || '');
+  var camp = l.utm_campaign ? '<span class="lma-chip-camp" style="background:' + _lmaCampanhaCor(l.utm_campaign) + '">' + _esc(l.utm_campaign) + '</span>' : '';
+  var motivo = (l.status_final === 'Desqualificado' && l.motivo_desq) ? '<span class="lma-chip-motivo">' + _esc(l.motivo_desq) + '</span>' : '';
+  return '<div class="' + cls + '" draggable="true" data-linha="' + l.linha + '" ondragstart="_lmaDragStart(event,' + l.linha + ')">' +
+    '<div class="lma-kcard-nome">' + _esc(l.nome || '—') + '</div>' +
+    '<div class="lma-kcard-tel">' + telHtml + '</div>' +
+    cidadeHtml +
+    '<div class="lma-kcard-tags">' + camp + motivo + '</div>' +
+  '</div>';
+}
+
+var _lmaDragLinha = null;
+function _lmaDragStart(ev, linha) { _lmaDragLinha = linha; ev.dataTransfer.effectAllowed = 'move'; }
+function _lmaDragOver(ev) { ev.preventDefault(); ev.currentTarget.classList.add('k-over'); }
+function _lmaDragLeave(ev) { ev.currentTarget.classList.remove('k-over'); }
+function _lmaDrop(ev, colId) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove('k-over');
+  var linha = _lmaDragLinha; _lmaDragLinha = null;
+  if (!linha) return;
+  var lead = _lmaDados.find(function(l) { return l.linha === linha; });
+  if (!lead) return;
+  var novoStatus = (colId === 'pendente') ? '' : colId;
+  if ((lead.status_final || '') === novoStatus) return; // sem mudança
+  var motivo = (lead.status_final === 'Desqualificado') ? (lead.motivo_desq || '') : '';
+
+  // Atualização otimista local + persiste.
+  var anterior = lead.status_final;
+  lead.status_final = novoStatus;
+  lead.data_status = _lmaFmtData(new Date().toISOString());
+  _lmaFiltrar();
+
+  google.script.run
+    .withSuccessHandler(function() {
+      if (typeof mostrarToast === 'function') mostrarToast('Status atualizado: ' + (novoStatus || 'Pendente'), 'success');
+    })
+    .withFailureHandler(function(e) {
+      lead.status_final = anterior; // reverte
+      _lmaFiltrar();
+      if (typeof mostrarToast === 'function') mostrarToast('Erro ao mover: ' + (e && e.message ? e.message : String(e)), 'error');
+    })
+    .atualizarStatusLeadMetaAds(linha, novoStatus, motivo);
+}
+
+// ─── Init (uma vez, no load do Index) ───────────────────────────────────────
+(function _lmaInit() {
+  try {
+    var v = localStorage.getItem('leads_meta_ads_view');
+    if (v === 'kanban' || v === 'lista') _lmaView = v;
+    var ar = localStorage.getItem('leads_meta_ads_autorefresh');
+    _lmaAutoOn = (ar === null) ? true : (ar === '1'); // default ligado
+  } catch (e) {}
+  var cb = document.getElementById('lmaAutoRefresh'); if (cb) cb.checked = _lmaAutoOn;
+  // aplica a view salva (atualiza botões + visibilidade)
+  var bl = document.getElementById('lmaViewLista'), bk = document.getElementById('lmaViewKanban');
+  if (bl && bk) {
+    bl.classList.toggle('ativo', _lmaView === 'lista');
+    bk.classList.toggle('ativo', _lmaView === 'kanban');
+    document.getElementById('lmaListaWrap').style.display  = (_lmaView === 'lista') ? '' : 'none';
+    document.getElementById('lmaKanbanWrap').style.display = (_lmaView === 'kanban') ? '' : 'none';
+  }
+  _lmaAgendarAutoRefresh();
+})();
 </script>
