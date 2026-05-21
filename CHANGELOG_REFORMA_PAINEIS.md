@@ -205,3 +205,41 @@ cadastra manualmente (precisa de CPF, contrato, plano).
 (criar venda META ADS de teste em status 2 com telefone de lead conhecido →
 conferir lead "Converteu" + cols M/N; forçar `reconciliarMetaAdsNoturno` no editor)
 fica com o Ricardo após deploy + instalar o trigger.
+
+---
+
+## Fase 4 — Qualidade de dados (21/05/2026)
+
+Branch `feat/reforma-paineis-fase4-qualidade`.
+
+### 4.2 — Validação proativa (deployada)
+
+- `MetaAdsAPI.js`: constante `CAMPANHAS_PAUSADAS_META` (`A - JF Principal`,
+  `B - Órbita JF`, `C - BH Metro`, `D - Conversas JF + Órbita`) + helper
+  `_campanhaPausadaMeta_`. **VENDAS fica de fora** (campanha ativa).
+- `registrarLeadMetaAds` (webhook + manual): lead novo cujo `utm_campaign` é
+  pausado → registra em "Reconciliação Pendente" (`lead_campanha_pausada`),
+  não-bloqueante, sem alterar o lead. Pega leads de fluxos BotConversa antigos
+  (Vero! 1/2/3). O **form manual já está protegido** pelo dropdown (Fase 1 só
+  oferece AG/VENDAS/Orgânico).
+
+### 4.1 — Migração de leads históricos (one-shot, rodar no editor)
+
+- `_metaFase4Setup.js` (one-shot, remover após validar):
+  - `verificarLeadsParaMigrarFase4()` — dry-run (lista, não altera).
+  - `migrarLeadsHistoricosCampanhasPausadas()` — backup da aba
+    (`Leads Meta Ads (bkp …)`) + re-tag `utm_campaign` de A/B/C/D criados
+    **≥ 17/05/2026** → `AG - Vero Fibra Amplo`. Loga total + diff.
+- Diff/resultado documentados em `meta-ads-vero/migracao_leads_historicos_diff.md`
+  (preencher após a execução).
+
+**Validação**: `node --check` em `MetaAdsAPI.js` e `_metaFase4Setup.js`. Execução
+da migração + preenchimento do diff ficam com o Ricardo (dry-run antes).
+
+---
+
+## Fim da reforma
+
+Fases 1–4 implementadas e deployadas (Fase 4.1 aguarda execução do one-shot pelo
+Ricardo). Pendência transversal aberta: alerta 7 (`getResumoTrafegoHoje`) ainda lê
+só a conta antiga (ver seção acima).

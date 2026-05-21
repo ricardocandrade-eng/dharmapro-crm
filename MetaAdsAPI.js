@@ -27,6 +27,21 @@ var CFG_META = {
   SCALE_FACTOR: 1.20  // +20% de budget por execução de scale
 };
 
+// Campanhas pausadas/legadas cujo utm_campaign não deve mais receber leads
+// (a operação roda via "AG - Vero Fibra Amplo" na agência desde 17/05/2026).
+// VENDAS fica DE FORA — é campanha ativa, mantida no dropdown manual.
+var CAMPANHAS_PAUSADAS_META = [
+  'A - JF Principal',
+  'B - Órbita JF',
+  'C - BH Metro',
+  'D - Conversas JF + Órbita'
+];
+
+/** True se utm_campaign corresponde a uma campanha pausada/legada. */
+function _campanhaPausadaMeta_(camp) {
+  return CAMPANHAS_PAUSADAS_META.indexOf(String(camp || '').trim()) !== -1;
+}
+
 
 /**
  * Cria nova linha na aba "Leads Meta Ads".
@@ -75,6 +90,19 @@ function registrarLeadMetaAds(payload) {
   // Alerta 5 — disparo-grupo (não-bloqueante; nunca falha o lead).
   try { _disparoAlertaLeadMeta_(ultimaLinha, payload.nome); }
   catch (e) { Logger.log('Alerta lead meta — erro: ' + e.message); }
+
+  // Fase 4: validação proativa — lead novo atribuído a campanha pausada/legada
+  // (ex: fluxo BotConversa antigo Vero! 1/2/3) é registrado p/ reatribuição.
+  // Não-bloqueante; não altera o lead (direção de correção fica com o time).
+  try {
+    var campLead = String(payload.utm_campaign || '').trim();
+    if (_campanhaPausadaMeta_(campLead)) {
+      _logReconciliacaoMeta_('lead_campanha_pausada',
+        'Lead novo (linha ' + ultimaLinha + ', ' + String(payload.nome || '') +
+        ', tel ' + String(payload.telefone || '').replace(/\D/g, '') +
+        ') atribuído à campanha pausada "' + campLead + '" — reatribuir para "AG - Vero Fibra Amplo".');
+    }
+  } catch (e) { Logger.log('Valida campanha pausada — erro: ' + e.message); }
 
   return ultimaLinha;
 }
