@@ -293,3 +293,46 @@ agência criar aparece sozinha; pausada some; zero manutenção no código.
 - `node --check` no backend + no `<script>` do HTML.
 - Endpoint/Meta confirmam: hoje só **AG** ativa (Vero 02) → dropdown mostra
   AG + Orgânico/Indicação; VENDAS/A/B/C/D não aparecem.
+
+## Reformulação da página Leads Meta Ads (20/05/2026)
+
+Reformulação completa da tela `LeadsMetaAds.html` (frontend; backend intacto).
+Performance client-side: filtros, ordenação, busca e KPIs no navegador; backend só
+no load + mutações.
+
+### Alterações
+- **KPIs 4 → 5 em 2 faixas**: Faixa 1 "Ação imediata" (🆕 Novos hoje · ⏳ Pendentes ·
+  🔥 Em negociação com sub "X em risco >24h" + tooltip de receita projetada =
+  nego×0,4×R$313); Faixa 2 "Saúde do funil" (🎯 Convertidos + taxa · ❌ Desqualificados
+  com breakdown inline por motivo top 4). TOTAL virou **pill discreta** no topo.
+  Todos respeitam os filtros; "Novos hoje" ignora período (sempre hoje), respeita o resto.
+- **Filtros 3 → 6** em 2 linhas: 📅 Período (pills Hoje/Semana/Mês/30d/Personalizado,
+  default Mês) · 🌎 Estado (Cobertura Vero / Fora cobertura / por UF, via DDD) ·
+  Status · Campanha · Anúncio (valores únicos) · Motivo desq. (valores únicos) +
+  **Limpar filtros**. Busca mantida.
+- **Ordenação por coluna** (asc→desc→default), indicador ▲▼ no cabeçalho.
+- **Exportação CSV** (`_lmaExportarCSV`): só o filtrado+ordenado, UTF-8 com BOM,
+  separador `;`, nome `leads_meta_ads_<periodo>_<YYYYMMDD>.csv`, blob client-side.
+- **Kanban** (toggle Lista|Kanban, persistido em localStorage): 4 colunas
+  (Pendente/Em negociação/Convertido/Desqualificado), cards arrastáveis (HTML5 DnD
+  nativo) → `atualizarStatusLeadMetaAds`; borda amarela p/ negociação >24h, verde p/
+  convertido; contador por coluna.
+- **Repaginação da lista**: nome bold, telefone com link `wa.me`, cidade com 📍 (≈ p/
+  sugestão DDD), campanha em chip colorido (cor determinística), anúncio em chip,
+  motivo em chip vermelho, borda verde p/ convertido, fundo de risco p/ negociação >24h,
+  botão 📋 copiar telefone.
+- **Auto-refresh 60s** (toggle, default ligado, persistido) — re-fetch silencioso só
+  com a página visível; ícone 🔄 pisca a cada refresh.
+- **Tabela DDD estendida**: `DDD_INFO` (cidade + uf + cobertura) substitui `DDD_CIDADE`;
+  novos helpers `inferirEstadoPorDDD`, `inferirCoberturaPorDDD`, `_lmaDddInfo`. UFs:
+  MG/GO/DF/MS = cobertura sim; SP/RJ/ES/BA/PR/SC/RS = parcial; DDD fora da tabela = não.
+
+### Validação
+- `node --check` no `<script>` extraído do HTML; sem refs órfãs.
+- Visual + funcional (filtros/KPIs/Kanban drag-drop/CSV/auto-refresh) fica com Ricardo
+  + Cowork após deploy.
+
+### Pendências/TODOs
+- CSV não inclui `data_venda`/`id_contrato` (cols M/N) — `getLeadsMetaAds` lê só A-L
+  (12 cols); incluí-los exigiria estender o backend (fora do escopo frontend).
+- "Previsto/dia" do alerta 7 ainda R$0 em campanha CBO (pendência anterior).
