@@ -1651,9 +1651,19 @@ function doPost(e) {
       }
     }
 
+    // Sprint Integridade (21/05/2026) — INV-12: webhook BotConversa NUNCA cria
+    // combo. Combo exige Móvel vinculado, que o webhook não fornece — deixaria
+    // a Fibra Combo órfã. Se vier produto combo, rebaixa para "Fibra Alone"
+    // (o operador converte em combo depois pelo CRM, que cria o Móvel atômico).
+    var produtoWebhook = String(payload.produto || '').trim();
+    if (_comboEhCombo_(produtoWebhook)) {
+      Logger.log('doPost webhook: produto combo "' + produtoWebhook + '" rebaixado para "Fibra Alone" (INV-12).');
+      produtoWebhook = 'Fibra Alone';
+    }
+
     var dadosWebhook = {
       canal:       String(payload.canal || 'META ADS').trim(),
-      produto:     String(payload.produto || '').trim(),
+      produto:     produtoWebhook,
       status:      '1- Conferencia/Ativação',
       dataAtiv:    dataAtiv,
       cliente:     String(payload.nome || '').trim(),
@@ -8633,6 +8643,48 @@ function detectarAlertasAtivos(usuario) {
       });
     } catch(eCamp) {
       Logger.log('detectarAlertasAtivos — campanhas erro: ' + eCamp.toString());
+    }
+
+    // ── 4. Combos órfãos em status operacional (Sprint Integridade §6.4) ──────
+    // Fibra Combo que está em estado operacional (status ≥2) SEM Móvel vinculado
+    // ATIVO. O guard _validarComboIntegridade_ impede NOVOS órfãos nos portões de
+    // gravação; este alerta vigia os legados que já estavam assim antes da Sprint.
+    try {
+      var funilCombo = getVendasFunil();
+      var dadosCombo = (funilCombo && funilCombo.dados) ? funilCombo.dados : [];
+      var vincMap    = _getVinculosVendasMap_();
+      var combosOrfaos = [];
+      dadosCombo.forEach(function(v) {
+        if (_normalizarTexto(v.produto) !== 'FIBRA COMBO') return;
+        if (!_statusExigeComboCompleto_(v.status)) return;
+        var filhas = (vincMap.filhasPorMae && vincMap.filhasPorMae[v.linha]) || [];
+        if (!filhas.length) combosOrfaos.push(v);
+      });
+      var maxCombo = 8;
+      combosOrfaos.slice(0, maxCombo).forEach(function(v) {
+        alertas.push({
+          id:         'combo_orfao_' + v.linha,
+          tipo:       'combo_orfao',
+          icone:      '⛓️',
+          titulo:     (v.cliente || 'Cliente') + ' — combo sem Móvel',
+          sub:        'Fibra Combo em "' + v.status + '" sem Móvel vinculado · L.' + v.linha,
+          severidade: 'atencao',
+          destino:    'vinculosPendentes'
+        });
+      });
+      if (combosOrfaos.length > maxCombo) {
+        alertas.push({
+          id:         'combo_orfao_outros_' + (combosOrfaos.length - maxCombo),
+          tipo:       'combo_orfao',
+          icone:      '⛓️',
+          titulo:     '+ ' + (combosOrfaos.length - maxCombo) + ' combos sem Móvel',
+          sub:        'Acesse Vínculos Pendentes para resolver',
+          severidade: 'atencao',
+          destino:    'vinculosPendentes'
+        });
+      }
+    } catch(eCombo) {
+      Logger.log('detectarAlertasAtivos — combos órfãos: ' + eCombo.toString());
     }
 
     // Estado "lido" é gerenciado pelo frontend (sessionStorage) — backend sempre retorna lido:false.
