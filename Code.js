@@ -30,8 +30,8 @@ var CONFIG = {
   TABELA_JSON_FILE_ID: '1wB9jncB_eBhGnBE-OpiZZ5UfVnvmv-ro',  // _getTabela() lê deste JSON no Drive (substitui aba TABELA)
   CIDADES_JSON_FILE_ID: '17CQ8KmZdyUtgQChPFC2b7pq2tsU6riV1',  // _getCidadesJson() lê do JSON no Drive (substitui aba CIDADES)
   CODIGOS_VERO_JSON_FILE_ID: '',  // _getCodigosVero() — vazio = fallback p/ busca por nome 'planos_vero_codigos.json'
-  PONTUACAO_JSON_FILE_ID: '',  // _getPontuacaoPlanos() — vazio = fallback p/ busca por nome 'pontuacao_planos.json' (Módulo Financeiro §11.9)
-  CARTAS_META_JSON_FILE_ID: '',  // _getCartasMetaPap() — vazio = fallback p/ busca por nome 'cartas_meta_pap.json' (Módulo Financeiro §4.2)
+  PONTUACAO_JSON_FILE_ID: '1txC2mYqj0kh_L9O7s1_7gCR9hVv9t5gy',  // _getPontuacaoPlanos() (Módulo Financeiro §11.9) — fixado 21/05 via financeiroSetupFase2
+  CARTAS_META_JSON_FILE_ID: '1zkTm2bA6ClHITnY_VvCDlGUOzGXb-mRp',  // _getCartasMetaPap() (Módulo Financeiro §4.2) — fixado 21/05 via financeiroSetupFase2
   COLUNAS: {
     // ── Bloco 1: Venda (A–G) ────────────────────────────────────────
     CANAL:              0,  // A  - Canal de venda (PAP, META ADS, INDICAÇÃO, ATIVO, GOOGLE ADS)
