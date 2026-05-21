@@ -3970,11 +3970,9 @@ function _leadsErro(msg) {
 // ── RENDERIZAR ────────────────────────────────────────────────
 function _renderizarLeads() {
   var total = 0;
-  var funil = { quente: 0, morno: 0, frio: 0 };
   LEADS_COLUNAS.forEach(function(col) {
     var cards = _leadsDados.filter(function(v) { return v.temperatura === col.temp; });
     total += cards.length;
-    if (funil.hasOwnProperty(col.temp)) funil[col.temp] = cards.length;
     var container = document.getElementById(col.cardsId);
     var contador  = document.getElementById(col.countId);
     if (contador) contador.textContent = cards.length;
@@ -3986,26 +3984,7 @@ function _renderizarLeads() {
   });
   document.getElementById('leadsCount').textContent =
     total + ' lead' + (total !== 1 ? 's' : '');
-  _renderFunilLeads(funil.quente, funil.morno, funil.frio);
   _iniciarDragLeads();
-}
-
-// ── INDICADOR DE FUNIL (Quente / Morno / Frio) ────────────────
-function _renderFunilLeads(q, m, f) {
-  var total = q + m + f;
-  function set(segId, legId, label, n) {
-    var seg = document.getElementById(segId);
-    var leg = document.getElementById(legId);
-    if (leg) leg.textContent = n;
-    if (!seg) return;
-    seg.style.flex = total ? n : 0;
-    var pct = total ? Math.round(n / total * 100) : 0;
-    seg.setAttribute('data-tooltip',
-      label + ' · ' + n + ' lead' + (n !== 1 ? 's' : '') + ' · ' + pct + '%');
-  }
-  set('lfSegQuente', 'lfLegQuente', 'Quente', q);
-  set('lfSegMorno',  'lfLegMorno',  'Morno',  m);
-  set('lfSegFrio',   'lfLegFrio',   'Frio',   f);
 }
 
 // ── CARD ──────────────────────────────────────────────────────
@@ -5247,6 +5226,7 @@ function navegar(pagina) {
       _listaCacheCarregarSS();
     }
     carregarVendas(1, '');
+    _carregarFunilLista();
     // Performance (19/05/2026): sincronização BotConversa removida — era o
     // maior gargalo (até 30s em paralelo + invalidação de cache forçando reload).
 
@@ -6166,6 +6146,7 @@ function recarregarLista() {
         _listaCacheLimparSS();
         carregarVendas(1, '');         // pipeline Lite normal (não havia o que preservar)
       }
+      _carregarFunilLista();           // refresca o indicador de funil junto com a sincronização
     })
     .withFailureHandler(function() {
       _dadosListaCache = null; _dadosListaTotal = 0; _dadosTotalServidor = 0;
@@ -6371,6 +6352,44 @@ function _filtrarLocalmente(dados, filtro, opcoes) {
     }
     return true;
   });
+}
+
+// ── INDICADOR DE FUNIL (Quente / Morno / Frio) — topo da Lista de Vendas ──
+function _renderFunilLeads(q, m, f) {
+  var total = q + m + f;
+  function set(segId, legId, label, n) {
+    var seg = document.getElementById(segId);
+    var leg = document.getElementById(legId);
+    if (leg) leg.textContent = n;
+    if (!seg) return;
+    seg.style.flex = total ? n : 0;
+    var pct = total ? Math.round(n / total * 100) : 0;
+    seg.setAttribute('data-tooltip',
+      label + ' · ' + n + ' lead' + (n !== 1 ? 's' : '') + ' · ' + pct + '%');
+  }
+  set('lfSegQuente', 'lfLegQuente', 'Quente', q);
+  set('lfSegMorno',  'lfLegMorno',  'Morno',  m);
+  set('lfSegFrio',   'lfLegFrio',   'Frio',   f);
+}
+
+// Busca o funil de temperatura (mesma query da Tratamento Leads, cache 300s)
+// e popula o indicador. Falha silenciosa: indicador fica zerado.
+function _carregarFunilLista() {
+  if (!document.getElementById('lfSegQuente')) return;
+  google.script.run
+    .withSuccessHandler(function(res) {
+      var dados = (res && res.dados) ? res.dados : [];
+      var q = 0, m = 0, f = 0;
+      for (var i = 0; i < dados.length; i++) {
+        var t = dados[i].temperatura;
+        if (t === 'quente') q++;
+        else if (t === 'morno') m++;
+        else if (t === 'frio') f++;
+      }
+      _renderFunilLeads(q, m, f);
+    })
+    .withFailureHandler(function() { /* silencioso */ })
+    .getVendasLeads();
 }
 
 function carregarVendas(pagina, filtro) {

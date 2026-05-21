@@ -1927,7 +1927,7 @@
     .leads-count { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
 
     /* Indicador de funil discreto (Quente / Morno / Frio) */
-    .leads-funnel { flex-shrink: 0; padding: 12px 20px 6px; }
+    .leads-funnel { flex-shrink: 0; padding: 8px 20px 10px; border-bottom: 1px solid var(--border); }
     .leads-funnel-bar { display: flex; gap: 4px; height: 2px; margin-bottom: 8px; }
     .leads-funnel-seg {
       border-radius: 1px; cursor: pointer; position: relative;
@@ -2922,6 +2922,19 @@
           <div class="list-meta">
             <span id="totalRegistros">—</span>
           </div>
+          <!-- Indicador de funil (Quente / Morno / Frio) -->
+          <div class="leads-funnel" id="leadsFunnel">
+            <div class="leads-funnel-bar">
+              <div class="leads-funnel-seg lf-quente" id="lfSegQuente" style="flex:0"></div>
+              <div class="leads-funnel-seg lf-morno"  id="lfSegMorno"  style="flex:0"></div>
+              <div class="leads-funnel-seg lf-frio"   id="lfSegFrio"   style="flex:0"></div>
+            </div>
+            <div class="leads-funnel-legend">
+              <span><span class="lf-dot lf-dot-quente">●</span> Quente <b id="lfLegQuente">0</b></span>
+              <span><span class="lf-dot lf-dot-morno">●</span> Morno <b id="lfLegMorno">0</b></span>
+              <span><span class="lf-dot lf-dot-frio">●</span> Frio <b id="lfLegFrio">0</b></span>
+            </div>
+          </div>
           <div class="lista-scroll" id="listaVendas">
             <div class="empty"><div class="empty-icon">📋</div><h3>Carregando...</h3></div>
           </div>
@@ -3602,20 +3615,6 @@
           <span style="color:var(--border2);">·</span>
           <span class="leads-count" id="leadsCount">—</span>
           <button class="btn btn-ghost btn-sm" onclick="carregarLeads()" style="margin-left:auto;font-size:11px;">↺ Atualizar</button>
-        </div>
-
-        <!-- Indicador de funil (Quente / Morno / Frio) -->
-        <div class="leads-funnel" id="leadsFunnel">
-          <div class="leads-funnel-bar">
-            <div class="leads-funnel-seg lf-quente" id="lfSegQuente" style="flex:0"></div>
-            <div class="leads-funnel-seg lf-morno"  id="lfSegMorno"  style="flex:0"></div>
-            <div class="leads-funnel-seg lf-frio"   id="lfSegFrio"   style="flex:0"></div>
-          </div>
-          <div class="leads-funnel-legend">
-            <span><span class="lf-dot lf-dot-quente">●</span> Quente <b id="lfLegQuente">0</b></span>
-            <span><span class="lf-dot lf-dot-morno">●</span> Morno <b id="lfLegMorno">0</b></span>
-            <span><span class="lf-dot lf-dot-frio">●</span> Frio <b id="lfLegFrio">0</b></span>
-          </div>
         </div>
 
         <div class="leads-cols" id="leadsCols">
