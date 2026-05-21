@@ -22,8 +22,8 @@
 
 /* ── TOOLBAR ── */
 .lma-toolbar {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 24px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 24px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0; flex-wrap: wrap;
@@ -51,19 +51,22 @@
 .lma-resumo::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
 .lma-card {
-  flex-shrink: 0;
+  flex: 1; min-width: 0;                 /* divide a largura igualmente entre os 5 */
   background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 10px; padding: 10px 18px; min-width: 130px;
+  border-top-width: 2px;                  /* faixa de cor no topo (identidade) */
+  border-radius: 9px; padding: 6px 12px;
 }
-.lma-card.c-total    { border-color: rgba(130,130,255,.4); }
-.lma-card.c-conv     { border-color: rgba(62,230,130,.4); }
-.lma-card.c-desq     { border-color: rgba(230,62,62,.4); }
-.lma-card.c-pend     { border-color: rgba(230,180,62,.4); }
-.lma-card.c-taxa     { border-color: rgba(62,180,230,.4); }
-.lma-card-label { font-size: 10px; font-weight: 700; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-.lma-card-valor { font-size: 20px; font-weight: 800; font-family: 'DM Mono', monospace; color: var(--text); }
-.lma-card-sub   { font-size: 10px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
+.lma-card.c-novos    { border-top-color: rgba(130,130,255,.7); }
+.lma-card.c-pend     { border-top-color: rgba(230,180,62,.8); }
+.lma-card.c-nego     { border-top-color: rgba(62,130,230,.8); }
+.lma-card.c-conv     { border-top-color: rgba(62,230,130,.8); }
+.lma-card.c-desq     { border-top-color: rgba(230,62,62,.8); }
+.lma-card-label { font-size: 9px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .5px; margin-bottom: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lma-card-valor { font-size: 17px; font-weight: 800; font-family: 'DM Mono', monospace; color: var(--text); line-height: 1.1; }
+.lma-card-sub   { font-size: 9px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── FILTROS ── */
 .lma-filtro-wrap {
@@ -76,19 +79,19 @@
 .lma-filtro-wrap label { font-size: 11px; font-weight: 700; color: var(--muted);
   text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
 .lma-select {
-  padding: 6px 10px;
+  padding: 5px 8px;
   background: var(--surface2); border: 1px solid var(--border);
   border-radius: 7px; color: var(--text);
   font-size: 12px; font-family: 'Sora', sans-serif;
-  cursor: pointer; min-width: 160px;
+  cursor: pointer; min-width: 120px;
 }
 .lma-select:focus { outline: none; border-color: var(--accent); }
 .lma-input-busca {
-  padding: 6px 10px;
+  padding: 5px 9px;
   background: var(--surface2); border: 1px solid var(--border);
   border-radius: 7px; color: var(--text);
   font-size: 12px; font-family: 'Sora', sans-serif;
-  min-width: 200px;
+  min-width: 170px;
 }
 .lma-input-busca:focus { outline: none; border-color: var(--accent); }
 .lma-count { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); margin-left: auto; }
@@ -111,7 +114,7 @@
   border-bottom: 1px solid var(--border); white-space: nowrap;
 }
 .lma-table td {
-  padding: 11px 14px; border-bottom: 1px solid var(--border);
+  padding: 7px 14px; border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
 .lma-table tbody tr:hover { background: var(--surface); }
@@ -217,25 +220,19 @@
 .lma-refresh-spin.girando { opacity:1; animation:lmaspin 1s linear; }
 @keyframes lmaspin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
 
-/* ── KPIs em 2 faixas ── */
-.lma-kpis { display:flex; gap:18px; padding:18px 24px 14px; background:var(--surface);
-  border-bottom:1px solid var(--border); flex-wrap:wrap; flex-shrink:0; }
-.lma-faixa { display:flex; gap:12px; align-items:stretch; position:relative; padding:12px 12px 10px; border-radius:12px; }
-.lma-faixa-acao  { background:rgba(255,170,0,.06); border:1px solid rgba(255,170,0,.20); }
-.lma-faixa-saude { background:var(--surface2); border:1px solid var(--border); }
-.lma-faixa-tag { position:absolute; top:-8px; left:12px; font-size:9px; font-weight:700;
-  text-transform:uppercase; letter-spacing:1px; color:var(--muted); background:var(--surface); padding:0 6px; }
-.lma-card.c-novos { border-color:rgba(130,130,255,.45); }
-.lma-card.c-nego  { border-color:rgba(62,130,230,.45); cursor:help; }
+/* ── KPIs — 5 cards iguais ocupando a largura toda ── */
+.lma-kpis { display:flex; gap:10px; padding:8px 24px; background:var(--surface);
+  border-bottom:1px solid var(--border); flex-shrink:0; }
+.lma-card.c-nego { cursor:help; }
 
 /* ── Filtros (2 linhas) + pills ── */
 .lma-filtros { background:var(--surface); border-bottom:1px solid var(--border);
-  padding:10px 24px; display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
-.lma-filtro-linha { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.lma-filtro-linha label { font-size:11px; font-weight:700; color:var(--muted);
-  text-transform:uppercase; letter-spacing:1px; white-space:nowrap; }
+  padding:6px 24px; display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
+.lma-filtro-linha { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.lma-filtro-linha label { font-size:10px; font-weight:700; color:var(--muted);
+  text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; }
 .lma-period-pills { display:inline-flex; gap:4px; flex-wrap:wrap; }
-.lma-period-pills button { padding:5px 11px; background:var(--surface2); border:1px solid var(--border);
+.lma-period-pills button { padding:4px 10px; background:var(--surface2); border:1px solid var(--border);
   border-radius:20px; font-size:11px; cursor:pointer; color:var(--muted); font-family:'Sora',sans-serif; }
 .lma-period-pills button.ativo { background:var(--accent); color:#fff; border-color:var(--accent); }
 .lma-date { padding:4px 6px; background:var(--surface2); border:1px solid var(--border);
@@ -308,38 +305,32 @@
     <button class="lma-btn lma-btn-primary" onclick="abrirModalManual()">+ Registrar manualmente</button>
   </div>
 
-  <!-- KPIs em 2 faixas -->
+  <!-- KPIs — 5 cards iguais ocupando a largura toda -->
   <div class="lma-kpis">
-    <div class="lma-faixa lma-faixa-acao">
-      <span class="lma-faixa-tag">Ação imediata</span>
-      <div class="lma-card c-novos" title="Leads que entraram hoje — o pulso diário. Ignora o filtro de período (sempre hoje).">
-        <div class="lma-card-label">🆕 Novos hoje</div>
-        <div class="lma-card-valor" id="kpiNovos">—</div>
-        <div class="lma-card-sub">entraram hoje</div>
-      </div>
-      <div class="lma-card c-pend" title="Leads sem triagem do time. Atribua um status pra fluir o funil.">
-        <div class="lma-card-label">⏳ Pendentes</div>
-        <div class="lma-card-valor" id="kpiPend">—</div>
-        <div class="lma-card-sub">sem triagem</div>
-      </div>
-      <div class="lma-card c-nego" id="kpiNegoCard" title="Leads em negociação. Hover mostra a receita projetada do pipeline.">
-        <div class="lma-card-label">🔥 Em negociação</div>
-        <div class="lma-card-valor" id="kpiNego">—</div>
-        <div class="lma-card-sub" id="kpiNegoRisco">—</div>
-      </div>
+    <div class="lma-card c-novos" title="Leads que entraram hoje — o pulso diário. Ignora o filtro de período (sempre hoje).">
+      <div class="lma-card-label">🆕 Novos hoje</div>
+      <div class="lma-card-valor" id="kpiNovos">—</div>
+      <div class="lma-card-sub">entraram hoje</div>
     </div>
-    <div class="lma-faixa lma-faixa-saude">
-      <span class="lma-faixa-tag">Saúde do funil</span>
-      <div class="lma-card c-conv" title="Leads que viraram venda. Taxa = convertidos ÷ total no filtro atual.">
-        <div class="lma-card-label">🎯 Convertidos</div>
-        <div class="lma-card-valor" id="kpiConv">—</div>
-        <div class="lma-card-sub" id="kpiTaxa">taxa —%</div>
-      </div>
-      <div class="lma-card c-desq" title="Leads desqualificados, com o breakdown por motivo (top 4).">
-        <div class="lma-card-label">❌ Desqualificados</div>
-        <div class="lma-card-valor" id="kpiDesq">—</div>
-        <div class="lma-card-sub" id="kpiDesqBreak">—</div>
-      </div>
+    <div class="lma-card c-pend" title="Leads sem triagem do time. Atribua um status pra fluir o funil.">
+      <div class="lma-card-label">⏳ Pendentes</div>
+      <div class="lma-card-valor" id="kpiPend">—</div>
+      <div class="lma-card-sub">sem triagem</div>
+    </div>
+    <div class="lma-card c-nego" id="kpiNegoCard" title="Leads em negociação. Hover mostra a receita projetada do pipeline.">
+      <div class="lma-card-label">🔥 Em negociação</div>
+      <div class="lma-card-valor" id="kpiNego">—</div>
+      <div class="lma-card-sub" id="kpiNegoRisco">—</div>
+    </div>
+    <div class="lma-card c-conv" title="Leads que viraram venda. Taxa = convertidos ÷ total no filtro atual.">
+      <div class="lma-card-label">🎯 Convertidos</div>
+      <div class="lma-card-valor" id="kpiConv">—</div>
+      <div class="lma-card-sub" id="kpiTaxa">taxa —%</div>
+    </div>
+    <div class="lma-card c-desq" title="Leads desqualificados, com o breakdown por motivo (top 4).">
+      <div class="lma-card-label">❌ Desqualificados</div>
+      <div class="lma-card-valor" id="kpiDesq">—</div>
+      <div class="lma-card-sub" id="kpiDesqBreak">—</div>
     </div>
   </div>
 
