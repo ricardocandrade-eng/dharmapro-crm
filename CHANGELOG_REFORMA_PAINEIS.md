@@ -240,6 +240,21 @@ da migração + preenchimento do diff ficam com o Ricardo (dry-run antes).
 
 ## Fim da reforma
 
-Fases 1–4 implementadas e deployadas (Fase 4.1 aguarda execução do one-shot pelo
-Ricardo). Pendência transversal aberta: alerta 7 (`getResumoTrafegoHoje`) ainda lê
-só a conta antiga (ver seção acima).
+Fases 1–4 implementadas e deployadas.
+
+## Pós-reforma (20/05/2026)
+
+- **Fase 4.1 executada** pelo Ricardo no editor: dry-run confirmou 2 leads;
+  `migrarLeadsHistoricosCampanhasPausadas` migrou **2 leads** ("B - Órbita JF" →
+  "AG - Vero Fibra Amplo", linhas 86 e 88, registros manuais de 20/05), backup
+  `Leads Meta Ads (bkp 20260520_2200)`. Diff em
+  `meta-ads-vero/migracao_leads_historicos_diff.md`. One-shot `_metaFase4Setup.js`
+  **removido** do projeto.
+- **Alerta 7 corrigido (multi-conta)** — `getResumoTrafegoHoje()` agora **agrega as
+  contas** (`_getContasMetaAds_()`): soma gasto/impressões/alcance/cliques/budget
+  previsto, junta as campanhas ativas e recalcula CTR/CPC sobre os totais. Helpers
+  `_somarBudgetAdSetsAtivos_(accountId)` e `_listarCampanhasAtivas_(accountId)`
+  parametrizados. **Shape do JSON inalterado** (só `meta.contas` adicionado) — o
+  n8n do alerta 7 (`rZi4ZpL1Sj8tvcMz`, `?action=resumo_trafego`) segue funcionando;
+  os números passam a refletir a operação real (Vero 02). Resolve a pendência
+  transversal. `node --check` OK.
