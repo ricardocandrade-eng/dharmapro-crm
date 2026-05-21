@@ -30,6 +30,8 @@ var CONFIG = {
   TABELA_JSON_FILE_ID: '1wB9jncB_eBhGnBE-OpiZZ5UfVnvmv-ro',  // _getTabela() lê deste JSON no Drive (substitui aba TABELA)
   CIDADES_JSON_FILE_ID: '17CQ8KmZdyUtgQChPFC2b7pq2tsU6riV1',  // _getCidadesJson() lê do JSON no Drive (substitui aba CIDADES)
   CODIGOS_VERO_JSON_FILE_ID: '',  // _getCodigosVero() — vazio = fallback p/ busca por nome 'planos_vero_codigos.json'
+  PONTUACAO_JSON_FILE_ID: '',  // _getPontuacaoPlanos() — vazio = fallback p/ busca por nome 'pontuacao_planos.json' (Módulo Financeiro §11.9)
+  CARTAS_META_JSON_FILE_ID: '',  // _getCartasMetaPap() — vazio = fallback p/ busca por nome 'cartas_meta_pap.json' (Módulo Financeiro §4.2)
   COLUNAS: {
     // ── Bloco 1: Venda (A–G) ────────────────────────────────────────
     CANAL:              0,  // A  - Canal de venda (PAP, META ADS, INDICAÇÃO, ATIVO, GOOGLE ADS)
@@ -3467,6 +3469,186 @@ function _getCodigosVeroMapaFlat_() {
     Logger.log('_getCodigosVeroMapaFlat_ erro: ' + e.message);
   }
   return out;
+}
+
+// ─── PONTUAÇÃO DE PLANOS — Módulo Financeiro (§11.9 / §4.1) ───────────────────
+// Lê pontuacao_planos.json no Drive. Pontos por código + segmentação (BL) e
+// pontos do Móvel combo. RECEITA = (pontuacao_bl[seg] + pontos_movel) × fator.
+// Cache 600s. Se PONTUACAO_JSON_FILE_ID vazio, busca por nome e cacheia o ID.
+// Mesma estrutura de _getCodigosVero.
+function _getPontuacaoPlanos() {
+  var cache = CacheService.getScriptCache();
+  var key   = CONFIG.CACHE_PREFIX + 'pontuacao_planos_v1';
+  try {
+    var hit = cache.get(key);
+    if (hit) return JSON.parse(hit);
+  } catch(e) {}
+
+  var fileId = CONFIG.PONTUACAO_JSON_FILE_ID;
+  if (!fileId) {
+    try {
+      var props = PropertiesService.getScriptProperties();
+      fileId = props.getProperty('PONTUACAO_PLANOS_FILE_ID') || '';
+    } catch(e) {}
+  }
+  if (!fileId) {
+    try {
+      var iter = DriveApp.getFilesByName('pontuacao_planos.json');
+      if (iter.hasNext()) {
+        fileId = iter.next().getId();
+        try { PropertiesService.getScriptProperties().setProperty('PONTUACAO_PLANOS_FILE_ID', fileId); } catch(e) {}
+      }
+    } catch(e) {
+      throw new Error('Falha ao buscar pontuacao_planos.json no Drive: ' + e.message);
+    }
+  }
+  if (!fileId) {
+    throw new Error('pontuacao_planos.json não encontrado no Drive. Configure CONFIG.PONTUACAO_JSON_FILE_ID ou suba o arquivo.');
+  }
+
+  var content = DriveApp.getFileById(fileId).getBlob().getDataAsString();
+  var parsed = JSON.parse(content);
+  try {
+    var json = JSON.stringify(parsed);
+    if (json.length < 95000) cache.put(key, json, 600);
+  } catch(e) {}
+  return parsed;
+}
+
+// Mapa flat por código: { "4279": <entry>, ... }. Tolerante a falha (retorna {}).
+function _getPontuacaoMapaPorCodigo_() {
+  var out = {};
+  try {
+    var pj = _getPontuacaoPlanos();
+    (pj.planos || []).forEach(function(p) {
+      if (p && p.codigo) out[String(p.codigo).trim()] = p;
+    });
+  } catch (e) {
+    Logger.log('_getPontuacaoMapaPorCodigo_ erro: ' + e.message);
+  }
+  return out;
+}
+
+// Resolve os pontos de uma venda a partir do código do plano + segmentação.
+// Retorna { pontos_bl, pontos_movel, produto_tipo, encontrado } ou null em erro.
+// pontos_bl = pontuação da Fibra na segmentação; pontos_movel = pontos do Móvel
+// combo (0 se não houver). A receita prevista é (pontos_bl + pontos_movel) × fator.
+function getPontuacaoVenda(codigo, segmentacao) {
+  try {
+    if (!codigo) return { encontrado: false, pontos_bl: 0, pontos_movel: 0, produto_tipo: '' };
+    var mapa = _getPontuacaoMapaPorCodigo_();
+    var p = mapa[String(codigo).trim()];
+    if (!p) return { encontrado: false, pontos_bl: 0, pontos_movel: 0, produto_tipo: '' };
+    var seg = String(segmentacao || 'PADRAO').trim().toUpperCase();
+    if (seg === 'ESPECIAIS') seg = 'ESPECIAL';
+    if (seg === 'PADRÃO')    seg = 'PADRAO';
+    var bl = 0;
+    if (p.pontuacao_bl) {
+      bl = (p.pontuacao_bl[seg] != null) ? Number(p.pontuacao_bl[seg]) : Number(p.pontuacao_bl.PADRAO || 0);
+    }
+    var mv = (p.movel_vinculado && p.movel_vinculado.pontos_movel_combo) ? Number(p.movel_vinculado.pontos_movel_combo) : 0;
+    return { encontrado: true, pontos_bl: bl, pontos_movel: mv, produto_tipo: p.produto_tipo || '', nome_crm: p.nome_crm || '' };
+  } catch (e) {
+    Logger.log('getPontuacaoVenda erro: ' + e.message);
+    return null;
+  }
+}
+
+// ─── CARTAS DE META PAP — Módulo Financeiro (§4.2 / §11.9) ────────────────────
+// Lê cartas_meta_pap.json no Drive. Fator do mês por tier de estrela (por número
+// de INSTALAÇÕES no mês), pontos do Móvel e regras de desconto. Cache 600s.
+// Fallback por nome no Drive (mesma estrutura de _getPontuacaoPlanos).
+function _getCartasMetaPap() {
+  var cache = CacheService.getScriptCache();
+  var key   = CONFIG.CACHE_PREFIX + 'cartas_meta_v1';
+  try {
+    var hit = cache.get(key);
+    if (hit) return JSON.parse(hit);
+  } catch(e) {}
+
+  var fileId = CONFIG.CARTAS_META_JSON_FILE_ID;
+  if (!fileId) {
+    try {
+      var props = PropertiesService.getScriptProperties();
+      fileId = props.getProperty('CARTAS_META_FILE_ID') || '';
+    } catch(e) {}
+  }
+  if (!fileId) {
+    try {
+      var iter = DriveApp.getFilesByName('cartas_meta_pap.json');
+      if (iter.hasNext()) {
+        fileId = iter.next().getId();
+        try { PropertiesService.getScriptProperties().setProperty('CARTAS_META_FILE_ID', fileId); } catch(e) {}
+      }
+    } catch(e) {
+      throw new Error('Falha ao buscar cartas_meta_pap.json no Drive: ' + e.message);
+    }
+  }
+  if (!fileId) {
+    throw new Error('cartas_meta_pap.json não encontrado no Drive. Configure CONFIG.CARTAS_META_JSON_FILE_ID ou suba o arquivo.');
+  }
+
+  var content = DriveApp.getFileById(fileId).getBlob().getDataAsString();
+  var parsed = JSON.parse(content);
+  try {
+    var json = JSON.stringify(parsed);
+    if (json.length < 95000) cache.put(key, json, 600);
+  } catch(e) {}
+  return parsed;
+}
+
+// Retorna a carta do mês "YYYY-MM". Se não existir, retorna a mais recente
+// disponível (fallback) ou null. Mês ausente é comum até o upload do mês corrente.
+function getCartaDoMes(mesCompetencia) {
+  try {
+    var cj = _getCartasMetaPap();
+    var cartas = (cj && cj.cartas) || [];
+    if (!cartas.length) return null;
+    var alvo = String(mesCompetencia || '').trim();
+    if (alvo) {
+      for (var i = 0; i < cartas.length; i++) {
+        if (String(cartas[i].mes_competencia) === alvo) return cartas[i];
+      }
+    }
+    // Fallback: a carta de maior mes_competencia (mais recente).
+    var maisRecente = cartas[0];
+    for (var j = 1; j < cartas.length; j++) {
+      if (String(cartas[j].mes_competencia) > String(maisRecente.mes_competencia)) maisRecente = cartas[j];
+    }
+    return maisRecente;
+  } catch (e) {
+    Logger.log('getCartaDoMes erro: ' + e.message);
+    return null;
+  }
+}
+
+// Resolve o tier de estrela + fator a partir do número de instalações do mês.
+// Retorna { tier, fator_base, adimplencia_diferida, fator_total } ou null.
+// O fator_base é o que entra no extrato no mês; a adimplência (0,4) é diferida (M+3).
+function resolverEstrelaPorInstalacoes(instalacoes, mesCompetencia) {
+  try {
+    var carta = getCartaDoMes(mesCompetencia);
+    if (!carta || !carta.estrelas) return null;
+    var n = Number(instalacoes) || 0;
+    for (var i = 0; i < carta.estrelas.length; i++) {
+      var t = carta.estrelas[i];
+      var min = (t.instalacoes_min != null) ? t.instalacoes_min : 0;
+      var max = (t.instalacoes_max != null) ? t.instalacoes_max : Infinity;
+      if (n >= min && n <= max) {
+        return {
+          tier: t.tier,
+          fator_base: Number(t.fator_base) || 0,
+          adimplencia_diferida: Number(t.adimplencia_diferida) || 0,
+          fator_total: Number(t.fator_total) || 0,
+          mes_competencia: carta.mes_competencia
+        };
+      }
+    }
+    return null;
+  } catch (e) {
+    Logger.log('resolverEstrelaPorInstalacoes erro: ' + e.message);
+    return null;
+  }
 }
 
 // Reverse lookup pra captura forward-only no cadastro de venda:

@@ -1,0 +1,68 @@
+{
+  "_meta": {
+    "versao": "1.0",
+    "fonte": "Carta_Meta_PAP MOBILE_maio_2026.pdf (Vero — recebida até dia 10)",
+    "gerado_em": "2026-05-21",
+    "notas": [
+      "Tiers de estrela são por NÚMERO DE INSTALAÇÕES no mês (não por pontos). Validado com março: Instalação+Móvel=75 → 3 estrelas (50-249) → fator base 2,6.",
+      "fator_total = fator_base + adimplencia_diferida (0,4). O fator_base é o que entra no extrato no mês; a adimplência (0,4) é liberada em M+3 se o cliente paga em dia (§11.2).",
+      "Móvel COMBO: pontos × fator (movel_combo_aplica_fator=true). Móvel AVULSO (chip avulso Vero Controle): pontuação da franquia SEM fator/bônus (movel_alone_aplica_fator=false). Chip adicional (mesma franquia do principal): R$15 flat, pago após ativação.",
+      "Regras (churn/inadimplência/suspensão/HUB/CNCL) são modeladas para EXPLICAR divergências do extrato — o CRM NÃO recalcula descontos (§2.3)."
+    ]
+  },
+  "cartas": [
+    {
+      "mes_competencia": "2026-05",
+      "vigencia_inicio": "2026-05-01",
+      "vigencia_fim": "2026-05-31",
+      "tier_base": "instalacoes",
+      "estrelas": [
+        { "tier": "2_ESTRELAS", "instalacoes_min": 0,    "instalacoes_max": 49,   "fator_base": 2.0, "adimplencia_diferida": 0.4, "fator_total": 2.4 },
+        { "tier": "3_ESTRELAS", "instalacoes_min": 50,   "instalacoes_max": 249,  "fator_base": 2.6, "adimplencia_diferida": 0.4, "fator_total": 3.0 },
+        { "tier": "4_ESTRELAS", "instalacoes_min": 250,  "instalacoes_max": 569,  "fator_base": 2.9, "adimplencia_diferida": 0.4, "fator_total": 3.3 },
+        { "tier": "5_ESTRELAS", "instalacoes_min": 570,  "instalacoes_max": 899,  "fator_base": 3.2, "adimplencia_diferida": 0.4, "fator_total": 3.6 },
+        { "tier": "6_ESTRELAS", "instalacoes_min": 900,  "instalacoes_max": 1699, "fator_base": 3.5, "adimplencia_diferida": 0.4, "fator_total": 3.9 },
+        { "tier": "PRIME_VERO", "instalacoes_min": 1700, "instalacoes_max": null, "fator_base": 3.8, "adimplencia_diferida": 0.4, "fator_total": 4.2 }
+      ],
+      "movel_pontos": { "10GB": 25, "20GB": 40, "30GB": 55, "60GB": 85 },
+      "movel_combo_aplica_fator": true,
+      "movel_alone_aplica_fator": false,
+      "chip_adicional_rs": 15.00,
+      "metas": {
+        "bl": 41,
+        "movel": 29,
+        "churn": 0,
+        "du_bl": 1.8,
+        "du_movel": 1.3,
+        "dias_uteis": 22.5
+      },
+      "bonus_quinzenal": {
+        "corte_dia": 16,
+        "base": "instalações de Banda Larga realizadas até dia 16 do mês vigente"
+      },
+      "regras": {
+        "churn_voluntario": [
+          { "ate_dias": 90,  "desconto_pct": 100 },
+          { "ate_dias": 120, "desconto_pct": 50 },
+          { "ate_dias": 150, "desconto_pct": 40 },
+          { "ate_dias": 181, "desconto_pct": 30 }
+        ],
+        "churn_involuntario_ate_dias": 180,
+        "churn_involuntario_desconto_pct": 100,
+        "inadimplencia_primeira_fatura_pct": 100,
+        "inadimplencia_apuracao_safra_dias": 90,
+        "suspensao_ate_dias": 180,
+        "suspensao_desconto_pct": 100,
+        "suspensao_sem_duplicidade_com_inadimplencia": true,
+        "cncl_comercial_threshold_pct": 5,
+        "cncl_comercial_bonus_pct": 7.5,
+        "cncl_comercial_multa_pct": 7.5,
+        "hub_meta_pct": 100,
+        "hub_tolerancia_pct": 5,
+        "hub_excedente_desconto_pct": 50,
+        "devolucao_se_cliente_pagar": true,
+        "vigencia_regras_desde": "2026-01-01"
+      }
+    }
+  ]
+}

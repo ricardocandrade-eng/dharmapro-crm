@@ -1,0 +1,579 @@
+{
+  "_meta": {
+    "versao": "1.0",
+    "vigencia_inicio": "2026-05-01",
+    "vigencia_fim": null,
+    "fonte": "Extrato SNIPER MOBILE (fev/mar, realizado) + dicionário planos_vero_codigos.json; tabela 04.05 cross-check",
+    "escopo": "rev1 — apenas os 22 códigos presentes no extrato (alta confiança no realizado). Demais códigos serão adicionados conforme aparecem em extratos futuros.",
+    "regra_calculo": "RECEITA = (pontuacao_bl[seg] + (movel_vinculado.pontos_movel_combo||0)) × fator_do_mes  (§11.9)",
+    "notas": [
+      "Móvel combo é pontos × fator (não R$). Mapa franquia: 10GB=25,20GB=40,30GB=55,60GB=85.",
+      "Linhas MUNDO FIBRA 750 (cod 4264/4269/4333): tabela 04.05 trazia 127,9 (preço contaminado) — usado o redondo realizado (93/95).",
+      "seg_inferidas: segmentações não observadas no extrato, preenchidas com o valor base observado (maioria dos planos é flat). Revisar contra tabela oficial limpa quando disponível."
+    ],
+    "gerado_em": "2026-05-21T18:58:05.462538"
+  },
+  "planos": [
+    {
+      "codigo": "4264",
+      "nome_crm": "MUNDO FIBRA 750MB",
+      "nome_vero_extrato": "MUNDO FIBRA 750MB",
+      "produto_tipo": "FIBRA_ALONE",
+      "pontuacao_bl": {
+        "ESPECIAL": 95.0,
+        "OURO": 95.0,
+        "PRATA": 95.0,
+        "PADRAO": 95.0
+      },
+      "movel_vinculado": null,
+      "_prov": {
+        "seg_observadas": [
+          "PRATA"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PADRAO"
+        ],
+        "instalacoes": 1
+      }
+    },
+    {
+      "codigo": "4269",
+      "nome_crm": "MUNDO FIBRA 750MB",
+      "nome_vero_extrato": "MUNDO FIBRA 750MB",
+      "produto_tipo": "FIBRA_ALONE",
+      "pontuacao_bl": {
+        "ESPECIAL": 93.0,
+        "OURO": 93.0,
+        "PRATA": 93.0,
+        "PADRAO": 93.0
+      },
+      "movel_vinculado": null,
+      "_prov": {
+        "seg_observadas": [
+          "ESPECIAL"
+        ],
+        "seg_inferidas": [
+          "OURO",
+          "PRATA",
+          "PADRAO"
+        ],
+        "instalacoes": 2
+      }
+    },
+    {
+      "codigo": "4270",
+      "nome_crm": "600MB GLOBOPLAY PADRÃO COM ANÚNCIOS",
+      "nome_vero_extrato": "MUNDO ENTRETENIMENTO 600MB + GLOBOPLAY PADRÃO COM ANÚNCIOS",
+      "produto_tipo": "FIBRA_ALONE",
+      "pontuacao_bl": {
+        "ESPECIAL": 100.0,
+        "OURO": 100.0,
+        "PRATA": 100.0,
+        "PADRAO": 100.0
+      },
+      "movel_vinculado": null,
+      "_prov": {
+        "seg_observadas": [
+          "PADRAO"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PRATA"
+        ],
+        "instalacoes": 1
+      }
+    },
+    {
+      "codigo": "4271",
+      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+      "nome_vero_extrato": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM",
+      "produto_tipo": "FIBRA_ALONE",
+      "pontuacao_bl": {
+        "ESPECIAL": 122.0,
+        "OURO": 122.0,
+        "PRATA": 122.0,
+        "PADRAO": 122.0
+      },
+      "movel_vinculado": null,
+      "_prov": {
+        "seg_observadas": [
+          "ESPECIAL",
+          "PADRAO"
+        ],
+        "seg_inferidas": [
+          "OURO",
+          "PRATA"
+        ],
+        "instalacoes": 2
+      }
+    },
+    {
+      "codigo": "4272",
+      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+      "nome_vero_extrato": "MUNDO ENTRETENIMENTO 800MB + HBO MAX",
+      "produto_tipo": "FIBRA_ALONE",
+      "pontuacao_bl": {
+        "ESPECIAL": 122.0,
+        "OURO": 122.0,
+        "PRATA": 122.0,
+        "PADRAO": 122.0
+      },
+      "movel_vinculado": null,
+      "_prov": {
+        "seg_observadas": [
+          "PRATA"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PADRAO"
+        ],
+        "instalacoes": 1
+      }
+    },
+    {
+      "codigo": "4278",
+      "nome_crm": "VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB",
+      "nome_vero_extrato": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + MAIS CONECTADO 20GB",
+      "produto_tipo": "FIBRA_COMBO",
+      "pontuacao_bl": {
+        "ESPECIAL": 85.0,
+        "OURO": 85.0,
+        "PRATA": 85.0,
+        "PADRAO": 85.0
+      },
+      "movel_vinculado": {
+        "pontos_movel_combo": 40.0,
+        "franquia_gb": 20
+      },
+      "_prov": {
+        "seg_observadas": [
+          "PADRAO"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PRATA"
+        ],
+        "instalacoes": 1
+      }
+    },
+    {
+      "codigo": "4279",
+      "nome_crm": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB",
+      "nome_vero_extrato": "VERO MAIS 800MB + HBO MAX + MAIS CONECTADO 20GB",
+      "produto_tipo": "FIBRA_COMBO",
+      "pontuacao_bl": {
+        "ESPECIAL": 70.0,
+        "OURO": 70.0,
+        "PRATA": 70.0,
+        "PADRAO": 70.0
+      },
+      "movel_vinculado": {
+        "pontos_movel_combo": 40.0,
+        "franquia_gb": 20
+      },
+      "_prov": {
+        "seg_observadas": [
+          "PADRAO"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PRATA"
+        ],
+        "instalacoes": 3
+      }
+    },
+    {
+      "codigo": "4288",
+      "nome_crm": "MUNDO COMPLETO 850MB + FILMES",
+      "nome_vero_extrato": "MUNDO COMPLETO 850MB + FILMES",
+      "produto_tipo": "FIBRA_ALONE",
+      "pontuacao_bl": {
+        "ESPECIAL": 150.0,
+        "OURO": 150.0,
+        "PRATA": 150.0,
+        "PADRAO": 150.0
+      },
+      "movel_vinculado": null,
+      "_prov": {
+        "seg_observadas": [
+          "PRATA"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PADRAO"
+        ],
+        "instalacoes": 1
+      }
+    },
+    {
+      "codigo": "4305",
+      "nome_crm": "VERO MAIS 800MB + HBO MAX + MAIS CONECTADO 20GB RH",
+      "nome_vero_extrato": "VERO MAIS 800MB + HBO MAX + MAIS CONECTADO 20GB RH",
+      "produto_tipo": "FIBRA_COMBO",
+      "pontuacao_bl": {
+        "ESPECIAL": 70.0,
+        "OURO": 70.0,
+        "PRATA": 70.0,
+        "PADRAO": 70.0
+      },
+      "movel_vinculado": {
+        "pontos_movel_combo": 40.0,
+        "franquia_gb": 20
+      },
+      "_prov": {
+        "seg_observadas": [
+          "PADRAO"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PRATA"
+        ],
+        "instalacoes": 1
+      }
+    },
+    {
+      "codigo": "4323",
+      "nome_crm": "VERO MAIS 800MB + HBO MAX + MAIS CONECTADO 20GB RN",
+      "nome_vero_extrato": "VERO MAIS 800MB + HBO MAX + MAIS CONECTADO 20GB RN",
+      "produto_tipo": "FIBRA_COMBO",
+      "pontuacao_bl": {
+        "ESPECIAL": 70.0,
+        "OURO": 70.0,
+        "PRATA": 70.0,
+        "PADRAO": 70.0
+      },
+      "movel_vinculado": {
+        "pontos_movel_combo": 40.0,
+        "franquia_gb": 20
+      },
+      "_prov": {
+        "seg_observadas": [
+          "PADRAO"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PRATA"
+        ],
+        "instalacoes": 1
+      }
+    },
+    {
+      "codigo": "4333",
+      "nome_crm": "MUNDO FIBRA 750MB RN",
+      "nome_vero_extrato": "MUNDO FIBRA 750MB RN",
+      "produto_tipo": "FIBRA_ALONE",
+      "pontuacao_bl": {
+        "ESPECIAL": 95.0,
+        "OURO": 95.0,
+        "PRATA": 95.0,
+        "PADRAO": 95.0
+      },
+      "movel_vinculado": null,
+      "_prov": {
+        "seg_observadas": [
+          "PADRAO"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PRATA"
+        ],
+        "instalacoes": 2
+      }
+    },
+    {
+      "codigo": "4401",
+      "nome_crm": "OFERTA VERÃO 800MB + GLOBOPLAY PREMIUM + HBO MAX + MAIS CONECTADO 60GB",
+      "nome_vero_extrato": "OFERTA VERÃO 800MB + GLOBOPLAY PREMIUM + HBO MAX + MAIS CONECTADO 60GB",
+      "produto_tipo": "FIBRA_COMBO",
+      "pontuacao_bl": {
+        "ESPECIAL": 50.0,
+        "OURO": 50.0,
+        "PRATA": 50.0,
+        "PADRAO": 50.0
+      },
+      "movel_vinculado": {
+        "pontos_movel_combo": 85.0,
+        "franquia_gb": 60
+      },
+      "_prov": {
+        "seg_observadas": [
+          "ESPECIAL",
+          "PADRAO"
+        ],
+        "seg_inferidas": [
+          "OURO",
+          "PRATA"
+        ],
+        "instalacoes": 8
+      }
+    },
+    {
+      "codigo": "4402",
+      "nome_crm": "OFERTA VERÃO 800MB + GLOBOPLAY PREMIUM + HBO MAX + MAIS CONECTADO 60GB RN",
+      "nome_vero_extrato": "OFERTA VERÃO 800MB + GLOBOPLAY PREMIUM + HBO MAX + MAIS CONECTADO 60GB RN",
+      "produto_tipo": "FIBRA_COMBO",
+      "pontuacao_bl": {
+        "ESPECIAL": 50.0,
+        "OURO": 50.0,
+        "PRATA": 50.0,
+        "PADRAO": 50.0
+      },
+      "movel_vinculado": {
+        "pontos_movel_combo": 85.0,
+        "franquia_gb": 60
+      },
+      "_prov": {
+        "seg_observadas": [
+          "PADRAO"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PRATA"
+        ],
+        "instalacoes": 1
+      }
+    },
+    {
+      "codigo": "4431",
+      "nome_crm": "OFERTA VERÃO 800MB + GLOBOPLAY PREMIUM + HBO MAX + MESH + MAIS CONECTADO 60GB",
+      "nome_vero_extrato": "OFERTA VERÃO 800MB + GLOBOPLAY PREMIUM + HBO MAX + MESH + MAIS CONECTADO 60GB",
+      "produto_tipo": "FIBRA_COMBO",
+      "pontuacao_bl": {
+        "ESPECIAL": 60.0,
+        "OURO": 60.0,
+        "PRATA": 60.0,
+        "PADRAO": 60.0
+      },
+      "movel_vinculado": {
+        "pontos_movel_combo": 85.0,
+        "franquia_gb": 60
+      },
+      "_prov": {
+        "seg_observadas": [
+          "PADRAO"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PRATA"
+        ],
+        "instalacoes": 1
+      }
+    },
+    {
+      "codigo": "4470",
+      "nome_crm": "MUNDO FIBRA 550MB",
+      "nome_vero_extrato": "MUNDO FIBRA 550MB",
+      "produto_tipo": "FIBRA_ALONE",
+      "pontuacao_bl": {
+        "ESPECIAL": 90.0,
+        "OURO": 90.0,
+        "PRATA": 90.0,
+        "PADRAO": 90.0
+      },
+      "movel_vinculado": null,
+      "_prov": {
+        "seg_observadas": [
+          "PADRAO"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PRATA"
+        ],
+        "instalacoes": 6
+      }
+    },
+    {
+      "codigo": "4472",
+      "nome_crm": "VERO MAIS 550MB + MAIS CONECTADO 10GB",
+      "nome_vero_extrato": "VERO MAIS 550MB + MAIS CONECTADO 10GB",
+      "produto_tipo": "FIBRA_COMBO",
+      "pontuacao_bl": {
+        "ESPECIAL": 67.0,
+        "OURO": 67.0,
+        "PRATA": 67.0,
+        "PADRAO": 67.0
+      },
+      "movel_vinculado": {
+        "pontos_movel_combo": 25.0,
+        "franquia_gb": 10
+      },
+      "_prov": {
+        "seg_observadas": [
+          "PADRAO"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PRATA"
+        ],
+        "instalacoes": 5
+      }
+    },
+    {
+      "codigo": "4473",
+      "nome_crm": "MUNDO FIBRA 550MB",
+      "nome_vero_extrato": "MUNDO FIBRA 550MB",
+      "produto_tipo": "FIBRA_ALONE",
+      "pontuacao_bl": {
+        "ESPECIAL": 90.0,
+        "OURO": 90.0,
+        "PRATA": 90.0,
+        "PADRAO": 90.0
+      },
+      "movel_vinculado": null,
+      "_prov": {
+        "seg_observadas": [
+          "PRATA"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PADRAO"
+        ],
+        "instalacoes": 2
+      }
+    },
+    {
+      "codigo": "4475",
+      "nome_crm": "VERO MAIS 550MB + MAIS CONECTADO 10GB",
+      "nome_vero_extrato": "VERO MAIS 550MB + MAIS CONECTADO 10GB",
+      "produto_tipo": "FIBRA_COMBO",
+      "pontuacao_bl": {
+        "ESPECIAL": 67.0,
+        "OURO": 67.0,
+        "PRATA": 67.0,
+        "PADRAO": 67.0
+      },
+      "movel_vinculado": {
+        "pontos_movel_combo": 25.0,
+        "franquia_gb": 10
+      },
+      "_prov": {
+        "seg_observadas": [
+          "PRATA"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "OURO",
+          "PADRAO"
+        ],
+        "instalacoes": 2
+      }
+    },
+    {
+      "codigo": "4477",
+      "nome_crm": "550MB ASSISTÊNCIA RESIDENCIAL",
+      "nome_vero_extrato": "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL",
+      "produto_tipo": "FIBRA_ALONE",
+      "pontuacao_bl": {
+        "ESPECIAL": 95.0,
+        "OURO": 95.0,
+        "PRATA": 95.0,
+        "PADRAO": 95.0
+      },
+      "movel_vinculado": null,
+      "_prov": {
+        "seg_observadas": [
+          "OURO"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "PRATA",
+          "PADRAO"
+        ],
+        "instalacoes": 1
+      }
+    },
+    {
+      "codigo": "4478",
+      "nome_crm": "VERO MAIS 550MB + MAIS CONECTADO 10GB",
+      "nome_vero_extrato": "VERO MAIS 550MB + MAIS CONECTADO 10GB",
+      "produto_tipo": "FIBRA_COMBO",
+      "pontuacao_bl": {
+        "ESPECIAL": 67.0,
+        "OURO": 67.0,
+        "PRATA": 67.0,
+        "PADRAO": 67.0
+      },
+      "movel_vinculado": {
+        "pontos_movel_combo": 25.0,
+        "franquia_gb": 10
+      },
+      "_prov": {
+        "seg_observadas": [
+          "OURO"
+        ],
+        "seg_inferidas": [
+          "ESPECIAL",
+          "PRATA",
+          "PADRAO"
+        ],
+        "instalacoes": 1
+      }
+    },
+    {
+      "codigo": "4479",
+      "nome_crm": "MUNDO FIBRA 550MB",
+      "nome_vero_extrato": "MUNDO FIBRA 550MB",
+      "produto_tipo": "FIBRA_ALONE",
+      "pontuacao_bl": {
+        "ESPECIAL": 87.0,
+        "OURO": 87.0,
+        "PRATA": 87.0,
+        "PADRAO": 87.0
+      },
+      "movel_vinculado": null,
+      "_prov": {
+        "seg_observadas": [
+          "ESPECIAL"
+        ],
+        "seg_inferidas": [
+          "OURO",
+          "PRATA",
+          "PADRAO"
+        ],
+        "instalacoes": 2
+      }
+    },
+    {
+      "codigo": "4481",
+      "nome_crm": "VERO MAIS 550MB + MAIS CONECTADO 10GB",
+      "nome_vero_extrato": "VERO MAIS 550MB + MAIS CONECTADO 10GB",
+      "produto_tipo": "FIBRA_COMBO",
+      "pontuacao_bl": {
+        "ESPECIAL": 70.0,
+        "OURO": 70.0,
+        "PRATA": 70.0,
+        "PADRAO": 70.0
+      },
+      "movel_vinculado": {
+        "pontos_movel_combo": 25.0,
+        "franquia_gb": 10
+      },
+      "_prov": {
+        "seg_observadas": [
+          "ESPECIAL"
+        ],
+        "seg_inferidas": [
+          "OURO",
+          "PRATA",
+          "PADRAO"
+        ],
+        "instalacoes": 3
+      }
+    }
+  ]
+}
