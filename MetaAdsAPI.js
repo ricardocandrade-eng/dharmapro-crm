@@ -448,6 +448,117 @@ function excluirLeadMetaAds(linha) {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DROPDOWN DINÂMICO DE CAMPANHA (registro manual de Leads Meta Ads)
+// Lê campanhas ACTIVE da Meta API (todas as contas), mapeia pro rótulo CRM
+// via aba "Mapeamento Campanhas Meta", cacheia 15min. Zero manutenção no código.
+// ═══════════════════════════════════════════════════════════════════════════
+
+var ABA_MAPA_CAMPANHAS_META = 'Mapeamento Campanhas Meta';
+var CACHE_KEY_DROPDOWN_CAMP = 'meta:dropdown_campanhas';
+
+/**
+ * Dropdown de Campanha para o registro manual. Itera as contas, pega campanhas
+ * ACTIVE, mapeia pro rótulo CRM, agrupa rótulos únicos e anexa a sentinela
+ * "Orgânico / Indicação". Cache 15min. Em falha da Meta API, retorna ok:false
+ * com lista mínima (o frontend mostra o erro — não usa fallback silencioso).
+ * @returns {{ok:boolean, campanhas:Array<{label:string, anuncios:string[]}>, erro?:string}}
+ */
+function getCampanhasAtivasParaDropdown() {
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get(CACHE_KEY_DROPDOWN_CAMP);
+  if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+
+  try {
+    var contas = _getContasMetaAds_();
+    var mapaPadroes = _getMapaCampanhasMeta_();
+    var porLabel = {}; // label -> { anuncio: true }
+
+    for (var i = 0; i < contas.length; i++) {
+      var ativas = _listarCampanhasAtivas_(contas[i]); // lança em erro de API
+      for (var j = 0; j < ativas.length; j++) {
+        var m = _mapearCampanhaMetaParaCRM_(ativas[j], mapaPadroes);
+        if (!porLabel[m.label]) porLabel[m.label] = {};
+        m.anuncios.forEach(function(a) { porLabel[m.label][a] = true; });
+      }
+    }
+
+    var campanhas = Object.keys(porLabel).map(function(label) {
+      return { label: label, anuncios: Object.keys(porLabel[label]) };
+    });
+    // Sentinela sempre presente (não é campanha Meta).
+    campanhas.push({ label: 'Orgânico / Indicação', anuncios: ['Indicação', 'Outro'] });
+
+    var resultado = { ok: true, campanhas: campanhas };
+    cache.put(CACHE_KEY_DROPDOWN_CAMP, JSON.stringify(resultado), 900); // 15 min
+    return resultado;
+  } catch (e) {
+    Logger.log('getCampanhasAtivasParaDropdown falhou: ' + e.message);
+    // NÃO cacheia o erro (retry imediato funciona). Lista mínima só como base;
+    // o frontend sinaliza a falha em vez de usá-la silenciosamente.
+    return {
+      ok: false,
+      erro: e.message,
+      campanhas: [
+        { label: 'AG - Vero Fibra Amplo',  anuncios: ['Indefinido'] },
+        { label: 'Orgânico / Indicação',   anuncios: ['Indicação', 'Outro'] }
+      ]
+    };
+  }
+}
+
+/**
+ * Lê a aba "Mapeamento Campanhas Meta" (cria + popula seed na 1ª vez).
+ * @returns {Array<{pattern:string, label:string, anuncios:string[]}>}
+ */
+function _getMapaCampanhasMeta_() {
+  var ss  = _getSpreadsheet_();
+  var aba = ss.getSheetByName(ABA_MAPA_CAMPANHAS_META);
+  if (!aba) {
+    aba = ss.insertSheet(ABA_MAPA_CAMPANHAS_META);
+    aba.getRange(1, 1, 1, 4).setValues([['meta_pattern', 'utm_label_crm', 'anuncios_default', 'observacao']]);
+    aba.getRange(1, 1, 1, 4).setFontWeight('bold');
+    aba.setFrozenRows(1);
+    aba.getRange(2, 1, 3, 4).setValues([
+      ['P2',           'AG - Vero Fibra Amplo',       'P2 (cópia),P2 (Andromeda),Indefinido', 'Conta Vero 02, agência'],
+      ['VENDAS',       'VENDAS - Teste Engajamento',  'Indefinido',                           'Histórico — quando voltar a ativar'],
+      ['D - Conversas','D - Conversas JF + Órbita',   'D1 - Vero Mais 550MB + Chip 20GB',     'Histórico']
+    ]);
+  }
+  var ult = aba.getLastRow();
+  if (ult < 2) return [];
+  var raw = aba.getRange(2, 1, ult - 1, 4).getValues();
+  var out = [];
+  for (var i = 0; i < raw.length; i++) {
+    var pattern = String(raw[i][0] || '').trim();
+    var label   = String(raw[i][1] || '').trim();
+    if (!pattern || !label) continue; // linha vazia / sem rótulo é ignorada
+    var anuncios = String(raw[i][2] || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+    if (!anuncios.length) anuncios = ['Indefinido'];
+    out.push({ pattern: pattern, label: label, anuncios: anuncios });
+  }
+  return out;
+}
+
+/**
+ * Mapeia o nome de uma campanha Meta para o rótulo CRM + anúncios esperados.
+ * `pattern` casa por "contém" (case-insensitive). Sem match → nome truncado
+ * (30 chars) + ['Indefinido'].
+ * @returns {{label:string, anuncios:string[]}}
+ */
+function _mapearCampanhaMetaParaCRM_(metaName, mapaPadroes) {
+  var nome = String(metaName || '').trim();
+  var nomeLow = nome.toLowerCase();
+  for (var i = 0; i < (mapaPadroes || []).length; i++) {
+    if (nomeLow.indexOf(mapaPadroes[i].pattern.toLowerCase()) !== -1) {
+      return { label: mapaPadroes[i].label, anuncios: mapaPadroes[i].anuncios.slice() };
+    }
+  }
+  var label = nome.length > 30 ? nome.slice(0, 30) : nome;
+  return { label: label || '(sem nome)', anuncios: ['Indefinido'] };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
 // PAINEL ADS — dados para o dashboard unificado de tráfego pago
 // getPainelAdsData() está definida abaixo, junto ao Bridge.
 // ═══════════════════════════════════════════════════════════════════════════
