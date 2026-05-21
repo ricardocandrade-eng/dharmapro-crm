@@ -3020,7 +3020,7 @@ function _funilTecSalvar(set) {
 function _funilTecAdd(linha)    { var s = _funilTecSet(); s.add(String(linha));    _funilTecSalvar(s); }
 function _funilTecRemove(linha) { var s = _funilTecSet(); s.delete(String(linha)); _funilTecSalvar(s); }
 
-// Ordena cards por data de agendamento, da mais recente para a mais antiga.
+// Ordena cards por data de agendamento (crescente: agenda mais antiga no topo).
 // Cards sem agenda válida vão para o fim.
 function _funilParseAgenda(v) {
   var ag = String(v && v.agenda || '').trim();
@@ -3033,9 +3033,9 @@ function _funilParseAgenda(v) {
   var d2 = new Date(ag);
   return isNaN(d2.getTime()) ? null : d2;
 }
-function _funilOrdenarAgendaDesc(a, b) {
+function _funilOrdenarAgenda(a, b) {
   var da = _funilParseAgenda(a), db = _funilParseAgenda(b);
-  if (da && db) return db - da;
+  if (da && db) return da - db;
   if (da && !db) return -1;
   if (!da && db) return 1;
   return 0;
@@ -3164,8 +3164,8 @@ function _renderizarFunil() {
       }
       return true;
     });
-    // Ordena por data de agendamento — da mais recente para a mais antiga
-    cards.sort(_funilOrdenarAgendaDesc);
+    // Ordena por data de agendamento (mais antiga no topo)
+    cards.sort(_funilOrdenarAgenda);
     totalFunil += cards.length;
 
     var container = document.getElementById(col.id);
@@ -3339,7 +3339,7 @@ function _funilSLAFiltrarAtrasados() {
         return !isNaN(d) && d < hoje;
       })
     : _funilDados.filter(ehAguardandoPuro);
-  dados.sort(_funilOrdenarAgendaDesc);
+  dados.sort(_funilOrdenarAgenda);
 
   var colObj = FUNIL_COLUNAS.filter(function(c) { return c.status === '2- Aguardando Instalação' && c.sub === 'aguardando'; })[0];
   col0.innerHTML = dados.length > 0
@@ -3427,9 +3427,9 @@ function _criarFunilCard(v, col) {
   var sis = (v.sistema || '').toUpperCase();
   var btnConsulta = '';
   if (v.cpf && sis === 'NG') {
-    btnConsulta = '<button class="btn-popup btn-popup--consulta" title="Consultar NG" style="color:#17a2b8;font-size:10px;padding:3px 8px;" onclick="event.stopPropagation();event.preventDefault();_funilConsultarNG(' + v.linha + ')">NG</button>';
+    btnConsulta = '<button class="btn-popup btn-popup--consulta" title="Consultar NG" style="flex:1;text-align:center;color:#17a2b8;font-size:10px;padding:4px 8px;" onclick="event.stopPropagation();event.preventDefault();_funilConsultarNG(' + v.linha + ')">NG</button>';
   } else if (v.cpf) {
-    btnConsulta = '<button class="btn-popup btn-popup--consulta" title="Consultar Adapter" style="color:#17a2b8;font-size:10px;padding:3px 8px;" onclick="event.stopPropagation();event.preventDefault();_funilConsultarAD(' + v.linha + ')">AD</button>';
+    btnConsulta = '<button class="btn-popup btn-popup--consulta" title="Consultar Adapter" style="flex:1;text-align:center;color:#17a2b8;font-size:10px;padding:4px 8px;" onclick="event.stopPropagation();event.preventDefault();_funilConsultarAD(' + v.linha + ')">AD</button>';
   }
 
   return (
@@ -3454,9 +3454,9 @@ function _criarFunilCard(v, col) {
         : '') +
       agendaBadge +
       slaBadge +
-      '<div class="funil-card-acoes" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:8px">' +
-        '<div style="display:flex;gap:6px;align-items:center">' + btnConsulta + '</div>' +
-        '<button onclick="event.stopPropagation();event.preventDefault();_abrirVendaNoLista(' + v.linha + ')" title="Ver venda na Lista de Vendas" style="background:rgba(230,62,109,.12);border:1px solid rgba(230,62,109,.3);color:var(--accent);border-radius:6px;padding:3px 8px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;letter-spacing:.5px;">👁 Ver venda</button>' +
+      '<div class="funil-card-acoes" style="display:flex;align-items:stretch;gap:6px;margin-top:8px">' +
+        btnConsulta +
+        '<button onclick="event.stopPropagation();event.preventDefault();_abrirVendaNoLista(' + v.linha + ')" title="Ver venda na Lista de Vendas" style="flex:1;text-align:center;background:rgba(230,62,109,.12);border:1px solid rgba(230,62,109,.3);color:var(--accent);border-radius:6px;padding:4px 8px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;letter-spacing:.5px;">👁 Ver venda</button>' +
       '</div>' +
     '</div>'
   );
