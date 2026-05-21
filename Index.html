@@ -329,14 +329,21 @@
       position: relative;
       z-index: 2;
     }
-    /* Cabeçalho compacto (Opção A — 21/05/2026): título removido, paddings reduzidos */
-    .lista-head {
-      padding: 10px 16px 8px;
-      border-bottom: 1px solid var(--border);
+    /* Cabeçalho em card (Opção A revisada — 21/05/2026): título + busca/filtros + funil dentro de um box mais claro */
+    .lista-head-card {
       flex-shrink: 0;
-      background: var(--bg);
+      margin: 12px 16px 8px;
+      padding: 12px 14px 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       position: relative;
       z-index: 20;
+    }
+    .lista-titulo { font-size: 20px; font-weight: 800; color: var(--text); margin-bottom: 10px; }
+    .lista-head {
+      padding: 0;
+      flex-shrink: 0;
     }
     .list-controls { display: grid; grid-template-columns: minmax(0, 2.2fr) repeat(5, minmax(0, 1fr)) auto; align-items: center; gap: 6px; width: 100%; }
     .search-wrap { min-width: 0; position: relative; }
@@ -345,10 +352,10 @@
     .search-wrap input::placeholder { color: var(--muted); }
     .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 12px; pointer-events: none; }
 
-    /* Linha inline contagem + funil + legenda Q/M/F */
+    /* Linha inline contagem + funil + legenda (dentro do card) */
     .lista-funnel-row {
       display: flex; align-items: center; gap: 12px;
-      padding: 6px 16px; border-bottom: 1px solid var(--border);
+      padding: 8px 0 0;
       flex-shrink: 0;
     }
     .lf-total { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; white-space: nowrap; }
@@ -2881,7 +2888,9 @@
         <div class="lista-e-painel">
         <!-- Coluna lista -->
         <div class="lista-col" id="listaCol">
-          <div class="lista-head">
+          <div class="lista-head-card">
+            <h2 class="lista-titulo">Lista de Vendas</h2>
+            <div class="lista-head">
             <div class="list-controls">
               <div class="search-wrap">
                 <span class="search-icon">🔍</span>
@@ -2936,7 +2945,7 @@
             </div>
             <div class="filtro-chips" id="filtroChipsAtivos"></div>
           </div>
-          <!-- Linha inline: contagem + barra de funil + legenda Q/M/F (Opção A — 21/05/2026) -->
+          <!-- Linha inline: contagem + barra de funil + legenda (Opção A revisada — 21/05/2026) -->
           <div class="lista-funnel-row" id="leadsFunnel">
             <span id="totalRegistros" class="lf-total">—</span>
             <div class="leads-funnel-bar">
@@ -2944,10 +2953,11 @@
               <div class="leads-funnel-seg lf-morno"  id="lfSegMorno"  style="flex:0"></div>
               <div class="leads-funnel-seg lf-frio"   id="lfSegFrio"   style="flex:0"></div>
             </div>
-            <span class="lf-leg"><span class="lf-dot lf-dot-quente">●</span> Q <b id="lfLegQuente">0</b></span>
-            <span class="lf-leg"><span class="lf-dot lf-dot-morno">●</span> M <b id="lfLegMorno">0</b></span>
-            <span class="lf-leg"><span class="lf-dot lf-dot-frio">●</span> F <b id="lfLegFrio">0</b></span>
+            <span class="lf-leg"><span class="lf-dot lf-dot-quente">●</span> Quente <b id="lfLegQuente">0</b></span>
+            <span class="lf-leg"><span class="lf-dot lf-dot-morno">●</span> Morno <b id="lfLegMorno">0</b></span>
+            <span class="lf-leg"><span class="lf-dot lf-dot-frio">●</span> Frio <b id="lfLegFrio">0</b></span>
           </div>
+          </div><!-- /lista-head-card -->
           <div class="lista-scroll" id="listaVendas">
             <div class="empty"><div class="empty-icon">📋</div><h3>Carregando...</h3></div>
           </div>
