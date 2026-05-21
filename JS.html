@@ -3970,9 +3970,11 @@ function _leadsErro(msg) {
 // ── RENDERIZAR ────────────────────────────────────────────────
 function _renderizarLeads() {
   var total = 0;
+  var funil = { quente: 0, morno: 0, frio: 0 };
   LEADS_COLUNAS.forEach(function(col) {
     var cards = _leadsDados.filter(function(v) { return v.temperatura === col.temp; });
     total += cards.length;
+    if (funil.hasOwnProperty(col.temp)) funil[col.temp] = cards.length;
     var container = document.getElementById(col.cardsId);
     var contador  = document.getElementById(col.countId);
     if (contador) contador.textContent = cards.length;
@@ -3984,7 +3986,26 @@ function _renderizarLeads() {
   });
   document.getElementById('leadsCount').textContent =
     total + ' lead' + (total !== 1 ? 's' : '');
+  _renderFunilLeads(funil.quente, funil.morno, funil.frio);
   _iniciarDragLeads();
+}
+
+// ── INDICADOR DE FUNIL (Quente / Morno / Frio) ────────────────
+function _renderFunilLeads(q, m, f) {
+  var total = q + m + f;
+  function set(segId, legId, label, n) {
+    var seg = document.getElementById(segId);
+    var leg = document.getElementById(legId);
+    if (leg) leg.textContent = n;
+    if (!seg) return;
+    seg.style.flex = total ? n : 0;
+    var pct = total ? Math.round(n / total * 100) : 0;
+    seg.setAttribute('data-tooltip',
+      label + ' · ' + n + ' lead' + (n !== 1 ? 's' : '') + ' · ' + pct + '%');
+  }
+  set('lfSegQuente', 'lfLegQuente', 'Quente', q);
+  set('lfSegMorno',  'lfLegMorno',  'Morno',  m);
+  set('lfSegFrio',   'lfLegFrio',   'Frio',   f);
 }
 
 // ── CARD ──────────────────────────────────────────────────────

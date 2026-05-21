@@ -1926,6 +1926,35 @@
     .leads-toolbar h2 { font-size: 16px; font-weight: 800; }
     .leads-count { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
 
+    /* Indicador de funil discreto (Quente / Morno / Frio) */
+    .leads-funnel { flex-shrink: 0; padding: 12px 20px 6px; }
+    .leads-funnel-bar { display: flex; gap: 4px; height: 2px; margin-bottom: 8px; }
+    .leads-funnel-seg {
+      border-radius: 1px; cursor: pointer; position: relative;
+      transition: filter 0.15s ease; min-width: 0;
+    }
+    .leads-funnel-seg:hover { filter: saturate(1.4) brightness(1.1); }
+    .lf-quente { background: #7a3830; }
+    .lf-morno  { background: #7a6128; }
+    .lf-frio   { background: #2e5670; }
+    .leads-funnel-legend {
+      display: flex; justify-content: space-between;
+      font-size: 11px; color: #5a6573;
+    }
+    .leads-funnel-legend b { font-weight: 600; color: #7a8597; }
+    .lf-dot-quente { color: #a8453a; }
+    .lf-dot-morno  { color: #a8843a; }
+    .lf-dot-frio   { color: #3a6e8a; }
+    .leads-funnel-seg::after {
+      content: attr(data-tooltip);
+      position: absolute; bottom: calc(100% + 8px); left: 50%;
+      transform: translateX(-50%);
+      background: #0a0d12; border: 1px solid #2a3340; border-radius: 6px;
+      padding: 8px 12px; font-size: 12px; color: #e6e6e6; white-space: nowrap;
+      opacity: 0; pointer-events: none; transition: opacity 0.15s ease; z-index: 50;
+    }
+    .leads-funnel-seg:hover::after { opacity: 1; }
+
     /* Grid das 4 colunas */
     .leads-cols {
       flex: 1; overflow: hidden;
@@ -3573,6 +3602,20 @@
           <span style="color:var(--border2);">·</span>
           <span class="leads-count" id="leadsCount">—</span>
           <button class="btn btn-ghost btn-sm" onclick="carregarLeads()" style="margin-left:auto;font-size:11px;">↺ Atualizar</button>
+        </div>
+
+        <!-- Indicador de funil (Quente / Morno / Frio) -->
+        <div class="leads-funnel" id="leadsFunnel">
+          <div class="leads-funnel-bar">
+            <div class="leads-funnel-seg lf-quente" id="lfSegQuente" style="flex:0"></div>
+            <div class="leads-funnel-seg lf-morno"  id="lfSegMorno"  style="flex:0"></div>
+            <div class="leads-funnel-seg lf-frio"   id="lfSegFrio"   style="flex:0"></div>
+          </div>
+          <div class="leads-funnel-legend">
+            <span><span class="lf-dot lf-dot-quente">●</span> Quente <b id="lfLegQuente">0</b></span>
+            <span><span class="lf-dot lf-dot-morno">●</span> Morno <b id="lfLegMorno">0</b></span>
+            <span><span class="lf-dot lf-dot-frio">●</span> Frio <b id="lfLegFrio">0</b></span>
+          </div>
         </div>
 
         <div class="leads-cols" id="leadsCols">
