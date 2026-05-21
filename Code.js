@@ -2632,6 +2632,11 @@ function moverLeadAguardando(payload) {
       return { sucesso: false, mensagem: errTrans + ' Use o painel lateral (✏️ Editar) para completar.' };
     }
 
+    // Sprint Integridade (21/05/2026) — INV-01: não deixa Fibra Combo órfã
+    // virar operacional (status 2) sem o Móvel vinculado.
+    var errCombo = _validarComboIntegridade_(vendaAtual.produto, vendaAtual.produto, statusAnt, '2- Aguardando Instalação', linha);
+    if (errCombo) return { sucesso: false, mensagem: errCombo };
+
     sheet.getRange(linha, c.STATUS    + 1).setValue('2- Aguardando Instalação');
     if (payload.agenda)   sheet.getRange(linha, c.AGENDA    + 1).setValue(agendaNorm);
     if (payload.turno)    sheet.getRange(linha, c.TURNO     + 1).setValue(payload.turno);
@@ -4704,6 +4709,15 @@ function salvarVenda(dados) {
         instal:   dados.instal,   sistema:  dados.sistema
       });
       if (errTrans) throw new Error(errTrans);
+      // Sprint Integridade (21/05/2026) — INV-01/03: editar Fibra (incl. trocar
+      // Alone→Combo) para status operacional exige Móvel vinculado. Exceção: se
+      // o próprio payload já traz o Móvel (dados.movel.linha), este save está
+      // completando o combo — não bloqueia.
+      if (!(dados.movel && dados.movel.linha)) {
+        var produtoAntigo = String(linhaAtualSnapshot[CONFIG.COLUNAS.PRODUTO] || '').trim();
+        var errCombo = _validarComboIntegridade_(dados.produto, produtoAntigo, statusAntigo, dados.status, linhaNum);
+        if (errCombo) throw new Error(errCombo);
+      }
       var linhaDados = _construirLinhaDados(dados);
       sheet.getRange(linhaNum, 1, 1, linhaDados.length).setValues([linhaDados]);
 
@@ -5203,6 +5217,11 @@ function moverVendaFunil(payload) {
     if (errTrans) {
       return { sucesso: false, mensagem: errTrans + ' Use o painel lateral (✏️ Editar) para completar os campos antes de mover no funil.' };
     }
+
+    // Sprint Integridade (21/05/2026) — INV-01/02: combo órfão não entra em
+    // estado operacional via drag no funil.
+    var errCombo = _validarComboIntegridade_(vendaAtual.produto, vendaAtual.produto, statusAnt, novoStatus, linha);
+    if (errCombo) return { sucesso: false, mensagem: errCombo };
 
     // Atualiza status (coluna C = índice 2 = coluna 3)
     sheet.getRange(linha, CONFIG.COLUNAS.STATUS + 1).setValue(novoStatus);
@@ -5921,6 +5940,68 @@ var _TURNOS_VALIDOS_ = ['Manhã (08h às 12h)', 'Tarde (13h às 17h)'];
 //   oldStatus / newStatus : strings exatas do STATUS_LIST
 //   campos : { dataAtiv, contrato, agenda, turno, instal, sistema }
 // Retorna null se OK; string com mensagem de erro se invalido.
+// ── Sprint Integridade de Vendas (21/05/2026) — INV-01/02/03 do §6 do
+// ARCHITECTURE_FINANCEIRO.md ────────────────────────────────────────────────
+// Um status "exige combo completo" quando representa um estado operacional
+// (a venda virou real e precisa do par Fibra↔Móvel). Status 1 (Conferência),
+// leads e estados terminais (Cancelado/Churn/Devolvido) ficam livres.
+function _statusExigeComboCompleto_(status) {
+  var s = String(status || '').trim();
+  return s === '2- Aguardando Instalação'   // Fibra
+      || s === '3 - Finalizada/Instalada'   // Fibra
+      || s === 'Pendencia Vero'             // Fibra/Móvel
+      || s === '2- Aguardando Entrega'      // Móvel
+      || s === '3- Aguardando Retirada'     // Móvel
+      || s === '4- Entregue'               // Móvel
+      || s === '5 - Finalizado';            // Móvel
+}
+
+function _comboEhCombo_(produto) {
+  var p = _normalizarTexto(produto);
+  return p === 'FIBRA COMBO' || p === 'MOVEL COMBO';
+}
+
+// Bloqueia um combo órfão de ENTRAR em estado operacional (decisão Ricardo
+// 21/05/2026: REJEITAR, não criar automaticamente):
+//   - Fibra Combo indo p/ status operacional SEM Móvel vinculado ATIVO → erro.
+//   - Móvel Combo indo p/ status operacional SEM Fibra mãe ATIVA → erro.
+// Dispara só numa "entrada nova" como combo operacional — qualquer um destes:
+//   (a) status entrando em operacional (não-op → op);              [INV-01]
+//   (b) produto virando combo (Alone → Combo) já em operacional.    [INV-03]
+// Combos legados JÁ operacionais E combo não são re-bloqueados em edições de
+// outros campos — esses são tratados pela tela Vínculos Pendentes + alerta no
+// sino (§6.4). Reutiliza o conceito de "vínculo ativo" do
+// _decorarVendaComVinculos_ (filhasPorMae/maePorFilha já filtram status ATIVO).
+// Retorna null se OK ou string (toast) se inválido — mesmo padrão de
+// _validarTransicaoStatusServer_. NÃO cria nem grava nada.
+function _validarComboIntegridade_(produto, oldProduto, oldStatus, novoStatus, linha, opts) {
+  opts = opts || {};
+  if (!_comboEhCombo_(produto)) return null;                 // produto final não é combo
+  if (!_statusExigeComboCompleto_(novoStatus)) return null;  // destino não-operacional: livre
+
+  var entrandoOperacional = !_statusExigeComboCompleto_(oldStatus); // não-op → op
+  var virandoCombo        = !_comboEhCombo_(oldProduto);            // Alone → Combo
+  if (!entrandoOperacional && !virandoCombo) return null;   // legado já op+combo: não re-bloqueia
+
+  var linhaNum = parseInt(linha, 10);
+  if (isNaN(linhaNum)) return null; // sem linha resolvida (cadastro novo é atômico à parte)
+
+  var mapa = opts.vinculosMap || _getVinculosVendasMap_();
+
+  if (_normalizarTexto(produto) === 'FIBRA COMBO') {
+    var filhas = (mapa.filhasPorMae && mapa.filhasPorMae[linhaNum]) || [];
+    if (!filhas.length) {
+      return '⚠️ Combo sem Móvel vinculado: cadastre o Móvel antes de mover esta Fibra Combo para "' + novoStatus + '". Use "Duplicar para Móvel" no painel lateral ou a tela Vínculos Pendentes.';
+    }
+  } else { // MOVEL COMBO
+    var mae = mapa.maePorFilha && mapa.maePorFilha[linhaNum];
+    if (!mae) {
+      return '⚠️ Móvel Combo sem Fibra mãe vinculada: vincule à Fibra antes de mover para "' + novoStatus + '".';
+    }
+  }
+  return null;
+}
+
 function _validarTransicaoStatusServer_(oldStatus, newStatus, campos) {
   campos = campos || {};
   var old = String(oldStatus || '').trim();
