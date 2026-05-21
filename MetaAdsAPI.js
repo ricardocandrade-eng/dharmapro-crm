@@ -1944,8 +1944,8 @@ function _metaApiGet_(path, params) {
  * Meta retorna daily_budget em CENTAVOS — dividir por 100.
  * @returns {number} Total em reais
  */
-function _somarBudgetAdSetsAtivos_() {
-  var json = _metaApiGet_('/' + CFG_META.AD_ACCOUNT_ID + '/adsets', {
+function _somarBudgetAdSetsAtivos_(accountId) {
+  var json = _metaApiGet_('/' + (accountId || CFG_META.AD_ACCOUNT_ID) + '/adsets', {
     fields: 'daily_budget,status,effective_status',
     limit: 200
   });
@@ -1962,10 +1962,11 @@ function _somarBudgetAdSetsAtivos_() {
 
 /**
  * Lista nomes de campanhas ATIVAS da conta.
+ * @param {string} [accountId]  conta (default: primária)
  * @returns {string[]}
  */
-function _listarCampanhasAtivas_() {
-  var json = _metaApiGet_('/' + CFG_META.AD_ACCOUNT_ID + '/campaigns', {
+function _listarCampanhasAtivas_(accountId) {
+  var json = _metaApiGet_('/' + (accountId || CFG_META.AD_ACCOUNT_ID) + '/campaigns', {
     fields: 'name,status,effective_status',
     limit: 100
   });
@@ -2096,34 +2097,43 @@ function getResumoTrafegoHoje() {
   var tz = 'America/Sao_Paulo';
   var agora = new Date();
   var hojeISO = Utilities.formatDate(agora, tz, 'yyyy-MM-dd');
+  var contas = _getContasMetaAds_();
 
-  // 1. Insights consolidados (level=account, range hoje)
-  var insightsJson = _metaApiGet_('/' + CFG_META.AD_ACCOUNT_ID + '/insights', {
-    fields: 'spend,impressions,reach,clicks,ctr,cpc,cpm,frequency',
-    time_range: { since: hojeISO, until: hojeISO },
-    level: 'account',
-    limit: 1
-  });
-  var ins = (insightsJson.data && insightsJson.data[0]) || {};
-  var spend  = parseFloat(ins.spend || 0);
-  var impr   = parseInt(ins.impressions || 0, 10);
-  var reach  = parseInt(ins.reach || 0, 10);
-  var cliques = parseInt(ins.clicks || 0, 10);
-  var ctr    = parseFloat(ins.ctr || 0);
-  var cpc    = parseFloat(ins.cpc || 0);
-
-  // 2. Previsto = soma de daily_budget dos ad sets ativos
-  var previsto = 0;
-  try { previsto = _somarBudgetAdSetsAtivos_(); }
-  catch (e) { Logger.log('_somarBudgetAdSetsAtivos_: ' + e.message); }
-
-  // 3. Leads e vendas hoje
-  var lv = _contarLeadsEVendasHoje_();
-
-  // 4. Campanhas ativas (nomes)
+  // 1. Insights consolidados (level=account, hoje) — agregado das contas.
+  //    CTR/CPC recalculados sobre os totais; reach somado (overcount leve entre
+  //    contas, aceitável p/ alerta diário).
+  var spend = 0, impr = 0, reach = 0, cliques = 0, previsto = 0;
   var campanhasAtivas = [];
-  try { campanhasAtivas = _listarCampanhasAtivas_(); }
-  catch (e) { Logger.log('_listarCampanhasAtivas_: ' + e.message); }
+  for (var ci = 0; ci < contas.length; ci++) {
+    var conta = contas[ci];
+    try {
+      var insightsJson = _metaApiGet_('/' + conta + '/insights', {
+        fields: 'spend,impressions,reach,clicks',
+        time_range: { since: hojeISO, until: hojeISO },
+        level: 'account',
+        limit: 1
+      });
+      var ins = (insightsJson.data && insightsJson.data[0]) || {};
+      spend   += parseFloat(ins.spend || 0);
+      impr    += parseInt(ins.impressions || 0, 10);
+      reach   += parseInt(ins.reach || 0, 10);
+      cliques += parseInt(ins.clicks || 0, 10);
+    } catch (e) { Logger.log('resumo insights ' + conta + ': ' + e.message); }
+
+    // 2. Previsto = soma de daily_budget dos ad sets ativos (por conta).
+    try { previsto += _somarBudgetAdSetsAtivos_(conta); }
+    catch (e) { Logger.log('_somarBudgetAdSetsAtivos_ ' + conta + ': ' + e.message); }
+
+    // 4. Campanhas ativas (nomes) — junta das contas.
+    try {
+      _listarCampanhasAtivas_(conta).forEach(function(nm) { campanhasAtivas.push(nm); });
+    } catch (e) { Logger.log('_listarCampanhasAtivas_ ' + conta + ': ' + e.message); }
+  }
+  var ctr = impr > 0 ? (cliques / impr) * 100 : 0;
+  var cpc = cliques > 0 ? spend / cliques : 0;
+
+  // 3. Leads e vendas hoje (CRM — independe de conta).
+  var lv = _contarLeadsEVendasHoje_();
 
   return {
     ok: true,
@@ -2148,6 +2158,7 @@ function getResumoTrafegoHoje() {
     },
     meta: {
       campanhas_ativas: campanhasAtivas,
+      contas:           contas.map(function(c) { return _nomeContaMeta_(c); }),
       fonte_leads:      'Leads Meta Ads (CRM)',
       fonte_metricas:   'Meta Insights API ' + CFG_META.API_VERSION
     }
