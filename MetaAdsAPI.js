@@ -2166,6 +2166,43 @@ function getResumoTrafegoHoje() {
 }
 
 /**
+ * Dispara o resumo de tráfego (alerta 7) AGORA no WhatsApp do Ricardo (DM),
+ * sob demanda — mesmo conteúdo do alerta automático (8/14/20h), via Flow 1
+ * do disparo-grupo. Rodar no editor ou usar como gatilho manual.
+ * @returns {{ok:boolean, mensagem:string}}
+ */
+function enviarResumoTrafegoAgora() {
+  var r = getResumoTrafegoHoje();
+  var inv = r.investimento || {}, ent = r.entrega || {}, res = r.resultado || {},
+      ven = r.vendas || {}, meta = r.meta || {};
+
+  function brl(n) { return 'R$ ' + Number(n || 0).toFixed(2).replace('.', ','); }
+  function num(n) { return String(Math.round(Number(n || 0))); }
+  function pct(n) { return Number(n || 0).toFixed(2).replace('.', ',') + '%'; }
+
+  var campanhas = (meta.campanhas_ativas || []).map(function(nm) {
+    nm = String(nm || '');
+    return nm.length > 45 ? nm.slice(0, 45) + '…' : nm;
+  });
+
+  var hora = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM HH:mm');
+  var msg = '📊 *Tráfego Pago — Resumo* (' + hora + ')\n' +
+    '💰 Gasto hoje: ' + brl(inv.gasto_hoje) +
+      (inv.previsto_dia > 0 ? ' / previsto ' + brl(inv.previsto_dia) : '') + '\n' +
+    '👁 Impr: ' + num(ent.impressoes) + ' · Alcance: ' + num(ent.alcance) +
+      ' · Cliques: ' + num(ent.cliques) + '\n' +
+    '📈 CTR: ' + pct(ent.ctr_pct) + ' · CPC: ' + brl(ent.cpc) + '\n' +
+    '🎯 Leads hoje: ' + num(res.leads_hoje) + ' · CPL: ' + brl(res.cpl) + '\n' +
+    '✅ Vendas hoje: ' + num(ven.convertidas_hoje) + '\n' +
+    '📣 Campanhas ativas (' + campanhas.length + '): ' + (campanhas.join(' · ') || '—') + '\n' +
+    '🏦 Contas: ' + ((meta.contas || []).join(' + ') || '—');
+
+  var ok = enviarParaGrupoWhatsApp(msg, 'ricardo');
+  Logger.log('enviarResumoTrafegoAgora: ' + (ok ? 'ENVIADO' : 'FALHOU') + '\n' + msg);
+  return { ok: ok, mensagem: msg };
+}
+
+/**
  * Smoke test — roda no editor pra ver o resumo no Logger.
  */
 function _smokeResumoTrafego() {
