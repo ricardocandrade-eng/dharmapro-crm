@@ -329,23 +329,32 @@
       position: relative;
       z-index: 2;
     }
+    /* Cabeçalho compacto (Opção A — 21/05/2026): título removido, paddings reduzidos */
     .lista-head {
-      padding: 18px 20px 14px;
+      padding: 10px 16px 8px;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
       background: var(--bg);
       position: relative;
       z-index: 20;
     }
-    .lista-head h2 { font-size: 18px; font-weight: 800; margin-bottom: 12px; }
-    .list-controls { display: grid; grid-template-columns: minmax(0, 2.2fr) repeat(5, minmax(0, 1fr)) auto; align-items: center; gap: 8px; width: 100%; }
+    .list-controls { display: grid; grid-template-columns: minmax(0, 2.2fr) repeat(5, minmax(0, 1fr)) auto; align-items: center; gap: 6px; width: 100%; }
     .search-wrap { min-width: 0; position: relative; }
-    .search-wrap input { width: 100%; padding: 9px 12px 9px 34px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--text); font-family: 'Sora', sans-serif; transition: border-color 0.2s; }
+    .search-wrap input { width: 100%; padding: 6px 10px 6px 30px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: var(--text); font-family: 'Sora', sans-serif; transition: border-color 0.2s; height: 32px; }
     .search-wrap input:focus { outline: none; border-color: var(--accent); }
     .search-wrap input::placeholder { color: var(--muted); }
-    .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; }
-    .list-meta { padding: 8px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
-    .list-meta span { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+    .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 12px; pointer-events: none; }
+
+    /* Linha inline contagem + funil + legenda Q/M/F */
+    .lista-funnel-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 6px 16px; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .lf-total { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; white-space: nowrap; }
+    .lista-funnel-row .leads-funnel-bar { flex: 1; margin-bottom: 0; gap: 3px; }
+    .lf-leg { font-size: 11px; color: #5a6573; white-space: nowrap; }
+    .lf-leg b { font-weight: 600; color: #7a8597; }
 
     /* Área de scroll da lista */
     .lista-scroll { flex: 1; overflow-y: auto; padding: 12px 16px; }
@@ -353,9 +362,18 @@
     .lista-scroll::-webkit-scrollbar-track { background: transparent; }
     .lista-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
-    /* Paginação fica fora do scroll */
-    .pagination { padding: 12px; border-top: 1px solid var(--border); display: none; justify-content: center; align-items: center; gap: 10px; flex-shrink: 0; background: var(--bg); }
-    .pag-info { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+    /* Paginação compacta (Opção A — 21/05/2026) */
+    .pagination { padding: 6px 12px; border-top: 1px solid var(--border); display: none; justify-content: center; align-items: center; gap: 8px; flex-shrink: 0; background: var(--bg); }
+    .pag-info { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; min-width: 56px; text-align: center; }
+    .pag-btn {
+      background: transparent; border: none; color: var(--muted);
+      font-size: 16px; line-height: 1; width: 24px; height: 24px;
+      border-radius: 4px; cursor: pointer; padding: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .pag-btn:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+    .pag-btn:disabled { opacity: 0.3; cursor: default; }
 
     /* ── Venda item — layout 3 zonas (Dir. A revisada — 19/05/2026) ── */
     .venda-item {
@@ -2317,10 +2335,10 @@
     .filtro-multi { position: relative; min-width: 0; }
     .filtro-btn {
       display: flex; align-items: center; justify-content: center; gap: 6px;
-      padding: 0 16px; background: var(--surface2); border: 1.5px solid var(--border);
-      border-radius: 8px; color: var(--text); font-size: 12px; font-family: 'Sora', sans-serif;
+      padding: 0 12px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); font-size: 11px; font-family: 'Sora', sans-serif;
       cursor: pointer; transition: border-color .2s, background .2s, color .2s;
-      width: 100%; min-width: 0; height: 40px;
+      width: 100%; min-width: 0; height: 32px;
     }
     .filtro-btn:hover, .filtro-btn.aberto { border-color: var(--accent); }
     .filtro-btn.ativo { border-color: var(--accent); background: rgba(230,62,109,.07); color: var(--accent); }
@@ -2329,8 +2347,8 @@
     .filtro-btn-caret { font-size: 8px; color: var(--muted); display: none; }
     /* Fase 5b: wrapper que mantém badge + botão ↻ juntos na última coluna do grid */
     .lista-sync-wrap { display: flex; align-items: center; gap: 6px; justify-self: end; }
-    .btn-refresh-lista { width: 40px; height: 40px; padding: 0; font-size: 0; line-height: 1; flex: 0 0 auto; }
-    .btn-refresh-lista::before { content: '\21BB'; font-size: 18px; }
+    .btn-refresh-lista { width: 32px; height: 32px; padding: 0; font-size: 0; line-height: 1; flex: 0 0 auto; border-radius: 6px; border-width: 1px; }
+    .btn-refresh-lista::before { content: '\21BB'; font-size: 15px; }
     /* Fase 5b: badge "Dados de até X min" — afordância visual de frescura do cache */
     .badge-idade-lista {
       display: inline-flex; align-items: center;
@@ -2864,7 +2882,6 @@
         <!-- Coluna lista -->
         <div class="lista-col" id="listaCol">
           <div class="lista-head">
-            <h2>Lista de Vendas</h2>
             <div class="list-controls">
               <div class="search-wrap">
                 <span class="search-icon">🔍</span>
@@ -2919,29 +2936,25 @@
             </div>
             <div class="filtro-chips" id="filtroChipsAtivos"></div>
           </div>
-          <div class="list-meta">
-            <span id="totalRegistros">—</span>
-          </div>
-          <!-- Indicador de funil (Quente / Morno / Frio) -->
-          <div class="leads-funnel" id="leadsFunnel">
+          <!-- Linha inline: contagem + barra de funil + legenda Q/M/F (Opção A — 21/05/2026) -->
+          <div class="lista-funnel-row" id="leadsFunnel">
+            <span id="totalRegistros" class="lf-total">—</span>
             <div class="leads-funnel-bar">
               <div class="leads-funnel-seg lf-quente" id="lfSegQuente" style="flex:0"></div>
               <div class="leads-funnel-seg lf-morno"  id="lfSegMorno"  style="flex:0"></div>
               <div class="leads-funnel-seg lf-frio"   id="lfSegFrio"   style="flex:0"></div>
             </div>
-            <div class="leads-funnel-legend">
-              <span><span class="lf-dot lf-dot-quente">●</span> Quente <b id="lfLegQuente">0</b></span>
-              <span><span class="lf-dot lf-dot-morno">●</span> Morno <b id="lfLegMorno">0</b></span>
-              <span><span class="lf-dot lf-dot-frio">●</span> Frio <b id="lfLegFrio">0</b></span>
-            </div>
+            <span class="lf-leg"><span class="lf-dot lf-dot-quente">●</span> Q <b id="lfLegQuente">0</b></span>
+            <span class="lf-leg"><span class="lf-dot lf-dot-morno">●</span> M <b id="lfLegMorno">0</b></span>
+            <span class="lf-leg"><span class="lf-dot lf-dot-frio">●</span> F <b id="lfLegFrio">0</b></span>
           </div>
           <div class="lista-scroll" id="listaVendas">
             <div class="empty"><div class="empty-icon">📋</div><h3>Carregando...</h3></div>
           </div>
-          <div class="pagination" id="paginacao">
-            <button class="btn btn-ghost btn-sm" onclick="mudarPagina(-1)" id="btnAnterior">‹ Anterior</button>
+          <div class="pagination pagination-compact" id="paginacao">
+            <button class="pag-btn" onclick="mudarPagina(-1)" id="btnAnterior" title="Página anterior">‹</button>
             <span class="pag-info" id="infoPagina"></span>
-            <button class="btn btn-ghost btn-sm" onclick="mudarPagina(1)" id="btnProximo">Próximo ›</button>
+            <button class="pag-btn" onclick="mudarPagina(1)" id="btnProximo" title="Próxima página">›</button>
           </div>
         </div>
 

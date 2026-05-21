@@ -6607,7 +6607,8 @@ function _renderizarLista(res) {
   // Paginação
   var temPag = res.total > CONFIG_JS.MAX_RESULTS || res.pagina > 1;
   document.getElementById('paginacao').style.display  = temPag ? 'flex' : 'none';
-  document.getElementById('infoPagina').textContent   = 'Pág. ' + res.pagina;
+  var _totalPag = Math.max(1, Math.ceil((res.total || 0) / CONFIG_JS.MAX_RESULTS));
+  document.getElementById('infoPagina').textContent   = res.pagina + ' / ' + _totalPag;
   document.getElementById('btnAnterior').disabled     = res.pagina === 1;
   document.getElementById('btnProximo').disabled      = !res.temMais;
 }
