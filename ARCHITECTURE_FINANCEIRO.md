@@ -249,6 +249,13 @@ Snapshot mensal da Carta de Meta. Cada mês é uma entrada; o backend resolve o 
 - Quando o Ricardo recebe a carta do mês (até dia 10), faz upload via tela admin `◇ Cartas de Meta` (§9.4). Não há helper one-shot — é tela com upload de pdf + parser com fallback para formulário manual.
 - As `regras` são modeladas mas **o CRM não recalcula descontos** — elas servem para o painel **explicar** discrepâncias do extrato ("contrato X teve desconto de 50% porque churn entre 31-60d") em vez de recalcular.
 
+> **Correção rev 5 (carta real de maio/2026):** o exemplo acima foi ajustado ao PDF real:
+> - **Tiers de estrela são por NÚMERO DE INSTALAÇÕES no mês, não por pontos** — o JSON usa `instalacoes_min`/`instalacoes_max` (validado: março teve Instalação+Móvel=75 → 3 estrelas/50-249 → fator base 2,6). Fatores base: 2★=2,0 · 3★=2,6 · 4★=2,9 · 5★=3,2 · 6★=3,5 · Prime=3,8 (todos +0,4 de adimplência diferida = `fator_total`).
+> - **Móvel**: combo = pontos × fator (`movel_combo_aplica_fator=true`); **avulso (chip avulso Vero Controle) = pontuação flat sem fator** (`movel_alone_aplica_fator=false`); chip adicional = R$15 flat após ativação.
+> - **Churn voluntário** real: 0-90d=100% · 91-120d=50% · 121-150d=40% · 151-181d=30% (não os ranges 30/60/90 do exemplo original).
+> - Metas maio: BL=41, Móvel=29, Churn=0, DU BL=1,8, DU Móvel=1,3, Dias Úteis=22,5. HUB tolerância 5% (excedente −50%). CNCL comercial: <5% = +7,5% bônus / >5% = −7,5% multa.
+> - Arquivo real gerado: `cartas_meta_pap.json` (rev1, só maio). Reader em `Code.js`: `getCartaDoMes`, `resolverEstrelaPorInstalacoes`.
+
 ---
 
 ## 5. Schema — novas colunas em `1 - Vendas`
