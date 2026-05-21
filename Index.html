@@ -1316,7 +1316,7 @@
     .funil-cols {
       flex: 1; overflow: hidden;
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
       gap: 0;
     }
 
@@ -1386,6 +1386,19 @@
     .funil-card-nome {
       font-size: 13px; font-weight: 700;
       margin-bottom: 8px; line-height: 1.3;
+    }
+    /* Bolinha piscando: card agendado para hoje */
+    .funil-dot-hoje {
+      display: inline-block; width: 8px; height: 8px;
+      border-radius: 50%; background: #22d98a;
+      margin-right: 6px; vertical-align: middle; flex-shrink: 0;
+      box-shadow: 0 0 0 0 rgba(34,217,138,0.7);
+      animation: funilDotPulse 1.2s infinite;
+    }
+    @keyframes funilDotPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(34,217,138,0.7); }
+      70%  { box-shadow: 0 0 0 6px rgba(34,217,138,0); }
+      100% { box-shadow: 0 0 0 0 rgba(34,217,138,0); }
     }
     .funil-card-row {
       display: flex; align-items: center; gap: 6px;
@@ -3443,12 +3456,12 @@
         <div class="funil-cols" id="funilCols">
 
           <!-- Coluna 1: Aguardando Instalação -->
-          <div class="funil-col" data-status="2- Aguardando Instalação" id="funilCol0">
+          <div class="funil-col" data-status="2- Aguardando Instalação" data-sub="aguardando" id="funilCol0">
             <div class="funil-col-head">
               <div class="funil-col-stripe" style="background:#4f9eff;"></div>
               <div class="funil-col-info">
                 <div class="funil-col-title" style="color:#4f9eff;">Aguardando Instalação</div>
-                <div class="funil-col-sub">Arraste → Finalizada ou Pendência</div>
+                <div class="funil-col-sub">Arraste → Técnico, Finalizada ou Pendência</div>
               </div>
               <label class="funil-hoje-toggle" title="Mostrar apenas agendados para hoje" id="funilHojeLabel">
                 <input type="checkbox" id="funilFiltroHoje" onchange="_renderizarFunil()">
@@ -3459,7 +3472,26 @@
             <div class="funil-col-cards" id="funilCards0"></div>
           </div>
 
-          <!-- Coluna 2: Pendência Vero -->
+          <!-- Coluna 2 (visual): Técnico deslocando ou no local — mesmo status backend
+               "2- Aguardando Instalação", subdividido só no frontend p/ gestão do backoffice.
+               A associação é guardada em localStorage (por navegador). -->
+          <div class="funil-col" data-status="2- Aguardando Instalação" data-sub="tecnico" id="funilCol3">
+            <div class="funil-col-head">
+              <div class="funil-col-stripe" style="background:#ff9f43;"></div>
+              <div class="funil-col-info">
+                <div class="funil-col-title" style="color:#ff9f43;">Técnico deslocando ou no local</div>
+                <div class="funil-col-sub">Arraste → Finalizada ou Pendência</div>
+              </div>
+              <label class="funil-hoje-toggle" title="Mostrar apenas agendados para hoje" id="funilHojeLabelTecnico">
+                <input type="checkbox" id="funilFiltroHojeTecnico" onchange="_renderizarFunil()">
+                <span>📅 Hoje</span>
+              </label>
+              <div class="funil-col-count" id="funilCount3">0</div>
+            </div>
+            <div class="funil-col-cards" id="funilCards3"></div>
+          </div>
+
+          <!-- Coluna 3: Pendência Vero -->
           <div class="funil-col" data-status="Pendencia Vero" id="funilCol1">
             <div class="funil-col-head">
               <div class="funil-col-stripe" style="background:#f7e23b;"></div>
@@ -3472,7 +3504,7 @@
             <div class="funil-col-cards" id="funilCards1"></div>
           </div>
 
-          <!-- Coluna 3: Finalizada/Instalada -->
+          <!-- Coluna 4: Finalizada/Instalada -->
           <div class="funil-col" data-status="3 - Finalizada/Instalada" id="funilCol2">
             <div class="funil-col-head">
               <div class="funil-col-stripe" style="background:#22d98a;"></div>

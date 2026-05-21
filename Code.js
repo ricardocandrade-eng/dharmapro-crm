@@ -4919,7 +4919,8 @@ function salvarVenda(dados) {
 function getVendasFunil() {
   try {
     // ── Cache com chunks (suporta JSON > 100KB) ────────────────────────
-    var CACHE_KEY = CONFIG.CACHE_PREFIX + 'funil_v2';
+    // funil_v3 (21/05): shape novo do card inclui cpf/sistema/sistemaFallback.
+    var CACHE_KEY = CONFIG.CACHE_PREFIX + 'funil_v3';
     var cached = _cacheGetChunked(CACHE_KEY);
     if (cached && Array.isArray(cached.dados) && cached.dados.length > 0) {
       Logger.log('getVendasFunil cache hit: ' + cached.dados.length + ' registros');
@@ -4982,7 +4983,8 @@ function getVendasFunil() {
 
     var linhasAscFast = linhasSelecionadasFast.slice().sort(function(a, b) { return a - b; });
     var blocosFast = _agruparBlocos(linhasAscFast, 8);
-    var colunasFunilFast = _getMaxColunaLida([cf.WHATS]);
+    // Lê até SISTEMA (33) — necessário para cpf/sistema/sistemaFallback (botões NG/AD no card).
+    var colunasFunilFast = _getMaxColunaLida([cf.WHATS, cf.CPF, cf.CIDADE, cf.SISTEMA]);
     var registrosFast = _lerBlocos(sheet, blocosFast, colunasFunilFast);
     var mapaFast = {};
     for (var rf = 0; rf < registrosFast.length; rf++) {
@@ -5051,7 +5053,27 @@ function _mapearLinhaFunil_(row, linha, tz) {
     agenda:    agendaStr,
     turno:     String(row[cf.TURNO]      || '').trim(),
     instal:    instalStr,
-    preStatus: String(row[cf.PRE_STATUS] || '').trim()
+    preStatus: String(row[cf.PRE_STATUS] || '').trim(),
+    // Campos p/ os botões de consulta NG/AD direto no card do funil (espelham _mapearLinha).
+    // Exigem que getVendasFunil leia até a coluna SISTEMA (33).
+    cpf:       (function(v) {
+      var s = String(v || '').trim().replace(/[^0-9\/\.\-]/g, '');
+      if (!s) return '';
+      var soDigitos = s.replace(/\D/g, '');
+      if (soDigitos.length > 0 && soDigitos === s) {
+        if (soDigitos.length <= 11) return soDigitos.padStart(11, '0');
+        if (soDigitos.length <= 14) return soDigitos.padStart(14, '0');
+      }
+      return s;
+    })(row[cf.CPF]),
+    sistema:   String(row[cf.SISTEMA] || '').trim(),
+    sistemaFallback: (function() {
+      try {
+        var cid = row[cf.CIDADE];
+        if (!cid) return null;
+        return getSistemaFallbackPorCidade(String(cid).trim()) || null;
+      } catch(e) { return null; }
+    })()
   };
 }
 
@@ -5081,7 +5103,7 @@ function _qualificaParaFunil_(row) {
 function _limparCacheFunil_() {
   try {
     var cache = CacheService.getScriptCache();
-    var base  = CONFIG.CACHE_PREFIX + 'funil_v2';
+    var base  = CONFIG.CACHE_PREFIX + 'funil_v3';
     cache.remove(base + '_meta');
     for (var i = 0; i < 20; i++) cache.remove(base + '_' + i);
   } catch(e) { Logger.log('_limparCacheFunil_ erro: ' + e); }
@@ -5094,7 +5116,7 @@ function _atualizarVendaNoFunilCache_(numeroLinha) {
   numeroLinha = parseInt(numeroLinha);
   if (!numeroLinha || numeroLinha < 3) return;
   try {
-    var key = CONFIG.CACHE_PREFIX + 'funil_v2';
+    var key = CONFIG.CACHE_PREFIX + 'funil_v3';
     var cached = _cacheGetChunked(key);
     if (!cached || !Array.isArray(cached.dados)) return; // não cria cache do nada
 
@@ -5544,7 +5566,7 @@ function _limparCache() {
   var cache = CacheService.getScriptCache();
   // Remove todos os caches conhecidos de uma vez
   var toRemove = [
-    CONFIG.CACHE_PREFIX + 'funil_v2_meta',
+    CONFIG.CACHE_PREFIX + 'funil_v3_meta',
     CONFIG.CACHE_PREFIX + 'leads_v1_meta',
     CONFIG.CACHE_PREFIX + 'responsaveis_v1',
     CONFIG.CACHE_PREFIX + 'cidades_v1',

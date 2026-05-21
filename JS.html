@@ -1795,9 +1795,12 @@ function _tornarPopupInvisivel(p) {
   tentativas.forEach(function(ms) { setTimeout(esconder, ms); });
 }
 
+// `index` aceita um número (posição em _paginaAtual, fluxo Lista) OU um objeto
+// venda já resolvido (fluxo Funil). Tudo que é repassado em retries/fallback
+// mantém o mesmo `index`, então funciona transparente nos dois caminhos.
 function _consultarNGVenda(index, _tentativa) {
   _tentativa = _tentativa || 1;
-  var v = _paginaAtual[index];
+  var v = (index && typeof index === 'object') ? index : _paginaAtual[index];
   if (!v) { mostrarToast('Venda não encontrada.', 'error'); return; }
 
   // Aviso prévio se NG ou VPN estão off (health check). Só na 1ª tentativa
@@ -1821,7 +1824,7 @@ function _consultarNGVenda(index, _tentativa) {
 
   var _inicio = Date.now();
   var _popup = null; // escopo da função pra permitir fechar antes do retry
-  _ngDadosTemp = { index: index, linha: v.linha };
+  _ngDadosTemp = { index: index, venda: v, linha: v.linha };
 
   if (_tentativa === 1) {
     _logConsulta({ sistema: 'NG', linha: v.linha, cpf: v.cpf, evento: 'iniciado' });
@@ -1932,7 +1935,7 @@ function _consultarNGVenda(index, _tentativa) {
     document.getElementById('mng-resultado').style.display = 'block';
 
     // Botão de confirmar
-    var statusAtual = (_paginaAtual[_ngDadosTemp.index] || {}).status || '';
+    var statusAtual = (_ngDadosTemp.venda || {}).status || '';
     var jaInstalada = statusAtual.indexOf('Instalada') > -1 || statusAtual.indexOf('Finalizada') > -1;
 
     if (r.instalada && jaInstalada) {
@@ -2034,17 +2037,18 @@ function _confirmarNG() {
       if (res.sucesso) {
         mostrarToast(r.instalada ? 'Venda marcada como Instalada.' : 'Agendamento atualizado.', 'success');
 
-        var idx = _ngDadosTemp.index;
-        if (_paginaAtual[idx]) {
+        // Atualiza o objeto venda em memória (mesma referência usada na Lista OU no Funil)
+        var alvo = _ngDadosTemp.venda || (typeof _ngDadosTemp.index === 'number' ? _paginaAtual[_ngDadosTemp.index] : null);
+        if (alvo) {
           if (r.instalada) {
-            _paginaAtual[idx].status = '3 - Finalizada/Instalada';
-            if (r.dataInstalacao) _paginaAtual[idx].instal = r.dataInstalacao;
+            alvo.status = '3 - Finalizada/Instalada';
+            if (r.dataInstalacao) alvo.instal = r.dataInstalacao;
           }
-          if (r.dataAgendamento) _paginaAtual[idx].agenda = r.dataAgendamento;
+          if (r.dataAgendamento) alvo.agenda = r.dataAgendamento;
         }
 
         _fecharModalNG();
-        _renderizarPagina();
+        _atualizarViewAposConsulta(_ngDadosTemp.linha, r.instalada);
       } else {
         mostrarToast('Erro: ' + res.mensagem, 'error');
         btn.textContent = 'Tentar novamente';
@@ -2109,9 +2113,10 @@ function _verificarNGConfig() {
 var _adapterDadosTemp = null;
 
 // ── Consulta Adapter via extensao Chrome (content script no popup) ────────
+// `index` aceita número (Lista) ou objeto venda já resolvido (Funil) — idem _consultarNGVenda.
 function _consultarAdapterVenda(index, _tentativa) {
   _tentativa = _tentativa || 1;
-  var v = _paginaAtual[index];
+  var v = (index && typeof index === 'object') ? index : _paginaAtual[index];
   if (!v) { mostrarToast('Venda não encontrada.', 'error'); return; }
 
   // Aviso prévio se Adapter ou VPN estão off (health check)
@@ -2134,7 +2139,7 @@ function _consultarAdapterVenda(index, _tentativa) {
 
   var _inicio = Date.now();
   var _popup = null; // escopo da função pra permitir fechar antes do retry
-  _adapterDadosTemp = { index: index, linha: v.linha };
+  _adapterDadosTemp = { index: index, venda: v, linha: v.linha };
 
   if (_tentativa === 1) {
     _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'iniciado' });
@@ -2237,7 +2242,7 @@ function _consultarAdapterVenda(index, _tentativa) {
         document.getElementById('madp-resultado').style.display = 'block';
 
         // Mostrar botao se ha algo para atualizar (ocultar se ja instalada no DharmaPro)
-        var statusAtual = (_paginaAtual[_adapterDadosTemp.index] || {}).status || '';
+        var statusAtual = (_adapterDadosTemp.venda || {}).status || '';
         var jaInstalada = statusAtual.indexOf('Instalada') > -1 || statusAtual.indexOf('Finalizada') > -1;
 
         if (r.instalada && jaInstalada) {
@@ -2321,17 +2326,18 @@ function _confirmarAdapter() {
       if (res.sucesso) {
         mostrarToast(r.instalada ? 'Venda marcada como Instalada.' : 'Agendamento atualizado.', 'success');
 
-        var idx = _adapterDadosTemp.index;
-        if (_paginaAtual[idx]) {
+        // Atualiza o objeto venda em memória (mesma referência usada na Lista OU no Funil)
+        var alvo = _adapterDadosTemp.venda || (typeof _adapterDadosTemp.index === 'number' ? _paginaAtual[_adapterDadosTemp.index] : null);
+        if (alvo) {
           if (r.instalada) {
-            _paginaAtual[idx].status = '3 - Finalizada/Instalada';
-            if (r.dataInstalacao) _paginaAtual[idx].instal = r.dataInstalacao;
+            alvo.status = '3 - Finalizada/Instalada';
+            if (r.dataInstalacao) alvo.instal = r.dataInstalacao;
           }
-          if (r.dataAgendamento) _paginaAtual[idx].agenda = r.dataAgendamento;
+          if (r.dataAgendamento) alvo.agenda = r.dataAgendamento;
         }
 
         _fecharModalAdapter();
-        _renderizarPagina();
+        _atualizarViewAposConsulta(_adapterDadosTemp.linha, r.instalada);
       } else {
         mostrarToast('Erro: ' + res.mensagem, 'error');
         btn.textContent = 'Tentar novamente';
@@ -2915,6 +2921,7 @@ var _funilDados    = [];   // todas as vendas carregadas
 var _funilDragCard = null;
 var _funilDragLinha= null;
 var _funilDragOrigem = null;
+var _funilDragSub  = '';   // sub-coluna de origem (aguardando/tecnico/'')
 var _finalizadaOffset = 0;  // paginação da coluna Finalizada/Instalada
 var _finalizadaPageSize = 10;
 
@@ -2947,9 +2954,25 @@ function _funilCacheLimparSS() {
 var FUNIL_COLUNAS = [
   {
     status:  '2- Aguardando Instalação',
+    sub:     'aguardando',
     cor:     '#4f9eff',
     id:      'funilCards0',
-    countId: 'funilCount0'
+    countId: 'funilCount0',
+    hojeId:      'funilFiltroHoje',
+    hojeLabelId: 'funilHojeLabel'
+  },
+  {
+    // Coluna só de frontend: mesmo status backend que "Aguardando Instalação".
+    // Os cards aqui são os marcados como "técnico deslocando/no local" (flag em
+    // localStorage). Mover entre esta e a Aguardando NÃO toca o backend.
+    status:  '2- Aguardando Instalação',
+    sub:     'tecnico',
+    virtual: true,
+    cor:     '#ff9f43',
+    id:      'funilCards3',
+    countId: 'funilCount3',
+    hojeId:      'funilFiltroHojeTecnico',
+    hojeLabelId: 'funilHojeLabelTecnico'
   },
   {
     status:  'Pendencia Vero',
@@ -2980,6 +3003,43 @@ var FUNIL_COLUNAS = [
     }
   }
 ];
+
+// ── Flag "técnico deslocando/no local" (frontend-only, por navegador) ──────────
+// Guarda as linhas marcadas como técnico em campo. Não muda o status backend
+// (continua "2- Aguardando Instalação"); é só uma subdivisão visual do board.
+var FUNIL_TEC_KEY = 'dhp_funil_tecnico_v1';
+function _funilTecSet() {
+  try {
+    var arr = JSON.parse(localStorage.getItem(FUNIL_TEC_KEY) || '[]');
+    return new Set((arr || []).map(String));
+  } catch(e) { return new Set(); }
+}
+function _funilTecSalvar(set) {
+  try { localStorage.setItem(FUNIL_TEC_KEY, JSON.stringify(Array.from(set))); } catch(e) {}
+}
+function _funilTecAdd(linha)    { var s = _funilTecSet(); s.add(String(linha));    _funilTecSalvar(s); }
+function _funilTecRemove(linha) { var s = _funilTecSet(); s.delete(String(linha)); _funilTecSalvar(s); }
+
+// Ordena cards por data de agendamento, da mais recente para a mais antiga.
+// Cards sem agenda válida vão para o fim.
+function _funilParseAgenda(v) {
+  var ag = String(v && v.agenda || '').trim();
+  if (!ag) return null;
+  var p = ag.split('/');
+  if (p.length === 3) {
+    var d = new Date(parseInt(p[2], 10), parseInt(p[1], 10) - 1, parseInt(p[0], 10));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  var d2 = new Date(ag);
+  return isNaN(d2.getTime()) ? null : d2;
+}
+function _funilOrdenarAgendaDesc(a, b) {
+  var da = _funilParseAgenda(a), db = _funilParseAgenda(b);
+  if (da && db) return db - da;
+  if (da && !db) return -1;
+  if (!da && db) return 1;
+  return 0;
+}
 
 // Pendência de move (aguarda confirmação no modal)
 var _funilMovePendente = null;
@@ -3054,12 +3114,6 @@ function carregarFunil() {
 function _renderizarFunil() {
   var totalFunil = 0;
 
-  // Verifica filtro Hoje na coluna Aguardando Instalação
-  var filtroHoje = document.getElementById('funilFiltroHoje');
-  var apenasHoje = filtroHoje && filtroHoje.checked;
-  var labelHoje  = document.getElementById('funilHojeLabel');
-  if (labelHoje) labelHoje.classList.toggle('ativo', apenasHoje);
-
   // Data de hoje nos dois formatos usados pelo sistema
   var agora = new Date();
   var dd  = String(agora.getDate()).padStart(2,'0');
@@ -3068,16 +3122,50 @@ function _renderizarFunil() {
   var hojeISO = aaaa + '-' + mm + '-' + dd;       // yyyy-MM-dd
   var hojeBR  = dd + '/' + mm + '/' + aaaa;       // dd/MM/yyyy
 
+  // Flag "técnico deslocando/no local" (frontend) — lê o set uma vez por render
+  var tecSet = _funilTecSet();
+
+  // Poda flags órfãs: mantém só linhas que ainda estão em "2- Aguardando Instalação".
+  // Linhas que avançaram (Finalizada/Pendência) ou saíram do board perdem a marca.
+  if (_funilDados.length > 0 && tecSet.size > 0) {
+    var aguardLinhas = {};
+    _funilDados.forEach(function(v) {
+      if (v.status === '2- Aguardando Instalação') aguardLinhas[String(v.linha)] = true;
+    });
+    var podou = false;
+    Array.from(tecSet).forEach(function(l) {
+      if (!aguardLinhas[l]) { tecSet.delete(l); podou = true; }
+    });
+    if (podou) _funilTecSalvar(tecSet);
+  }
+
+  // Destaque (.ativo) dos toggles "Hoje" de cada coluna que tenha um
   FUNIL_COLUNAS.forEach(function(col) {
+    if (!col.hojeLabelId) return;
+    var lbl = document.getElementById(col.hojeLabelId);
+    var tg  = document.getElementById(col.hojeId);
+    if (lbl) lbl.classList.toggle('ativo', !!(tg && tg.checked));
+  });
+
+  FUNIL_COLUNAS.forEach(function(col) {
+    var apenasHoje = !!(col.hojeId && document.getElementById(col.hojeId) && document.getElementById(col.hojeId).checked);
     var cards = _funilDados.filter(function(v) {
       if (v.status !== col.status) return false;
-      // Aplica filtro Hoje apenas na coluna Aguardando Instalação
-      if (apenasHoje && col.status === '2- Aguardando Instalação') {
+      // Subdivisão visual da Aguardando Instalação: aguardando x técnico em campo
+      if (col.status === '2- Aguardando Instalação') {
+        var ehTec = tecSet.has(String(v.linha));
+        if (col.sub === 'tecnico'    && !ehTec) return false;
+        if (col.sub === 'aguardando' &&  ehTec) return false;
+      }
+      // Filtro "Hoje" por coluna (cada coluna com toggle filtra a si mesma)
+      if (apenasHoje) {
         var ag = v.agenda || '';
         return ag === hojeBR || ag === hojeISO || ag.indexOf(hojeISO) === 0;
       }
       return true;
     });
+    // Ordena por data de agendamento — da mais recente para a mais antiga
+    cards.sort(_funilOrdenarAgendaDesc);
     totalFunil += cards.length;
 
     var container = document.getElementById(col.id);
@@ -3235,18 +3323,25 @@ function _funilSLAFiltrarAtrasados() {
   var col0 = document.getElementById('funilCards0');
   if (!col0) return;
 
+  // Coluna 0 = "aguardando" puro: exclui os cards marcados como técnico em campo.
+  var tecSet = _funilTecSet();
+  var ehAguardandoPuro = function(v) {
+    return v.status === '2- Aguardando Instalação' && !tecSet.has(String(v.linha));
+  };
+
   var dados = _funilSLAFiltroAtivo
     ? _funilDados.filter(function(v) {
-        if (v.status !== '2- Aguardando Instalação' || !v.agenda) return false;
+        if (!ehAguardandoPuro(v) || !v.agenda) return false;
         var p = String(v.agenda).split('/');
         if (p.length !== 3) return false;
         var d = new Date(parseInt(p[2]), parseInt(p[1])-1, parseInt(p[0]));
         d.setHours(0,0,0,0);
         return !isNaN(d) && d < hoje;
       })
-    : _funilDados.filter(function(v) { return v.status === '2- Aguardando Instalação'; });
+    : _funilDados.filter(ehAguardandoPuro);
+  dados.sort(_funilOrdenarAgendaDesc);
 
-  var colObj = FUNIL_COLUNAS.filter(function(c) { return c.status === '2- Aguardando Instalação'; })[0];
+  var colObj = FUNIL_COLUNAS.filter(function(c) { return c.status === '2- Aguardando Instalação' && c.sub === 'aguardando'; })[0];
   col0.innerHTML = dados.length > 0
     ? dados.map(function(v) { return _criarFunilCard(v, colObj); }).join('')
     : '<div class="funil-empty">Nenhuma instalação atrasada ✅</div>';
@@ -3304,6 +3399,7 @@ function _criarFunilCard(v, col) {
   var hoje       = new Date(); hoje.setHours(0,0,0,0);
   var agendaStr  = _fmtData(v.agenda) || '';
   var agendaBadge = '';
+  var ehHoje     = false;
 
   if (agendaStr) {
     var partes = agendaStr.split('/');
@@ -3311,6 +3407,7 @@ function _criarFunilCard(v, col) {
       ? new Date(partes[2], partes[1]-1, partes[0])
       : new Date(agendaStr);
     var vencido = !isNaN(agendaDate) && agendaDate < hoje;
+    ehHoje      = !isNaN(agendaDate) && agendaDate.getTime() === hoje.getTime();
     agendaBadge =
       '<div class="funil-badge-agenda' + (vencido ? ' vencido' : '') + '">' +
         (vencido ? '⚠️' : '📅') + ' ' + esc(agendaStr) +
@@ -3320,11 +3417,26 @@ function _criarFunilCard(v, col) {
 
   var slaBadge = _funilSLABadge(v);
 
+  // Bolinha piscando para cards agendados para hoje
+  var dotHoje = ehHoje
+    ? '<span class="funil-dot-hoje" title="Agendado para hoje"></span>'
+    : '';
+
+  // Botões de consulta NG/AD — mesma regra da Lista de Vendas (precisa de CPF;
+  // NG se sistema=NG, senão Adapter).
+  var sis = (v.sistema || '').toUpperCase();
+  var btnConsulta = '';
+  if (v.cpf && sis === 'NG') {
+    btnConsulta = '<button class="btn-popup btn-popup--consulta" title="Consultar NG" style="color:#17a2b8;font-size:10px;padding:3px 8px;" onclick="event.stopPropagation();event.preventDefault();_funilConsultarNG(' + v.linha + ')">NG</button>';
+  } else if (v.cpf) {
+    btnConsulta = '<button class="btn-popup btn-popup--consulta" title="Consultar Adapter" style="color:#17a2b8;font-size:10px;padding:3px 8px;" onclick="event.stopPropagation();event.preventDefault();_funilConsultarAD(' + v.linha + ')">AD</button>';
+  }
+
   return (
     '<div class="funil-card" draggable="true"' +
         ' data-linha="' + esc(String(v.linha)) + '"' +
         ' data-status="' + esc(v.status) + '">' +
-      '<div class="funil-card-nome">' + esc(v.cliente || 'Sem nome') + '</div>' +
+      '<div class="funil-card-nome">' + dotHoje + esc(v.cliente || 'Sem nome') + '</div>' +
       (v.produto || v.plano
         ? '<div class="funil-card-row">📦 ' + esc((v.produto||'') + (v.plano?' · '+v.plano:'')) + '</div>'
         : '') +
@@ -3342,7 +3454,10 @@ function _criarFunilCard(v, col) {
         : '') +
       agendaBadge +
       slaBadge +
-      '<div style="text-align:right;margin-top:6px"><button onclick="event.stopPropagation();event.preventDefault();_abrirVendaNoLista(' + v.linha + ')" title="Ver na Lista de Vendas" style="background:rgba(230,62,109,.12);border:1px solid rgba(230,62,109,.3);color:var(--accent);border-radius:6px;padding:3px 8px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;letter-spacing:.5px;">↗ Lista</button></div>' +
+      '<div class="funil-card-acoes" style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:8px">' +
+        '<div style="display:flex;gap:6px;align-items:center">' + btnConsulta + '</div>' +
+        '<button onclick="event.stopPropagation();event.preventDefault();_abrirVendaNoLista(' + v.linha + ')" title="Ver venda na Lista de Vendas" style="background:rgba(230,62,109,.12);border:1px solid rgba(230,62,109,.3);color:var(--accent);border-radius:6px;padding:3px 8px;font-size:10px;font-family:\'DM Mono\',monospace;cursor:pointer;letter-spacing:.5px;">👁 Ver venda</button>' +
+      '</div>' +
     '</div>'
   );
 }
@@ -3384,7 +3499,7 @@ function _iniciarDragFunil() {
     card.addEventListener('dragstart', _funilDragStart);
     card.addEventListener('dragend',   _funilDragEnd);
   });
-  // Impede que botão ↗ Lista dispare o drag
+  // Impede que os botões do card (Ver venda / NG / AD) disparem o drag
   document.querySelectorAll('.funil-card button').forEach(function(btn) {
     btn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
   });
@@ -3399,6 +3514,8 @@ function _funilDragStart(e) {
   _funilDragCard   = this;
   _funilDragLinha  = this.dataset.linha;
   _funilDragOrigem = this.dataset.status;
+  var colOrigem    = this.closest('.funil-col');
+  _funilDragSub    = colOrigem ? (colOrigem.dataset.sub || '') : '';
   this.classList.add('dragging');
   e.dataTransfer.effectAllowed = 'move';
   e.dataTransfer.setData('text/plain', _funilDragLinha);
@@ -3434,19 +3551,79 @@ function _funilDrop(e) {
   e.preventDefault();
   var col        = this.closest('.funil-col');
   var destStatus = col.dataset.status;
+  var destSub    = col.dataset.sub || '';
   col.classList.remove('drag-over');
   this.querySelectorAll('.funil-placeholder').forEach(function(p) { p.remove(); });
 
   if (!_funilDragLinha) return;
-  if (destStatus === _funilDragOrigem) return; // mesma coluna — ignora
+  // Mesma coluna exata (mesmo status E mesma sub) — ignora
+  if (destStatus === _funilDragOrigem && destSub === (_funilDragSub || '')) return;
 
-  // Encontra config da coluna de destino
-  var colCfg = FUNIL_COLUNAS.find(function(c) { return c.status === destStatus; });
-  var venda  = _funilDados.find(function(v) { return String(v.linha) === String(_funilDragLinha); });
-  if (!venda) return;
+  var linhaMov = _funilDragLinha;
 
-  // Abre modal de confirmação com campo extra se necessário
+  // Movimento DENTRO do mesmo status backend "2- Aguardando Instalação"
+  // (Aguardando ⇄ Técnico deslocando): puramente visual, só atualiza o
+  // localStorage e re-renderiza. Não toca a planilha.
+  if (destStatus === '2- Aguardando Instalação' && _funilDragOrigem === '2- Aguardando Instalação') {
+    if (destSub === 'tecnico') _funilTecAdd(linhaMov);
+    else                       _funilTecRemove(linhaMov);
+    _renderizarFunil();
+    _funilCacheSalvarSS();
+    mostrarToast(destSub === 'tecnico'
+      ? '🚚 Marcado: Técnico deslocando ou no local'
+      : '↩ Voltou para Aguardando Instalação', 'success');
+    return;
+  }
+
+  // Mudança de status real (→ Pendência / Finalizada): fluxo normal com modal.
+  var colCfg = _funilColCfg(destStatus, destSub);
+  var venda  = _funilDados.find(function(v) { return String(v.linha) === String(linhaMov); });
+  if (!venda || !colCfg) return;
+
   _abrirModalMoveFunil(venda, colCfg);
+}
+
+// Acha a config de coluna por status (+ sub, quando o status é compartilhado).
+function _funilColCfg(status, sub) {
+  return FUNIL_COLUNAS.find(function(c) {
+    if (c.status !== status) return false;
+    if (status === '2- Aguardando Instalação') return (c.sub || '') === (sub || '');
+    return true;
+  });
+}
+
+// ── CONSULTA NG/AD A PARTIR DO CARD DO FUNIL ──────────────────
+// Resolve a venda no _funilDados pela linha e delega às funções da Lista
+// (que aceitam objeto venda), reaproveitando todo o fluxo de retry/fallback.
+function _funilBuscarVenda(linha) {
+  return _funilDados.find(function(v) { return String(v.linha) === String(linha); });
+}
+function _funilConsultarNG(linha) {
+  var v = _funilBuscarVenda(linha);
+  if (!v) { mostrarToast('Venda não encontrada.', 'error'); return; }
+  _consultarNGVenda(v);
+}
+function _funilConsultarAD(linha) {
+  var v = _funilBuscarVenda(linha);
+  if (!v) { mostrarToast('Venda não encontrada.', 'error'); return; }
+  _consultarAdapterVenda(v);
+}
+
+// Após confirmar uma consulta NG/AD, atualiza a view ativa (Lista ou Funil).
+function _atualizarViewAposConsulta(linha, instalada) {
+  var pFunil = document.getElementById('pageFunil');
+  var funilAtivo = pFunil && pFunil.classList.contains('ativa');
+  if (funilAtivo) {
+    if (instalada) _funilTecRemove(linha);   // saiu da Aguardando
+    if (_funilDados && _funilDados.length) {
+      _renderizarFunil();
+      _funilCacheSalvarSS();
+    } else {
+      carregarFunil();
+    }
+  } else {
+    _renderizarPagina();
+  }
 }
 
 // ── MODAL DE CONFIRMAÇÃO ──────────────────────────────────────
@@ -3528,7 +3705,14 @@ function _confirmarMoveFunil() {
         // Atualiza dado em memória
         venda.status = colCfg.status;
         if (payload.campoExtra) venda[payload.campoExtra] = payload.valorExtra;
-        _atualizarContadoresFunil();
+        // Ajusta a marca "técnico em campo" (frontend) conforme o destino:
+        // só fica marcado se caiu na sub-coluna "tecnico" da Aguardando Instalação.
+        if (colCfg.status === '2- Aguardando Instalação' && colCfg.sub === 'tecnico') {
+          _funilTecAdd(venda.linha);
+        } else {
+          _funilTecRemove(venda.linha);
+        }
+        _renderizarFunil();    // re-deriva colunas/sub-colunas e reordena
         _funilCacheSalvarSS(); // Funil 20/05: persiste novo estado pro SS (F5 mostra correto)
       } else {
         mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
