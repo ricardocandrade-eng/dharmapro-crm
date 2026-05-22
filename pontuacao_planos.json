@@ -1,2206 +1,2953 @@
 {
-  "_meta": {
-    "versao": "2.0",
-    "vigencia_inicio": "2026-05-01",
-    "vigencia_fim": null,
-    "fonte": "Extrato SNIPER (realizado, alta confiança) + planos_vero_codigos.json × Tabela Pontuação 04.05 (média); contaminação decimal corrigida via 24.03",
-    "escopo": "rev2 — todos os códigos do dicionário resolvíveis (118). Combos: BL = total tabela − pontos móvel (franquia).",
-    "regra_calculo": "RECEITA = (pontuacao_bl[seg] + movel_vinculado.pontos_movel_combo||0) × fator_do_mes (§11.9)",
-    "gerado_em": "2026-05-21T21:55:06.081082"
+ "_meta": {
+  "versao": "3.1-merge",
+  "vigencia_inicio": "2026-05-01",
+  "vigencia_fim": null,
+  "fonte": "Extrato SNIPER (realizado, alta confiança) + planos_vero_codigos.json × Tabela Pontuação 04.05 (média); contaminação decimal corrigida via 24.03",
+  "escopo": "rev2 — todos os códigos do dicionário resolvíveis (118). Combos: BL = total tabela − pontos móvel (franquia).",
+  "regra_calculo": "RECEITA = (pontuacao_bl[seg] + movel_vinculado.pontos_movel_combo||0) × fator_do_mes (§11.9)",
+  "gerado_em": "2026-05-21T21:55:06.081082",
+  "atualizado_em": "2026-05-21T23:40:46.056138",
+  "nota": "Aditivo: rev2 (prod) intacta + códigos novos do sweep VeroHub. Sem alterar pontos existentes."
+ },
+ "planos": [
+  {
+   "codigo": "4577",
+   "nome_crm": "550MB ASSISTÊNCIA RESIDENCIAL",
+   "nome_vero": "MUNDO FIBRA 550MB + ASSISTÊNCIA RESIDENCIAL RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO FIBRA 550 MB + ASSISTENCIA RESIDENCIAL"
+   }
   },
-  "planos": [
-    {
-      "codigo": "4577",
-      "nome_crm": "550MB ASSISTÊNCIA RESIDENCIAL",
-      "nome_vero": "MUNDO FIBRA 550MB + ASSISTÊNCIA RESIDENCIAL RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 97,
-        "PRATA": 97,
-        "PADRAO": 97
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO FIBRA 550 MB + ASSISTENCIA RESIDENCIAL"
-      }
-    },
-    {
-      "codigo": "4586",
-      "nome_crm": "800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
-      }
-    },
-    {
-      "codigo": "4589",
-      "nome_crm": "VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL + MAIS CONECTADO 20GB RN",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 95,
-        "PRATA": 95,
-        "PADRAO": 95
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL + MÓVEL 20GB"
-      }
-    },
-    {
-      "codigo": "4588",
-      "nome_crm": "VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + MAIS CONECTADO 20GB RN",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 105,
-        "OURO": 105,
-        "PRATA": 105,
-        "PADRAO": 105
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
-      }
-    },
-    {
-      "codigo": "4590",
-      "nome_crm": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + HBO MAX + MAIS CONECTADO 20GB RN",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 70,
-        "OURO": 70,
-        "PRATA": 70,
-        "PADRAO": 70
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB"
-      }
-    },
-    {
-      "codigo": "4593",
-      "nome_crm": "VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 850MB + DIVERSÃO + MAIS CONECTADO 20GB RN",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
-      }
-    },
-    {
-      "codigo": "4630",
-      "nome_crm": "VERO MAIS 550MB + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 550MB + MAIS CONECTADO 20GB RN",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 55,
-        "OURO": 52,
-        "PRATA": 52,
-        "PADRAO": 52
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
-      }
-    },
-    {
-      "codigo": "4663",
-      "nome_crm": "VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + DISNEY+ PADRÃO + MAIS CONECTADO 20GB RN",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 100,
-        "OURO": 100,
-        "PRATA": 100,
-        "PADRAO": 100
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS - DISNEY PADRAO + VERO MAIS 800MB + DISNEY+ PADRÃO + VERO CONTROLE 20GB"
-      }
-    },
-    {
-      "codigo": "4664",
-      "nome_crm": "VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + DISNEY+ PREMIUM + MAIS CONECTADO 20GB RN",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 95,
-        "PRATA": 95,
-        "PADRAO": 95
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS - DISNEY PREMIUM + VERO MAIS 800MB + DISNEY+ PREMIUM + VERO CONTROLE 20GB"
-      }
-    },
-    {
-      "codigo": "4665",
-      "nome_crm": "VERO DUO 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB",
-      "nome_vero": "VERO DUO 800MB + DISNEY+ COM ANÚNCIO + HBO MAX COM ANÚNCIO + MAIS CONECTADO 30GB RN",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 90,
-        "OURO": 90,
-        "PRATA": 90,
-        "PADRAO": 90
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 55,
-        "franquia_gb": 30
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO DUO 800MB + DISNEY+ COM ADS + HBO MAX COM ADS + MAIS CONECTADO 30GB"
-      }
-    },
-    {
-      "codigo": "4666",
-      "nome_crm": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB",
-      "nome_vero": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB RN",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 90,
-        "OURO": 90,
-        "PRATA": 90,
-        "PADRAO": 90
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 55,
-        "franquia_gb": 30
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB"
-      }
-    },
-    {
-      "codigo": "4667",
-      "nome_crm": "VERO FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB",
-      "nome_vero": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO + GLP PREMIUM + MAIS CONECTADO 60GB RN",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 110,
-        "OURO": 110,
-        "PRATA": 110,
-        "PADRAO": 110
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 85,
-        "franquia_gb": 60
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MAIS CONECTADO 60GB"
-      }
-    },
-    {
-      "codigo": "4681",
-      "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
-      "nome_vero": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MAIS CONECTADO 30GB RN",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 80,
-        "OURO": 80,
-        "PRATA": 80,
-        "PADRAO": 80
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 55,
-        "franquia_gb": 30
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS - DISNEY PREMIUM + VERO MAIS 800MB + DISNEY+ PREMIUM + VERO CONTROLE 20GB"
-      }
-    },
-    {
-      "codigo": "4594",
-      "nome_crm": "850MB FILMES",
-      "nome_vero": "MUNDO COMPLETO 850MB + FILMES RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 150,
-        "OURO": 150,
-        "PRATA": 150,
-        "PADRAO": 150
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO COMPLETO 850MB + FILMES"
-      }
-    },
-    {
-      "codigo": "4595",
-      "nome_crm": "850MB ESPORTES",
-      "nome_vero": "MUNDO COMPLETO 850MB + ESPORTES RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 175,
-        "OURO": 175,
-        "PRATA": 175,
-        "PADRAO": 175
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO COMPLETO 850MB + ESPORTES"
-      }
-    },
-    {
-      "codigo": "4596",
-      "nome_crm": "1GB DIVERSÃO",
-      "nome_vero": "MUNDO COMPLETO 1GB + DIVERSÃO RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 205,
-        "OURO": 205,
-        "PRATA": 205,
-        "PADRAO": 205
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO COMPLETO 1GB + DIVERSÃO"
-      }
-    },
-    {
-      "codigo": "4579",
-      "nome_crm": "600MB GLOBOPLAY PADRÃO COM ANÚNCIOS",
-      "nome_vero": "MUNDO ENTRETENIMENTO 600MB + GLOBOPLAY PADRÃO COM ANÚNCIOS RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
-      }
-    },
-    {
-      "codigo": "4580",
-      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + HBO MAX RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 122,
-        "OURO": 122,
-        "PRATA": 122,
-        "PADRAO": 122
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + MAX"
-      }
-    },
-    {
-      "codigo": "4581",
-      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + TELECINE RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 122,
-        "OURO": 122,
-        "PRATA": 122,
-        "PADRAO": 122
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + TELECINE"
-      }
-    },
-    {
-      "codigo": "4582",
-      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 122,
-        "OURO": 122,
-        "PRATA": 122,
-        "PADRAO": 122
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM"
-      }
-    },
-    {
-      "codigo": "4583",
-      "nome_crm": "800MB DISNEY+ PADRÃO",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO"
-      }
-    },
-    {
-      "codigo": "4584",
-      "nome_crm": "800MB DISNEY+ PREMIUM",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 130,
-        "OURO": 130,
-        "PRATA": 130,
-        "PADRAO": 130
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM"
-      }
-    },
-    {
-      "codigo": "4585",
-      "nome_crm": "800MB GLOBOPLAY PREMIUM",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
-      }
-    },
-    {
-      "codigo": "4587",
-      "nome_crm": "800MB PREMIERE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + PREMIERE RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 140,
-        "OURO": 140,
-        "PRATA": 140,
-        "PADRAO": 140
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + PREMIERE"
-      }
-    },
-    {
-      "codigo": "4629",
-      "nome_crm": "550MB MUNDO FIBRA",
-      "nome_vero": "MUNDO FIBRA 550MB RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 98,
-        "PRATA": 98,
-        "PADRAO": 98
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "MUNDO FIBRA 750MB"
-      }
-    },
-    {
-      "codigo": "4631",
-      "nome_crm": "750MB MUNDO FIBRA",
-      "nome_vero": "MUNDO FIBRA 750MB RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 98,
-        "PRATA": 98,
-        "PADRAO": 98
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "MUNDO FIBRA 750MB"
-      }
-    },
-    {
-      "codigo": "4597",
-      "nome_crm": "800MB GAMER",
-      "nome_vero": "MUNDO GAMER 800MB RN",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 140,
-        "OURO": 140,
-        "PRATA": 140,
-        "PADRAO": 140
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO GAMER 800MB"
-      }
-    },
-    {
-      "codigo": "4624",
-      "nome_crm": "VERO MAIS 550MB + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 550MB + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 55,
-        "OURO": 52,
-        "PRATA": 52,
-        "PADRAO": 52
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
-      }
-    },
-    {
-      "codigo": "4278",
-      "nome_crm": "VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 85.0,
-        "OURO": 85.0,
-        "PRATA": 85.0,
-        "PADRAO": 85.0
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40.0,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "extrato",
-        "confianca": "alta",
-        "seg_observadas": [
-          "PADRAO"
-        ]
-      }
-    },
-    {
-      "codigo": "4279",
-      "nome_crm": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + HBO MAX + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 70.0,
-        "OURO": 70.0,
-        "PRATA": 70.0,
-        "PADRAO": 70.0
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40.0,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "extrato",
-        "confianca": "alta",
-        "seg_observadas": [
-          "PADRAO"
-        ]
-      }
-    },
-    {
-      "codigo": "4281",
-      "nome_crm": "VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 850MB + DIVERSÃO + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
-      }
-    },
-    {
-      "codigo": "4287",
-      "nome_crm": "VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 95,
-        "PRATA": 95,
-        "PADRAO": 95
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL + MÓVEL 20GB"
-      }
-    },
-    {
-      "codigo": "4653",
-      "nome_crm": "VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + DISNEY+ PADRÃO + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 100,
-        "OURO": 100,
-        "PRATA": 100,
-        "PADRAO": 100
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS - DISNEY PADRAO + VERO MAIS 800MB + DISNEY+ PADRÃO + VERO CONTROLE 20GB"
-      }
-    },
-    {
-      "codigo": "4654",
-      "nome_crm": "VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + DISNEY+ PREMIUM + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 95,
-        "PRATA": 95,
-        "PADRAO": 95
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS - DISNEY PREMIUM + VERO MAIS 800MB + DISNEY+ PREMIUM + VERO CONTROLE 20GB"
-      }
-    },
-    {
-      "codigo": "4655",
-      "nome_crm": "VERO DUO 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB",
-      "nome_vero": "VERO DUO 800MB + DISNEY+ COM ANÚNCIO + HBO MAX COM ANÚNCIO + MAIS CONECTADO 30GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 90,
-        "OURO": 90,
-        "PRATA": 90,
-        "PADRAO": 90
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 55,
-        "franquia_gb": 30
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO DUO 800MB + DISNEY+ COM ADS + HBO MAX COM ADS + MAIS CONECTADO 30GB"
-      }
-    },
-    {
-      "codigo": "4656",
-      "nome_crm": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB",
-      "nome_vero": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 90,
-        "OURO": 90,
-        "PRATA": 90,
-        "PADRAO": 90
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 55,
-        "franquia_gb": 30
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB"
-      }
-    },
-    {
-      "codigo": "4657",
-      "nome_crm": "VERO FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB",
-      "nome_vero": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO + GLP PREMIUM + MAIS CONECTADO 60GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 110,
-        "OURO": 110,
-        "PRATA": 110,
-        "PADRAO": 110
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 85,
-        "franquia_gb": 60
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MAIS CONECTADO 60GB"
-      }
-    },
-    {
-      "codigo": "4683",
-      "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
-      "nome_vero": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU + MAIS CONECTADO 30GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": null,
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "sem_fonte",
-        "confianca": "baixa",
-        "motivo": "plano não encontrado na tabela 04.05"
-      }
-    },
-    {
-      "codigo": "4635",
-      "nome_crm": "VERO MAIS 550MB + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 550MB + MESH + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 55,
-        "OURO": 52,
-        "PRATA": 52,
-        "PADRAO": 52
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
-      }
-    },
-    {
-      "codigo": "4425",
-      "nome_crm": "VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + MESH + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 95,
-        "PRATA": 95,
-        "PADRAO": 95
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL + MÓVEL 20GB"
-      }
-    },
-    {
-      "codigo": "4426",
-      "nome_crm": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + HBO MAX + MESH + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 70,
-        "OURO": 70,
-        "PRATA": 70,
-        "PADRAO": 70
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB"
-      }
-    },
-    {
-      "codigo": "4428",
-      "nome_crm": "VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 850MB + DIVERSÃO + MESH + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 55,
-        "OURO": 52,
-        "PRATA": 52,
-        "PADRAO": 52
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
-      }
-    },
-    {
-      "codigo": "4435",
-      "nome_crm": "VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL + MESH + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 95,
-        "PRATA": 95,
-        "PADRAO": 95
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL + MÓVEL 20GB"
-      }
-    },
-    {
-      "codigo": "4668",
-      "nome_crm": "VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + DISNEY+ PADRÃO + MESH + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 100,
-        "OURO": 100,
-        "PRATA": 100,
-        "PADRAO": 100
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS - DISNEY PADRAO + VERO MAIS 800MB + DISNEY+ PADRÃO + VERO CONTROLE 20GB"
-      }
-    },
-    {
-      "codigo": "4669",
-      "nome_crm": "VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 800MB + DISNEY+ PREMIUM + MESH + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 95,
-        "PRATA": 95,
-        "PADRAO": 95
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS - DISNEY PREMIUM + VERO MAIS 800MB + DISNEY+ PREMIUM + VERO CONTROLE 20GB"
-      }
-    },
-    {
-      "codigo": "4670",
-      "nome_crm": "VERO DUO 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB",
-      "nome_vero": "VERO DUO 800MB + DISNEY+ COM ANÚNCIO + HBO MAX COM ANÚNCIO + MESH + MAIS CONECTADO 30GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 90,
-        "OURO": 90,
-        "PRATA": 90,
-        "PADRAO": 90
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 55,
-        "franquia_gb": 30
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO DUO 800MB + DISNEY+ COM ADS + HBO MAX COM ADS + MAIS CONECTADO 30GB"
-      }
-    },
-    {
-      "codigo": "4671",
-      "nome_crm": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB",
-      "nome_vero": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MESH + MAIS CONECTADO 30GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 90,
-        "OURO": 90,
-        "PRATA": 90,
-        "PADRAO": 90
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 55,
-        "franquia_gb": 30
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB"
-      }
-    },
-    {
-      "codigo": "4672",
-      "nome_crm": "VERO FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB",
-      "nome_vero": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO + GLP PREMIUM + MESH + MAIS CONECTADO 60GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 110,
-        "OURO": 110,
-        "PRATA": 110,
-        "PADRAO": 110
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 85,
-        "franquia_gb": 60
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MAIS CONECTADO 60GB"
-      }
-    },
-    {
-      "codigo": "4684",
-      "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
-      "nome_vero": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU + MESH + MAIS CONECTADO 30GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": null,
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "sem_fonte",
-        "confianca": "baixa",
-        "motivo": "plano não encontrado na tabela 04.05"
-      }
-    },
-    {
-      "codigo": "4623",
-      "nome_crm": "550MB MUNDO FIBRA",
-      "nome_vero": "MUNDO FIBRA 550MB",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 98,
-        "PRATA": 98,
-        "PADRAO": 98
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "MUNDO FIBRA 750MB"
-      }
-    },
-    {
-      "codigo": "4625",
-      "nome_crm": "750MB MUNDO FIBRA",
-      "nome_vero": "MUNDO FIBRA 750MB",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 98,
-        "PRATA": 98,
-        "PADRAO": 98
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "MUNDO FIBRA 750MB"
-      }
-    },
-    {
-      "codigo": "4634",
-      "nome_crm": "550MB MUNDO FIBRA",
-      "nome_vero": "MUNDO FIBRA 550MB + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 98,
-        "PRATA": 98,
-        "PADRAO": 98
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "MUNDO FIBRA 750MB"
-      }
-    },
-    {
-      "codigo": "4636",
-      "nome_crm": "750MB MUNDO FIBRA",
-      "nome_vero": "MUNDO FIBRA 750MB + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 98,
-        "PRATA": 98,
-        "PADRAO": 98
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "MUNDO FIBRA 750MB"
-      }
-    },
-    {
-      "codigo": "4486",
-      "nome_crm": "550MB ASSISTÊNCIA RESIDENCIAL",
-      "nome_vero": "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 97,
-        "PRATA": 97,
-        "PADRAO": 97
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO FIBRA 550 MB + ASSISTENCIA RESIDENCIAL"
-      }
-    },
-    {
-      "codigo": "4270",
-      "nome_crm": "600MB GLOBOPLAY PADRÃO COM ANÚNCIOS",
-      "nome_vero": "MUNDO ENTRETENIMENTO 600MB + GLOBOPLAY PADRÃO COM ANÚNCIOS",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 100.0,
-        "OURO": 100.0,
-        "PRATA": 100.0,
-        "PADRAO": 100.0
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "extrato",
-        "confianca": "alta",
-        "seg_observadas": [
-          "PADRAO"
-        ]
-      }
-    },
-    {
-      "codigo": "4271",
-      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 122.0,
-        "OURO": 122.0,
-        "PRATA": 122.0,
-        "PADRAO": 122.0
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "extrato",
-        "confianca": "alta",
-        "seg_observadas": [
-          "ESPECIAL",
-          "PADRAO"
-        ]
-      }
-    },
-    {
-      "codigo": "4272",
-      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + HBO MAX",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 122.0,
-        "OURO": 122.0,
-        "PRATA": 122.0,
-        "PADRAO": 122.0
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "extrato",
-        "confianca": "alta",
-        "seg_observadas": [
-          "PRATA"
-        ]
-      }
-    },
-    {
-      "codigo": "4273",
-      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + TELECINE",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 122,
-        "OURO": 122,
-        "PRATA": 122,
-        "PADRAO": 122
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + TELECINE"
-      }
-    },
-    {
-      "codigo": "4275",
-      "nome_crm": "800MB DISNEY+ PREMIUM",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 130,
-        "OURO": 130,
-        "PRATA": 130,
-        "PADRAO": 130
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM"
-      }
-    },
-    {
-      "codigo": "4276",
-      "nome_crm": "800MB GLOBOPLAY PREMIUM",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
-      }
-    },
-    {
-      "codigo": "4277",
-      "nome_crm": "800MB PREMIERE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + PREMIERE",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 140,
-        "OURO": 140,
-        "PRATA": 140,
-        "PADRAO": 140
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + PREMIERE"
-      }
-    },
-    {
-      "codigo": "4286",
-      "nome_crm": "800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
-      }
-    },
-    {
-      "codigo": "4598",
-      "nome_crm": "800MB DISNEY+ PADRÃO",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO"
-      }
-    },
-    {
-      "codigo": "4417",
-      "nome_crm": "600MB GLOBOPLAY PADRÃO COM ANÚNCIOS",
-      "nome_vero": "MUNDO ENTRETENIMENTO 600MB + GLOBOPLAY PADRÃO COM ANÚNCIOS + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": null,
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "sem_fonte",
-        "confianca": "baixa",
-        "motivo": "plano não encontrado na tabela 04.05"
-      }
-    },
-    {
-      "codigo": "4418",
-      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 122,
-        "OURO": 122,
-        "PRATA": 122,
-        "PADRAO": 122
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM"
-      }
-    },
-    {
-      "codigo": "4419",
-      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + HBO MAX + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 122,
-        "OURO": 122,
-        "PRATA": 122,
-        "PADRAO": 122
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + MAX"
-      }
-    },
-    {
-      "codigo": "4420",
-      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + TELECINE + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 122,
-        "OURO": 122,
-        "PRATA": 122,
-        "PADRAO": 122
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + TELECINE"
-      }
-    },
-    {
-      "codigo": "4422",
-      "nome_crm": "800MB DISNEY+ PREMIUM",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 130,
-        "OURO": 130,
-        "PRATA": 130,
-        "PADRAO": 130
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM"
-      }
-    },
-    {
-      "codigo": "4423",
-      "nome_crm": "800MB GLOBOPLAY PREMIUM",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
-      }
-    },
-    {
-      "codigo": "4424",
-      "nome_crm": "800MB PREMIERE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + PREMIERE + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 140,
-        "OURO": 140,
-        "PRATA": 140,
-        "PADRAO": 140
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + PREMIERE"
-      }
-    },
-    {
-      "codigo": "4434",
-      "nome_crm": "800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 130,
-        "OURO": 130,
-        "PRATA": 130,
-        "PADRAO": 130
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM + ASSITENCIA RESIDENCIAL"
-      }
-    },
-    {
-      "codigo": "4602",
-      "nome_crm": "800MB DISNEY+ PADRÃO",
-      "nome_vero": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO"
-      }
-    },
-    {
-      "codigo": "4291",
-      "nome_crm": "850MB FILMES",
-      "nome_vero": "MUNDO COMPLETO 850MB + FILMES + ROKU",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 150,
-        "OURO": 150,
-        "PRATA": 150,
-        "PADRAO": 150
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO COMPLETO 850MB + FILMES"
-      }
-    },
-    {
-      "codigo": "4292",
-      "nome_crm": "850MB ESPORTES",
-      "nome_vero": "MUNDO COMPLETO 850MB + ESPORTES + ROKU",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 175,
-        "OURO": 175,
-        "PRATA": 175,
-        "PADRAO": 175
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO COMPLETO 850MB + ESPORTES"
-      }
-    },
-    {
-      "codigo": "4293",
-      "nome_crm": "1GB DIVERSÃO",
-      "nome_vero": "MUNDO COMPLETO 1GB + DIVERSÃO + ROKU",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 205,
-        "OURO": 205,
-        "PRATA": 205,
-        "PADRAO": 205
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO COMPLETO 1GB + DIVERSÃO"
-      }
-    },
-    {
-      "codigo": "4439",
-      "nome_crm": "850MB FILMES",
-      "nome_vero": "MUNDO COMPLETO 850MB + FILMES + ROKU + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 150,
-        "OURO": 150,
-        "PRATA": 150,
-        "PADRAO": 150
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO COMPLETO 850MB + FILMES"
-      }
-    },
-    {
-      "codigo": "4440",
-      "nome_crm": "850MB ESPORTES",
-      "nome_vero": "MUNDO COMPLETO 850MB + ESPORTES + ROKU + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 175,
-        "OURO": 175,
-        "PRATA": 175,
-        "PADRAO": 175
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO COMPLETO 850MB + ESPORTES"
-      }
-    },
-    {
-      "codigo": "4441",
-      "nome_crm": "1GB DIVERSÃO",
-      "nome_vero": "MUNDO COMPLETO 1GB + DIVERSÃO + ROKU + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 205,
-        "OURO": 205,
-        "PRATA": 205,
-        "PADRAO": 205
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO COMPLETO 1GB + DIVERSÃO"
-      }
-    },
-    {
-      "codigo": "4284",
-      "nome_crm": "800MB GAMER",
-      "nome_vero": "MUNDO GAMER 800MB",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 140,
-        "OURO": 140,
-        "PRATA": 140,
-        "PADRAO": 140
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO GAMER 800MB"
-      }
-    },
-    {
-      "codigo": "4432",
-      "nome_crm": "800MB GAMER",
-      "nome_vero": "MUNDO GAMER 800MB + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 140,
-        "OURO": 140,
-        "PRATA": 140,
-        "PADRAO": 140
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO GAMER 800MB"
-      }
-    },
-    {
-      "codigo": "4477",
-      "nome_crm": "550MB ASSISTÊNCIA RESIDENCIAL",
-      "nome_vero": "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 95.0,
-        "OURO": 95.0,
-        "PRATA": 95.0,
-        "PADRAO": 95.0
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "extrato",
-        "confianca": "alta",
-        "seg_observadas": [
-          "OURO"
-        ]
-      }
-    },
-    {
-      "codigo": "4518",
-      "nome_crm": "550MB ASSISTÊNCIA RESIDENCIAL",
-      "nome_vero": "MUNDO FIBRA 320MB + ASSISTENCIA RESIDENCIAL",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 97,
-        "PRATA": 97,
-        "PADRAO": 97
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO FIBRA 550 MB + ASSISTENCIA RESIDENCIAL"
-      }
-    },
-    {
-      "codigo": "4537",
-      "nome_crm": "800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL",
-      "nome_vero": "MUNDO ENTRETENIMENTO 320MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
-      }
-    },
-    {
-      "codigo": "4538",
-      "nome_crm": "VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 320MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 95,
-        "PRATA": 95,
-        "PADRAO": 95
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL + MÓVEL 20GB"
-      }
-    },
-    {
-      "codigo": "4528",
-      "nome_crm": "VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 320MB + GLOBOPLAY PREMIUM + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 105,
-        "OURO": 105,
-        "PRATA": 105,
-        "PADRAO": 105
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
-      }
-    },
-    {
-      "codigo": "4529",
-      "nome_crm": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 320MB + HBO MAX + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 70,
-        "OURO": 70,
-        "PRATA": 70,
-        "PADRAO": 70
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB"
-      }
-    },
-    {
-      "codigo": "4532",
-      "nome_crm": "VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 320MB + DIVERSÃO + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
-      }
-    },
-    {
-      "codigo": "4601",
-      "nome_crm": "VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 320MB + DISNEY+ PADRÃO + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 100,
-        "OURO": 100,
-        "PRATA": 100,
-        "PADRAO": 100
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS - DISNEY PADRAO + VERO MAIS 800MB + DISNEY+ PADRÃO + VERO CONTROLE 20GB"
-      }
-    },
-    {
-      "codigo": "4633",
-      "nome_crm": "VERO MAIS 550MB + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 320MB + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 55,
-        "OURO": 52,
-        "PRATA": 52,
-        "PADRAO": 52
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
-      }
-    },
-    {
-      "codigo": "4673",
-      "nome_crm": "VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 320MB + DISNEY+ PADRÃO + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 100,
-        "OURO": 100,
-        "PRATA": 100,
-        "PADRAO": 100
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS - DISNEY PADRAO + VERO MAIS 800MB + DISNEY+ PADRÃO + VERO CONTROLE 20GB"
-      }
-    },
-    {
-      "codigo": "4674",
-      "nome_crm": "VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB",
-      "nome_vero": "VERO MAIS 320MB + DISNEY+ PREMIUM + MAIS CONECTADO 20GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 95,
-        "PRATA": 95,
-        "PADRAO": 95
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS - DISNEY PREMIUM + VERO MAIS 800MB + DISNEY+ PREMIUM + VERO CONTROLE 20GB"
-      }
-    },
-    {
-      "codigo": "4675",
-      "nome_crm": "VERO DUO 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB",
-      "nome_vero": "VERO DUO 320MB + DISNEY+ COM ANÚNCIO + HBO MAX COM ANÚNCIO + MAIS CONECTADO 30GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 90,
-        "OURO": 90,
-        "PRATA": 90,
-        "PADRAO": 90
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 55,
-        "franquia_gb": 30
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO DUO 800MB + DISNEY+ COM ADS + HBO MAX COM ADS + MAIS CONECTADO 30GB"
-      }
-    },
-    {
-      "codigo": "4676",
-      "nome_crm": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB",
-      "nome_vero": "VERO DUO 320MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 90,
-        "OURO": 90,
-        "PRATA": 90,
-        "PADRAO": 90
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 55,
-        "franquia_gb": 30
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB"
-      }
-    },
-    {
-      "codigo": "4677",
-      "nome_crm": "VERO FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB",
-      "nome_vero": "VERO MAIS FULL 320MB + PRIME VIDEO + APPLE TV + HBO + GLP PREMIUM + MAIS CONECTADO 60GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": {
-        "ESPECIAL": 110,
-        "OURO": 110,
-        "PRATA": 110,
-        "PADRAO": 110
-      },
-      "movel_vinculado": {
-        "pontos_movel_combo": 85,
-        "franquia_gb": 60
-      },
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MAIS CONECTADO 60GB"
-      }
-    },
-    {
-      "codigo": "4685",
-      "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
-      "nome_vero": "VERO MAIS 320MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU + MAIS CONECTADO 30GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": null,
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "sem_fonte",
-        "confianca": "baixa",
-        "motivo": "plano não encontrado na tabela 04.05"
-      }
-    },
-    {
-      "codigo": "4545",
-      "nome_crm": "850MB FILMES",
-      "nome_vero": "MUNDO COMPLETO 320MB + FILMES + ROKU",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 150,
-        "OURO": 150,
-        "PRATA": 150,
-        "PADRAO": 150
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO COMPLETO 850MB + FILMES"
-      }
-    },
-    {
-      "codigo": "4546",
-      "nome_crm": "850MB ESPORTES",
-      "nome_vero": "MUNDO COMPLETO 320MB + ESPORTES + ROKU",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 175,
-        "OURO": 175,
-        "PRATA": 175,
-        "PADRAO": 175
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO COMPLETO 850MB + ESPORTES"
-      }
-    },
-    {
-      "codigo": "4547",
-      "nome_crm": "1GB DIVERSÃO",
-      "nome_vero": "MUNDO COMPLETO 320MB + DIVERSÃO + ROKU",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": null,
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "sem_fonte",
-        "confianca": "baixa",
-        "motivo": "plano não encontrado na tabela 04.05"
-      }
-    },
-    {
-      "codigo": "4527",
-      "nome_crm": "800MB PREMIERE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 320MB + PREMIERE",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 140,
-        "OURO": 140,
-        "PRATA": 140,
-        "PADRAO": 140
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + PREMIERE"
-      }
-    },
-    {
-      "codigo": "4522",
-      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 320MB + HBO MAX",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 122,
-        "OURO": 122,
-        "PRATA": 122,
-        "PADRAO": 122
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + MAX"
-      }
-    },
-    {
-      "codigo": "4523",
-      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 320MB + TELECINE",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 122,
-        "OURO": 122,
-        "PRATA": 122,
-        "PADRAO": 122
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + TELECINE"
-      }
-    },
-    {
-      "codigo": "4526",
-      "nome_crm": "800MB GLOBOPLAY PREMIUM",
-      "nome_vero": "MUNDO ENTRETENIMENTO 320MB + GLOBOPLAY PREMIUM",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
-      }
-    },
-    {
-      "codigo": "4521",
-      "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
-      "nome_vero": "MUNDO ENTRETENIMENTO 320MB + YOUTUBE PREMIUM",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 122,
-        "OURO": 122,
-        "PRATA": 122,
-        "PADRAO": 122
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM"
-      }
-    },
-    {
-      "codigo": "4520",
-      "nome_crm": "600MB GLOBOPLAY PADRÃO COM ANÚNCIOS",
-      "nome_vero": "MUNDO ENTRETENIMENTO 320MB + GLOBOPLAY PADRÃO COM ANÚNCIOS",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
-      }
-    },
-    {
-      "codigo": "4525",
-      "nome_crm": "800MB DISNEY+ PREMIUM",
-      "nome_vero": "MUNDO ENTRETENIMENTO 320MB + DISNEY+ PREMIUM",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 130,
-        "OURO": 130,
-        "PRATA": 130,
-        "PADRAO": 130
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM"
-      }
-    },
-    {
-      "codigo": "4600",
-      "nome_crm": "800MB DISNEY+ PADRÃO",
-      "nome_vero": "MUNDO ENTRETENIMENTO 320MB + DISNEY+ PADRÃO",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 120,
-        "OURO": 120,
-        "PRATA": 120,
-        "PADRAO": 120
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO"
-      }
-    },
-    {
-      "codigo": "4632",
-      "nome_crm": "550MB MUNDO FIBRA",
-      "nome_vero": "MUNDO FIBRA 320MB",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 98,
-        "PRATA": 98,
-        "PADRAO": 98
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_24.03_corrigida",
-        "confianca": "media",
-        "nome_tabela": "MUNDO FIBRA 750MB"
-      }
-    },
-    {
-      "codigo": "4533",
-      "nome_crm": "800MB GAMER",
-      "nome_vero": "MUNDO GAMER 320MB",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 140,
-        "OURO": 140,
-        "PRATA": 140,
-        "PADRAO": 140
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO GAMER 800MB"
-      }
-    },
-    {
-      "codigo": "4480",
-      "nome_crm": "550MB ASSISTÊNCIA RESIDENCIAL",
-      "nome_vero": "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 97,
-        "PRATA": 97,
-        "PADRAO": 97
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO FIBRA 550 MB + ASSISTENCIA RESIDENCIAL"
-      }
-    },
-    {
-      "codigo": "4492",
-      "nome_crm": "550MB ASSISTÊNCIA RESIDENCIAL",
-      "nome_vero": "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL + MESH",
-      "produto_tipo": "FIBRA_ALONE",
-      "pontuacao_bl": {
-        "ESPECIAL": 95,
-        "OURO": 97,
-        "PRATA": 97,
-        "PADRAO": 97
-      },
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "tabela_04.05",
-        "confianca": "media",
-        "nome_tabela": "MUNDO FIBRA 550 MB + ASSISTENCIA RESIDENCIAL"
-      }
-    },
-    {
-      "codigo": "4548",
-      "nome_crm": "VERO MAIS 1GB + GLP PREMIUM + EXITLAG + MÓVEL 60GB",
-      "nome_vero": "VERO MAIS 1GB + GLOBOPLAY PREMIUM + EXIT LAG + MAIS CONECTADO 60GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": null,
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "sem_fonte",
-        "confianca": "baixa",
-        "motivo": "plano não encontrado na tabela 04.05"
-      }
-    },
-    {
-      "codigo": "4686",
-      "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
-      "nome_vero": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + TVBOX + MAIS CONECTADO 30GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": null,
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "sem_fonte",
-        "confianca": "baixa",
-        "motivo": "plano não encontrado na tabela 04.05"
-      }
-    },
-    {
-      "codigo": "4687",
-      "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
-      "nome_vero": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + TVBOX + MESH + MAIS CONECTADO 30GB",
-      "produto_tipo": "FIBRA_COMBO",
-      "pontuacao_bl": null,
-      "movel_vinculado": null,
-      "_prov": {
-        "fonte": "sem_fonte",
-        "confianca": "baixa",
-        "motivo": "plano não encontrado na tabela 04.05"
-      }
-    },
-    {
-      "codigo": "4389",
-      "nome_crm": "VERO CONTROLE 10GB",
-      "nome_vero": "VERO CONTROLE 10GB",
-      "produto_tipo": "MOVEL_ALONE",
-      "pontuacao_bl": null,
-      "movel_vinculado": {
-        "pontos_movel_combo": 25,
-        "franquia_gb": 10
-      },
-      "_prov": {
-        "fonte": "franquia",
-        "confianca": "alta"
-      }
-    },
-    {
-      "codigo": "4390",
-      "nome_crm": "VERO CONTROLE 20GB",
-      "nome_vero": "VERO CONTROLE 20GB",
-      "produto_tipo": "MOVEL_ALONE",
-      "pontuacao_bl": null,
-      "movel_vinculado": {
-        "pontos_movel_combo": 40,
-        "franquia_gb": 20
-      },
-      "_prov": {
-        "fonte": "franquia",
-        "confianca": "alta"
-      }
-    },
-    {
-      "codigo": "4391",
-      "nome_crm": "VERO CONTROLE 30GB",
-      "nome_vero": "VERO CONTROLE 30GB",
-      "produto_tipo": "MOVEL_ALONE",
-      "pontuacao_bl": null,
-      "movel_vinculado": {
-        "pontos_movel_combo": 55,
-        "franquia_gb": 30
-      },
-      "_prov": {
-        "fonte": "franquia",
-        "confianca": "alta"
-      }
-    },
-    {
-      "codigo": "4392",
-      "nome_crm": "VERO CONTROLE 60GB",
-      "nome_vero": "VERO CONTROLE 60GB",
-      "produto_tipo": "MOVEL_ALONE",
-      "pontuacao_bl": null,
-      "movel_vinculado": {
-        "pontos_movel_combo": 85,
-        "franquia_gb": 60
-      },
-      "_prov": {
-        "fonte": "franquia",
-        "confianca": "alta"
-      }
-    }
-  ]
+  {
+   "codigo": "4586",
+   "nome_crm": "800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
+   }
+  },
+  {
+   "codigo": "4589",
+   "nome_crm": "VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL + MAIS CONECTADO 20GB RN",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 95,
+    "PRATA": 95,
+    "PADRAO": 95
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL + MÓVEL 20GB"
+   }
+  },
+  {
+   "codigo": "4588",
+   "nome_crm": "VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + MAIS CONECTADO 20GB RN",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 105,
+    "OURO": 105,
+    "PRATA": 105,
+    "PADRAO": 105
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
+   }
+  },
+  {
+   "codigo": "4590",
+   "nome_crm": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + HBO MAX + MAIS CONECTADO 20GB RN",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 70,
+    "OURO": 70,
+    "PRATA": 70,
+    "PADRAO": 70
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB"
+   }
+  },
+  {
+   "codigo": "4593",
+   "nome_crm": "VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 850MB + DIVERSÃO + MAIS CONECTADO 20GB RN",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
+   }
+  },
+  {
+   "codigo": "4630",
+   "nome_crm": "VERO MAIS 550MB + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 550MB + MAIS CONECTADO 20GB RN",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 55,
+    "OURO": 52,
+    "PRATA": 52,
+    "PADRAO": 52
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
+   }
+  },
+  {
+   "codigo": "4663",
+   "nome_crm": "VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + DISNEY+ PADRÃO + MAIS CONECTADO 20GB RN",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 100,
+    "OURO": 100,
+    "PRATA": 100,
+    "PADRAO": 100
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS - DISNEY PADRAO + VERO MAIS 800MB + DISNEY+ PADRÃO + VERO CONTROLE 20GB"
+   }
+  },
+  {
+   "codigo": "4664",
+   "nome_crm": "VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + DISNEY+ PREMIUM + MAIS CONECTADO 20GB RN",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 95,
+    "PRATA": 95,
+    "PADRAO": 95
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS - DISNEY PREMIUM + VERO MAIS 800MB + DISNEY+ PREMIUM + VERO CONTROLE 20GB"
+   }
+  },
+  {
+   "codigo": "4665",
+   "nome_crm": "VERO DUO 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB",
+   "nome_vero": "VERO DUO 800MB + DISNEY+ COM ANÚNCIO + HBO MAX COM ANÚNCIO + MAIS CONECTADO 30GB RN",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 90,
+    "OURO": 90,
+    "PRATA": 90,
+    "PADRAO": 90
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 55,
+    "franquia_gb": 30
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO DUO 800MB + DISNEY+ COM ADS + HBO MAX COM ADS + MAIS CONECTADO 30GB"
+   }
+  },
+  {
+   "codigo": "4666",
+   "nome_crm": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB",
+   "nome_vero": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB RN",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 90,
+    "OURO": 90,
+    "PRATA": 90,
+    "PADRAO": 90
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 55,
+    "franquia_gb": 30
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB"
+   }
+  },
+  {
+   "codigo": "4667",
+   "nome_crm": "VERO FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB",
+   "nome_vero": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO + GLP PREMIUM + MAIS CONECTADO 60GB RN",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 110,
+    "OURO": 110,
+    "PRATA": 110,
+    "PADRAO": 110
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 85,
+    "franquia_gb": 60
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MAIS CONECTADO 60GB"
+   }
+  },
+  {
+   "codigo": "4681",
+   "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
+   "nome_vero": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MAIS CONECTADO 30GB RN",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 80,
+    "OURO": 80,
+    "PRATA": 80,
+    "PADRAO": 80
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 55,
+    "franquia_gb": 30
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS - DISNEY PREMIUM + VERO MAIS 800MB + DISNEY+ PREMIUM + VERO CONTROLE 20GB"
+   }
+  },
+  {
+   "codigo": "4594",
+   "nome_crm": "850MB FILMES",
+   "nome_vero": "MUNDO COMPLETO 850MB + FILMES RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 150,
+    "OURO": 150,
+    "PRATA": 150,
+    "PADRAO": 150
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO COMPLETO 850MB + FILMES"
+   }
+  },
+  {
+   "codigo": "4595",
+   "nome_crm": "850MB ESPORTES",
+   "nome_vero": "MUNDO COMPLETO 850MB + ESPORTES RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 175,
+    "OURO": 175,
+    "PRATA": 175,
+    "PADRAO": 175
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO COMPLETO 850MB + ESPORTES"
+   }
+  },
+  {
+   "codigo": "4596",
+   "nome_crm": "1GB DIVERSÃO",
+   "nome_vero": "MUNDO COMPLETO 1GB + DIVERSÃO RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 205,
+    "OURO": 205,
+    "PRATA": 205,
+    "PADRAO": 205
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO COMPLETO 1GB + DIVERSÃO"
+   }
+  },
+  {
+   "codigo": "4579",
+   "nome_crm": "600MB GLOBOPLAY PADRÃO COM ANÚNCIOS",
+   "nome_vero": "MUNDO ENTRETENIMENTO 600MB + GLOBOPLAY PADRÃO COM ANÚNCIOS RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
+   }
+  },
+  {
+   "codigo": "4580",
+   "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + HBO MAX RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122,
+    "OURO": 122,
+    "PRATA": 122,
+    "PADRAO": 122
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + MAX"
+   }
+  },
+  {
+   "codigo": "4581",
+   "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + TELECINE RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122,
+    "OURO": 122,
+    "PRATA": 122,
+    "PADRAO": 122
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + TELECINE"
+   }
+  },
+  {
+   "codigo": "4582",
+   "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122,
+    "OURO": 122,
+    "PRATA": 122,
+    "PADRAO": 122
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM"
+   }
+  },
+  {
+   "codigo": "4583",
+   "nome_crm": "800MB DISNEY+ PADRÃO",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO"
+   }
+  },
+  {
+   "codigo": "4584",
+   "nome_crm": "800MB DISNEY+ PREMIUM",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 130,
+    "OURO": 130,
+    "PRATA": 130,
+    "PADRAO": 130
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM"
+   }
+  },
+  {
+   "codigo": "4585",
+   "nome_crm": "800MB GLOBOPLAY PREMIUM",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
+   }
+  },
+  {
+   "codigo": "4587",
+   "nome_crm": "800MB PREMIERE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + PREMIERE RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 140,
+    "OURO": 140,
+    "PRATA": 140,
+    "PADRAO": 140
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + PREMIERE"
+   }
+  },
+  {
+   "codigo": "4629",
+   "nome_crm": "550MB MUNDO FIBRA",
+   "nome_vero": "MUNDO FIBRA 550MB RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 98,
+    "PRATA": 98,
+    "PADRAO": 98
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "MUNDO FIBRA 750MB"
+   }
+  },
+  {
+   "codigo": "4631",
+   "nome_crm": "750MB MUNDO FIBRA",
+   "nome_vero": "MUNDO FIBRA 750MB RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 98,
+    "PRATA": 98,
+    "PADRAO": 98
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "MUNDO FIBRA 750MB"
+   }
+  },
+  {
+   "codigo": "4597",
+   "nome_crm": "800MB GAMER",
+   "nome_vero": "MUNDO GAMER 800MB RN",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 140,
+    "OURO": 140,
+    "PRATA": 140,
+    "PADRAO": 140
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO GAMER 800MB"
+   }
+  },
+  {
+   "codigo": "4624",
+   "nome_crm": "VERO MAIS 550MB + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 550MB + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 55,
+    "OURO": 52,
+    "PRATA": 52,
+    "PADRAO": 52
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
+   }
+  },
+  {
+   "codigo": "4278",
+   "nome_crm": "VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 85.0,
+    "OURO": 85.0,
+    "PRATA": 85.0,
+    "PADRAO": 85.0
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40.0,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "extrato",
+    "confianca": "alta",
+    "seg_observadas": [
+     "PADRAO"
+    ]
+   }
+  },
+  {
+   "codigo": "4279",
+   "nome_crm": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + HBO MAX + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 70.0,
+    "OURO": 70.0,
+    "PRATA": 70.0,
+    "PADRAO": 70.0
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40.0,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "extrato",
+    "confianca": "alta",
+    "seg_observadas": [
+     "PADRAO"
+    ]
+   }
+  },
+  {
+   "codigo": "4281",
+   "nome_crm": "VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 850MB + DIVERSÃO + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
+   }
+  },
+  {
+   "codigo": "4287",
+   "nome_crm": "VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 95,
+    "PRATA": 95,
+    "PADRAO": 95
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL + MÓVEL 20GB"
+   }
+  },
+  {
+   "codigo": "4653",
+   "nome_crm": "VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + DISNEY+ PADRÃO + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 100,
+    "OURO": 100,
+    "PRATA": 100,
+    "PADRAO": 100
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS - DISNEY PADRAO + VERO MAIS 800MB + DISNEY+ PADRÃO + VERO CONTROLE 20GB"
+   }
+  },
+  {
+   "codigo": "4654",
+   "nome_crm": "VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + DISNEY+ PREMIUM + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 95,
+    "PRATA": 95,
+    "PADRAO": 95
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS - DISNEY PREMIUM + VERO MAIS 800MB + DISNEY+ PREMIUM + VERO CONTROLE 20GB"
+   }
+  },
+  {
+   "codigo": "4655",
+   "nome_crm": "VERO DUO 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB",
+   "nome_vero": "VERO DUO 800MB + DISNEY+ COM ANÚNCIO + HBO MAX COM ANÚNCIO + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 90,
+    "OURO": 90,
+    "PRATA": 90,
+    "PADRAO": 90
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 55,
+    "franquia_gb": 30
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO DUO 800MB + DISNEY+ COM ADS + HBO MAX COM ADS + MAIS CONECTADO 30GB"
+   }
+  },
+  {
+   "codigo": "4656",
+   "nome_crm": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB",
+   "nome_vero": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 90,
+    "OURO": 90,
+    "PRATA": 90,
+    "PADRAO": 90
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 55,
+    "franquia_gb": 30
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB"
+   }
+  },
+  {
+   "codigo": "4657",
+   "nome_crm": "VERO FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB",
+   "nome_vero": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO + GLP PREMIUM + MAIS CONECTADO 60GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 110,
+    "OURO": 110,
+    "PRATA": 110,
+    "PADRAO": 110
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 85,
+    "franquia_gb": 60
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MAIS CONECTADO 60GB"
+   }
+  },
+  {
+   "codigo": "4683",
+   "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
+   "nome_vero": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sem_fonte",
+    "confianca": "baixa",
+    "motivo": "plano não encontrado na tabela 04.05"
+   }
+  },
+  {
+   "codigo": "4635",
+   "nome_crm": "VERO MAIS 550MB + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 550MB + MESH + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 55,
+    "OURO": 52,
+    "PRATA": 52,
+    "PADRAO": 52
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
+   }
+  },
+  {
+   "codigo": "4425",
+   "nome_crm": "VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + MESH + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 95,
+    "PRATA": 95,
+    "PADRAO": 95
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL + MÓVEL 20GB"
+   }
+  },
+  {
+   "codigo": "4426",
+   "nome_crm": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + HBO MAX + MESH + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 70,
+    "OURO": 70,
+    "PRATA": 70,
+    "PADRAO": 70
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB"
+   }
+  },
+  {
+   "codigo": "4428",
+   "nome_crm": "VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 850MB + DIVERSÃO + MESH + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 55,
+    "OURO": 52,
+    "PRATA": 52,
+    "PADRAO": 52
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
+   }
+  },
+  {
+   "codigo": "4435",
+   "nome_crm": "VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL + MESH + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 95,
+    "PRATA": 95,
+    "PADRAO": 95
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL + MÓVEL 20GB"
+   }
+  },
+  {
+   "codigo": "4668",
+   "nome_crm": "VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + DISNEY+ PADRÃO + MESH + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 100,
+    "OURO": 100,
+    "PRATA": 100,
+    "PADRAO": 100
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS - DISNEY PADRAO + VERO MAIS 800MB + DISNEY+ PADRÃO + VERO CONTROLE 20GB"
+   }
+  },
+  {
+   "codigo": "4669",
+   "nome_crm": "VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 800MB + DISNEY+ PREMIUM + MESH + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 95,
+    "PRATA": 95,
+    "PADRAO": 95
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS - DISNEY PREMIUM + VERO MAIS 800MB + DISNEY+ PREMIUM + VERO CONTROLE 20GB"
+   }
+  },
+  {
+   "codigo": "4670",
+   "nome_crm": "VERO DUO 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB",
+   "nome_vero": "VERO DUO 800MB + DISNEY+ COM ANÚNCIO + HBO MAX COM ANÚNCIO + MESH + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 90,
+    "OURO": 90,
+    "PRATA": 90,
+    "PADRAO": 90
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 55,
+    "franquia_gb": 30
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO DUO 800MB + DISNEY+ COM ADS + HBO MAX COM ADS + MAIS CONECTADO 30GB"
+   }
+  },
+  {
+   "codigo": "4671",
+   "nome_crm": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB",
+   "nome_vero": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MESH + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 90,
+    "OURO": 90,
+    "PRATA": 90,
+    "PADRAO": 90
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 55,
+    "franquia_gb": 30
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB"
+   }
+  },
+  {
+   "codigo": "4672",
+   "nome_crm": "VERO FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB",
+   "nome_vero": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO + GLP PREMIUM + MESH + MAIS CONECTADO 60GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 110,
+    "OURO": 110,
+    "PRATA": 110,
+    "PADRAO": 110
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 85,
+    "franquia_gb": 60
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MAIS CONECTADO 60GB"
+   }
+  },
+  {
+   "codigo": "4684",
+   "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
+   "nome_vero": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU + MESH + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sem_fonte",
+    "confianca": "baixa",
+    "motivo": "plano não encontrado na tabela 04.05"
+   }
+  },
+  {
+   "codigo": "4623",
+   "nome_crm": "550MB MUNDO FIBRA",
+   "nome_vero": "MUNDO FIBRA 550MB",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 98,
+    "PRATA": 98,
+    "PADRAO": 98
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "MUNDO FIBRA 750MB"
+   }
+  },
+  {
+   "codigo": "4625",
+   "nome_crm": "750MB MUNDO FIBRA",
+   "nome_vero": "MUNDO FIBRA 750MB",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 98,
+    "PRATA": 98,
+    "PADRAO": 98
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "MUNDO FIBRA 750MB"
+   }
+  },
+  {
+   "codigo": "4634",
+   "nome_crm": "550MB MUNDO FIBRA",
+   "nome_vero": "MUNDO FIBRA 550MB + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 98,
+    "PRATA": 98,
+    "PADRAO": 98
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "MUNDO FIBRA 750MB"
+   }
+  },
+  {
+   "codigo": "4636",
+   "nome_crm": "750MB MUNDO FIBRA",
+   "nome_vero": "MUNDO FIBRA 750MB + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 98,
+    "PRATA": 98,
+    "PADRAO": 98
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "MUNDO FIBRA 750MB"
+   }
+  },
+  {
+   "codigo": "4486",
+   "nome_crm": "550MB ASSISTÊNCIA RESIDENCIAL",
+   "nome_vero": "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO FIBRA 550 MB + ASSISTENCIA RESIDENCIAL"
+   }
+  },
+  {
+   "codigo": "4270",
+   "nome_crm": "600MB GLOBOPLAY PADRÃO COM ANÚNCIOS",
+   "nome_vero": "MUNDO ENTRETENIMENTO 600MB + GLOBOPLAY PADRÃO COM ANÚNCIOS",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 100.0,
+    "OURO": 100.0,
+    "PRATA": 100.0,
+    "PADRAO": 100.0
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "extrato",
+    "confianca": "alta",
+    "seg_observadas": [
+     "PADRAO"
+    ]
+   }
+  },
+  {
+   "codigo": "4271",
+   "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122.0,
+    "OURO": 122.0,
+    "PRATA": 122.0,
+    "PADRAO": 122.0
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "extrato",
+    "confianca": "alta",
+    "seg_observadas": [
+     "ESPECIAL",
+     "PADRAO"
+    ]
+   }
+  },
+  {
+   "codigo": "4272",
+   "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + HBO MAX",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122.0,
+    "OURO": 122.0,
+    "PRATA": 122.0,
+    "PADRAO": 122.0
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "extrato",
+    "confianca": "alta",
+    "seg_observadas": [
+     "PRATA"
+    ]
+   }
+  },
+  {
+   "codigo": "4273",
+   "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + TELECINE",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122,
+    "OURO": 122,
+    "PRATA": 122,
+    "PADRAO": 122
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + TELECINE"
+   }
+  },
+  {
+   "codigo": "4275",
+   "nome_crm": "800MB DISNEY+ PREMIUM",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 130,
+    "OURO": 130,
+    "PRATA": 130,
+    "PADRAO": 130
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM"
+   }
+  },
+  {
+   "codigo": "4276",
+   "nome_crm": "800MB GLOBOPLAY PREMIUM",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
+   }
+  },
+  {
+   "codigo": "4277",
+   "nome_crm": "800MB PREMIERE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + PREMIERE",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 140,
+    "OURO": 140,
+    "PRATA": 140,
+    "PADRAO": 140
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + PREMIERE"
+   }
+  },
+  {
+   "codigo": "4286",
+   "nome_crm": "800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
+   }
+  },
+  {
+   "codigo": "4598",
+   "nome_crm": "800MB DISNEY+ PADRÃO",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO"
+   }
+  },
+  {
+   "codigo": "4417",
+   "nome_crm": "600MB GLOBOPLAY PADRÃO COM ANÚNCIOS",
+   "nome_vero": "MUNDO ENTRETENIMENTO 600MB + GLOBOPLAY PADRÃO COM ANÚNCIOS + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sem_fonte",
+    "confianca": "baixa",
+    "motivo": "plano não encontrado na tabela 04.05"
+   }
+  },
+  {
+   "codigo": "4418",
+   "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122,
+    "OURO": 122,
+    "PRATA": 122,
+    "PADRAO": 122
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM"
+   }
+  },
+  {
+   "codigo": "4419",
+   "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + HBO MAX + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122,
+    "OURO": 122,
+    "PRATA": 122,
+    "PADRAO": 122
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + MAX"
+   }
+  },
+  {
+   "codigo": "4420",
+   "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + TELECINE + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122,
+    "OURO": 122,
+    "PRATA": 122,
+    "PADRAO": 122
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + TELECINE"
+   }
+  },
+  {
+   "codigo": "4422",
+   "nome_crm": "800MB DISNEY+ PREMIUM",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 130,
+    "OURO": 130,
+    "PRATA": 130,
+    "PADRAO": 130
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM"
+   }
+  },
+  {
+   "codigo": "4423",
+   "nome_crm": "800MB GLOBOPLAY PREMIUM",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
+   }
+  },
+  {
+   "codigo": "4424",
+   "nome_crm": "800MB PREMIERE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + PREMIERE + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 140,
+    "OURO": 140,
+    "PRATA": 140,
+    "PADRAO": 140
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + PREMIERE"
+   }
+  },
+  {
+   "codigo": "4434",
+   "nome_crm": "800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 130,
+    "OURO": 130,
+    "PRATA": 130,
+    "PADRAO": 130
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM + ASSITENCIA RESIDENCIAL"
+   }
+  },
+  {
+   "codigo": "4602",
+   "nome_crm": "800MB DISNEY+ PADRÃO",
+   "nome_vero": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO"
+   }
+  },
+  {
+   "codigo": "4291",
+   "nome_crm": "850MB FILMES",
+   "nome_vero": "MUNDO COMPLETO 850MB + FILMES + ROKU",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 150,
+    "OURO": 150,
+    "PRATA": 150,
+    "PADRAO": 150
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO COMPLETO 850MB + FILMES"
+   }
+  },
+  {
+   "codigo": "4292",
+   "nome_crm": "850MB ESPORTES",
+   "nome_vero": "MUNDO COMPLETO 850MB + ESPORTES + ROKU",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 175,
+    "OURO": 175,
+    "PRATA": 175,
+    "PADRAO": 175
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO COMPLETO 850MB + ESPORTES"
+   }
+  },
+  {
+   "codigo": "4293",
+   "nome_crm": "1GB DIVERSÃO",
+   "nome_vero": "MUNDO COMPLETO 1GB + DIVERSÃO + ROKU",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 205,
+    "OURO": 205,
+    "PRATA": 205,
+    "PADRAO": 205
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO COMPLETO 1GB + DIVERSÃO"
+   }
+  },
+  {
+   "codigo": "4439",
+   "nome_crm": "850MB FILMES",
+   "nome_vero": "MUNDO COMPLETO 850MB + FILMES + ROKU + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 150,
+    "OURO": 150,
+    "PRATA": 150,
+    "PADRAO": 150
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO COMPLETO 850MB + FILMES"
+   }
+  },
+  {
+   "codigo": "4440",
+   "nome_crm": "850MB ESPORTES",
+   "nome_vero": "MUNDO COMPLETO 850MB + ESPORTES + ROKU + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 175,
+    "OURO": 175,
+    "PRATA": 175,
+    "PADRAO": 175
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO COMPLETO 850MB + ESPORTES"
+   }
+  },
+  {
+   "codigo": "4441",
+   "nome_crm": "1GB DIVERSÃO",
+   "nome_vero": "MUNDO COMPLETO 1GB + DIVERSÃO + ROKU + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 205,
+    "OURO": 205,
+    "PRATA": 205,
+    "PADRAO": 205
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO COMPLETO 1GB + DIVERSÃO"
+   }
+  },
+  {
+   "codigo": "4284",
+   "nome_crm": "800MB GAMER",
+   "nome_vero": "MUNDO GAMER 800MB",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 140,
+    "OURO": 140,
+    "PRATA": 140,
+    "PADRAO": 140
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO GAMER 800MB"
+   }
+  },
+  {
+   "codigo": "4432",
+   "nome_crm": "800MB GAMER",
+   "nome_vero": "MUNDO GAMER 800MB + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 140,
+    "OURO": 140,
+    "PRATA": 140,
+    "PADRAO": 140
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO GAMER 800MB"
+   }
+  },
+  {
+   "codigo": "4477",
+   "nome_crm": "550MB ASSISTÊNCIA RESIDENCIAL",
+   "nome_vero": "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95.0,
+    "OURO": 95.0,
+    "PRATA": 95.0,
+    "PADRAO": 95.0
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "extrato",
+    "confianca": "alta",
+    "seg_observadas": [
+     "OURO"
+    ]
+   }
+  },
+  {
+   "codigo": "4518",
+   "nome_crm": "550MB ASSISTÊNCIA RESIDENCIAL",
+   "nome_vero": "MUNDO FIBRA 320MB + ASSISTENCIA RESIDENCIAL",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO FIBRA 550 MB + ASSISTENCIA RESIDENCIAL"
+   }
+  },
+  {
+   "codigo": "4537",
+   "nome_crm": "800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL",
+   "nome_vero": "MUNDO ENTRETENIMENTO 320MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
+   }
+  },
+  {
+   "codigo": "4538",
+   "nome_crm": "VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 320MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 95,
+    "PRATA": 95,
+    "PADRAO": 95
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL + MÓVEL 20GB"
+   }
+  },
+  {
+   "codigo": "4528",
+   "nome_crm": "VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 320MB + GLOBOPLAY PREMIUM + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 105,
+    "OURO": 105,
+    "PRATA": 105,
+    "PADRAO": 105
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
+   }
+  },
+  {
+   "codigo": "4529",
+   "nome_crm": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 320MB + HBO MAX + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 70,
+    "OURO": 70,
+    "PRATA": 70,
+    "PADRAO": 70
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB"
+   }
+  },
+  {
+   "codigo": "4532",
+   "nome_crm": "VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 320MB + DIVERSÃO + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
+   }
+  },
+  {
+   "codigo": "4601",
+   "nome_crm": "VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 320MB + DISNEY+ PADRÃO + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 100,
+    "OURO": 100,
+    "PRATA": 100,
+    "PADRAO": 100
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS - DISNEY PADRAO + VERO MAIS 800MB + DISNEY+ PADRÃO + VERO CONTROLE 20GB"
+   }
+  },
+  {
+   "codigo": "4633",
+   "nome_crm": "VERO MAIS 550MB + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 320MB + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 55,
+    "OURO": 52,
+    "PRATA": 52,
+    "PADRAO": 52
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS 550MB + MAIS CONECTADO 20GB"
+   }
+  },
+  {
+   "codigo": "4673",
+   "nome_crm": "VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 320MB + DISNEY+ PADRÃO + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 100,
+    "OURO": 100,
+    "PRATA": 100,
+    "PADRAO": 100
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS - DISNEY PADRAO + VERO MAIS 800MB + DISNEY+ PADRÃO + VERO CONTROLE 20GB"
+   }
+  },
+  {
+   "codigo": "4674",
+   "nome_crm": "VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB",
+   "nome_vero": "VERO MAIS 320MB + DISNEY+ PREMIUM + MAIS CONECTADO 20GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 95,
+    "PRATA": 95,
+    "PADRAO": 95
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS - DISNEY PREMIUM + VERO MAIS 800MB + DISNEY+ PREMIUM + VERO CONTROLE 20GB"
+   }
+  },
+  {
+   "codigo": "4675",
+   "nome_crm": "VERO DUO 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB",
+   "nome_vero": "VERO DUO 320MB + DISNEY+ COM ANÚNCIO + HBO MAX COM ANÚNCIO + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 90,
+    "OURO": 90,
+    "PRATA": 90,
+    "PADRAO": 90
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 55,
+    "franquia_gb": 30
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO DUO 800MB + DISNEY+ COM ADS + HBO MAX COM ADS + MAIS CONECTADO 30GB"
+   }
+  },
+  {
+   "codigo": "4676",
+   "nome_crm": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB",
+   "nome_vero": "VERO DUO 320MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 90,
+    "OURO": 90,
+    "PRATA": 90,
+    "PADRAO": 90
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 55,
+    "franquia_gb": 30
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB"
+   }
+  },
+  {
+   "codigo": "4677",
+   "nome_crm": "VERO FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB",
+   "nome_vero": "VERO MAIS FULL 320MB + PRIME VIDEO + APPLE TV + HBO + GLP PREMIUM + MAIS CONECTADO 60GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 110,
+    "OURO": 110,
+    "PRATA": 110,
+    "PADRAO": 110
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 85,
+    "franquia_gb": 60
+   },
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MAIS CONECTADO 60GB"
+   }
+  },
+  {
+   "codigo": "4685",
+   "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
+   "nome_vero": "VERO MAIS 320MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sem_fonte",
+    "confianca": "baixa",
+    "motivo": "plano não encontrado na tabela 04.05"
+   }
+  },
+  {
+   "codigo": "4545",
+   "nome_crm": "850MB FILMES",
+   "nome_vero": "MUNDO COMPLETO 320MB + FILMES + ROKU",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 150,
+    "OURO": 150,
+    "PRATA": 150,
+    "PADRAO": 150
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO COMPLETO 850MB + FILMES"
+   }
+  },
+  {
+   "codigo": "4546",
+   "nome_crm": "850MB ESPORTES",
+   "nome_vero": "MUNDO COMPLETO 320MB + ESPORTES + ROKU",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 175,
+    "OURO": 175,
+    "PRATA": 175,
+    "PADRAO": 175
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO COMPLETO 850MB + ESPORTES"
+   }
+  },
+  {
+   "codigo": "4547",
+   "nome_crm": "1GB DIVERSÃO",
+   "nome_vero": "MUNDO COMPLETO 320MB + DIVERSÃO + ROKU",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sem_fonte",
+    "confianca": "baixa",
+    "motivo": "plano não encontrado na tabela 04.05"
+   }
+  },
+  {
+   "codigo": "4527",
+   "nome_crm": "800MB PREMIERE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 320MB + PREMIERE",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 140,
+    "OURO": 140,
+    "PRATA": 140,
+    "PADRAO": 140
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + PREMIERE"
+   }
+  },
+  {
+   "codigo": "4522",
+   "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 320MB + HBO MAX",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122,
+    "OURO": 122,
+    "PRATA": 122,
+    "PADRAO": 122
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + MAX"
+   }
+  },
+  {
+   "codigo": "4523",
+   "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 320MB + TELECINE",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122,
+    "OURO": 122,
+    "PRATA": 122,
+    "PADRAO": 122
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + TELECINE"
+   }
+  },
+  {
+   "codigo": "4526",
+   "nome_crm": "800MB GLOBOPLAY PREMIUM",
+   "nome_vero": "MUNDO ENTRETENIMENTO 320MB + GLOBOPLAY PREMIUM",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
+   }
+  },
+  {
+   "codigo": "4521",
+   "nome_crm": "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE",
+   "nome_vero": "MUNDO ENTRETENIMENTO 320MB + YOUTUBE PREMIUM",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122,
+    "OURO": 122,
+    "PRATA": 122,
+    "PADRAO": 122
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM"
+   }
+  },
+  {
+   "codigo": "4520",
+   "nome_crm": "600MB GLOBOPLAY PADRÃO COM ANÚNCIOS",
+   "nome_vero": "MUNDO ENTRETENIMENTO 320MB + GLOBOPLAY PADRÃO COM ANÚNCIOS",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
+   }
+  },
+  {
+   "codigo": "4525",
+   "nome_crm": "800MB DISNEY+ PREMIUM",
+   "nome_vero": "MUNDO ENTRETENIMENTO 320MB + DISNEY+ PREMIUM",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 130,
+    "OURO": 130,
+    "PRATA": 130,
+    "PADRAO": 130
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM"
+   }
+  },
+  {
+   "codigo": "4600",
+   "nome_crm": "800MB DISNEY+ PADRÃO",
+   "nome_vero": "MUNDO ENTRETENIMENTO 320MB + DISNEY+ PADRÃO",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO"
+   }
+  },
+  {
+   "codigo": "4632",
+   "nome_crm": "550MB MUNDO FIBRA",
+   "nome_vero": "MUNDO FIBRA 320MB",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 98,
+    "PRATA": 98,
+    "PADRAO": 98
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_24.03_corrigida",
+    "confianca": "media",
+    "nome_tabela": "MUNDO FIBRA 750MB"
+   }
+  },
+  {
+   "codigo": "4533",
+   "nome_crm": "800MB GAMER",
+   "nome_vero": "MUNDO GAMER 320MB",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 140,
+    "OURO": 140,
+    "PRATA": 140,
+    "PADRAO": 140
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO GAMER 800MB"
+   }
+  },
+  {
+   "codigo": "4480",
+   "nome_crm": "550MB ASSISTÊNCIA RESIDENCIAL",
+   "nome_vero": "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO FIBRA 550 MB + ASSISTENCIA RESIDENCIAL"
+   }
+  },
+  {
+   "codigo": "4492",
+   "nome_crm": "550MB ASSISTÊNCIA RESIDENCIAL",
+   "nome_vero": "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "tabela_04.05",
+    "confianca": "media",
+    "nome_tabela": "MUNDO FIBRA 550 MB + ASSISTENCIA RESIDENCIAL"
+   }
+  },
+  {
+   "codigo": "4548",
+   "nome_crm": "VERO MAIS 1GB + GLP PREMIUM + EXITLAG + MÓVEL 60GB",
+   "nome_vero": "VERO MAIS 1GB + GLOBOPLAY PREMIUM + EXIT LAG + MAIS CONECTADO 60GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sem_fonte",
+    "confianca": "baixa",
+    "motivo": "plano não encontrado na tabela 04.05"
+   }
+  },
+  {
+   "codigo": "4686",
+   "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
+   "nome_vero": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + TVBOX + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sem_fonte",
+    "confianca": "baixa",
+    "motivo": "plano não encontrado na tabela 04.05"
+   }
+  },
+  {
+   "codigo": "4687",
+   "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
+   "nome_vero": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + TVBOX + MESH + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sem_fonte",
+    "confianca": "baixa",
+    "motivo": "plano não encontrado na tabela 04.05"
+   }
+  },
+  {
+   "codigo": "4389",
+   "nome_crm": "VERO CONTROLE 10GB",
+   "nome_vero": "VERO CONTROLE 10GB",
+   "produto_tipo": "MOVEL_ALONE",
+   "pontuacao_bl": null,
+   "movel_vinculado": {
+    "pontos_movel_combo": 25,
+    "franquia_gb": 10
+   },
+   "_prov": {
+    "fonte": "franquia",
+    "confianca": "alta"
+   }
+  },
+  {
+   "codigo": "4390",
+   "nome_crm": "VERO CONTROLE 20GB",
+   "nome_vero": "VERO CONTROLE 20GB",
+   "produto_tipo": "MOVEL_ALONE",
+   "pontuacao_bl": null,
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "franquia",
+    "confianca": "alta"
+   }
+  },
+  {
+   "codigo": "4391",
+   "nome_crm": "VERO CONTROLE 30GB",
+   "nome_vero": "VERO CONTROLE 30GB",
+   "produto_tipo": "MOVEL_ALONE",
+   "pontuacao_bl": null,
+   "movel_vinculado": {
+    "pontos_movel_combo": 55,
+    "franquia_gb": 30
+   },
+   "_prov": {
+    "fonte": "franquia",
+    "confianca": "alta"
+   }
+  },
+  {
+   "codigo": "4392",
+   "nome_crm": "VERO CONTROLE 60GB",
+   "nome_vero": "VERO CONTROLE 60GB",
+   "produto_tipo": "MOVEL_ALONE",
+   "pontuacao_bl": null,
+   "movel_vinculado": {
+    "pontos_movel_combo": 85,
+    "franquia_gb": 60
+   },
+   "_prov": {
+    "fonte": "franquia",
+    "confianca": "alta"
+   }
+  },
+  {
+   "codigo": "4288",
+   "nome_crm": "MUNDO COMPLETO 850MB + FILMES",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 150,
+    "OURO": 150,
+    "PRATA": 150,
+    "PADRAO": 150
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4289",
+   "nome_crm": "MUNDO COMPLETO 850MB + ESPORTES",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 175,
+    "OURO": 175,
+    "PRATA": 175,
+    "PADRAO": 175
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4290",
+   "nome_crm": "MUNDO COMPLETO 1GB + DIVERSÃO",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 205,
+    "OURO": 205,
+    "PRATA": 205,
+    "PADRAO": 205
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4436",
+   "nome_crm": "MUNDO COMPLETO 850MB + FILMES + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 150,
+    "OURO": 150,
+    "PRATA": 150,
+    "PADRAO": 150
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4437",
+   "nome_crm": "MUNDO COMPLETO 850MB + ESPORTES + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 175,
+    "OURO": 175,
+    "PRATA": 175,
+    "PADRAO": 175
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4438",
+   "nome_crm": "MUNDO COMPLETO 1GB + DIVERSÃO + MESH",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 205,
+    "OURO": 205,
+    "PRATA": 205,
+    "PADRAO": 205
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4471",
+   "nome_crm": "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4474",
+   "nome_crm": "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4488",
+   "nome_crm": "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4490",
+   "nome_crm": "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL + MESH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4515",
+   "nome_crm": "MUNDO FIBRA 320MB + ASSISTENCIA RESIDENCIAL",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4534",
+   "nome_crm": "MUNDO COMPLETO 320MB + FILMES",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 150,
+    "OURO": 150,
+    "PRATA": 150,
+    "PADRAO": 150
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4535",
+   "nome_crm": "MUNDO COMPLETO 320MB + ESPORTES",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 175,
+    "OURO": 175,
+    "PRATA": 175,
+    "PADRAO": 175
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4536",
+   "nome_crm": "MUNDO COMPLETO 320MB + DIVERSÃO",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4540",
+   "nome_crm": "MUNDO FIBRA 320MB + ASSISTENCIA RESIDENCIAL",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4543",
+   "nome_crm": "MUNDO FIBRA 320MB + ASSISTENCIA RESIDENCIAL",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4551",
+   "nome_crm": "MUNDO FIBRA 320MB + ASSISTÊNCIA RESIDENCIAL",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4554",
+   "nome_crm": "MUNDO FIBRA 550MB + ASSISTÊNCIA RESIDENCIAL RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 97,
+    "PRATA": 97,
+    "PADRAO": 97
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4556",
+   "nome_crm": "MUNDO ENTRETENIMENTO 600MB + GLOBOPLAY PADRÃO COM ANÚNCIOS RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4557",
+   "nome_crm": "MUNDO ENTRETENIMENTO 800MB + HBO MAX RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122,
+    "OURO": 122,
+    "PRATA": 122,
+    "PADRAO": 122
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4558",
+   "nome_crm": "MUNDO ENTRETENIMENTO 800MB + TELECINE RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122,
+    "OURO": 122,
+    "PRATA": 122,
+    "PADRAO": 122
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4559",
+   "nome_crm": "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 122,
+    "OURO": 122,
+    "PRATA": 122,
+    "PADRAO": 122
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4560",
+   "nome_crm": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4561",
+   "nome_crm": "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 130,
+    "OURO": 130,
+    "PRATA": 130,
+    "PADRAO": 130
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4562",
+   "nome_crm": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 120,
+    "OURO": 120,
+    "PRATA": 120,
+    "PADRAO": 120
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4563",
+   "nome_crm": "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 130,
+    "OURO": 130,
+    "PRATA": 130,
+    "PADRAO": 130
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4564",
+   "nome_crm": "MUNDO ENTRETENIMENTO 800MB + PREMIERE RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 140,
+    "OURO": 140,
+    "PRATA": 140,
+    "PADRAO": 140
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4565",
+   "nome_crm": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + MAIS CONECTADO 20GB RH",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 95,
+    "PRATA": 95,
+    "PADRAO": 95
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4566",
+   "nome_crm": "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL + MAIS CONECTADO 20GB RH",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 95,
+    "PRATA": 95,
+    "PADRAO": 95
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4567",
+   "nome_crm": "VERO MAIS 800MB + HBO MAX + MAIS CONECTADO 20GB RH",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 70,
+    "OURO": 70,
+    "PRATA": 70,
+    "PADRAO": 70
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4570",
+   "nome_crm": "VERO MAIS 850MB + DIVERSÃO + MAIS CONECTADO 20GB RH",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 55,
+    "OURO": 52,
+    "PRATA": 52,
+    "PADRAO": 52
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4571",
+   "nome_crm": "MUNDO COMPLETO 850MB + FILMES RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 150,
+    "OURO": 150,
+    "PRATA": 150,
+    "PADRAO": 150
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4572",
+   "nome_crm": "MUNDO COMPLETO 850MB + ESPORTES RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 175,
+    "OURO": 175,
+    "PRATA": 175,
+    "PADRAO": 175
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4573",
+   "nome_crm": "MUNDO COMPLETO 1GB + DIVERSÃO RH",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 205,
+    "OURO": 205,
+    "PRATA": 205,
+    "PADRAO": 205
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4574",
+   "nome_crm": "MUNDO GAMER 800MB RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 140,
+    "OURO": 140,
+    "PRATA": 140,
+    "PADRAO": 140
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4604",
+   "nome_crm": "MUNDO COMPLETO 320MB + FILMES + ROKU",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 150,
+    "OURO": 150,
+    "PRATA": 150,
+    "PADRAO": 150
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4605",
+   "nome_crm": "MUNDO COMPLETO 320MB + ESPORTES + ROKU",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 175,
+    "OURO": 175,
+    "PRATA": 175,
+    "PADRAO": 175
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4606",
+   "nome_crm": "MUNDO COMPLETO 320MB + DIVERSÃO + ROKU",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4626",
+   "nome_crm": "MUNDO FIBRA 550MB RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 98,
+    "PRATA": 98,
+    "PADRAO": 98
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4627",
+   "nome_crm": "VERO MAIS 550MB + MAIS CONECTADO 20GB RH",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 55,
+    "OURO": 52,
+    "PRATA": 52,
+    "PADRAO": 52
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4628",
+   "nome_crm": "MUNDO FIBRA 750MB RH",
+   "produto_tipo": "FIBRA_ALONE",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 98,
+    "PRATA": 98,
+    "PADRAO": 98
+   },
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4658",
+   "nome_crm": "VERO MAIS 800MB + DISNEY+ PADRÃO + MAIS CONECTADO 20GB RH",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 100,
+    "OURO": 100,
+    "PRATA": 100,
+    "PADRAO": 100
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4659",
+   "nome_crm": "VERO MAIS 800MB + DISNEY+ PREMIUM + MAIS CONECTADO 20GB RH",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 95,
+    "OURO": 95,
+    "PRATA": 95,
+    "PADRAO": 95
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 40,
+    "franquia_gb": 20
+   },
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4660",
+   "nome_crm": "VERO DUO 800MB + DISNEY+ COM ANÚNCIO + HBO MAX COM ANÚNCIO + MAIS CONECTADO 30GB RH",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 90,
+    "OURO": 90,
+    "PRATA": 90,
+    "PADRAO": 90
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 55,
+    "franquia_gb": 30
+   },
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4661",
+   "nome_crm": "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB RH",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 90,
+    "OURO": 90,
+    "PRATA": 90,
+    "PADRAO": 90
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 55,
+    "franquia_gb": 30
+   },
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4662",
+   "nome_crm": "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO + GLP PREMIUM + MAIS CONECTADO 60GB RH",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": {
+    "ESPECIAL": 110,
+    "OURO": 110,
+    "PRATA": 110,
+    "PADRAO": 110
+   },
+   "movel_vinculado": {
+    "pontos_movel_combo": 85,
+    "franquia_gb": 60
+   },
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4678",
+   "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4679",
+   "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MAIS CONECTADO 30GB RH",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4680",
+   "nome_crm": "VERO MAIS 320MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  },
+  {
+   "codigo": "4682",
+   "nome_crm": "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MESH + MAIS CONECTADO 30GB",
+   "produto_tipo": "FIBRA_COMBO",
+   "pontuacao_bl": null,
+   "movel_vinculado": null,
+   "_prov": {
+    "fonte": "sweep_verohub"
+   }
+  }
+ ]
 }

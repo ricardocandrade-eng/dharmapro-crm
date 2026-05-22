@@ -32,6 +32,7 @@ var CONFIG = {
   CODIGOS_VERO_JSON_FILE_ID: '',  // _getCodigosVero() — vazio = fallback p/ busca por nome 'planos_vero_codigos.json'
   PONTUACAO_JSON_FILE_ID: '1txC2mYqj0kh_L9O7s1_7gCR9hVv9t5gy',  // _getPontuacaoPlanos() (Módulo Financeiro §11.9) — fixado 21/05 via financeiroSetupFase2
   CARTAS_META_JSON_FILE_ID: '1zkTm2bA6ClHITnY_VvCDlGUOzGXb-mRp',  // _getCartasMetaPap() (Módulo Financeiro §4.2) — fixado 21/05 via financeiroSetupFase2
+  VEROHUB_CODIGOS_JSON_FILE_ID: '',  // _getVerohubCodigos() — vazio = fallback p/ busca por nome 'verohub_codigos_cidades.json' (sweep VeroHub: código por cidade)
   COLUNAS: {
     // ── Bloco 1: Venda (A–G) ────────────────────────────────────────
     CANAL:              0,  // A  - Canal de venda (PAP, META ADS, INDICAÇÃO, ATIVO, GOOGLE ADS)
@@ -3672,13 +3673,49 @@ function resolverEstrelaPorInstalacoes(instalacoes, mesCompetencia) {
   }
 }
 
-// Reverse lookup pra captura forward-only no cadastro de venda:
-// (nome_crm do plano + cidade da venda) -> codigo Vero, gravado na coluna FAT (Q).
-// Direcao ambigua (mesmo nome_crm tem codigos diferentes por regiao/addon) — usa
-// a coleta da cidade da venda e, em empate, prefere o codigo BASE (sem addon) com
-// maior confianca. Cobertura PARCIAL: so cidades ja coletadas no
-// planos_vero_codigos.json (hoje Betim, Juiz de Fora, Barbacena, Bauru). Sem match
-// retorna '' — o codigo fica em branco e a cobertura cresce conforme o dicionario.
+// ─── SWEEP VEROHUB — código por cidade (verohub_codigos_cidades.json) ─────────
+// Dataset do sweep /api/plans_svas: { codigos:{cod→{nome,produto_tipo,...}},
+// porCidade:{city_id→[cods]}, cidadeIndex:{NOME_NORMALIZADO→city_id} }. Cobre as
+// ~359 cidades com plano (não só as 4 coletadas). Cache chunked (>95KB). Fallback
+// por nome no Drive. Tolerante a falha (retorna null).
+function _getVerohubCodigos() {
+  var key = CONFIG.CACHE_PREFIX + 'verohub_codigos_v1';
+  try { var hit = _cacheGetChunked(key); if (hit && hit.codigos && hit.porCidade) return hit; } catch(e){}
+  var fileId = CONFIG.VEROHUB_CODIGOS_JSON_FILE_ID;
+  if (!fileId) { try { fileId = PropertiesService.getScriptProperties().getProperty('VEROHUB_CODIGOS_FILE_ID') || ''; } catch(e){} }
+  if (!fileId) {
+    try { var it = DriveApp.getFilesByName('verohub_codigos_cidades.json');
+      if (it.hasNext()) { fileId = it.next().getId(); try { PropertiesService.getScriptProperties().setProperty('VEROHUB_CODIGOS_FILE_ID', fileId); } catch(e){} } } catch(e){}
+  }
+  if (!fileId) return null;
+  try {
+    var parsed = JSON.parse(DriveApp.getFileById(fileId).getBlob().getDataAsString());
+    try { _cachePutChunked(key, parsed, 600); } catch(e){}
+    return parsed;
+  } catch(e){ Logger.log('_getVerohubCodigos erro: ' + e.message); return null; }
+}
+
+// Núcleo normalizado de um nome de plano, pra casar nome CRM ↔ nome Vero do sweep
+// (MAIS CONECTADO↔MÓVEL, GLOBOPLAY↔GLP, tira acento/MESH/ROKU/sufixo de preço).
+function _vhNucleo_(s) {
+  s = String(s || '').toUpperCase();
+  try { s = s.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch(e){}
+  s = s.replace(/MAIS CONECTADO/g, 'MOVEL').replace(/VERO CONTROLE/g, 'MOVEL');
+  s = s.replace(/GLOBOPLAY|GLOBO PLAY/g, 'GLP');
+  s = s.replace(/COM ANUNCIO|COM ADS/g, 'ADS');
+  s = s.replace(/\bRN\b/g, '').replace(/\bMESH\b/g, '').replace(/\bROKU\b/g, '');
+  s = s.replace(/(\d+)\s*MB/g, '$1MB').replace(/(\d+)\s*GB/g, '$1GB');
+  s = s.replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/i, '');
+  s = s.replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  return s;
+}
+
+// Reverse lookup: (nome do plano + cidade) -> codigo Vero. Gravado em COD_PLANO.
+// Estratégia (Sprint sweep VeroHub, 21/05): tenta o SWEEP primeiro (todas as
+// cidades, match CONSERVADOR — núcleo exato ou Jaccard≥0.92, prefere não-PACOTE,
+// pula ambíguos pra não chutar código errado num dado financeiro); se não achar,
+// cai no dicionário legado (_getCodigoVeroLegado_, 4 cidades coletadas). Match
+// inseguro NUNCA é feito — sem match retorna '' (cobertura cresce, sem risco).
 function getCodigoVeroPorPlanoCidade(plano, cidade) {
   try {
     var planoCore = String(plano || '').replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/i, '').trim();
@@ -3686,11 +3723,61 @@ function getCodigoVeroPorPlanoCidade(plano, cidade) {
     var cidNorm = _normalizarTexto(cidade);
     if (!cidNorm) return '';
 
+    // 1) SWEEP VeroHub (todas as cidades)
+    var vh = _getVerohubCodigos();
+    if (vh && vh.cidadeIndex && vh.porCidade && vh.codigos) {
+      var cityId = vh.cidadeIndex[cidNorm];
+      if (cityId != null) {
+        var cods = vh.porCidade[cityId] || vh.porCidade[String(cityId)] || [];
+        var alvo = _vhNucleo_(planoCore);
+        var alvoT = alvo ? alvo.split(' ') : [];
+        var alvoSet = {}; alvoT.forEach(function(t){ alvoSet[t]=1; });
+        var melhor = null; // {cod, score, pacote}
+        for (var i = 0; i < cods.length; i++) {
+          var info = vh.codigos[cods[i]]; if (!info || !info.nome) continue;
+          var nuc = _vhNucleo_(info.nome); if (!nuc) continue;
+          var score;
+          if (nuc === alvo) { score = 1; }
+          else {
+            var kt = nuc.split(' '), inter = 0, uni = {};
+            alvoT.forEach(function(t){ uni[t]=1; });
+            kt.forEach(function(t){ if (alvoSet[t]) inter++; uni[t]=1; });
+            var uniN = Object.keys(uni).length || 1;
+            score = inter / uniN;
+            if (score < 0.92) continue; // CONSERVADOR
+          }
+          var pacote = (info.produto_tipo === 'PACOTE');
+          if (!melhor) melhor = { cod: cods[i], score: score, pacote: pacote };
+          else {
+            // prefere não-PACOTE; depois maior score; empate exato c/ cods diferentes = ambíguo
+            if (melhor.pacote && !pacote) melhor = { cod: cods[i], score: score, pacote: pacote };
+            else if (melhor.pacote === pacote) {
+              if (score > melhor.score) melhor = { cod: cods[i], score: score, pacote: pacote };
+              else if (score === melhor.score && cods[i] !== melhor.cod) melhor.ambiguo = true;
+            }
+          }
+        }
+        if (melhor && !melhor.ambiguo) return melhor.cod;
+        // ambíguo ou sem match no sweep → tenta legado
+      }
+    }
+
+    // 2) Fallback: dicionário legado (4 cidades coletadas)
+    return _getCodigoVeroLegado_(planoCore, cidNorm);
+  } catch (e) {
+    Logger.log('getCodigoVeroPorPlanoCidade erro: ' + e.message);
+    return '';
+  }
+}
+
+// Reverse lookup legado: planos_vero_codigos.json (4 cidades), match por
+// nome_crm_match exato + cidade exata. Mantido como fallback do sweep.
+function _getCodigoVeroLegado_(planoCore, cidNorm) {
+  try {
     var cv = _getCodigosVero();
     var rank = { alta: 3, media: 2, baixa: 1, '': 0 };
     var planoCoreNorm = _normalizarTexto(planoCore);
     var melhor = null;
-
     (cv.coletas || []).forEach(function(col) {
       var ctx = col.contexto || {};
       if (_normalizarTexto(ctx.cidade) !== cidNorm) return;
@@ -3700,14 +3787,13 @@ function getCodigoVeroPorPlanoCidade(plano, cidade) {
         if (_normalizarTexto(nmCore) !== planoCoreNorm) return;
         var conf = String(p.confianca || '').toLowerCase();
         var temAddon = !!(p.addon && String(p.addon).trim() !== '');
-        var score = (rank[conf] || 0) * 10 + (temAddon ? 0 : 5); // confianca pesa; base ganha do addon
+        var score = (rank[conf] || 0) * 10 + (temAddon ? 0 : 5);
         if (!melhor || score > melhor.score) melhor = { codigo: String(p.codigo).trim(), score: score };
       });
     });
-
     return melhor ? melhor.codigo : '';
   } catch (e) {
-    Logger.log('getCodigoVeroPorPlanoCidade erro: ' + e.message);
+    Logger.log('_getCodigoVeroLegado_ erro: ' + e.message);
     return '';
   }
 }
