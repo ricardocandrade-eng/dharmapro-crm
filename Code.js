@@ -2691,8 +2691,9 @@ function moverLeadAguardando(payload) {
     lock.releaseLock();
   }
 
-  // Notificação PAP fora do lock
-  if (resultado.sucesso && sheet && linha) {
+  // Notificação PAP fora do lock — só em transição real (lead não estava em 2)
+  if (resultado.sucesso && sheet && linha &&
+      String((typeof statusAnt !== 'undefined' ? statusAnt : '')).trim() !== '2- Aguardando Instalação') {
     try {
       var c      = CONFIG.COLUNAS;
       var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
@@ -5068,8 +5069,11 @@ function salvarVenda(dados) {
       // alterações propagadas (cliente/endereço/contato) aparecem no card combo.
       _limparCacheSemLista();
       _atualizarVendaNoCache_(linhaNum);
-      // Capturar linha para notificação PAP fora do lock
-      if (dados.status === '2- Aguardando Instalação' || dados.status === '3 - Finalizada/Instalada') {
+      // Capturar linha para notificação PAP fora do lock — SÓ em transição real
+      // (status mudou para 2/3). Re-salvar uma venda já em 2/3 não re-notifica
+      // o vendedor (a notificação é um evento único da mudança de status).
+      if ((dados.status === '2- Aguardando Instalação' || dados.status === '3 - Finalizada/Instalada') &&
+          String(_statusAntigoAlerta).trim() !== String(dados.status).trim()) {
         _papLinha = linhaNum;
       }
       resultado = { sucesso: true, linha: linhaNum, mensagem: '✅ ' + dados.cliente.trim() + ' atualizado com sucesso!' };
@@ -5550,9 +5554,11 @@ function moverVendaFunil(payload) {
     lock.releaseLock();
   }
 
-  // Notificação PAP fora do lock (apenas status 2 e 3)
+  // Notificação PAP fora do lock (apenas status 2 e 3, e SÓ em transição real —
+  // re-arrastar para a mesma coluna não re-notifica o vendedor)
   if (resultado.sucesso && sheet && linha &&
-      (novoStatus === '2- Aguardando Instalação' || novoStatus === '3 - Finalizada/Instalada')) {
+      (novoStatus === '2- Aguardando Instalação' || novoStatus === '3 - Finalizada/Instalada') &&
+      String((typeof statusAnt !== 'undefined' ? statusAnt : '')).trim() !== String(novoStatus).trim()) {
     try {
       var c      = CONFIG.COLUNAS;
       var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
