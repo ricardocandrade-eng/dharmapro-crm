@@ -311,10 +311,10 @@
     var instal=keys.map(function(k){return mp[k].instaladas;});
     CHARTS.tend=new Chart($('relChartTend'),{
       data:{labels:labels,datasets:[
-        {type:'bar',label:(ehRec?'Receita':'Vendas'),data:primario,backgroundColor:'rgba(0,212,255,.35)',borderColor:'#00d4ff',borderWidth:1.5,borderRadius:4,yAxisID:'y',order:2},
+        {type:'bar',label:(ehRec?'Receita':'Vendas'),data:primario,backgroundColor:'rgba(0,212,255,.35)',borderColor:'#00d4ff',borderWidth:1.5,borderRadius:4,maxBarThickness:60,yAxisID:'y',order:2},
         {type:'line',label:'Instalações',data:instal,borderColor:'#c8ff5e',backgroundColor:'#c8ff5e',borderWidth:2,pointRadius:3,tension:.3,yAxisID:'y2',order:1}
       ]},
-      options:{responsive:true,maintainAspectRatio:false,
+      options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
         plugins:{legend:{display:true,labels:{color:TICK,font:{size:10},boxWidth:12}},
           tooltip:{callbacks:{label:function(c){var v=c.parsed.y; if(c.dataset.label==='Receita')return 'Receita: '+rBR(v); if(c.dataset.label==='Instalações')return 'Instalações: '+nBR(v); return 'Vendas: '+nBR(v);}}}},
         scales:{x:{grid:{color:GRID},ticks:{color:TICK,font:{size:10}}},
@@ -327,8 +327,8 @@
     var top=dados.slice(0,10);
     CHARTS[chartKey]=new Chart($(canvasId),{type:'bar',
       data:{labels:top.map(function(d){return d.nome;}),datasets:[
-        {label:'Vendas',data:top.map(function(d){return d.vendas;}),backgroundColor:'rgba(0,212,255,.55)',borderRadius:4},
-        {label:'Instalações',data:top.map(function(d){return d.instaladas;}),backgroundColor:'rgba(200,255,94,.55)',borderRadius:4}
+        {label:'Vendas',data:top.map(function(d){return d.vendas;}),backgroundColor:'rgba(0,212,255,.55)',borderRadius:4,maxBarThickness:22},
+        {label:'Instalações',data:top.map(function(d){return d.instaladas;}),backgroundColor:'rgba(200,255,94,.55)',borderRadius:4,maxBarThickness:22}
       ]},
       options:baseOpts({indexAxis:'y',plugins:{legend:{display:true,labels:{color:TICK,font:{size:10},boxWidth:12}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+nBR(c.parsed.x);}}}}})});
   }
@@ -416,10 +416,21 @@
   }
 
   // ── Bind de controles ─────────────────────────────────
+  // Granularidade automática conforme o tamanho do período (evita "barra única gigante")
+  function setGranUI(g){
+    F.gran=g;
+    document.querySelectorAll('.seg .chip[data-gran]').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-gran')===g); });
+  }
+  function autoGran(ini,fim){
+    if(ini==='0000-01-01'){ setGranUI('mes'); return; }
+    var dias=diffDias(ini,fim);
+    setGranUI(dias<=62 ? 'dia' : (dias<=184 ? 'semana' : 'mes'));
+  }
   function setPreset(p){
     F.preset=p; var r=presetRange(p); F.ini=r[0]; F.fim=r[1];
     $('relDtIni').value = p==='tudo'?'':r[0]; $('relDtFim').value = p==='tudo'?'':r[1];
     document.querySelectorAll('#relFiltros .chip[data-preset]').forEach(function(c){ c.classList.toggle('on', c.getAttribute('data-preset')===p); });
+    autoGran(F.ini, F.fim);
   }
   function bind(){
     document.querySelectorAll('#relFiltros .chip[data-preset]').forEach(function(c){
@@ -432,8 +443,8 @@
         aplicar();
       });
     });
-    $('relDtIni').addEventListener('change',function(e){ if(e.target.value){ F.ini=e.target.value; F.preset='custom'; document.querySelectorAll('#relFiltros .chip[data-preset]').forEach(function(c){c.classList.remove('on');}); aplicar(); }});
-    $('relDtFim').addEventListener('change',function(e){ if(e.target.value){ F.fim=e.target.value; F.preset='custom'; document.querySelectorAll('#relFiltros .chip[data-preset]').forEach(function(c){c.classList.remove('on');}); aplicar(); }});
+    $('relDtIni').addEventListener('change',function(e){ if(e.target.value){ F.ini=e.target.value; F.preset='custom'; document.querySelectorAll('#relFiltros .chip[data-preset]').forEach(function(c){c.classList.remove('on');}); autoGran(F.ini,F.fim); aplicar(); }});
+    $('relDtFim').addEventListener('change',function(e){ if(e.target.value){ F.fim=e.target.value; F.preset='custom'; document.querySelectorAll('#relFiltros .chip[data-preset]').forEach(function(c){c.classList.remove('on');}); autoGran(F.ini,F.fim); aplicar(); }});
     $('relCmp').addEventListener('click',function(){ F.comparar=!F.comparar; $('relCmp').classList.toggle('on',F.comparar); aplicar(); });
     $('relLimpar').addEventListener('click',function(){
       DIMS.forEach(function(d){ F.sel[d[0]]={}; });
