@@ -9,7 +9,7 @@
 
 // ── VERSÃO / DEPLOY ────────────────────────────────────────────────────────
 //  Atualizado automaticamente pelo salvar_010426_1930.bat a cada deploy
-var DEPLOY_DATE = '22/05/2026 12:36';
+var DEPLOY_DATE = '22/05/2026 12:45';
 
 // ── USUÁRIOS ───────────────────────────────────────────────────────────────
 // SENHAS: use o campo senhaHash (SHA-256 em hex). Nunca armazene senha em texto puro.

@@ -656,7 +656,7 @@ function atualizarVendaComAdapter(dados) {
         var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
         if (rowPAP[c.CANAL] === 'PAP') {
           var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-          if (vPAP && vPAP.subscriberId) {
+          if (vPAP && vPAP.subscriberId && dados.notificarVendedor !== false) {
             _papNotificarVendedorPAP('instalada', vPAP.subscriberId, {
               pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
               pap_plano:        String(rowPAP[c.PLANO]   || ''),
@@ -720,7 +720,7 @@ function atualizarVendaComNG(dados) {
         var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
         if (rowPAP[c.CANAL] === 'PAP') {
           var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-          if (vPAP && vPAP.subscriberId) {
+          if (vPAP && vPAP.subscriberId && dados.notificarVendedor !== false) {
             _papNotificarVendedorPAP('instalada', vPAP.subscriberId, {
               pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
               pap_plano:        String(rowPAP[c.PLANO]   || ''),

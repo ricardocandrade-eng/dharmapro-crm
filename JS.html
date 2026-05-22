@@ -2076,6 +2076,7 @@ function _confirmarNG() {
   if (!_ngDadosTemp || !_ngDadosTemp.resultado) return;
   var r = _ngDadosTemp.resultado;
 
+  var _execConfirmarNG = function(notificar) {
   var btn = document.getElementById('mng-btn-confirmar');
   btn.disabled = true;
   btn.textContent = 'Salvando...';
@@ -2112,8 +2113,18 @@ function _confirmarNG() {
       linha: _ngDadosTemp.linha,
       instalada: r.instalada,
       dataInstalacao: r.dataInstalacao,
-      dataAgendamento: r.dataAgendamento
+      dataAgendamento: r.dataAgendamento,
+      notificarVendedor: notificar
     });
+  }; // fim _execConfirmarNG
+
+  // Só há disparo ao vendedor quando a venda é marcada como instalada (status 3).
+  // Nesse caso, confirma o envio antes; caso contrário (só agendamento), segue direto.
+  if (r.instalada) {
+    _gateNotificacaoVendedor(_ngDadosTemp.linha, '3 - Finalizada/Instalada', '', _execConfirmarNG);
+  } else {
+    _execConfirmarNG(true);
+  }
 }
 
 function _fecharModalNG() {
@@ -2365,6 +2376,7 @@ function _confirmarAdapter() {
   if (!_adapterDadosTemp || !_adapterDadosTemp.resultado) return;
   var r = _adapterDadosTemp.resultado;
 
+  var _execConfirmarAdapter = function(notificar) {
   var btn = document.getElementById('madp-btn-confirmar');
   btn.disabled = true;
   btn.textContent = 'Salvando...';
@@ -2401,8 +2413,17 @@ function _confirmarAdapter() {
       linha: _adapterDadosTemp.linha,
       instalada: r.instalada,
       dataInstalacao: r.dataInstalacao,
-      dataAgendamento: r.dataAgendamento
+      dataAgendamento: r.dataAgendamento,
+      notificarVendedor: notificar
     });
+  }; // fim _execConfirmarAdapter
+
+  // Disparo ao vendedor só quando marcada como instalada (status 3).
+  if (r.instalada) {
+    _gateNotificacaoVendedor(_adapterDadosTemp.linha, '3 - Finalizada/Instalada', '', _execConfirmarAdapter);
+  } else {
+    _execConfirmarAdapter(true);
+  }
 }
 
 function _fecharModalAdapter() {
@@ -2890,7 +2911,9 @@ function _varreduraAtualizarDivergencias() {
     if (!r || !r.divergencia) { pendentes--; continue; }
 
     var dv = r.divergencia;
-    var dados = { linha: r.linha };
+    // Lote: não dispara notificação ao vendedor (sem confirmação por venda). A
+    // notificação individual continua disponível pelo botão Confirmar NG/Adapter.
+    var dados = { linha: r.linha, notificarVendedor: false };
     var fn = r.sistema === 'NG' ? 'atualizarVendaComNG' : 'atualizarVendaComAdapter';
 
     if (dv.tipo === 'instalada') {
