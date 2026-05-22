@@ -51,6 +51,8 @@ function _fase3CalcLinha(row) {
       if (p && p.encontrado) { pbl = p.pontos_bl; pmv = p.pontos_movel; }
     } catch (e) {}
   }
+  // Anti-dupla-contagem (§2.2): Móvel COMBO não recebe pontos (contam na Fibra mãe).
+  if (_normalizarTexto(row[c.PRODUTO]) === 'MOVEL COMBO') { pbl = ''; pmv = ''; }
   // MES_COMPETENCIA = vintage por instalação (§11.1): só status 3 + INSTAL preenchido.
   if (status === '3 - Finalizada/Instalada' && instal) {
     var d = (instal instanceof Date) ? instal : _parseDDMMYYYY_(String(instal));
@@ -61,8 +63,15 @@ function _fase3CalcLinha(row) {
   return { cod: cod, pbl: pbl, pmv: pmv, mes: mes };
 }
 
+// Limpa o cache do pontuacao_planos.json (força releitura do Drive — usar após
+// atualizar o JSON para a rev2 antes de re-rodar o backfill).
+function _fase3LimparCachePontuacao() {
+  try { CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'pontuacao_planos_v1'); } catch (e) {}
+}
+
 // 2) DRY-RUN: percorre as vendas e RELATA quantas resolveriam cada campo, SEM escrever.
 function fase3BackfillDryRun() {
+  _fase3LimparCachePontuacao();
   var sheet = _getSheet();
   var last = sheet.getLastRow();
   if (last < 3) return 'Sem dados (lastRow=' + last + ').';
@@ -89,6 +98,7 @@ function fase3BackfillDryRun() {
 //    (idempotente e conservador: só escreve célula quando tem valor calculado).
 //    Pré-requisito: rodar fase3AddColunas antes.
 function fase3Backfill() {
+  _fase3LimparCachePontuacao();
   var sheet = _getSheet();
   var last = sheet.getLastRow();
   if (last < 3) return 'Sem dados.';
