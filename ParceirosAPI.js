@@ -923,6 +923,54 @@ function _papNotificarVendedorPAP(evento, subscriberId, dados) {
   }
 }
 
+// Prévia da notificação que seria enviada ao vendedor PAP numa transição de
+// status para 2/3 — alimenta o modal de confirmação no frontend ANTES do
+// disparo. Leitura leve (1 linha); não chama a BotConversa (a resolução do
+// subscriber, que faz HTTP, fica para o disparo real). Reusa
+// `_papMontarMensagemNotificacao` para não duplicar o texto.
+// `extras` (opcional): { agenda, turno } — quando a agenda/turno foram digitados
+// no frontend mas ainda não gravados na planilha (ex.: mover lead), passamos os
+// valores aqui para a prévia bater com a mensagem que será de fato enviada.
+// Retorna { ok, isPap, vendedorNome, clienteNome, evento, mensagem }.
+function getPreviewNotificacaoVendedor(linha, novoStatus, extras) {
+  try {
+    linha = parseInt(linha, 10);
+    if (!linha || linha < 3) return { ok: false, isPap: false };
+    var st          = String(novoStatus || '').trim();
+    var ehInstalada = (st === '3 - Finalizada/Instalada');
+    var ehAgInst    = (st === '2- Aguardando Instalação');
+    if (!ehInstalada && !ehAgInst) return { ok: true, isPap: false };
+
+    var c      = CONFIG.COLUNAS;
+    var rowPAP = _getSheet().getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
+    if (rowPAP[c.CANAL] !== 'PAP') return { ok: true, isPap: false };
+
+    extras = extras || {};
+    var evento   = ehInstalada ? 'instalada' : 'aguardando_instalacao';
+    var fmtData  = function(v){ if(!v) return ''; var d = new Date(v); return isNaN(d) ? String(v) : Utilities.formatDate(d, Session.getScriptTimeZone(), 'dd/MM/yyyy'); };
+    var agenda   = extras.agenda ? fmtData(extras.agenda) : fmtData(rowPAP[c.AGENDA]);
+    var turno    = (extras.turno != null && String(extras.turno).trim() !== '') ? String(extras.turno) : String(rowPAP[c.TURNO] || '');
+    var mensagem = _papMontarMensagemNotificacao(evento, {
+      pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
+      pap_plano:        String(rowPAP[c.PLANO]   || ''),
+      pap_agenda:       agenda,
+      pap_turno:        turno,
+      pap_status:       st
+    });
+    return {
+      ok:           true,
+      isPap:        true,
+      vendedorNome: String(rowPAP[c.RESP]    || ''),
+      clienteNome:  String(rowPAP[c.CLIENTE] || ''),
+      evento:       evento,
+      mensagem:     mensagem
+    };
+  } catch(e) {
+    Logger.log('getPreviewNotificacaoVendedor erro: ' + e.message);
+    return { ok: false, isPap: false, erro: e.message };
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // MÓDULO DASHBOARD + PONTOS PAP — adicionado 04/05/2026
 // ══════════════════════════════════════════════════════════════════════════════

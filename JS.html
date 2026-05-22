@@ -804,6 +804,52 @@ function _pifValidarTransicaoStatusMovel(vendaMv, dadosMv) {
   return null;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+//  CONFIRMAÇÃO DE ENVIO AO VENDEDOR (PAP) ANTES DO DISPARO BotConversa
+//  Toda transição de status para "2- Aguardando Instalação" ou
+//  "3 - Finalizada/Instalada" numa venda PAP dispara, no backend, uma msg
+//  WhatsApp ao vendedor. Antes de chamar o backend, mostramos um modal com a
+//  prévia da mensagem e 3 opções: Enviar / Salvar sem enviar / Cancelar.
+//  A decisão vai ao backend via flag `notificarVendedor` (true/false).
+// ══════════════════════════════════════════════════════════════════════════
+
+// Decide se precisa confirmar e chama proceed(notificar) com a escolha.
+// - Sem transição p/ 2/3, ou venda não-PAP: proceed(true) direto (o backend
+//   não notifica nesses casos, então a flag é inócua).
+// - Enviar: proceed(true). Salvar sem enviar: proceed(false). Cancelar: nada.
+function _gateNotificacaoVendedor(linha, novoStatus, statusAntigo, proceed, extras) {
+  var st  = String(novoStatus  || '').trim();
+  var ant = String(statusAntigo || '').trim();
+  var ehTransicao = (st === '2- Aguardando Instalação' || st === '3 - Finalizada/Instalada') && st !== ant;
+  if (!ehTransicao) { proceed(true); return; }
+  google.script.run
+    .withSuccessHandler(function(prev) {
+      if (!prev || !prev.isPap) { proceed(true); return; }
+      _abrirModalConfirmVendedor(prev, proceed);
+    })
+    .withFailureHandler(function() { proceed(true); }) // falha na prévia não bloqueia o save
+    .getPreviewNotificacaoVendedor(linha, st, extras || null);
+}
+
+var _confirmVendedorProceed = null;
+function _abrirModalConfirmVendedor(prev, proceed) {
+  _confirmVendedorProceed = proceed;
+  document.getElementById('cnvVendedor').textContent = prev.vendedorNome || '—';
+  document.getElementById('cnvCliente').textContent  = prev.clienteNome  || '—';
+  document.getElementById('cnvMensagem').textContent = prev.mensagem     || '';
+  document.getElementById('modalConfirmVendedor').classList.add('ativo');
+}
+function _confirmVendedorDecidir(notificar) {
+  document.getElementById('modalConfirmVendedor').classList.remove('ativo');
+  var fn = _confirmVendedorProceed;
+  _confirmVendedorProceed = null;
+  if (fn) fn(!!notificar);
+}
+function _cancelarConfirmVendedor() {
+  document.getElementById('modalConfirmVendedor').classList.remove('ativo');
+  _confirmVendedorProceed = null; // Cancelar = aborta tudo (não salva)
+}
+
 function pifSalvar() {
   var v = AppState.get('vendaSelecionada');
   if (!v || !v.linha) { mostrarToast('❌ Venda não identificada.', 'error'); return; }
@@ -863,48 +909,51 @@ function pifSalvar() {
     return;
   }
 
-  // Diagnóstico temporário
-  mostrarToast('🔍 Salvando linha ' + String(v.linha) + ' — ' + dados.cliente, 'info');
-  mostrarLoading(true);
-  google.script.run
-    .withSuccessHandler(function(res) {
-      mostrarLoading(false);
-      if (!res || !res.sucesso) {
-        mostrarToast('❌ ' + (res ? res.mensagem : 'Erro ao salvar.'), 'error');
-        return;
-      }
-      _listaNeedsReload = true; // invalida cache — lista precisa de dado fresco
-      mostrarToast('✅ ' + res.mensagem, 'success');
+  // Confirma o envio da notificação ao vendedor (PAP) antes de transição p/ 2/3.
+  _gateNotificacaoVendedor(v.linha, dados.status, v.status, function(notificar) {
+    dados.notificarVendedor = notificar;
+    mostrarToast('🔍 Salvando linha ' + String(v.linha) + ' — ' + dados.cliente, 'info');
+    mostrarLoading(true);
+    google.script.run
+      .withSuccessHandler(function(res) {
+        mostrarLoading(false);
+        if (!res || !res.sucesso) {
+          mostrarToast('❌ ' + (res ? res.mensagem : 'Erro ao salvar.'), 'error');
+          return;
+        }
+        _listaNeedsReload = true; // invalida cache — lista precisa de dado fresco
+        mostrarToast('✅ ' + res.mensagem, 'success');
 
-      // Se foi arquivada, fecha painel e recarrega lista
-      if (dados.preStatus === 'ARQUIVAR VENDA') {
-        _pifModoEdicao = false;
-        AppState.set('vendaSelecionada', null);
-        fecharPainel();
-        carregarVendas(1, '');
-        return;
-      }
-
-      if (dados.status === '2- Aguardando Instalação' && v.status !== '2- Aguardando Instalação') dispararConfete();
-      if (dados.status === '3 - Finalizada/Instalada' && v.status !== '3 - Finalizada/Instalada') dispararChovaDinheiro();
-      // Recarrega venda atualizada e reabre painel
-      google.script.run
-        .withSuccessHandler(function(vAtual) {
-          if (!vAtual) { carregarVendas(1, ''); return; }
-          AppState.set('vendaSelecionada', vAtual);
-          // Sprint 3.3: mostrarPainel já reseta tudo (modo leitura, botões etc),
-          // não precisa mais alternar visibilidade manualmente aqui.
-          mostrarPainel(vAtual);
+        // Se foi arquivada, fecha painel e recarrega lista
+        if (dados.preStatus === 'ARQUIVAR VENDA') {
+          _pifModoEdicao = false;
+          AppState.set('vendaSelecionada', null);
+          fecharPainel();
           carregarVendas(1, '');
-        })
-        .withFailureHandler(function() { carregarVendas(1, ''); })
-        .getVendaPorLinha(v.linha);
-    })
-    .withFailureHandler(function(err) {
-      mostrarLoading(false);
-      mostrarToast('❌ Erro: ' + (err && err.message ? err.message : 'tente novamente'), 'error');
-    })
-    .salvarVenda(dados);
+          return;
+        }
+
+        if (dados.status === '2- Aguardando Instalação' && v.status !== '2- Aguardando Instalação') dispararConfete();
+        if (dados.status === '3 - Finalizada/Instalada' && v.status !== '3 - Finalizada/Instalada') dispararChovaDinheiro();
+        // Recarrega venda atualizada e reabre painel
+        google.script.run
+          .withSuccessHandler(function(vAtual) {
+            if (!vAtual) { carregarVendas(1, ''); return; }
+            AppState.set('vendaSelecionada', vAtual);
+            // Sprint 3.3: mostrarPainel já reseta tudo (modo leitura, botões etc),
+            // não precisa mais alternar visibilidade manualmente aqui.
+            mostrarPainel(vAtual);
+            carregarVendas(1, '');
+          })
+          .withFailureHandler(function() { carregarVendas(1, ''); })
+          .getVendaPorLinha(v.linha);
+      })
+      .withFailureHandler(function(err) {
+        mostrarLoading(false);
+        mostrarToast('❌ Erro: ' + (err && err.message ? err.message : 'tente novamente'), 'error');
+      })
+      .salvarVenda(dados);
+  }, { agenda: dados.agenda, turno: dados.turno });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -3691,37 +3740,43 @@ function _confirmarMoveFunil() {
     valorExtra: campoVal
   };
 
-  // Move o card visualmente já (otimista)
-  _moverCardFunilVisual(venda, colCfg);
+  // Confirma o envio da notificação ao vendedor (PAP) antes de transição p/ 2/3.
+  // venda.status ainda é o status anterior aqui (só muda no success handler).
+  _gateNotificacaoVendedor(venda.linha, colCfg.status, venda.status, function(notificar) {
+    payload.notificarVendedor = notificar;
 
-  // Persiste na planilha
-  google.script.run
-    .withSuccessHandler(function(res) {
-      if (res && res.sucesso) {
-        mostrarToast('✅ Movido para "' + colCfg.status + '"', 'success');
-        if (colCfg.status === '3 - Finalizada/Instalada') dispararChovaDinheiro();
-        // Atualiza dado em memória
-        venda.status = colCfg.status;
-        if (payload.campoExtra) venda[payload.campoExtra] = payload.valorExtra;
-        // Ajusta a marca "técnico em campo" (frontend) conforme o destino:
-        // só fica marcado se caiu na sub-coluna "tecnico" da Aguardando Instalação.
-        if (colCfg.status === '2- Aguardando Instalação' && colCfg.sub === 'tecnico') {
-          _funilTecAdd(venda.linha);
+    // Move o card visualmente já (otimista)
+    _moverCardFunilVisual(venda, colCfg);
+
+    // Persiste na planilha
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (res && res.sucesso) {
+          mostrarToast('✅ Movido para "' + colCfg.status + '"', 'success');
+          if (colCfg.status === '3 - Finalizada/Instalada') dispararChovaDinheiro();
+          // Atualiza dado em memória
+          venda.status = colCfg.status;
+          if (payload.campoExtra) venda[payload.campoExtra] = payload.valorExtra;
+          // Ajusta a marca "técnico em campo" (frontend) conforme o destino:
+          // só fica marcado se caiu na sub-coluna "tecnico" da Aguardando Instalação.
+          if (colCfg.status === '2- Aguardando Instalação' && colCfg.sub === 'tecnico') {
+            _funilTecAdd(venda.linha);
+          } else {
+            _funilTecRemove(venda.linha);
+          }
+          _renderizarFunil();    // re-deriva colunas/sub-colunas e reordena
+          _funilCacheSalvarSS(); // Funil 20/05: persiste novo estado pro SS (F5 mostra correto)
         } else {
-          _funilTecRemove(venda.linha);
+          mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
+          _renderizarFunil(); // reverte
         }
-        _renderizarFunil();    // re-deriva colunas/sub-colunas e reordena
-        _funilCacheSalvarSS(); // Funil 20/05: persiste novo estado pro SS (F5 mostra correto)
-      } else {
-        mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
+      })
+      .withFailureHandler(function(err) {
+        mostrarToast('❌ Falha: ' + err.message, 'error');
         _renderizarFunil(); // reverte
-      }
-    })
-    .withFailureHandler(function(err) {
-      mostrarToast('❌ Falha: ' + err.message, 'error');
-      _renderizarFunil(); // reverte
-    })
-    .moverVendaFunil(payload);
+      })
+      .moverVendaFunil(payload);
+  }, { agenda: (payload.campoExtra === 'agenda' ? payload.valorExtra : undefined) });
 
   _funilMovePendente = null;
 }
@@ -4315,36 +4370,42 @@ function _confirmarMoveLeads() {
 
   document.getElementById('modalLeadsMove').classList.remove('ativo');
 
-  // Move visualmente já
-  _moverLeadVisual(venda, 'aguardando');
-  venda.temperatura = 'aguardando';
-  venda.status      = '2- Aguardando Instalação';
-  venda.agenda      = agenda;
-  venda.turno       = turno;
-  _atualizarContadoresLeads();
+  var _statusAntLead = venda.status; // antes da mutação otimista abaixo
 
-  var payload = {
-    linha:    venda.linha,
-    agenda:   agenda,
-    turno:    turno,
-    contrato: contrato,
-    obs:      obs
-  };
+  // Confirma o envio da notificação ao vendedor (PAP) antes da transição p/ status 2.
+  _gateNotificacaoVendedor(venda.linha, '2- Aguardando Instalação', _statusAntLead, function(notificar) {
+    // Move visualmente já
+    _moverLeadVisual(venda, 'aguardando');
+    venda.temperatura = 'aguardando';
+    venda.status      = '2- Aguardando Instalação';
+    venda.agenda      = agenda;
+    venda.turno       = turno;
+    _atualizarContadoresLeads();
 
-  google.script.run
-    .withSuccessHandler(function(res) {
-      if (res && res.sucesso) {
-        mostrarToast('✅ Lead movido para Ag. Instalação!', 'success');
-      } else {
-        mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
+    var payload = {
+      linha:            venda.linha,
+      agenda:           agenda,
+      turno:            turno,
+      contrato:         contrato,
+      obs:              obs,
+      notificarVendedor: notificar
+    };
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (res && res.sucesso) {
+          mostrarToast('✅ Lead movido para Ag. Instalação!', 'success');
+        } else {
+          mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
+          _renderizarLeads();
+        }
+      })
+      .withFailureHandler(function(err) {
+        mostrarToast('❌ Falha: ' + err.message, 'error');
         _renderizarLeads();
-      }
-    })
-    .withFailureHandler(function(err) {
-      mostrarToast('❌ Falha: ' + err.message, 'error');
-      _renderizarLeads();
-    })
-    .moverLeadAguardando(payload);
+      })
+      .moverLeadAguardando(payload);
+  }, { agenda: agenda, turno: turno });
 
   _leadsMovePendente = null;
 }

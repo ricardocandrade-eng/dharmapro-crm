@@ -1531,6 +1531,22 @@
       display: flex; gap: 10px; justify-content: flex-end;
       flex-shrink: 0;
     }
+    .cnv-intro { font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+    .cnv-intro strong { color: var(--text); }
+    .cnv-preview {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 38vh;
+      overflow-y: auto;
+      font-family: inherit;
+    }
 
     #modalFunilMove .modal-box { max-width: 420px; }
     .funil-move-destino {
@@ -3544,6 +3560,26 @@
           <div class="modal-foot">
             <button class="btn btn-ghost" onclick="_cancelarMoveFunil()">Cancelar</button>
             <button class="btn" id="btnConfirmarMove" onclick="_confirmarMoveFunil()">✅ Confirmar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal: confirmar envio da notificação ao vendedor (PAP) antes do disparo -->
+      <div class="modal-overlay" id="modalConfirmVendedor">
+        <div class="modal-box">
+          <div class="modal-head">
+            <h3>📲 Notificar vendedor?</h3>
+            <button class="modal-close" onclick="_cancelarConfirmVendedor()">✕</button>
+          </div>
+          <div class="modal-body">
+            <p class="cnv-intro">Uma mensagem será enviada via WhatsApp ao vendedor
+              <strong id="cnvVendedor">—</strong> (cliente <strong id="cnvCliente">—</strong>):</p>
+            <pre class="cnv-preview" id="cnvMensagem"></pre>
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost" onclick="_cancelarConfirmVendedor()">Cancelar</button>
+            <button class="btn btn-ghost" onclick="_confirmVendedorDecidir(false)">Salvar sem enviar</button>
+            <button class="btn" onclick="_confirmVendedorDecidir(true)">📤 Enviar</button>
           </div>
         </div>
       </div>

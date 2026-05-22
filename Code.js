@@ -2698,7 +2698,7 @@ function moverLeadAguardando(payload) {
       var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
       if (rowPAP[c.CANAL] === 'PAP') {
         var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-        if (vPAP && vPAP.subscriberId) {
+        if (vPAP && vPAP.subscriberId && payload.notificarVendedor !== false) {
           _papNotificarVendedorPAP('aguardando_instalacao', vPAP.subscriberId, {
             pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
             pap_plano:        String(rowPAP[c.PLANO]   || ''),
@@ -5186,7 +5186,7 @@ function salvarVenda(dados) {
       if (rowPAP[c.CANAL] === 'PAP') {
         var evPAP = (dados.status === '3 - Finalizada/Instalada') ? 'instalada' : 'aguardando_instalacao';
         var vPAP  = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-        if (vPAP && vPAP.subscriberId) {
+        if (vPAP && vPAP.subscriberId && dados.notificarVendedor !== false) {
           _papNotificarVendedorPAP(evPAP, vPAP.subscriberId, {
             pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
             pap_plano:        String(rowPAP[c.PLANO]   || ''),
@@ -5558,7 +5558,7 @@ function moverVendaFunil(payload) {
       var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
       if (rowPAP[c.CANAL] === 'PAP') {
         var vPAP  = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-        if (vPAP && vPAP.subscriberId) {
+        if (vPAP && vPAP.subscriberId && payload.notificarVendedor !== false) {
           var evPAP = (novoStatus === '3 - Finalizada/Instalada') ? 'instalada' : 'aguardando_instalacao';
           _papNotificarVendedorPAP(evPAP, vPAP.subscriberId, {
             pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
