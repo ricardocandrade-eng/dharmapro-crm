@@ -5307,7 +5307,7 @@ function _resetarTimerInatividade() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal','viabilidade','vinculosPendentes','codigosVero']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal','viabilidade','vinculosPendentes','financeiro','codigosVero']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -5329,6 +5329,7 @@ var _menuMap = {
   'waPessoal':   'menuWaPessoal',
   'viabilidade': 'menuViabilidade',
   'vinculosPendentes': 'menuVinculosPendentes',
+  'financeiro':  'menuFinanceiro',
   'codigosVero': 'menuCodigosVero'
 };
 
@@ -5685,6 +5686,29 @@ function navegar(pagina) {
         vbc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Viabilidade: ' + e.message + '</div>';
       })
       .getViabilidadeHtml();
+
+  } else if (pagina === 'financeiro') {
+    document.getElementById('menuFinanceiro').classList.add('ativo');
+    document.getElementById('pageFinanceiro').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Financeiro — Projeção de Caixa';
+    var finc = document.getElementById('financeiroContainer');
+    // Recarrega a cada visita pra refletir vendas/pontuação atualizadas.
+    finc.removeAttribute('data-loaded');
+    finc.setAttribute('data-loaded', '1');
+    google.script.run
+      .withSuccessHandler(function(html) {
+        finc.innerHTML = html;
+        finc.querySelectorAll('script').forEach(function(s) {
+          var ns = document.createElement('script');
+          ns.textContent = s.textContent;
+          document.body.appendChild(ns);
+        });
+      })
+      .withFailureHandler(function(e) {
+        finc.removeAttribute('data-loaded');
+        finc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Financeiro: ' + e.message + '</div>';
+      })
+      .getFinanceiroHtml();
 
   } else if (pagina === 'vinculosPendentes') {
     document.getElementById('menuVinculosPendentes').classList.add('ativo');
