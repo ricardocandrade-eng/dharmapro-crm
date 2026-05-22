@@ -292,6 +292,24 @@
 .lma-kcard-cidade { font-size:10px; color:var(--muted); margin-bottom:5px; }
 .lma-kcard-tags { display:flex; gap:5px; flex-wrap:wrap; }
 .lma-empty { padding:40px; text-align:center; color:var(--muted); font-size:13px; }
+
+/* ── Banner reconciliação Painel Ads ↔ CRM (discreto) ── */
+.lma-reconc { display:none; align-items:center; gap:9px; padding:6px 24px;
+  background:var(--surface); border-bottom:1px solid var(--border);
+  color:var(--muted); font-size:11px; font-family:'DM Mono',monospace; flex-shrink:0; }
+.lma-reconc.aviso { background:rgba(230,180,62,.08); color:#997a20; }
+.lma-reconc-dot { width:7px; height:7px; border-radius:50%; background:#2ea854; flex-shrink:0; }
+.lma-reconc.aviso .lma-reconc-dot { background:#e6a93e; }
+.lma-reconc-txt { flex:1; min-width:0; }
+.lma-reconc-close { cursor:pointer; background:none; border:none; color:inherit; font-size:13px; opacity:.6; padding:0 2px; }
+.lma-reconc-close:hover { opacity:1; }
+
+/* ── Chip de origem do lead (na célula Lead) ── */
+.lma-origem-chip { display:inline-block; margin-left:6px; padding:1px 6px; border-radius:5px;
+  font-size:9px; font-family:'DM Mono',monospace; vertical-align:middle; white-space:nowrap; }
+.lma-origem-chip.og-webhook { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+.lma-origem-chip.og-manual  { background:rgba(62,130,230,.12); color:#3070c0; }
+.lma-origem-chip.og-renata  { background:rgba(130,130,255,.14); color:#6a6aff; }
 </style>
 
 <!-- ══ PÁGINA ══ -->
@@ -312,6 +330,13 @@
     <button class="lma-btn" onclick="carregarLeadsMetaAds()">↺ Atualizar</button>
     <button class="lma-btn" onclick="_lmaExportarCSV()">⬇ Exportar CSV</button>
     <button class="lma-btn lma-btn-primary" onclick="abrirModalManual()">+ Registrar manualmente</button>
+  </div>
+
+  <!-- Banner: diagnóstico Painel Ads ↔ CRM do dia (discreto, dispensável) -->
+  <div class="lma-reconc" id="lmaReconc" title="Por que o Painel Ads e o CRM podem divergir: a Meta conta conversões atribuídas (com lag de até 72h) e o CRM conta linhas registradas (webhook + manuais).">
+    <span class="lma-reconc-dot"></span>
+    <span class="lma-reconc-txt" id="lmaReconcTxt">—</span>
+    <button class="lma-reconc-close" title="Ocultar" onclick="_lmaFecharReconc()">✕</button>
   </div>
 
   <!-- KPIs — 5 cards iguais ocupando a largura toda -->
@@ -387,6 +412,12 @@
       <select class="lma-select" id="lmaFiltroCampanha" onchange="_lmaFiltrar()"><option value="">Campanha: todas</option></select>
       <select class="lma-select" id="lmaFiltroAnuncio" onchange="_lmaFiltrar()"><option value="">Anúncio: todos</option></select>
       <select class="lma-select" id="lmaFiltroMotivo" onchange="_lmaFiltrar()"><option value="">Motivo: todos</option></select>
+      <select class="lma-select" id="lmaFiltroOrigem" onchange="_lmaFiltrar()">
+        <option value="">Origem: todas</option>
+        <option value="webhook">🔗 Webhook</option>
+        <option value="manual">✋ Manual</option>
+        <option value="renata">🤖 Renata</option>
+      </select>
     </div>
   </div>
 
@@ -524,6 +555,7 @@ function carregarLeadsMetaAds() {
           _lmaDados = res.leads || [];
           _lmaPopularFiltros();
           _lmaFiltrar();
+          _lmaCarregarReconc();
         } catch(e) {
           tbody.innerHTML =
             '<tr><td colspan="9" style="text-align:center;padding:40px;color:#c04040">Erro ao renderizar: ' + e.message + '</td></tr>';
@@ -593,6 +625,7 @@ function _lmaMatch(l, opts) {
   var fAnun   = document.getElementById('lmaFiltroAnuncio').value;
   var fMot    = document.getElementById('lmaFiltroMotivo').value;
   var fEst    = document.getElementById('lmaFiltroEstado').value;
+  var fOrig   = document.getElementById('lmaFiltroOrigem').value;
   var busca   = (document.getElementById('lmaBusca').value || '').toLowerCase();
 
   if (fStatus === 'pendente' && l.status_final) return false;
@@ -600,6 +633,7 @@ function _lmaMatch(l, opts) {
   if (fCamp && l.utm_campaign !== fCamp) return false;
   if (fAnun && l.utm_ad !== fAnun) return false;
   if (fMot && l.motivo_desq !== fMot) return false;
+  if (fOrig && (String(l.origem || 'webhook').toLowerCase() !== fOrig)) return false;
   if (fEst) {
     var cob = inferirCoberturaPorDDD(l.telefone);
     if (fEst === '__cobertura') { if (cob !== 'sim' && cob !== 'parcial') return false; }
@@ -749,7 +783,7 @@ function _lmaRenderizarTabela(lista) {
       '<td><span class="lma-mono">' + _esc(dataEntrada) + '</span></td>' +
       '<td>' +
         '<div class="lma-nome">' + _esc(l.nome || '—') + '</div>' +
-        '<div class="lma-sub">' + telCell + '</div>' +
+        '<div class="lma-sub">' + telCell + _lmaOrigemChip(l.origem) + '</div>' +
       '</td>' +
       '<td class="lma-mono" id="lmaCidadeCell_' + l.linha + '">' + _lmaCidadeInner(l) + '</td>' +
       '<td>' + campChip + '</td>' +
@@ -886,6 +920,40 @@ function _lmaSalvarAcao(linha) {
       mostrarToast('Erro ao salvar: ' + (e && e.message ? e.message : String(e)), 'error');
     })
     .atualizarStatusLeadMetaAds(linha, novoStatus, motivo);
+}
+
+// ─── Banner reconciliação Painel Ads ↔ CRM ─────────────────────────────────
+function _lmaCarregarReconc() {
+  var bar = document.getElementById('lmaReconc');
+  if (!bar) return;
+  if (sessionStorage.getItem('leads_meta_ads_reconc_oculto') === '1') { bar.style.display = 'none'; return; }
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (!r || !r.ok || !r.resumo) { bar.style.display = 'none'; return; }
+      var txt = document.getElementById('lmaReconcTxt');
+      bar.classList.toggle('aviso', r.severidade === 'aviso');
+      if (txt) txt.textContent = '📊 ' + r.resumo;
+      bar.style.display = 'flex';
+    })
+    .withFailureHandler(function() { bar.style.display = 'none'; })
+    .getDiagnosticoReconciliacaoMeta();
+}
+function _lmaFecharReconc() {
+  var bar = document.getElementById('lmaReconc');
+  if (bar) bar.style.display = 'none';
+  try { sessionStorage.setItem('leads_meta_ads_reconc_oculto', '1'); } catch (e) {}
+}
+
+// ─── Chip de origem do lead ─────────────────────────────────────────────────
+function _lmaOrigemChip(origem) {
+  var o = String(origem || 'webhook').toLowerCase();
+  var map = {
+    webhook: { ic: '🔗', lbl: 'webhook', cls: 'og-webhook' },
+    manual:  { ic: '✋', lbl: 'manual',  cls: 'og-manual'  },
+    renata:  { ic: '🤖', lbl: 'renata',  cls: 'og-renata'  }
+  };
+  var m = map[o] || map.webhook;
+  return '<span class="lma-origem-chip ' + m.cls + '" title="Origem: ' + m.lbl + '">' + m.ic + ' ' + m.lbl + '</span>';
 }
 
 function _esc(s) {
@@ -1172,6 +1240,7 @@ function _lmaLimparFiltros() {
   document.getElementById('lmaFiltroAnuncio').value = '';
   document.getElementById('lmaFiltroMotivo').value = '';
   document.getElementById('lmaFiltroEstado').value = '';
+  document.getElementById('lmaFiltroOrigem').value = '';
   document.getElementById('lmaBusca').value = '';
   document.getElementById('lmaDesde').value = '';
   document.getElementById('lmaAte').value = '';
@@ -1189,7 +1258,7 @@ function _lmaToggleFiltros(forcar) {
 
 // Conta filtros avançados ativos (Estado/Status/Campanha/Anúncio/Motivo) e atualiza o badge.
 function _lmaContarFiltrosAtivos() {
-  var ids = ['lmaFiltroEstado','lmaFiltroStatus','lmaFiltroCampanha','lmaFiltroAnuncio','lmaFiltroMotivo'];
+  var ids = ['lmaFiltroEstado','lmaFiltroStatus','lmaFiltroCampanha','lmaFiltroAnuncio','lmaFiltroMotivo','lmaFiltroOrigem'];
   var n = 0;
   ids.forEach(function(id) { var el = document.getElementById(id); if (el && el.value) n++; });
   var badge = document.getElementById('lmaFCount');
@@ -1253,6 +1322,7 @@ function _lmaExportarCSV() {
     ['Campanha',     function(l) { return l.utm_campaign || ''; }],
     ['Anuncio',      function(l) { return l.utm_ad || ''; }],
     ['utm_source',   function(l) { return l.utm_source || ''; }],
+    ['Origem',       function(l) { return l.origem || 'webhook'; }],
     ['Status',       function(l) { return l.status_final || 'Pendente'; }],
     ['Motivo desq',  function(l) { return l.motivo_desq || ''; }],
     ['Atualizado em',function(l) { return l.data_status || ''; }]

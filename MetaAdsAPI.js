@@ -67,6 +67,10 @@ function registrarLeadMetaAds(payload) {
   }
 
   var agora = new Date();
+  // Origem do lead: 'webhook' (BotConversa/n8n, default), 'manual' (registro pela
+  // UI) ou 'renata' (reservado p/ a IA quando entrar em produção). Gravado na
+  // col O — usado pelo reconciliador Painel Ads ↔ CRM e pelo badge da tabela.
+  var origem = String(payload.origem || 'webhook').trim().toLowerCase();
   var novaLinha = [
     agora,                                    // A: data_entrada
     String(payload.nome      || '').trim(),   // B: nome
@@ -84,6 +88,12 @@ function registrarLeadMetaAds(payload) {
 
   aba.appendRow(novaLinha);
   var ultimaLinha = aba.getLastRow();
+
+  // Col O: origem (M/N são preenchidas só na conversão por _registrarRastreabilidadeVenda_).
+  try {
+    _ensureHeaderOrigemMeta_(aba);
+    aba.getRange(ultimaLinha, 15).setValue(origem);
+  } catch (e) { Logger.log('gravar origem (linha ' + ultimaLinha + '): ' + e.message); }
 
   Logger.log('Lead Meta Ads registrado: ' + payload.nome + ' | ' + payload.cidade + ' | linha ' + ultimaLinha);
 
@@ -202,7 +212,7 @@ function getLeadsMetaAds() {
     var ult = aba.getLastRow();
     if (ult < 2) return { leads: [], resumo: { total: 0, convertidos: 0, desq: 0, pendentes: 0, taxa_conv: '0' } };
 
-    var raw = aba.getRange(2, 1, ult - 1, 12).getValues();
+    var raw = aba.getRange(2, 1, ult - 1, 15).getValues(); // A–O (inclui origem)
     var leads = [];
 
     var tz = Session.getScriptTimeZone();
@@ -224,6 +234,7 @@ function getLeadsMetaAds() {
         motivo_desq:  String(r[9] || '').trim(),
         data_status:  r[10] instanceof Date ? Utilities.formatDate(r[10], tz, 'dd/MM/yyyy HH:mm') : String(r[10] || ''),
         observacao:   String(r[11] || '').trim(),
+        origem:       String(r[14] || '').trim().toLowerCase() || 'webhook', // col O; legado vazio → webhook
       });
     }
 
@@ -345,6 +356,40 @@ function _registrarRastreabilidadeVenda_(aba, linha, idContrato, dataVenda) {
   } catch (e) {
     Logger.log('_registrarRastreabilidadeVenda_ falhou: ' + e.message);
   }
+}
+
+/** Garante o cabeçalho O1 ('origem') na aba Leads Meta Ads. Idempotente. */
+function _ensureHeaderOrigemMeta_(aba) {
+  if (!String(aba.getRange(1, 15).getValue() || '').trim()) {
+    aba.getRange(1, 15).setValue('origem');
+  }
+}
+
+/**
+ * Manutenção (rodar UMA VEZ no editor): preenche a col O ('origem') das linhas
+ * legadas que estão vazias com 'webhook' (default histórico — leads vinham do
+ * BotConversa/n8n antes da feature). Idempotente: só toca células vazias.
+ * Leads manuais antigos não são distinguíveis com confiança, então caem como
+ * 'webhook' por design. Daqui pra frente registrarLeadManual grava 'manual'.
+ */
+function backfillOrigemLeadsMeta() {
+  var ss  = _getSpreadsheet_();
+  var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+  if (!aba) throw new Error('Aba "' + CFG_META.ABA_LEADS_META + '" não encontrada.');
+  _ensureHeaderOrigemMeta_(aba);
+
+  var ult = aba.getLastRow();
+  if (ult < 2) { Logger.log('backfillOrigemLeadsMeta: nada a preencher.'); return { ok: true, preenchidas: 0 }; }
+
+  var rng = aba.getRange(2, 15, ult - 1, 1); // col O, linhas de dados
+  var vals = rng.getValues();
+  var n = 0;
+  for (var i = 0; i < vals.length; i++) {
+    if (!String(vals[i][0] || '').trim()) { vals[i][0] = 'webhook'; n++; }
+  }
+  if (n > 0) rng.setValues(vals);
+  Logger.log('backfillOrigemLeadsMeta: ' + n + ' linha(s) preenchida(s) com "webhook".');
+  return { ok: true, preenchidas: n };
 }
 
 
@@ -2018,6 +2063,188 @@ function removerTriggerReconciliacaoMetaAds() {
     }
   }
   Logger.log('Triggers removidos: ' + n);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  RECONCILIADOR PAINEL ADS (Meta Insights) ↔ aba CRM "Leads Meta Ads"
+//  Explica a divergência de CONTAGEM entre os leads que a Meta reporta (o número
+//  do Painel Ads) e os leads na aba CRM (o número do Dashboard). São métricas
+//  diferentes por design: a Meta conta conversões atribuídas (com lag), o CRM
+//  conta linhas registradas (webhook automático + cadastros manuais).
+//
+//  A Meta só expõe CONTAGEM agregada por campanha (não o telefone de cada lead),
+//  então o cruzamento é por contagem, não linha-a-linha. As 4 categorias:
+//   • lead_manual_legitimo           — lead manual atribuído a uma campanha Meta
+//                                       real (operador registrou à mão um lead que
+//                                       o webhook não pegou). Surplus CRM esperado.
+//   • lead_manual_sem_conversao_meta — lead manual Orgânico/Indicação (fora da
+//                                       Meta). Surplus CRM que não vem de anúncio.
+//   • webhook_sem_conversao_meta     — leads webhook além do que a Meta reportou
+//                                       (lag de atribuição; normal dentro de 72h).
+//   • conversao_meta_sem_lead_crm    — conversões Meta sem lead webhook no CRM
+//                                       (webhook pode ter falhado, ou atribuição
+//                                       atrasada — toleramos até 72h).
+//  É só DIAGNÓSTICO (não muta dados). Alvo do banner da página Leads Meta Ads.
+// ════════════════════════════════════════════════════════════════════════════
+
+var JANELA_RECONC_META_H = 72; // tolerância de atribuição da Meta
+
+/** ISO 'yyyy-MM-dd' menos N dias, no fuso dado. */
+function _isoMenosDias_(iso, n, tz) {
+  var p = String(iso).split('-');
+  var d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+  d.setDate(d.getDate() - n);
+  return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+}
+
+/**
+ * Conta leads reportados pela Meta numa janela [since, until] (inclusive),
+ * agregando as contas (mesma lógica de leads do Painel Ads: por campanha,
+ * 'lead' OU messaging conversation). Retorna número, ou null se não há token
+ * ou todas as contas falharam (banner degrada sem alarme falso).
+ */
+function _contarLeadsMetaApiJanela_(sinceISO, untilISO) {
+  var token = PropertiesService.getScriptProperties().getProperty('META_ACCESS_TOKEN');
+  if (!token) return null;
+  var contas = _getContasMetaAds_();
+  var total = 0, algumOk = false;
+  for (var i = 0; i < contas.length; i++) {
+    try {
+      var json = _metaApiGet_('/' + contas[i] + '/insights', {
+        fields: 'actions',
+        time_range: { since: sinceISO, until: untilISO },
+        level: 'campaign',
+        limit: 200
+      });
+      (json.data || []).forEach(function(row) {
+        var la = (row.actions || []).filter(function(a) {
+          return a.action_type === 'lead' ||
+                 a.action_type === 'onsite_conversion.messaging_conversation_started_7d';
+        });
+        if (la.length > 0) total += parseFloat(la[0].value || 0);
+      });
+      algumOk = true;
+    } catch (e) { Logger.log('_contarLeadsMetaApiJanela_ ' + contas[i] + ': ' + e.message); }
+  }
+  return algumOk ? Math.round(total) : null;
+}
+
+/** True se a campanha é a sentinela orgânica/indicação (não-Meta). */
+function _campanhaOrganicaMeta_(camp) {
+  return /org[aâ]nico|indica/i.test(String(camp || ''));
+}
+
+/**
+ * Conta leads do CRM numa janela [since, until] (por data_entrada, col A),
+ * quebrando por origem (col O). 'renata' conta como auto-rastreado (webhook).
+ * Leads manuais ainda se separam em campanha-Meta vs orgânico/indicação.
+ * @returns {{total,webhook,manual,manual_campanha,manual_organico}}
+ */
+function _contarLeadsCrmPorOrigemJanela_(sinceISO, untilISO, tz) {
+  var z = { total: 0, webhook: 0, manual: 0, manual_campanha: 0, manual_organico: 0 };
+  var aba = _getSpreadsheet_().getSheetByName(CFG_META.ABA_LEADS_META);
+  if (!aba || aba.getLastRow() < 2) return z;
+  var raw = aba.getRange(2, 1, aba.getLastRow() - 1, 15).getValues();
+  for (var i = 0; i < raw.length; i++) {
+    var r = raw[i];
+    if (!r[0]) continue;
+    var d = r[0] instanceof Date ? r[0] : new Date(r[0]);
+    if (isNaN(d.getTime())) continue;
+    var key = Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+    if (key < sinceISO || key > untilISO) continue;
+    z.total++;
+    var origem = String(r[14] || '').trim().toLowerCase() || 'webhook';
+    if (origem === 'manual') {
+      z.manual++;
+      if (_campanhaOrganicaMeta_(r[5])) z.manual_organico++;
+      else z.manual_campanha++;
+    } else {
+      z.webhook++; // webhook ou renata (auto-rastreado)
+    }
+  }
+  return z;
+}
+
+/**
+ * Diagnóstico do dia cruzando Painel Ads (Meta) ↔ aba CRM. Cache 600s.
+ * Exportado p/ google.script.run (banner da página Leads Meta Ads).
+ * @param {string} [diaISO] 'yyyy-MM-dd'; default = hoje (America/Sao_Paulo).
+ */
+function getDiagnosticoReconciliacaoMeta(diaISO) {
+  try {
+    var tz = 'America/Sao_Paulo';
+    var hoje = diaISO || Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+
+    var cache = CacheService.getScriptCache();
+    var ck = 'meta:reconc:' + hoje;
+    var hit = cache.get(ck);
+    if (hit) { try { return JSON.parse(hit); } catch (e) {} }
+
+    var metaDia = _contarLeadsMetaApiJanela_(hoje, hoje); // null se sem token
+    var crmDia  = _contarLeadsCrmPorOrigemJanela_(hoje, hoje, tz);
+
+    var temMeta = (metaDia !== null);
+    var cat = {
+      lead_manual_legitimo:           crmDia.manual_campanha,
+      lead_manual_sem_conversao_meta: crmDia.manual_organico,
+      webhook_sem_conversao_meta:     temMeta ? Math.max(0, crmDia.webhook - metaDia) : null,
+      conversao_meta_sem_lead_crm:    temMeta ? Math.max(0, metaDia - crmDia.webhook) : null
+    };
+
+    // Severidade: gap Meta→CRM no dia é normal (lag de atribuição). Só vira
+    // 'aviso' se o gap PERSISTE na janela de 72h — aí é provável falha de webhook.
+    var severidade = 'ok';
+    if (temMeta && cat.conversao_meta_sem_lead_crm > 0) {
+      var since72 = _isoMenosDias_(hoje, Math.floor(JANELA_RECONC_META_H / 24), tz);
+      var meta72  = _contarLeadsMetaApiJanela_(since72, hoje);
+      var crm72   = _contarLeadsCrmPorOrigemJanela_(since72, hoje, tz);
+      var gap72   = (meta72 === null) ? 0 : Math.max(0, meta72 - crm72.webhook);
+      if (gap72 > 0) severidade = 'aviso';
+    }
+
+    var divergencia = temMeta ? (crmDia.total - metaDia) : null;
+
+    // Resumo curto p/ o banner.
+    var resumo;
+    if (!temMeta) {
+      resumo = 'CRM hoje: ' + crmDia.total + ' lead(s) (' + crmDia.webhook +
+        ' webhook + ' + crmDia.manual + ' manual). Meta indisponível (sem token) — comparação só com o CRM.';
+    } else {
+      var partes = [];
+      if (cat.conversao_meta_sem_lead_crm > 0) {
+        partes.push(cat.conversao_meta_sem_lead_crm + ' conversão(ões) Meta sem lead no CRM' +
+          (severidade === 'aviso' ? ' (>72h — verificar webhook)' : ' (dentro das 72h de atribuição)'));
+      }
+      if (cat.webhook_sem_conversao_meta > 0) {
+        partes.push(cat.webhook_sem_conversao_meta + ' webhook ainda não atribuído pela Meta');
+      }
+      if (cat.lead_manual_legitimo > 0)           partes.push(cat.lead_manual_legitimo + ' manual de campanha');
+      if (cat.lead_manual_sem_conversao_meta > 0) partes.push(cat.lead_manual_sem_conversao_meta + ' manual orgânico/indicação');
+      var diffTxt = divergencia === 0 ? 'igual' : (divergencia > 0 ? '+' + divergencia + ' no CRM' : divergencia + ' no CRM');
+      resumo = 'Painel Ads ' + metaDia + ' · CRM ' + crmDia.total + ' (' + diffTxt + ')' +
+        (partes.length ? ' — ' + partes.join('; ') + '.' : ' — sem divergência a explicar.');
+    }
+
+    var out = {
+      ok: true,
+      dia: hoje,
+      meta_leads: metaDia,
+      crm_total: crmDia.total,
+      crm_webhook: crmDia.webhook,
+      crm_manual: crmDia.manual,
+      divergencia: divergencia,
+      categorias: cat,
+      janela_tolerancia_h: JANELA_RECONC_META_H,
+      severidade: severidade,
+      resumo: resumo,
+      gerado_em: new Date().toISOString()
+    };
+    cache.put(ck, JSON.stringify(out), 600); // 10 min
+    return out;
+  } catch (e) {
+    Logger.log('getDiagnosticoReconciliacaoMeta erro: ' + e.message);
+    return { ok: false, erro: e.message };
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
