@@ -1,0 +1,125 @@
+<!-- Painel Financeiro — Módulo Financeiro Fase 9. Página admin injetada via navegar('financeiro'). -->
+<style>
+  .fin-wrap { padding: 20px 24px; font-family: 'Inter', system-ui, sans-serif; color: #e8ecf3; max-width: 1100px; }
+  .fin-h { display:flex; align-items:center; justify-content:space-between; margin-bottom: 4px; }
+  .fin-h h2 { font-size: 18px; margin: 0; font-weight: 600; }
+  .fin-sub { color:#8b95a8; font-size: 12px; margin-bottom: 18px; }
+  .fin-card { background:#161a22; border:1px solid #232936; border-radius:12px; padding:18px 20px; margin-bottom:18px; }
+  .fin-q-title { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color:#8b95a8; margin:0 0 14px; }
+  .fin-total { font-size: 30px; font-weight: 700; color:#4fd1a1; }
+  .fin-total small { font-size: 13px; color:#8b95a8; font-weight:400; }
+  .fin-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0 6px; }
+  .fin-mes { background:#0f1218; border:1px solid #232936; border-radius:10px; padding:14px; }
+  .fin-mes.atual { border-color:#3a6e8a; }
+  .fin-mes .m-label { font-size: 15px; font-weight:600; }
+  .fin-mes .m-tipo { font-size: 10px; color:#8b95a8; text-transform:uppercase; }
+  .fin-mes .m-val { font-size: 20px; font-weight:700; margin: 8px 0 2px; }
+  .fin-mes .m-conf { font-size: 10px; color:#8b95a8; }
+  .fin-mes .m-row { font-size: 11px; color:#aab3c2; margin-top:6px; display:flex; justify-content:space-between; }
+  .fin-bars { display:flex; align-items:flex-end; gap:14px; height:120px; margin:18px 4px 6px; }
+  .fin-bar-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; justify-content:flex-end; }
+  .fin-bar { width:60%; background:linear-gradient(180deg,#4fd1a1,#2f8a6a); border-radius:4px 4px 0 0; min-height:2px; }
+  .fin-bar-col.atual .fin-bar { background:linear-gradient(180deg,#5aa9d6,#3a6e8a); }
+  .fin-bar-lbl { font-size:11px; color:#aab3c2; }
+  .fin-obs { font-size:11px; color:#8b95a8; line-height:1.6; }
+  .fin-obs li { margin-bottom:4px; }
+  .fin-btn { background:#232936; border:1px solid #2f3645; color:#e8ecf3; padding:7px 14px; border-radius:8px; cursor:pointer; font-size:12px; }
+  .fin-btn:hover { background:#2f3645; }
+  .fin-loading, .fin-erro { padding:40px; text-align:center; color:#8b95a8; font-family:monospace; }
+  .fin-erro { color:#e63e6d; }
+  .fin-cob { font-size:11px; color:#c9a227; background:#1e1c12; border:1px solid #3a3413; border-radius:8px; padding:8px 12px; margin-bottom:14px; }
+</style>
+
+<div class="fin-wrap">
+  <div class="fin-h">
+    <div>
+      <h2>◐ Financeiro</h2>
+      <div class="fin-sub">Previsibilidade de caixa — B2C Fibra + Móvel (admin)</div>
+    </div>
+    <button class="fin-btn" onclick="finCarregar()">↻ Atualizar</button>
+  </div>
+
+  <div class="fin-card">
+    <p class="fin-q-title">Q1 · Projeção de Caixa — próximos 4 meses</p>
+    <div id="finQ1Body"><div class="fin-loading">Carregando projeção…</div></div>
+  </div>
+</div>
+
+<script>
+function finFmtBR(n) {
+  n = Number(n) || 0;
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function finCarregar() {
+  var body = document.getElementById('finQ1Body');
+  body.innerHTML = '<div class="fin-loading">Carregando projeção…</div>';
+  google.script.run
+    .withSuccessHandler(finRender)
+    .withFailureHandler(function(e) {
+      body.innerHTML = '<div class="fin-erro">Erro ao carregar projeção: ' + (e && e.message ? e.message : e) + '</div>';
+    })
+    .getProjecaoCaixa();
+}
+
+function finRender(res) {
+  var body = document.getElementById('finQ1Body');
+  if (!res || !res.ok) {
+    body.innerHTML = '<div class="fin-erro">Não foi possível gerar a projeção: ' + (res && res.mensagem ? res.mensagem : 'erro desconhecido') + '</div>';
+    return;
+  }
+  var meses = res.meses || [];
+  var totalPrev = meses.reduce(function(s, m) { return s + (m.receita_prevista || 0); }, 0);
+  var maxVal = Math.max.apply(null, meses.map(function(m) { return m.receita_prevista || 0; }).concat([1]));
+
+  var html = '';
+  // Cobertura (aviso honesto)
+  var cob = res.cobertura || {};
+  var pct = cob.total ? Math.round(100 * (cob.comPontos || 0) / cob.total) : 0;
+  html += '<div class="fin-cob">⚠ Pontuação resolvida em <b>' + (cob.comPontos || 0) + '</b> de <b>' + (cob.total || 0) + '</b> vendas (' + pct + '%). A projeção considera só vendas com pontuação — cresce conforme a cobertura aumenta.</div>';
+
+  // Total
+  html += '<div class="fin-total">R$ ' + finFmtBR(totalPrev) + ' <small>previsto nos 4 meses (fator base)</small></div>';
+
+  // Cards por mês
+  html += '<div class="fin-grid">';
+  meses.forEach(function(m) {
+    html += '<div class="fin-mes ' + (m.tipo === 'atual' ? 'atual' : '') + '">' +
+      '<div class="m-label">' + m.label + ' <span class="m-tipo">' + m.tipo + '</span></div>' +
+      '<div class="m-val">R$ ' + finFmtBR(m.receita_prevista) + '</div>' +
+      '<div class="m-conf">' + m.confianca + '</div>' +
+      '<div class="m-row"><span>Tier</span><span>' + (m.tier || '—') + ' (×' + (m.fator_base || 0) + ')</span></div>' +
+      '<div class="m-row"><span>Instalações BL</span><span>' + m.instalacoes_bl + '</span></div>' +
+      '<div class="m-row"><span>Pontos</span><span>' + m.pontos_total + '</span></div>' +
+      '<div class="m-row"><span>+ Adimpl. (M+3)</span><span>R$ ' + finFmtBR(m.adimplencia_diferida) + '</span></div>' +
+      '<div class="m-row"><span>Vendas c/ pontos</span><span>' + m.vendas_com_pontos + '/' + m.vendas_no_mes + '</span></div>' +
+      '</div>';
+  });
+  html += '</div>';
+
+  // Gráfico de barras
+  html += '<div class="fin-bars">';
+  meses.forEach(function(m) {
+    var h = Math.round(100 * (m.receita_prevista || 0) / maxVal);
+    html += '<div class="fin-bar-col ' + (m.tipo === 'atual' ? 'atual' : '') + '">' +
+      '<div class="fin-bar" style="height:' + h + '%"></div>' +
+      '<div class="fin-bar-lbl">' + m.label + '</div>' +
+      '</div>';
+  });
+  html += '</div>';
+
+  // Observações
+  if (res.observacoes && res.observacoes.length) {
+    html += '<ul class="fin-obs" style="margin-top:14px;padding-left:18px">';
+    res.observacoes.forEach(function(o) { html += '<li>' + o + '</li>'; });
+    html += '</ul>';
+  }
+
+  body.innerHTML = html;
+}
+
+// Auto-load ao injetar a página.
+if (typeof google !== 'undefined' && google.script && google.script.run) {
+  finCarregar();
+}
+</script>
