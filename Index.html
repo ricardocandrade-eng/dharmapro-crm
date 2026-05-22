@@ -3564,22 +3564,21 @@
         </div>
       </div>
 
-      <!-- Modal: confirmar envio da notificação ao vendedor (PAP) antes do disparo -->
+      <!-- Modal: venda já salva — perguntar se envia a msg ao vendedor (PAP) -->
       <div class="modal-overlay" id="modalConfirmVendedor">
         <div class="modal-box">
           <div class="modal-head">
-            <h3>📲 Notificar vendedor?</h3>
-            <button class="modal-close" onclick="_cancelarConfirmVendedor()">✕</button>
+            <h3>✅ Venda salva! Avisar o vendedor?</h3>
+            <button class="modal-close" onclick="_envVendedorResponder(false)">✕</button>
           </div>
           <div class="modal-body">
-            <p class="cnv-intro">Uma mensagem será enviada via WhatsApp ao vendedor
-              <strong id="cnvVendedor">—</strong> (cliente <strong id="cnvCliente">—</strong>):</p>
+            <p class="cnv-intro">A venda foi salva. Deseja enviar esta mensagem pelo WhatsApp ao vendedor
+              <strong id="cnvVendedor">—</strong> (cliente <strong id="cnvCliente">—</strong>)?</p>
             <pre class="cnv-preview" id="cnvMensagem"></pre>
           </div>
           <div class="modal-foot">
-            <button class="btn btn-ghost" onclick="_cancelarConfirmVendedor()">Cancelar</button>
-            <button class="btn btn-ghost" onclick="_confirmVendedorDecidir(false)">Salvar sem enviar</button>
-            <button class="btn" onclick="_confirmVendedorDecidir(true)">📤 Enviar</button>
+            <button class="btn btn-ghost" onclick="_envVendedorResponder(false)">✗ NÃO enviar</button>
+            <button class="btn" onclick="_envVendedorResponder(true)">✅ SIM, enviar mensagem</button>
           </div>
         </div>
       </div>

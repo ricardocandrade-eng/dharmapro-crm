@@ -971,6 +971,45 @@ function getPreviewNotificacaoVendedor(linha, novoStatus, extras) {
   }
 }
 
+// Dispara a mensagem ao vendedor PAP para a venda na `linha` — chamada pelo
+// fluxo "salvar primeiro, perguntar depois" quando o backoffice clica SIM.
+// Lê a linha já salva (agenda/turno/status atuais), resolve o subscriber no
+// BotConversa e envia. Retorna { ok, mensagem }. Não lança.
+function enviarNotificacaoVendedor(linha, novoStatus) {
+  try {
+    linha = parseInt(linha, 10);
+    if (!linha || linha < 3) return { ok: false, mensagem: 'Linha inválida.' };
+    var c      = CONFIG.COLUNAS;
+    var rowPAP = _getSheet().getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
+    var st     = String(novoStatus || '').trim() || String(rowPAP[c.STATUS] || '').trim();
+    var ehInstalada = (st === '3 - Finalizada/Instalada');
+    var ehAgInst    = (st === '2- Aguardando Instalação');
+    if (!ehInstalada && !ehAgInst) return { ok: false, mensagem: 'Status não notificável.' };
+    if (rowPAP[c.CANAL] !== 'PAP')  return { ok: false, mensagem: 'Venda não é do canal PAP.' };
+    var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
+    if (!vPAP || !vPAP.subscriberId) return { ok: false, mensagem: 'Vendedor sem WhatsApp no BotConversa.' };
+
+    var evento  = ehInstalada ? 'instalada' : 'aguardando_instalacao';
+    var agenda  = (function(v){ if(!v) return ''; var d = new Date(v); return isNaN(d) ? String(v) : Utilities.formatDate(d, Session.getScriptTimeZone(), 'dd/MM/yyyy'); })(rowPAP[c.AGENDA]);
+    var msg = _papMontarMensagemNotificacao(evento, {
+      pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
+      pap_plano:        String(rowPAP[c.PLANO]   || ''),
+      pap_agenda:       agenda,
+      pap_turno:        String(rowPAP[c.TURNO]   || ''),
+      pap_status:       st
+    });
+    var res = _papEnviarMensagemDireta(vPAP.subscriberId, msg);
+    if (res && res.sucesso) {
+      Logger.log('enviarNotificacaoVendedor [' + evento + '] linha ' + linha + ' → enviado para ' + vPAP.subscriberId);
+      return { ok: true };
+    }
+    return { ok: false, mensagem: (res && res.mensagem) || 'Falha no envio.' };
+  } catch(e) {
+    Logger.log('enviarNotificacaoVendedor erro: ' + e.message);
+    return { ok: false, mensagem: e.message };
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // MÓDULO DASHBOARD + PONTOS PAP — adicionado 04/05/2026
 // ══════════════════════════════════════════════════════════════════════════════

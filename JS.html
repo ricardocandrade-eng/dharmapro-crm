@@ -805,49 +805,55 @@ function _pifValidarTransicaoStatusMovel(vendaMv, dadosMv) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  CONFIRMAÇÃO DE ENVIO AO VENDEDOR (PAP) ANTES DO DISPARO BotConversa
-//  Toda transição de status para "2- Aguardando Instalação" ou
-//  "3 - Finalizada/Instalada" numa venda PAP dispara, no backend, uma msg
-//  WhatsApp ao vendedor. Antes de chamar o backend, mostramos um modal com a
-//  prévia da mensagem e 3 opções: Enviar / Salvar sem enviar / Cancelar.
-//  A decisão vai ao backend via flag `notificarVendedor` (true/false).
+//  NOTIFICAÇÃO AO VENDEDOR (PAP) — SALVAR PRIMEIRO, PERGUNTAR DEPOIS
+//  A venda é sempre salva normalmente (os saves mandam notificarVendedor:false,
+//  então o backend NÃO dispara junto). DEPOIS que o save confirma, se a venda
+//  PAP entrou em status 2/3, abrimos um modal "Enviar mensagem ao vendedor?"
+//  com SIM / NÃO. Só no SIM é que o disparo BotConversa acontece, via
+//  enviarNotificacaoVendedor(). Assim o backoffice não confunde salvar com enviar.
 // ══════════════════════════════════════════════════════════════════════════
 
-// Decide se precisa confirmar e chama proceed(notificar) com a escolha.
-// - Sem transição p/ 2/3, ou venda não-PAP: proceed(true) direto (o backend
-//   não notifica nesses casos, então a flag é inócua).
-// - Enviar: proceed(true). Salvar sem enviar: proceed(false). Cancelar: nada.
-function _gateNotificacaoVendedor(linha, novoStatus, statusAntigo, proceed, extras) {
+// Chamar APÓS o save confirmar. Se foi transição p/ 2/3 numa venda PAP, busca a
+// prévia (já lendo a linha salva) e abre o modal SIM/NÃO de envio.
+function _perguntarEnvioVendedorPosSave(linha, novoStatus, statusAntigo) {
   var st  = String(novoStatus  || '').trim();
   var ant = String(statusAntigo || '').trim();
   var ehTransicao = (st === '2- Aguardando Instalação' || st === '3 - Finalizada/Instalada') && st !== ant;
-  if (!ehTransicao) { proceed(true); return; }
+  if (!ehTransicao) return;
   google.script.run
     .withSuccessHandler(function(prev) {
-      if (!prev || !prev.isPap) { proceed(true); return; }
-      _abrirModalConfirmVendedor(prev, proceed);
+      if (!prev || !prev.isPap) return; // não-PAP ou sem nada a enviar: silencioso
+      _abrirModalEnvioVendedor(prev, linha, st);
     })
-    .withFailureHandler(function() { proceed(true); }) // falha na prévia não bloqueia o save
-    .getPreviewNotificacaoVendedor(linha, st, extras || null);
+    .withFailureHandler(function() {}) // falha na prévia: não pergunta (save já ocorreu)
+    .getPreviewNotificacaoVendedor(linha, st);
 }
 
-var _confirmVendedorProceed = null;
-function _abrirModalConfirmVendedor(prev, proceed) {
-  _confirmVendedorProceed = proceed;
+var _envVendedorCtx = null;
+function _abrirModalEnvioVendedor(prev, linha, novoStatus) {
+  _envVendedorCtx = { linha: linha, novoStatus: novoStatus };
   document.getElementById('cnvVendedor').textContent = prev.vendedorNome || '—';
   document.getElementById('cnvCliente').textContent  = prev.clienteNome  || '—';
   document.getElementById('cnvMensagem').textContent = prev.mensagem     || '';
   document.getElementById('modalConfirmVendedor').classList.add('ativo');
 }
-function _confirmVendedorDecidir(notificar) {
+function _envVendedorResponder(enviar) {
   document.getElementById('modalConfirmVendedor').classList.remove('ativo');
-  var fn = _confirmVendedorProceed;
-  _confirmVendedorProceed = null;
-  if (fn) fn(!!notificar);
-}
-function _cancelarConfirmVendedor() {
-  document.getElementById('modalConfirmVendedor').classList.remove('ativo');
-  _confirmVendedorProceed = null; // Cancelar = aborta tudo (não salva)
+  var ctx = _envVendedorCtx;
+  _envVendedorCtx = null;
+  if (!enviar || !ctx) return; // NÃO: venda já está salva, só não dispara a msg
+  mostrarToast('📤 Enviando mensagem ao vendedor...', 'info');
+  google.script.run
+    .withSuccessHandler(function(r) {
+      mostrarToast(
+        (r && r.ok) ? '✅ Mensagem enviada ao vendedor.'
+                    : '⚠️ Não foi possível enviar: ' + ((r && r.mensagem) || 'erro'),
+        (r && r.ok) ? 'success' : 'warning');
+    })
+    .withFailureHandler(function(err) {
+      mostrarToast('❌ Falha ao enviar: ' + (err && err.message ? err.message : 'tente novamente'), 'error');
+    })
+    .enviarNotificacaoVendedor(ctx.linha, ctx.novoStatus);
 }
 
 function pifSalvar() {
@@ -909,51 +915,55 @@ function pifSalvar() {
     return;
   }
 
-  // Confirma o envio da notificação ao vendedor (PAP) antes de transição p/ 2/3.
-  _gateNotificacaoVendedor(v.linha, dados.status, v.status, function(notificar) {
-    dados.notificarVendedor = notificar;
-    mostrarToast('🔍 Salvando linha ' + String(v.linha) + ' — ' + dados.cliente, 'info');
-    mostrarLoading(true);
-    google.script.run
-      .withSuccessHandler(function(res) {
-        mostrarLoading(false);
-        if (!res || !res.sucesso) {
-          mostrarToast('❌ ' + (res ? res.mensagem : 'Erro ao salvar.'), 'error');
-          return;
-        }
-        _listaNeedsReload = true; // invalida cache — lista precisa de dado fresco
-        mostrarToast('✅ ' + res.mensagem, 'success');
+  // Fluxo "salvar primeiro, perguntar depois": salva sem disparar a msg; após
+  // o save, _perguntarEnvioVendedorPosSave abre o modal SIM/NÃO se for PAP 2/3.
+  var _statusAntPif = v.status;
+  dados.notificarVendedor = false;
+  mostrarToast('🔍 Salvando linha ' + String(v.linha) + ' — ' + dados.cliente, 'info');
+  mostrarLoading(true);
+  google.script.run
+    .withSuccessHandler(function(res) {
+      mostrarLoading(false);
+      if (!res || !res.sucesso) {
+        mostrarToast('❌ ' + (res ? res.mensagem : 'Erro ao salvar.'), 'error');
+        return;
+      }
+      _listaNeedsReload = true; // invalida cache — lista precisa de dado fresco
+      mostrarToast('✅ ' + res.mensagem, 'success');
 
-        // Se foi arquivada, fecha painel e recarrega lista
-        if (dados.preStatus === 'ARQUIVAR VENDA') {
-          _pifModoEdicao = false;
-          AppState.set('vendaSelecionada', null);
-          fecharPainel();
+      // Se foi arquivada, fecha painel e recarrega lista
+      if (dados.preStatus === 'ARQUIVAR VENDA') {
+        _pifModoEdicao = false;
+        AppState.set('vendaSelecionada', null);
+        fecharPainel();
+        carregarVendas(1, '');
+        return;
+      }
+
+      if (dados.status === '2- Aguardando Instalação' && _statusAntPif !== '2- Aguardando Instalação') dispararConfete();
+      if (dados.status === '3 - Finalizada/Instalada' && _statusAntPif !== '3 - Finalizada/Instalada') dispararChovaDinheiro();
+
+      // Venda salva: agora pergunta se quer enviar a msg ao vendedor (PAP 2/3).
+      _perguntarEnvioVendedorPosSave(v.linha, dados.status, _statusAntPif);
+
+      // Recarrega venda atualizada e reabre painel
+      google.script.run
+        .withSuccessHandler(function(vAtual) {
+          if (!vAtual) { carregarVendas(1, ''); return; }
+          AppState.set('vendaSelecionada', vAtual);
+          // Sprint 3.3: mostrarPainel já reseta tudo (modo leitura, botões etc),
+          // não precisa mais alternar visibilidade manualmente aqui.
+          mostrarPainel(vAtual);
           carregarVendas(1, '');
-          return;
-        }
-
-        if (dados.status === '2- Aguardando Instalação' && v.status !== '2- Aguardando Instalação') dispararConfete();
-        if (dados.status === '3 - Finalizada/Instalada' && v.status !== '3 - Finalizada/Instalada') dispararChovaDinheiro();
-        // Recarrega venda atualizada e reabre painel
-        google.script.run
-          .withSuccessHandler(function(vAtual) {
-            if (!vAtual) { carregarVendas(1, ''); return; }
-            AppState.set('vendaSelecionada', vAtual);
-            // Sprint 3.3: mostrarPainel já reseta tudo (modo leitura, botões etc),
-            // não precisa mais alternar visibilidade manualmente aqui.
-            mostrarPainel(vAtual);
-            carregarVendas(1, '');
-          })
-          .withFailureHandler(function() { carregarVendas(1, ''); })
-          .getVendaPorLinha(v.linha);
-      })
-      .withFailureHandler(function(err) {
-        mostrarLoading(false);
-        mostrarToast('❌ Erro: ' + (err && err.message ? err.message : 'tente novamente'), 'error');
-      })
-      .salvarVenda(dados);
-  }, { agenda: dados.agenda, turno: dados.turno });
+        })
+        .withFailureHandler(function() { carregarVendas(1, ''); })
+        .getVendaPorLinha(v.linha);
+    })
+    .withFailureHandler(function(err) {
+      mostrarLoading(false);
+      mostrarToast('❌ Erro: ' + (err && err.message ? err.message : 'tente novamente'), 'error');
+    })
+    .salvarVenda(dados);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -2076,11 +2086,11 @@ function _confirmarNG() {
   if (!_ngDadosTemp || !_ngDadosTemp.resultado) return;
   var r = _ngDadosTemp.resultado;
 
-  var _execConfirmarNG = function(notificar) {
   var btn = document.getElementById('mng-btn-confirmar');
   btn.disabled = true;
   btn.textContent = 'Salvando...';
 
+  // Salva sem disparar a msg; se marcou instalada (status 3), pergunta o envio depois.
   google.script.run
     .withSuccessHandler(function(res) {
       btn.disabled = false;
@@ -2097,8 +2107,11 @@ function _confirmarNG() {
           if (r.dataAgendamento) alvo.agenda = r.dataAgendamento;
         }
 
+        var _linhaNG = _ngDadosTemp.linha;
         _fecharModalNG();
-        _atualizarViewAposConsulta(_ngDadosTemp.linha, r.instalada);
+        _atualizarViewAposConsulta(_linhaNG, r.instalada);
+        // Instalada: pergunta se quer enviar a msg ao vendedor (PAP).
+        if (r.instalada) _perguntarEnvioVendedorPosSave(_linhaNG, '3 - Finalizada/Instalada', '');
       } else {
         mostrarToast('Erro: ' + res.mensagem, 'error');
         btn.textContent = 'Tentar novamente';
@@ -2114,17 +2127,8 @@ function _confirmarNG() {
       instalada: r.instalada,
       dataInstalacao: r.dataInstalacao,
       dataAgendamento: r.dataAgendamento,
-      notificarVendedor: notificar
+      notificarVendedor: false
     });
-  }; // fim _execConfirmarNG
-
-  // Só há disparo ao vendedor quando a venda é marcada como instalada (status 3).
-  // Nesse caso, confirma o envio antes; caso contrário (só agendamento), segue direto.
-  if (r.instalada) {
-    _gateNotificacaoVendedor(_ngDadosTemp.linha, '3 - Finalizada/Instalada', '', _execConfirmarNG);
-  } else {
-    _execConfirmarNG(true);
-  }
 }
 
 function _fecharModalNG() {
@@ -2376,11 +2380,11 @@ function _confirmarAdapter() {
   if (!_adapterDadosTemp || !_adapterDadosTemp.resultado) return;
   var r = _adapterDadosTemp.resultado;
 
-  var _execConfirmarAdapter = function(notificar) {
   var btn = document.getElementById('madp-btn-confirmar');
   btn.disabled = true;
   btn.textContent = 'Salvando...';
 
+  // Salva sem disparar a msg; se marcou instalada (status 3), pergunta o envio depois.
   google.script.run
     .withSuccessHandler(function(res) {
       btn.disabled = false;
@@ -2397,8 +2401,11 @@ function _confirmarAdapter() {
           if (r.dataAgendamento) alvo.agenda = r.dataAgendamento;
         }
 
+        var _linhaAdp = _adapterDadosTemp.linha;
         _fecharModalAdapter();
-        _atualizarViewAposConsulta(_adapterDadosTemp.linha, r.instalada);
+        _atualizarViewAposConsulta(_linhaAdp, r.instalada);
+        // Instalada: pergunta se quer enviar a msg ao vendedor (PAP).
+        if (r.instalada) _perguntarEnvioVendedorPosSave(_linhaAdp, '3 - Finalizada/Instalada', '');
       } else {
         mostrarToast('Erro: ' + res.mensagem, 'error');
         btn.textContent = 'Tentar novamente';
@@ -2414,16 +2421,8 @@ function _confirmarAdapter() {
       instalada: r.instalada,
       dataInstalacao: r.dataInstalacao,
       dataAgendamento: r.dataAgendamento,
-      notificarVendedor: notificar
+      notificarVendedor: false
     });
-  }; // fim _execConfirmarAdapter
-
-  // Disparo ao vendedor só quando marcada como instalada (status 3).
-  if (r.instalada) {
-    _gateNotificacaoVendedor(_adapterDadosTemp.linha, '3 - Finalizada/Instalada', '', _execConfirmarAdapter);
-  } else {
-    _execConfirmarAdapter(true);
-  }
 }
 
 function _fecharModalAdapter() {
@@ -3755,51 +3754,50 @@ function _confirmarMoveFunil() {
 
   document.getElementById('modalFunilMove').classList.remove('ativo');
 
-  // Monta payload para o backend
+  // Monta payload para o backend — salva sem disparar a msg (notificarVendedor
+  // false); o envio é perguntado depois do save (SIM/NÃO).
+  var _statusAntFunil = venda.status; // status anterior (só muda no success)
   var payload = {
-    linha:      venda.linha,
-    novoStatus: colCfg.status,
-    campoExtra: colCfg.campo ? colCfg.campo.chave : null,
-    valorExtra: campoVal
+    linha:             venda.linha,
+    novoStatus:        colCfg.status,
+    campoExtra:        colCfg.campo ? colCfg.campo.chave : null,
+    valorExtra:        campoVal,
+    notificarVendedor: false
   };
 
-  // Confirma o envio da notificação ao vendedor (PAP) antes de transição p/ 2/3.
-  // venda.status ainda é o status anterior aqui (só muda no success handler).
-  _gateNotificacaoVendedor(venda.linha, colCfg.status, venda.status, function(notificar) {
-    payload.notificarVendedor = notificar;
+  // Move o card visualmente já (otimista)
+  _moverCardFunilVisual(venda, colCfg);
 
-    // Move o card visualmente já (otimista)
-    _moverCardFunilVisual(venda, colCfg);
-
-    // Persiste na planilha
-    google.script.run
-      .withSuccessHandler(function(res) {
-        if (res && res.sucesso) {
-          mostrarToast('✅ Movido para "' + colCfg.status + '"', 'success');
-          if (colCfg.status === '3 - Finalizada/Instalada') dispararChovaDinheiro();
-          // Atualiza dado em memória
-          venda.status = colCfg.status;
-          if (payload.campoExtra) venda[payload.campoExtra] = payload.valorExtra;
-          // Ajusta a marca "técnico em campo" (frontend) conforme o destino:
-          // só fica marcado se caiu na sub-coluna "tecnico" da Aguardando Instalação.
-          if (colCfg.status === '2- Aguardando Instalação' && colCfg.sub === 'tecnico') {
-            _funilTecAdd(venda.linha);
-          } else {
-            _funilTecRemove(venda.linha);
-          }
-          _renderizarFunil();    // re-deriva colunas/sub-colunas e reordena
-          _funilCacheSalvarSS(); // Funil 20/05: persiste novo estado pro SS (F5 mostra correto)
+  // Persiste na planilha
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.sucesso) {
+        mostrarToast('✅ Movido para "' + colCfg.status + '"', 'success');
+        if (colCfg.status === '3 - Finalizada/Instalada') dispararChovaDinheiro();
+        // Atualiza dado em memória
+        venda.status = colCfg.status;
+        if (payload.campoExtra) venda[payload.campoExtra] = payload.valorExtra;
+        // Ajusta a marca "técnico em campo" (frontend) conforme o destino:
+        // só fica marcado se caiu na sub-coluna "tecnico" da Aguardando Instalação.
+        if (colCfg.status === '2- Aguardando Instalação' && colCfg.sub === 'tecnico') {
+          _funilTecAdd(venda.linha);
         } else {
-          mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
-          _renderizarFunil(); // reverte
+          _funilTecRemove(venda.linha);
         }
-      })
-      .withFailureHandler(function(err) {
-        mostrarToast('❌ Falha: ' + err.message, 'error');
+        _renderizarFunil();    // re-deriva colunas/sub-colunas e reordena
+        _funilCacheSalvarSS(); // Funil 20/05: persiste novo estado pro SS (F5 mostra correto)
+        // Venda salva: pergunta se quer enviar a msg ao vendedor (PAP 2/3).
+        _perguntarEnvioVendedorPosSave(venda.linha, colCfg.status, _statusAntFunil);
+      } else {
+        mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
         _renderizarFunil(); // reverte
-      })
-      .moverVendaFunil(payload);
-  }, { agenda: (payload.campoExtra === 'agenda' ? payload.valorExtra : undefined) });
+      }
+    })
+    .withFailureHandler(function(err) {
+      mostrarToast('❌ Falha: ' + err.message, 'error');
+      _renderizarFunil(); // reverte
+    })
+    .moverVendaFunil(payload);
 
   _funilMovePendente = null;
 }
@@ -4395,40 +4393,40 @@ function _confirmarMoveLeads() {
 
   var _statusAntLead = venda.status; // antes da mutação otimista abaixo
 
-  // Confirma o envio da notificação ao vendedor (PAP) antes da transição p/ status 2.
-  _gateNotificacaoVendedor(venda.linha, '2- Aguardando Instalação', _statusAntLead, function(notificar) {
-    // Move visualmente já
-    _moverLeadVisual(venda, 'aguardando');
-    venda.temperatura = 'aguardando';
-    venda.status      = '2- Aguardando Instalação';
-    venda.agenda      = agenda;
-    venda.turno       = turno;
-    _atualizarContadoresLeads();
+  // Move visualmente já
+  _moverLeadVisual(venda, 'aguardando');
+  venda.temperatura = 'aguardando';
+  venda.status      = '2- Aguardando Instalação';
+  venda.agenda      = agenda;
+  venda.turno       = turno;
+  _atualizarContadoresLeads();
 
-    var payload = {
-      linha:            venda.linha,
-      agenda:           agenda,
-      turno:            turno,
-      contrato:         contrato,
-      obs:              obs,
-      notificarVendedor: notificar
-    };
+  // Salva sem disparar a msg; o envio é perguntado depois (SIM/NÃO).
+  var payload = {
+    linha:             venda.linha,
+    agenda:            agenda,
+    turno:             turno,
+    contrato:          contrato,
+    obs:               obs,
+    notificarVendedor: false
+  };
 
-    google.script.run
-      .withSuccessHandler(function(res) {
-        if (res && res.sucesso) {
-          mostrarToast('✅ Lead movido para Ag. Instalação!', 'success');
-        } else {
-          mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
-          _renderizarLeads();
-        }
-      })
-      .withFailureHandler(function(err) {
-        mostrarToast('❌ Falha: ' + err.message, 'error');
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (res && res.sucesso) {
+        mostrarToast('✅ Lead movido para Ag. Instalação!', 'success');
+        // Lead salvo: pergunta se quer enviar a msg ao vendedor (PAP 2/3).
+        _perguntarEnvioVendedorPosSave(venda.linha, '2- Aguardando Instalação', _statusAntLead);
+      } else {
+        mostrarToast('⚠️ Erro: ' + (res ? res.mensagem : 'tente novamente'), 'error');
         _renderizarLeads();
-      })
-      .moverLeadAguardando(payload);
-  }, { agenda: agenda, turno: turno });
+      }
+    })
+    .withFailureHandler(function(err) {
+      mostrarToast('❌ Falha: ' + err.message, 'error');
+      _renderizarLeads();
+    })
+    .moverLeadAguardando(payload);
 
   _leadsMovePendente = null;
 }
