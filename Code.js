@@ -26,7 +26,7 @@ var CONFIG = {
   CACHE_TTL:       300, // 5 min — era 60s; invalidado corretamente por _limparCache() após escritas
   CACHE_PREFIX:    'crm_v3_',   // prefixo v3 — invalida cache após reorganização de colunas
   MAX_RESULTS:     50,
-  TOTAL_COLUNAS:   46,          // A (0) até AT (45) — sem buracos
+  TOTAL_COLUNAS:   64,          // A (0) até BL (63) — Fase 3 financeiro (AU-BL append). Colunas físicas criadas por fase3AddColunas (21/05).
   TABELA_JSON_FILE_ID: '1wB9jncB_eBhGnBE-OpiZZ5UfVnvmv-ro',  // _getTabela() lê deste JSON no Drive (substitui aba TABELA)
   CIDADES_JSON_FILE_ID: '17CQ8KmZdyUtgQChPFC2b7pq2tsU6riV1',  // _getCidadesJson() lê do JSON no Drive (substitui aba CIDADES)
   CODIGOS_VERO_JSON_FILE_ID: '',  // _getCodigosVero() — vazio = fallback p/ busca por nome 'planos_vero_codigos.json'
@@ -84,7 +84,28 @@ var CONFIG = {
     CRIADO_EM:         42,  // AQ - Data/hora do lançamento da venda (imutável após criação)
     VERO_STATUS:       43,  // AR - Resultado do cruzamento Vero: 🟢 (match) | 🟡 (só CRM)
     CRIADO_POR:        44,  // AS - Nome do usuário que registrou a venda (imutável após criação)
-    FORMA_PAGAMENTO:   45   // AT - 'BOLETO' ou 'RECORRENTE' (obrigatório em cadastro novo; legado pode estar vazio)
+    FORMA_PAGAMENTO:   45,  // AT - 'BOLETO' ou 'RECORRENTE' (obrigatório em cadastro novo; legado pode estar vazio)
+    // ── Bloco 7: Financeiro (AU–BL) — Módulo Financeiro Fase 3 (§5) ─────────
+    // Snapshots (no save, idempotente): COD_PLANO, PONTOS_VENDA, PONTOS_MOVEL, MES_COMPETENCIA.
+    // Live (import extrato/inadimplência/SAFRA): demais. _construirLinhaDados PRESERVA todas em edição.
+    COD_PLANO:         46,  // AU - Código numérico do plano na Vero (reverse-lookup planos_vero_codigos)
+    PONTOS_VENDA:      47,  // AV - Pontos BL da Fibra (pontuacao_planos × segmentação)
+    PONTOS_MOVEL:      48,  // AW - Pontos do Móvel combo (multiplica por fator; NÃO é R$)
+    MES_COMPETENCIA:   49,  // AX - YYYY-MM, vintage por instalação (§11.1)
+    ESTRELAS_NO_MES:   50,  // AY - Tier de estrela resolvido no fechamento (cartas_meta_pap)
+    FATOR_APLICADO:    51,  // AZ - Fator que a Vero efetivamente usou (import extrato)
+    RECEITA_PREVISTA:  52,  // BA - PONTOS × FATOR (calc/projeção)
+    RECEITA_REALIZADA: 53,  // BB - Do extrato mensal (pode ter desconto/multa)
+    STATUS_ADIMPL_90D: 54,  // BC - EM_DIA / INADIMPLENTE_90D / ADIMPLENTE_90D_LIBERADO
+    STATUS_CHURN:      55,  // BD - ATIVO / CHURN_VOLUNTARIO / CHURN_INVOLUNTARIO / CANCELADO_COMERCIAL
+    STATUS_SUSPENSAO:  56,  // BE - NORMAL / SUSPENSO_<dias>
+    FAIXA_RISCO:       57,  // BF - 1-6 (relatório inadimplência)
+    NEVER_PAID:        58,  // BG - bool (relatório inadimplência)
+    AGING_DIAS:        59,  // BH - dias em atraso da fatura mais antiga
+    ULTIMO_REFRESH_RISCO: 60, // BI - timestamp do último refresh profundo
+    ORIGEM_CONTRATO_VERO: 61, // BJ - HUB / ADP / ADAPTER / NG / SIMETRA
+    MES_REF_VENDA:     62,  // BK - M0 / M-1 / M-2 ... vintage reportado pela Vero
+    CLASSIFICACAO_CLUSTER: 63 // BL - Segmentação reportada pela Vero (pode divergir do CRM)
   }
 };
 
@@ -6117,7 +6138,26 @@ function _mapearLinha(row, numeroLinha) {
     })(row[c.CRIADO_EM]),
     criadoPor:        String(row[c.CRIADO_POR] || '').trim(),
     veroStatus:       String(row[c.VERO_STATUS] || '').trim(),
-    formaPagamento:   String(row[c.FORMA_PAGAMENTO] || '').trim()
+    formaPagamento:   String(row[c.FORMA_PAGAMENTO] || '').trim(),
+    // ── Financeiro (AU-BL) — Fase 3. Lidos p/ preservar em edição (full-row rewrite). ──
+    codPlano:            String(row[c.COD_PLANO] || '').trim(),
+    pontosVenda:         (row[c.PONTOS_VENDA]  === '' || row[c.PONTOS_VENDA]  == null) ? '' : row[c.PONTOS_VENDA],
+    pontosMovel:         (row[c.PONTOS_MOVEL]  === '' || row[c.PONTOS_MOVEL]  == null) ? '' : row[c.PONTOS_MOVEL],
+    mesCompetencia:      String(row[c.MES_COMPETENCIA] || '').trim(),
+    estrelasNoMes:       String(row[c.ESTRELAS_NO_MES] || '').trim(),
+    fatorAplicado:       (row[c.FATOR_APLICADO]   === '' || row[c.FATOR_APLICADO]   == null) ? '' : row[c.FATOR_APLICADO],
+    receitaPrevista:     (row[c.RECEITA_PREVISTA] === '' || row[c.RECEITA_PREVISTA] == null) ? '' : row[c.RECEITA_PREVISTA],
+    receitaRealizada:    (row[c.RECEITA_REALIZADA]=== '' || row[c.RECEITA_REALIZADA]== null) ? '' : row[c.RECEITA_REALIZADA],
+    statusAdimpl90d:     String(row[c.STATUS_ADIMPL_90D] || '').trim(),
+    statusChurn:         String(row[c.STATUS_CHURN] || '').trim(),
+    statusSuspensao:     String(row[c.STATUS_SUSPENSAO] || '').trim(),
+    faixaRisco:          (row[c.FAIXA_RISCO] === '' || row[c.FAIXA_RISCO] == null) ? '' : row[c.FAIXA_RISCO],
+    neverPaid:           (row[c.NEVER_PAID] === '' || row[c.NEVER_PAID] == null) ? '' : row[c.NEVER_PAID],
+    agingDias:           (row[c.AGING_DIAS] === '' || row[c.AGING_DIAS] == null) ? '' : row[c.AGING_DIAS],
+    ultimoRefreshRisco:  String(row[c.ULTIMO_REFRESH_RISCO] || '').trim(),
+    origemContratoVero:  String(row[c.ORIGEM_CONTRATO_VERO] || '').trim(),
+    mesRefVenda:         String(row[c.MES_REF_VENDA] || '').trim(),
+    classificacaoCluster:String(row[c.CLASSIFICACAO_CLUSTER] || '').trim()
   };
 }
 
@@ -6321,6 +6361,57 @@ function _construirLinhaDados(d) {
   linha[c.CRIADO_POR]        = d.criadoPor          || '';
   // AT = FORMA_PAGAMENTO: 'BOLETO' | 'RECORRENTE' | '' (legado vazio até ser editado)
   linha[c.FORMA_PAGAMENTO]   = d.formaPagamento    || '';
+
+  // ── Bloco 7: Financeiro (AU-BL) — Módulo Financeiro Fase 3 (§5) ──────────────
+  // SNAPSHOTS (COD_PLANO/PONTOS/MES): computados de forma IDEMPOTENTE — só quando
+  // vazios. Em edição, o merge (_mesclarDadosVendaComLinhaAtual_) traz o valor
+  // atual em d.*, então NÃO recomputa (preserva o snapshot original — §5). Em
+  // cadastro novo, d.* vem vazio e calcula. Mesmo padrão do auto-fill de Sistema.
+  var codPlanoF = String(d.codPlano || '').trim();
+  if (!codPlanoF && d.plano && d.cidade) {
+    try { codPlanoF = getCodigoVeroPorPlanoCidade(d.plano, d.cidade) || ''; } catch (eC) {}
+  }
+  linha[c.COD_PLANO] = codPlanoF;
+
+  var pontosBlF = (d.pontosVenda === undefined || d.pontosVenda === '' || d.pontosVenda === null) ? '' : d.pontosVenda;
+  var pontosMvF = (d.pontosMovel === undefined || d.pontosMovel === '' || d.pontosMovel === null) ? '' : d.pontosMovel;
+  if ((pontosBlF === '' || pontosMvF === '') && codPlanoF) {
+    try {
+      var ppF = getPontuacaoVenda(codPlanoF, d.segmentacao);
+      if (ppF && ppF.encontrado) {
+        if (pontosBlF === '') pontosBlF = ppF.pontos_bl;
+        if (pontosMvF === '') pontosMvF = ppF.pontos_movel;
+      }
+    } catch (eP) {}
+  }
+  linha[c.PONTOS_VENDA] = pontosBlF;
+  linha[c.PONTOS_MOVEL] = pontosMvF;
+
+  var mesCompF = String(d.mesCompetencia || '').trim();
+  if (!mesCompF && String(d.status || '').trim() === '3 - Finalizada/Instalada' && d.instal) {
+    try {
+      var dInsF = _parseDDMMYYYY_(_formatarDataNascimento(d.instal, 'dd/MM/yyyy'));
+      if (dInsF && !isNaN(dInsF)) mesCompF = Utilities.formatDate(dInsF, Session.getScriptTimeZone(), 'yyyy-MM');
+    } catch (eM) {}
+  }
+  linha[c.MES_COMPETENCIA] = mesCompF;
+
+  // LIVE (import extrato/inadimplência/SAFRA): nunca gravadas pelo formulário —
+  // só preservadas do estado atual (que o merge trouxe em d.*). Cadastro novo = ''.
+  linha[c.ESTRELAS_NO_MES]       = d.estrelasNoMes       || '';
+  linha[c.FATOR_APLICADO]        = (d.fatorAplicado      === undefined || d.fatorAplicado      === null) ? '' : d.fatorAplicado;
+  linha[c.RECEITA_PREVISTA]      = (d.receitaPrevista    === undefined || d.receitaPrevista    === null) ? '' : d.receitaPrevista;
+  linha[c.RECEITA_REALIZADA]     = (d.receitaRealizada   === undefined || d.receitaRealizada   === null) ? '' : d.receitaRealizada;
+  linha[c.STATUS_ADIMPL_90D]     = d.statusAdimpl90d     || '';
+  linha[c.STATUS_CHURN]          = d.statusChurn         || '';
+  linha[c.STATUS_SUSPENSAO]      = d.statusSuspensao     || '';
+  linha[c.FAIXA_RISCO]           = (d.faixaRisco         === undefined || d.faixaRisco         === null) ? '' : d.faixaRisco;
+  linha[c.NEVER_PAID]            = (d.neverPaid          === undefined || d.neverPaid          === null) ? '' : d.neverPaid;
+  linha[c.AGING_DIAS]            = (d.agingDias          === undefined || d.agingDias          === null) ? '' : d.agingDias;
+  linha[c.ULTIMO_REFRESH_RISCO]  = d.ultimoRefreshRisco  || '';
+  linha[c.ORIGEM_CONTRATO_VERO]  = d.origemContratoVero  || '';
+  linha[c.MES_REF_VENDA]         = d.mesRefVenda         || '';
+  linha[c.CLASSIFICACAO_CLUSTER] = d.classificacaoCluster|| '';
   return linha;
 }
 
