@@ -63,10 +63,28 @@ function _fase3CalcLinha(row) {
   return { cod: cod, pbl: pbl, pmv: pmv, mes: mes };
 }
 
-// Limpa o cache do pontuacao_planos.json (força releitura do Drive — usar após
-// atualizar o JSON para a rev2 antes de re-rodar o backfill).
+// Limpa o cache do pontuacao_planos.json + verohub (força releitura do Drive
+// — usar após atualizar os JSONs antes de re-rodar o backfill).
 function _fase3LimparCachePontuacao() {
   try { CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'pontuacao_planos_v1'); } catch (e) {}
+}
+
+// Janela financeira (decisão Ricardo 21/05): só vendas que ainda impactam
+// estorno/inadimplência/projeção. Carta: churn/suspensão até 180d, adimplência
+// M+3, projeção mês atual + 3. Processa status 2 (agendada), Pendencia Vero, e
+// status 3 instalada nos últimos ~6 meses. Base antiga (liquidada) NÃO é tocada.
+function _fase3NaJanela_(row) {
+  var c = CONFIG.COLUNAS;
+  var status = String(row[c.STATUS] || '').trim();
+  if (status === '2- Aguardando Instalação' || status === 'Pendencia Vero') return true;
+  if (status === '3 - Finalizada/Instalada') {
+    var instal = row[c.INSTAL];
+    var d = (instal instanceof Date) ? instal : _parseDDMMYYYY_(String(instal));
+    if (!d || isNaN(d)) return false;
+    var cutoff = new Date(); cutoff.setMonth(cutoff.getMonth() - 6);
+    return d >= cutoff;
+  }
+  return false;
 }
 
 // 2) DRY-RUN: percorre as vendas e RELATA quantas resolveriam cada campo, SEM escrever.
@@ -77,18 +95,20 @@ function fase3BackfillDryRun() {
   if (last < 3) return 'Sem dados (lastRow=' + last + ').';
   var n = last - 2;
   var data = sheet.getRange(3, 1, n, 46).getValues();
-  var r = { total: n, cod: 0, pontos: 0, pontosMovel: 0, mes: 0 };
+  var r = { total: n, janela: 0, fora: 0, cod: 0, pontos: 0, pontosMovel: 0, mes: 0 };
   for (var i = 0; i < n; i++) {
+    if (!_fase3NaJanela_(data[i])) { r.fora++; continue; }
+    r.janela++;
     var x = _fase3CalcLinha(data[i]);
     if (x.cod) r.cod++;
     if (x.pbl !== '' && x.pbl != null) r.pontos++;
     if (x.pmv !== '' && x.pmv != null && x.pmv > 0) r.pontosMovel++;
     if (x.mes) r.mes++;
   }
-  var msg = 'DRY-RUN (nada gravado): ' + r.total + ' vendas | COD_PLANO resolvido: ' + r.cod +
+  var msg = 'DRY-RUN (nada gravado): ' + r.janela + ' vendas na janela de 6 meses (de ' + r.total + ' totais; ' + r.fora + ' fora da janela, intocadas) | COD_PLANO: ' + r.cod +
             ' | PONTOS_VENDA: ' + r.pontos + ' | PONTOS_MOVEL (>0): ' + r.pontosMovel +
             ' | MES_COMPETENCIA: ' + r.mes +
-            '\n(Cobertura parcial é esperada: COD depende do dicionário de cidades; PONTOS dos 22 códigos do extrato.)';
+            '\n(Resolver: sweep VeroHub (todas as cidades) + fallback dicionário; pontuação via pontuacao_planos.json. Match conservador — sem chute.)';
   Logger.log(msg);
   return msg;
 }
@@ -112,8 +132,10 @@ function fase3Backfill() {
   var curPbl = sheet.getRange(3, 48, n, 1).getValues(); // AV
   var curPmv = sheet.getRange(3, 49, n, 1).getValues(); // AW
   var curMes = sheet.getRange(3, 50, n, 1).getValues(); // AX
-  var r = { total: n, cod: 0, pontos: 0, mes: 0 };
+  var r = { total: n, janela: 0, fora: 0, cod: 0, pontos: 0, mes: 0 };
   for (var i = 0; i < n; i++) {
+    if (!_fase3NaJanela_(data[i])) { r.fora++; continue; } // base antiga intocada
+    r.janela++;
     var x = _fase3CalcLinha(data[i]);
     if (x.cod) { curCod[i][0] = x.cod; r.cod++; }
     if (x.pbl !== '' && x.pbl != null) { curPbl[i][0] = x.pbl; r.pontos++; }
@@ -125,7 +147,7 @@ function fase3Backfill() {
   sheet.getRange(3, 49, n, 1).setValues(curPmv);
   sheet.getRange(3, 50, n, 1).setValues(curMes);
   try { _limparCache(); } catch (e) {}
-  var msg = 'BACKFILL OK: ' + r.total + ' vendas | COD_PLANO: ' + r.cod +
+  var msg = 'BACKFILL OK (janela 6 meses): ' + r.janela + ' vendas processadas (de ' + r.total + '; ' + r.fora + ' fora da janela, intocadas) | COD_PLANO: ' + r.cod +
             ' | PONTOS_VENDA: ' + r.pontos + ' | MES_COMPETENCIA: ' + r.mes;
   Logger.log(msg);
   return msg;
