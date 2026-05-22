@@ -293,35 +293,44 @@
     if(extra) for(var k in extra) o[k]=extra[k];
     return o;
   }
+  // Tendência: combo — barras (vendas OU receita, conforme toggle) + linha de Instalações (sempre)
   function renderTendencia(arr){
     destroy('tend');
     var mp={};
     for(var i=0;i<arr.length;i++){
       var dv=get(arr[i],F.base); if(!dv) continue;
       var ck=chaveTempo(dv);
-      if(!mp[ck.k]) mp[ck.k]={label:ck.label,vendas:0,receita:0};
+      if(!mp[ck.k]) mp[ck.k]={label:ck.label,vendas:0,receita:0,instaladas:0};
       mp[ck.k].vendas++; mp[ck.k].receita+=Number(get(arr[i],'valor'))||0;
+      if(get(arr[i],'status')===ST_INSTALADA) mp[ck.k].instaladas++;
     }
     var keys=Object.keys(mp).sort();
     var labels=keys.map(function(k){return mp[k].label;});
-    var vals=keys.map(function(k){return F.tmetric==='receita'?mp[k].receita:mp[k].vendas;});
-    CHARTS.tend=new Chart($('relChartTend'),{type:'bar',
-      data:{labels:labels,datasets:[{data:vals,backgroundColor:'rgba(0,212,255,.35)',borderColor:'#00d4ff',borderWidth:1.5,borderRadius:4}]},
-      options:baseOpts({plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return F.tmetric==='receita'?rBR(c.parsed.y):nBR(c.parsed.y)+' vendas';}}}}})});
+    var ehRec=F.tmetric==='receita';
+    var primario=keys.map(function(k){return ehRec?mp[k].receita:mp[k].vendas;});
+    var instal=keys.map(function(k){return mp[k].instaladas;});
+    CHARTS.tend=new Chart($('relChartTend'),{
+      data:{labels:labels,datasets:[
+        {type:'bar',label:(ehRec?'Receita':'Vendas'),data:primario,backgroundColor:'rgba(0,212,255,.35)',borderColor:'#00d4ff',borderWidth:1.5,borderRadius:4,yAxisID:'y',order:2},
+        {type:'line',label:'Instalações',data:instal,borderColor:'#c8ff5e',backgroundColor:'#c8ff5e',borderWidth:2,pointRadius:3,tension:.3,yAxisID:'y2',order:1}
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:true,labels:{color:TICK,font:{size:10},boxWidth:12}},
+          tooltip:{callbacks:{label:function(c){var v=c.parsed.y; if(c.dataset.label==='Receita')return 'Receita: '+rBR(v); if(c.dataset.label==='Instalações')return 'Instalações: '+nBR(v); return 'Vendas: '+nBR(v);}}}},
+        scales:{x:{grid:{color:GRID},ticks:{color:TICK,font:{size:10}}},
+          y:{position:'left',grid:{color:GRID},ticks:{color:TICK,font:{size:10}},beginAtZero:true},
+          y2:{position:'right',grid:{drawOnChartArea:false},ticks:{color:'#c8ff5e',font:{size:10}},beginAtZero:true}}}});
   }
-  function renderBar(canvasId, chartKey, dados, cor){
+  // Barras agrupadas horizontais: Vendas × Instalações (sempre juntas) por categoria
+  function renderBarDual(canvasId, chartKey, dados){
     destroy(chartKey);
     var top=dados.slice(0,10);
     CHARTS[chartKey]=new Chart($(canvasId),{type:'bar',
-      data:{labels:top.map(function(d){return d.nome;}),datasets:[{data:top.map(function(d){return d.val;}),backgroundColor:cor,borderRadius:4}]},
-      options:baseOpts({indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return nBR(c.parsed.x);}}}}})});
-  }
-  function renderDonut(canvasId, chartKey, dados){
-    destroy(chartKey);
-    var top=dados.slice(0,8);
-    CHARTS[chartKey]=new Chart($(canvasId),{type:'doughnut',
-      data:{labels:top.map(function(d){return d.nome;}),datasets:[{data:top.map(function(d){return d.val;}),backgroundColor:PALETA,borderColor:'#0e1018',borderWidth:2}]},
-      options:{responsive:true,maintainAspectRatio:false,cutout:'58%',plugins:{legend:{position:'right',labels:{color:TICK,font:{size:10},boxWidth:10}}}}});
+      data:{labels:top.map(function(d){return d.nome;}),datasets:[
+        {label:'Vendas',data:top.map(function(d){return d.vendas;}),backgroundColor:'rgba(0,212,255,.55)',borderRadius:4},
+        {label:'Instalações',data:top.map(function(d){return d.instaladas;}),backgroundColor:'rgba(200,255,94,.55)',borderRadius:4}
+      ]},
+      options:baseOpts({indexAxis:'y',plugins:{legend:{display:true,labels:{color:TICK,font:{size:10},boxWidth:12}},tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+nBR(c.parsed.x);}}}}})});
   }
 
   // ── Tabelas ───────────────────────────────────────────
@@ -332,12 +341,12 @@
     return h;
   }
   function renderTblResp(dados){
-    var rows=dados.slice(0,15).map(function(d){return {nome:d.nome,vendas:nBR(d.vendas),receita:rBR(d.receita),ticket:rBR(d.ticket)};});
-    $('relTblResp').innerHTML = rows.length? tabela([{t:'Vendedor',k:'nome'},{t:'Vendas',k:'vendas',num:1},{t:'Receita',k:'receita',num:1},{t:'Ticket',k:'ticket',num:1}], rows) : '<div class="rel-empty">Sem dados</div>';
+    var rows=dados.slice(0,15).map(function(d){return {nome:d.nome,vendas:nBR(d.vendas),instaladas:nBR(d.instaladas),receita:rBR(d.receita),ticket:rBR(d.ticket)};});
+    $('relTblResp').innerHTML = rows.length? tabela([{t:'Vendedor',k:'nome'},{t:'Vendas',k:'vendas',num:1},{t:'Instaladas',k:'instaladas',num:1},{t:'Receita',k:'receita',num:1},{t:'Ticket',k:'ticket',num:1}], rows) : '<div class="rel-empty">Sem dados</div>';
   }
   function renderTblPlano(arr){
-    var dados=agrupar(arr,'plano','vendas').slice(0,15).map(function(d){return {nome:d.nome,vendas:nBR(d.vendas),receita:rBR(d.receita)};});
-    $('relTblPlano').innerHTML = dados.length? tabela([{t:'Plano',k:'nome'},{t:'Vendas',k:'vendas',num:1},{t:'Receita',k:'receita',num:1}], dados) : '<div class="rel-empty">Sem dados</div>';
+    var dados=agrupar(arr,'plano','vendas').slice(0,15).map(function(d){return {nome:d.nome,vendas:nBR(d.vendas),instaladas:nBR(d.instaladas),receita:rBR(d.receita)};});
+    $('relTblPlano').innerHTML = dados.length? tabela([{t:'Plano',k:'nome'},{t:'Vendas',k:'vendas',num:1},{t:'Instaladas',k:'instaladas',num:1},{t:'Receita',k:'receita',num:1}], dados) : '<div class="rel-empty">Sem dados</div>';
   }
   function renderPivot(arr){
     var dim=$('relPivotDim').value, metric=$('relPivotMetric').value;
@@ -366,10 +375,10 @@
     renderKPIs(m,mAnt);
     if(window.Chart){
       renderTendencia(arr);
-      renderBar('relChartResp','resp',agrupar(arr,'resp','vendas'),'rgba(167,139,250,.6)');
-      renderDonut('relChartProd','prod',agrupar(arr,'produto','vendas'));
-      renderBar('relChartCidade','cidade',agrupar(arr,'cidade','vendas'),'rgba(200,255,94,.5)');
-      renderDonut('relChartCanal','canal',agrupar(arr,'canal','vendas'));
+      renderBarDual('relChartResp','resp',agrupar(arr,'resp','vendas'));
+      renderBarDual('relChartProd','prod',agrupar(arr,'produto','vendas'));
+      renderBarDual('relChartCidade','cidade',agrupar(arr,'cidade','vendas'));
+      renderBarDual('relChartCanal','canal',agrupar(arr,'canal','vendas'));
     }
     renderTblResp(agrupar(arr,'resp','vendas'));
     renderTblPlano(arr);
