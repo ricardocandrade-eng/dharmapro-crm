@@ -6384,8 +6384,17 @@ function _construirLinhaDados(d) {
       }
     } catch (eP) {}
   }
-  linha[c.PONTOS_VENDA] = pontosBlF;
-  linha[c.PONTOS_MOVEL] = pontosMvF;
+  // Anti-dupla-contagem (§2.2): a Móvel COMBO é filha de uma Fibra Combo, cuja
+  // linha (movel_vinculado no pontuacao_planos.json) já carrega os pontos do móvel.
+  // Então a linha da Móvel Combo NÃO grava pontos — senão o combo conta 2× na
+  // projeção. Fibra (alone/combo) e Móvel ALONE (standalone) mantêm seus pontos.
+  if (_normalizarTexto(d.produto) === 'MOVEL COMBO') {
+    linha[c.PONTOS_VENDA] = '';
+    linha[c.PONTOS_MOVEL] = '';
+  } else {
+    linha[c.PONTOS_VENDA] = pontosBlF;
+    linha[c.PONTOS_MOVEL] = pontosMvF;
+  }
 
   var mesCompF = String(d.mesCompetencia || '').trim();
   if (!mesCompF && String(d.status || '').trim() === '3 - Finalizada/Instalada' && d.instal) {
