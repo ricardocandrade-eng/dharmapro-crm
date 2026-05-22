@@ -52,8 +52,8 @@ var USUARIOS = [
 //                     indicacao, docs, cruzamento, tickets, novaVenda, extrato, config
 // ──────────────────────────────────────────────────────────────────────────
 var PERFIS_MENUS = {
-  'admin':      ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','painelads','disparos','usuarios','waPessoal','viabilidade','vinculosPendentes','financeiro','codigosVero'],
-  'supervisor': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','painelads','disparos','waPessoal'],
+  'admin':      ['dash','relatorios','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','painelads','disparos','usuarios','waPessoal','viabilidade','vinculosPendentes','financeiro','codigosVero'],
+  'supervisor': ['dash','relatorios','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','painelads','disparos','waPessoal'],
   'backoffice': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','config','filaPAP','metaads','painelads','disparos','viabilidade']
 };
 

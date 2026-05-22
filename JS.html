@@ -5228,6 +5228,9 @@ function fazerLogin() {
         // Health Check: pontinhos VPN/NG/Adapter no header + polling 60s
         try { _iniciarPollingHealth(); } catch (e) { console.warn('Health check init falhou:', e); }
 
+        // Pré-aquece o cache dos Relatórios (janela 12m) em background — 1ª abertura do dia já vem quente
+        try { google.script.run.prewarmRelatorios(); } catch (e) {}
+
         // ─── Salva sessão para auto-login no F5 (nunca armazena a senha) ──
         try {
           sessionStorage.setItem('crm_usuario', usuario);
@@ -5311,6 +5314,7 @@ var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indic
 
 var _menuMap = {
   'dash':        'menuDash',
+  'relatorios':  'menuRelatorios',
   'formulario':  'menuNovo',
   'lista':       'menuLista',
   'funil':       'menuFunil',
@@ -5382,6 +5386,33 @@ function navegar(pagina) {
           container.innerHTML = '<div style="padding:60px;text-align:center;color:#ff4570;font-family:monospace">Erro: ' + err.message + '</div>';
         })
         .getDashboardHtml();
+    }
+
+  } else if (pagina === 'relatorios') {
+    document.getElementById('menuRelatorios').classList.add('ativo');
+    document.getElementById('pageRelatorios').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Relatórios';
+    var contRel = document.getElementById('relatoriosContainer');
+    if (!contRel.getAttribute('data-loaded')) {
+      contRel.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          if (!html) {
+            contRel.innerHTML = '<div style="padding:60px;text-align:center;color:#ff4570;font-family:monospace">Erro: HTML vazio</div>';
+            return;
+          }
+          // Relatorios.html vem sem html/head/body e com CSS escopado em #relatoriosContainer
+          contRel.innerHTML = html;
+          contRel.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+        })
+        .withFailureHandler(function(err) {
+          contRel.innerHTML = '<div style="padding:60px;text-align:center;color:#ff4570;font-family:monospace">Erro: ' + err.message + '</div>';
+        })
+        .getRelatoriosHtml();
     }
 
   } else if (pagina === 'formulario') {

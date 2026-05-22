@@ -1,0 +1,493 @@
+<!-- ════════════════════════════════════════════════════════════════════════════
+     Relatorios.html — DharmaPro CRM
+     Aba de relatórios com filtros dinâmicos (estilo BI). Dados vêm UMA vez de
+     getRelatoriosDados(janelaMeses); todo filtro/agregação roda no cliente.
+     CSS escopado em #relatoriosContainer; script inline re-executado pelo navegar().
+     ══════════════════════════════════════════════════════════════════════════ -->
+<style>
+#relatoriosContainer{all:initial;display:block;width:100%;height:100%;overflow-y:auto;background:#08090e;color:#dde2f0;font-family:'DM Sans',sans-serif;position:relative}
+#relatoriosContainer *,#relatoriosContainer *::before,#relatoriosContainer *::after{box-sizing:border-box;margin:0;padding:0}
+#relatoriosContainer{--bg:#08090e;--s1:#0e1018;--s2:#131620;--s3:#191d2c;--rim:rgba(255,255,255,0.06);--rim2:rgba(255,255,255,0.12);--txt:#dde2f0;--dim:#5a6080;--dim2:#8490b8;--em:#f0f4ff;--g1:#c8ff5e;--g2:#00d4ff;--g3:#ff4570;--g4:#ffaa00;--g5:#a78bfa;--mono:'Martian Mono',monospace;--r:14px}
+#relatoriosContainer .rel-top{position:sticky;top:0;z-index:100;min-height:52px;padding:10px 28px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:rgba(8,9,14,.92);backdrop-filter:blur(24px);border-bottom:1px solid var(--rim)}
+#relatoriosContainer .rel-title{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.2em;color:var(--dim2);text-transform:uppercase}
+#relatoriosContainer .rel-sub{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.08em}
+#relatoriosContainer .rel-top-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+#relatoriosContainer .rel-btn{padding:7px 14px;border-radius:8px;background:var(--s2);border:1px solid var(--rim);color:var(--dim2);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);letter-spacing:.05em;transition:all .15s}
+#relatoriosContainer .rel-btn:hover{background:var(--s3);color:var(--em);border-color:var(--rim2)}
+#relatoriosContainer .rel-btn.accent{background:rgba(0,212,255,.08);border-color:rgba(0,212,255,.22);color:var(--g2)}
+#relatoriosContainer .rel-btn.accent:hover{background:rgba(0,212,255,.16)}
+/* ── FILTROS ── */
+#relatoriosContainer .rel-filtros{position:sticky;top:73px;z-index:99;background:rgba(8,9,14,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--rim);padding:12px 28px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+#relatoriosContainer .rel-fgroup{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#relatoriosContainer .rel-flabel{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-right:2px}
+#relatoriosContainer .chip{padding:5px 11px;border-radius:7px;background:var(--s2);border:1px solid var(--rim);color:var(--dim2);font-size:11px;font-weight:500;cursor:pointer;font-family:var(--mono);letter-spacing:.03em;transition:all .12s;white-space:nowrap}
+#relatoriosContainer .chip:hover{background:var(--s3);color:var(--em)}
+#relatoriosContainer .chip.on{background:rgba(200,255,94,.1);border-color:rgba(200,255,94,.3);color:var(--g1)}
+#relatoriosContainer input[type=date]{background:var(--s2);border:1px solid var(--rim);color:var(--txt);border-radius:7px;padding:5px 8px;font-size:11px;font-family:var(--mono);color-scheme:dark}
+#relatoriosContainer details.rel-multi{position:relative}
+#relatoriosContainer details.rel-multi>summary{list-style:none;padding:5px 11px;border-radius:7px;background:var(--s2);border:1px solid var(--rim);color:var(--dim2);font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap;user-select:none}
+#relatoriosContainer details.rel-multi>summary::-webkit-details-marker{display:none}
+#relatoriosContainer details.rel-multi[open]>summary{background:var(--s3);color:var(--em);border-color:var(--rim2)}
+#relatoriosContainer details.rel-multi>summary.has{color:var(--g2);border-color:rgba(0,212,255,.3)}
+#relatoriosContainer .rel-multi-panel{position:absolute;top:calc(100% + 6px);left:0;z-index:200;background:var(--s2);border:1px solid var(--rim2);border-radius:10px;padding:8px;min-width:200px;max-height:300px;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+#relatoriosContainer .rel-multi-panel label{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:6px;font-size:12px;color:var(--txt);cursor:pointer}
+#relatoriosContainer .rel-multi-panel label:hover{background:var(--s3)}
+#relatoriosContainer .rel-multi-panel input{accent-color:var(--g2)}
+/* ── CANVAS ── */
+#relatoriosContainer .rel-canvas{padding:22px 28px 60px;position:relative;z-index:1}
+#relatoriosContainer .rel-section{display:flex;align-items:center;gap:14px;margin:26px 0 14px}
+#relatoriosContainer .rel-section span{font-family:var(--mono);font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+#relatoriosContainer .rel-section::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,var(--rim) 0%,transparent 100%)}
+#relatoriosContainer .rel-section .seg{display:flex;gap:6px;margin-left:auto}
+#relatoriosContainer .rel-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+@media(max-width:1100px){#relatoriosContainer .rel-kpis{grid-template-columns:repeat(3,1fr)}}
+#relatoriosContainer .kpi{background:var(--s1);border:1px solid var(--rim);border-radius:var(--r);padding:16px 18px;position:relative;overflow:hidden}
+#relatoriosContainer .kpi-t{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+#relatoriosContainer .kpi-v{font-size:24px;font-weight:700;color:var(--em);line-height:1}
+#relatoriosContainer .kpi-d{font-family:var(--mono);font-size:10px;margin-top:7px;letter-spacing:.04em}
+#relatoriosContainer .up{color:var(--g1)} #relatoriosContainer .down{color:var(--g3)} #relatoriosContainer .flat{color:var(--dim)}
+#relatoriosContainer .rel-grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:980px){#relatoriosContainer .rel-grid2{grid-template-columns:1fr}}
+#relatoriosContainer .card{background:var(--s1);border:1px solid var(--rim);border-radius:var(--r);padding:18px 20px}
+#relatoriosContainer .card h4{font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--dim2);margin-bottom:14px}
+#relatoriosContainer .chart-box{position:relative;height:280px}
+#relatoriosContainer .chart-box.tall{height:340px}
+#relatoriosContainer table.rel-tbl{width:100%;border-collapse:collapse;font-size:12px}
+#relatoriosContainer table.rel-tbl th{text-align:left;font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);padding:7px 8px;border-bottom:1px solid var(--rim)}
+#relatoriosContainer table.rel-tbl td{padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.03);color:var(--txt)}
+#relatoriosContainer table.rel-tbl td.num,#relatoriosContainer table.rel-tbl th.num{text-align:right;font-family:var(--mono)}
+#relatoriosContainer table.rel-tbl tr:hover td{background:rgba(255,255,255,.02)}
+#relatoriosContainer .rel-empty{padding:60px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:12px}
+#relatoriosContainer select.rel-sel{background:var(--s2);border:1px solid var(--rim);color:var(--txt);border-radius:7px;padding:5px 8px;font-size:11px;font-family:var(--mono)}
+#relatoriosContainer .rel-loading{padding:80px;text-align:center;color:var(--dim2);font-family:var(--mono);font-size:13px}
+</style>
+
+<div class="rel-top">
+  <div>
+    <div class="rel-title">▤ Relatórios</div>
+    <div class="rel-sub" id="relSub">carregando…</div>
+  </div>
+  <div class="rel-top-right">
+    <button class="rel-btn" id="relBtnHistorico">Carregar histórico completo</button>
+    <button class="rel-btn accent" id="relBtnRefresh">↻ Atualizar dados</button>
+  </div>
+</div>
+
+<div class="rel-filtros" id="relFiltros" style="display:none">
+  <div class="rel-fgroup">
+    <span class="rel-flabel">Período</span>
+    <button class="chip" data-preset="hoje">Hoje</button>
+    <button class="chip" data-preset="7d">7d</button>
+    <button class="chip" data-preset="30d">30d</button>
+    <button class="chip on" data-preset="mesAtual">Mês atual</button>
+    <button class="chip" data-preset="mesAnterior">Mês ant.</button>
+    <button class="chip" data-preset="12m">12 meses</button>
+    <button class="chip" data-preset="tudo">Tudo</button>
+  </div>
+  <div class="rel-fgroup">
+    <input type="date" id="relDtIni"><span class="rel-flabel">→</span><input type="date" id="relDtFim">
+  </div>
+  <div class="rel-fgroup">
+    <span class="rel-flabel">Base</span>
+    <button class="chip on" data-base="dataAtiv">Data venda</button>
+    <button class="chip" data-base="instal">Data instal.</button>
+  </div>
+  <div class="rel-fgroup" id="relMultis"></div>
+  <div class="rel-fgroup">
+    <button class="chip" id="relCmp">⇄ Comparar período anterior</button>
+    <button class="rel-btn" id="relLimpar">Limpar filtros</button>
+  </div>
+</div>
+
+<div class="rel-canvas" id="relCanvas">
+  <div class="rel-loading" id="relLoad">Carregando relatórios…</div>
+  <div id="relCorpo" style="display:none">
+    <div class="rel-section"><span>Indicadores</span></div>
+    <div class="rel-kpis" id="relKpis"></div>
+
+    <div class="rel-section"><span>Tendência no tempo</span>
+      <div class="seg">
+        <button class="chip" data-gran="dia">Dia</button>
+        <button class="chip" data-gran="semana">Semana</button>
+        <button class="chip on" data-gran="mes">Mês</button>
+        <button class="chip on" data-tmetric="vendas">Vendas</button>
+        <button class="chip" data-tmetric="receita">Receita</button>
+      </div>
+    </div>
+    <div class="card"><div class="chart-box tall"><canvas id="relChartTend"></canvas></div></div>
+
+    <div class="rel-section"><span>Ranking de vendedores</span></div>
+    <div class="rel-grid2">
+      <div class="card"><h4>Top vendedores</h4><div class="chart-box"><canvas id="relChartResp"></canvas></div></div>
+      <div class="card"><h4>Detalhe por vendedor</h4><div id="relTblResp"></div></div>
+    </div>
+
+    <div class="rel-section"><span>Mix de produto e plano</span></div>
+    <div class="rel-grid2">
+      <div class="card"><h4>Por produto</h4><div class="chart-box"><canvas id="relChartProd"></canvas></div></div>
+      <div class="card"><h4>Planos mais vendidos</h4><div id="relTblPlano"></div></div>
+    </div>
+
+    <div class="rel-section"><span>Cidade e canal</span></div>
+    <div class="rel-grid2">
+      <div class="card"><h4>Top cidades</h4><div class="chart-box"><canvas id="relChartCidade"></canvas></div></div>
+      <div class="card"><h4>Por canal</h4><div class="chart-box"><canvas id="relChartCanal"></canvas></div></div>
+    </div>
+
+    <div class="rel-section"><span>Tabela dinâmica</span>
+      <div class="seg">
+        <select class="rel-sel" id="relPivotDim"></select>
+        <select class="rel-sel" id="relPivotMetric">
+          <option value="vendas">Nº de vendas</option>
+          <option value="receita">Receita (Σ)</option>
+          <option value="ticket">Ticket médio</option>
+          <option value="instaladas">Instaladas</option>
+        </select>
+      </div>
+    </div>
+    <div class="card"><div id="relTblPivot"></div></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  if (window.REL && window.REL.booted) { window.REL.boot(); return; }
+
+  var REL = window.REL = { booted:false };
+  var SS_KEY = 'dharmapro_relatorios_v1', SS_TTL = 120000;
+  var PALETA = ['#00d4ff','#c8ff5e','#a78bfa','#ffaa00','#ff4570','#5ad1ff','#7ee787','#ff9ec4','#ffd479','#8490b8'];
+
+  // STATUS de referência (espelham STATUS_LIST do backend)
+  var ST_INSTALADA = '3 - Finalizada/Instalada';
+  var ST_CANCEL = ['Cancelado','Cancelamento Técnico','Cancelamento Comercial','Churn','Devolvido'];
+
+  var DATA = null, HMAP = {}, CHARTS = {};
+  var F = {
+    preset:'mesAtual', ini:'', fim:'', base:'dataAtiv', comparar:false,
+    gran:'mes', tmetric:'vendas',
+    sel:{ canal:{}, status:{}, produto:{}, cidade:{}, resp:{}, segmentacao:{}, formaPagamento:{} }
+  };
+  // Dimensões oferecidas como multi-select (campo → rótulo)
+  var DIMS = [
+    ['canal','Canal'],['status','Status'],['produto','Produto'],
+    ['cidade','Cidade'],['resp','Vendedor'],['segmentacao','Segmentação'],
+    ['formaPagamento','Forma pgto']
+  ];
+
+  function $(id){ return document.getElementById(id); }
+  function el(html){ var d=document.createElement('div'); d.innerHTML=html.trim(); return d.firstChild; }
+
+  // ── Datas ─────────────────────────────────────────────
+  function fmtISO(d){ var m=d.getMonth()+1, dd=d.getDate(); return d.getFullYear()+'-'+(m<10?'0'+m:m)+'-'+(dd<10?'0'+dd:dd); }
+  function hojeD(){ return new Date(); }
+  function presetRange(p){
+    var n=hojeD(), y=n.getFullYear(), m=n.getMonth();
+    if(p==='hoje') return [fmtISO(n), fmtISO(n)];
+    if(p==='7d'){ var a=new Date(n); a.setDate(a.getDate()-6); return [fmtISO(a), fmtISO(n)]; }
+    if(p==='30d'){ var b=new Date(n); b.setDate(b.getDate()-29); return [fmtISO(b), fmtISO(n)]; }
+    if(p==='mesAtual') return [fmtISO(new Date(y,m,1)), fmtISO(n)];
+    if(p==='mesAnterior') return [fmtISO(new Date(y,m-1,1)), fmtISO(new Date(y,m,0))];
+    if(p==='12m') return [fmtISO(new Date(y,m-11,1)), fmtISO(n)];
+    return ['0000-01-01','9999-12-31']; // tudo
+  }
+  function diffDias(ini,fim){ var a=new Date(ini), b=new Date(fim); return Math.round((b-a)/86400000)+1; }
+  function isoMenos(iso,dias){ var d=new Date(iso); d.setDate(d.getDate()-dias); return fmtISO(d); }
+
+  // ── Formatação ────────────────────────────────────────
+  function nBR(v){ return (v||0).toLocaleString('pt-BR'); }
+  function rBR(v){ return 'R$ '+(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function pct(v){ return (v||0).toFixed(1).replace('.',',')+'%'; }
+
+  // ── Acesso a campos ───────────────────────────────────
+  function get(row,campo){ return row[HMAP[campo]]; }
+
+  // ── Filtragem ─────────────────────────────────────────
+  function filtrar(ini,fim){
+    if(!DATA) return [];
+    var out=[];
+    for(var i=0;i<DATA.rows.length;i++){
+      var row=DATA.rows[i];
+      var dv=get(row,F.base);
+      if(!dv || dv<ini || dv>fim) continue;
+      var ok=true;
+      for(var d=0; d<DIMS.length && ok; d++){
+        var campo=DIMS[d][0], sel=F.sel[campo];
+        var ativos=Object.keys(sel).filter(function(k){return sel[k];});
+        if(ativos.length){
+          var val=String(get(row,campo)||'(vazio)') || '(vazio)';
+          if(!sel[val]) ok=false;
+        }
+      }
+      if(ok) out.push(row);
+    }
+    return out;
+  }
+
+  // ── Métricas de um conjunto ───────────────────────────
+  function metricas(arr){
+    var vendas=arr.length, receita=0, instaladas=0, canceladas=0;
+    for(var i=0;i<arr.length;i++){
+      receita += Number(get(arr[i],'valor'))||0;
+      var st=get(arr[i],'status');
+      if(st===ST_INSTALADA) instaladas++;
+      if(ST_CANCEL.indexOf(st)!==-1) canceladas++;
+    }
+    return { vendas:vendas, receita:receita, ticket: vendas?receita/vendas:0,
+             instaladas:instaladas, conversao: vendas?100*instaladas/vendas:0, canceladas:canceladas };
+  }
+
+  // ── Render KPIs ───────────────────────────────────────
+  function delta(atual,ant){
+    if(!F.comparar) return '<span class="kpi-d flat">&nbsp;</span>';
+    if(ant===0){ return atual>0 ? '<span class="kpi-d up">novo</span>' : '<span class="kpi-d flat">—</span>'; }
+    var p=100*(atual-ant)/ant;
+    var cls=p>0.5?'up':(p<-0.5?'down':'flat');
+    var arrow=p>0.5?'▲':(p<-0.5?'▼':'■');
+    return '<span class="kpi-d '+cls+'">'+arrow+' '+pct(Math.abs(p))+'</span>';
+  }
+  function renderKPIs(m, mAnt){
+    var defs=[
+      ['Vendas', nBR(m.vendas), m.vendas, mAnt.vendas],
+      ['Receita Σ', rBR(m.receita), m.receita, mAnt.receita],
+      ['Ticket médio', rBR(m.ticket), m.ticket, mAnt.ticket],
+      ['Instaladas', nBR(m.instaladas), m.instaladas, mAnt.instaladas],
+      ['Conversão', pct(m.conversao), m.conversao, mAnt.conversao],
+      ['Cancelamentos', nBR(m.canceladas), m.canceladas, mAnt.canceladas]
+    ];
+    $('relKpis').innerHTML = defs.map(function(d){
+      return '<div class="kpi"><div class="kpi-t">'+d[0]+'</div><div class="kpi-v">'+d[1]+'</div>'+delta(d[2],d[3])+'</div>';
+    }).join('');
+  }
+
+  // ── Agrupar ───────────────────────────────────────────
+  function chaveTempo(iso){
+    if(F.gran==='dia') return { k:iso, label:iso.slice(8,10)+'/'+iso.slice(5,7) };
+    if(F.gran==='mes'){ var meses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      return { k:iso.slice(0,7), label:meses[parseInt(iso.slice(5,7),10)-1]+'/'+iso.slice(2,4) }; }
+    // semana: segunda-feira da semana
+    var d=new Date(iso); var dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow);
+    return { k:fmtISO(d), label:fmtISO(d).slice(8,10)+'/'+fmtISO(d).slice(5,7) };
+  }
+  function agrupar(arr, campo, metric){
+    var mp={};
+    for(var i=0;i<arr.length;i++){
+      var key=String(get(arr[i],campo)||'(vazio)')||'(vazio)';
+      if(!mp[key]) mp[key]={vendas:0,receita:0,instaladas:0};
+      mp[key].vendas++; mp[key].receita+=Number(get(arr[i],'valor'))||0;
+      if(get(arr[i],'status')===ST_INSTALADA) mp[key].instaladas++;
+    }
+    var arrOut=Object.keys(mp).map(function(k){
+      var v=mp[k]; var val = metric==='receita'?v.receita : metric==='instaladas'?v.instaladas : metric==='ticket'?(v.vendas?v.receita/v.vendas:0) : v.vendas;
+      return { nome:k, val:val, vendas:v.vendas, receita:v.receita, instaladas:v.instaladas, ticket:v.vendas?v.receita/v.vendas:0 };
+    });
+    arrOut.sort(function(a,b){return b.val-a.val;});
+    return arrOut;
+  }
+
+  // ── Charts ────────────────────────────────────────────
+  function destroy(id){ if(CHARTS[id]){ CHARTS[id].destroy(); delete CHARTS[id]; } }
+  var GRID='rgba(255,255,255,0.05)', TICK='#8490b8';
+  function baseOpts(extra){
+    var o={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{color:GRID},ticks:{color:TICK,font:{size:10}}},y:{grid:{color:GRID},ticks:{color:TICK,font:{size:10}},beginAtZero:true}}};
+    if(extra) for(var k in extra) o[k]=extra[k];
+    return o;
+  }
+  function renderTendencia(arr){
+    destroy('tend');
+    var mp={};
+    for(var i=0;i<arr.length;i++){
+      var dv=get(arr[i],F.base); if(!dv) continue;
+      var ck=chaveTempo(dv);
+      if(!mp[ck.k]) mp[ck.k]={label:ck.label,vendas:0,receita:0};
+      mp[ck.k].vendas++; mp[ck.k].receita+=Number(get(arr[i],'valor'))||0;
+    }
+    var keys=Object.keys(mp).sort();
+    var labels=keys.map(function(k){return mp[k].label;});
+    var vals=keys.map(function(k){return F.tmetric==='receita'?mp[k].receita:mp[k].vendas;});
+    CHARTS.tend=new Chart($('relChartTend'),{type:'bar',
+      data:{labels:labels,datasets:[{data:vals,backgroundColor:'rgba(0,212,255,.35)',borderColor:'#00d4ff',borderWidth:1.5,borderRadius:4}]},
+      options:baseOpts({plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return F.tmetric==='receita'?rBR(c.parsed.y):nBR(c.parsed.y)+' vendas';}}}}})});
+  }
+  function renderBar(canvasId, chartKey, dados, cor){
+    destroy(chartKey);
+    var top=dados.slice(0,10);
+    CHARTS[chartKey]=new Chart($(canvasId),{type:'bar',
+      data:{labels:top.map(function(d){return d.nome;}),datasets:[{data:top.map(function(d){return d.val;}),backgroundColor:cor,borderRadius:4}]},
+      options:baseOpts({indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return nBR(c.parsed.x);}}}}})});
+  }
+  function renderDonut(canvasId, chartKey, dados){
+    destroy(chartKey);
+    var top=dados.slice(0,8);
+    CHARTS[chartKey]=new Chart($(canvasId),{type:'doughnut',
+      data:{labels:top.map(function(d){return d.nome;}),datasets:[{data:top.map(function(d){return d.val;}),backgroundColor:PALETA,borderColor:'#0e1018',borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,cutout:'58%',plugins:{legend:{position:'right',labels:{color:TICK,font:{size:10},boxWidth:10}}}}});
+  }
+
+  // ── Tabelas ───────────────────────────────────────────
+  function tabela(cols, linhas){
+    var h='<table class="rel-tbl"><thead><tr>'+cols.map(function(c){return '<th class="'+(c.num?'num':'')+'">'+c.t+'</th>';}).join('')+'</tr></thead><tbody>';
+    h+=linhas.map(function(r){ return '<tr>'+cols.map(function(c){return '<td class="'+(c.num?'num':'')+'">'+r[c.k]+'</td>';}).join('')+'</tr>'; }).join('');
+    h+='</tbody></table>';
+    return h;
+  }
+  function renderTblResp(dados){
+    var rows=dados.slice(0,15).map(function(d){return {nome:d.nome,vendas:nBR(d.vendas),receita:rBR(d.receita),ticket:rBR(d.ticket)};});
+    $('relTblResp').innerHTML = rows.length? tabela([{t:'Vendedor',k:'nome'},{t:'Vendas',k:'vendas',num:1},{t:'Receita',k:'receita',num:1},{t:'Ticket',k:'ticket',num:1}], rows) : '<div class="rel-empty">Sem dados</div>';
+  }
+  function renderTblPlano(arr){
+    var dados=agrupar(arr,'plano','vendas').slice(0,15).map(function(d){return {nome:d.nome,vendas:nBR(d.vendas),receita:rBR(d.receita)};});
+    $('relTblPlano').innerHTML = dados.length? tabela([{t:'Plano',k:'nome'},{t:'Vendas',k:'vendas',num:1},{t:'Receita',k:'receita',num:1}], dados) : '<div class="rel-empty">Sem dados</div>';
+  }
+  function renderPivot(arr){
+    var dim=$('relPivotDim').value, metric=$('relPivotMetric').value;
+    var dados=agrupar(arr,dim,metric);
+    var rows=dados.map(function(d){
+      var mv = metric==='receita'?rBR(d.receita) : metric==='ticket'?rBR(d.ticket) : metric==='instaladas'?nBR(d.instaladas) : nBR(d.vendas);
+      return {nome:d.nome, vendas:nBR(d.vendas), receita:rBR(d.receita), instaladas:nBR(d.instaladas), val:mv};
+    });
+    var label = $('relPivotMetric').options[$('relPivotMetric').selectedIndex].text;
+    $('relTblPivot').innerHTML = rows.length? tabela([
+      {t:dimLabel(dim),k:'nome'},{t:label,k:'val',num:1},{t:'Vendas',k:'vendas',num:1},{t:'Receita',k:'receita',num:1},{t:'Instaladas',k:'instaladas',num:1}
+    ], rows) : '<div class="rel-empty">Sem dados no filtro atual</div>';
+  }
+  function dimLabel(campo){ for(var i=0;i<DIMS.length;i++) if(DIMS[i][0]===campo) return DIMS[i][1]; return campo; }
+
+  // ── Pipeline de render ────────────────────────────────
+  function aplicar(){
+    var ini=F.ini, fim=F.fim;
+    var arr=filtrar(ini,fim);
+    var m=metricas(arr), mAnt={vendas:0,receita:0,ticket:0,instaladas:0,conversao:0,canceladas:0};
+    if(F.comparar){
+      var dias=diffDias(ini,fim);
+      var pf=isoMenos(ini,1), pi=isoMenos(ini,dias);
+      mAnt=metricas(filtrar(pi,pf));
+    }
+    renderKPIs(m,mAnt);
+    if(window.Chart){
+      renderTendencia(arr);
+      renderBar('relChartResp','resp',agrupar(arr,'resp','vendas'),'rgba(167,139,250,.6)');
+      renderDonut('relChartProd','prod',agrupar(arr,'produto','vendas'));
+      renderBar('relChartCidade','cidade',agrupar(arr,'cidade','vendas'),'rgba(200,255,94,.5)');
+      renderDonut('relChartCanal','canal',agrupar(arr,'canal','vendas'));
+    }
+    renderTblResp(agrupar(arr,'resp','vendas'));
+    renderTblPlano(arr);
+    renderPivot(arr);
+    $('relSub').textContent = nBR(arr.length)+' de '+nBR(DATA.rows.length)+' registros · '+
+      (F.preset==='tudo'?'todo o período carregado':(ini+' → '+fim));
+  }
+
+  // ── Construir filtros (opções distintas) ──────────────
+  function construirMultis(){
+    var distintos={};
+    DIMS.forEach(function(d){ distintos[d[0]]={}; });
+    DATA.rows.forEach(function(r){
+      DIMS.forEach(function(d){ var v=String(get(r,d[0])||'(vazio)')||'(vazio)'; distintos[d[0]][v]=true; });
+    });
+    var host=$('relMultis'); host.innerHTML='';
+    DIMS.forEach(function(d){
+      var campo=d[0], vals=Object.keys(distintos[campo]).sort();
+      var det=el('<details class="rel-multi"><summary>'+d[1]+'</summary><div class="rel-multi-panel"></div></details>');
+      var panel=det.querySelector('.rel-multi-panel');
+      vals.forEach(function(v){
+        var lab=el('<label><input type="checkbox" value="'+v.replace(/"/g,'&quot;')+'"> <span></span></label>');
+        lab.querySelector('span').textContent=v;
+        lab.querySelector('input').addEventListener('change',function(e){
+          F.sel[campo][v]=e.target.checked;
+          det.querySelector('summary').classList.toggle('has', Object.keys(F.sel[campo]).some(function(k){return F.sel[campo][k];}));
+          aplicar();
+        });
+        panel.appendChild(lab);
+      });
+      host.appendChild(det);
+    });
+    // popular dropdown da tabela dinâmica
+    $('relPivotDim').innerHTML = DIMS.map(function(d){return '<option value="'+d[0]+'">'+d[1]+'</option>';}).join('');
+  }
+
+  // ── Bind de controles ─────────────────────────────────
+  function setPreset(p){
+    F.preset=p; var r=presetRange(p); F.ini=r[0]; F.fim=r[1];
+    $('relDtIni').value = p==='tudo'?'':r[0]; $('relDtFim').value = p==='tudo'?'':r[1];
+    document.querySelectorAll('#relFiltros .chip[data-preset]').forEach(function(c){ c.classList.toggle('on', c.getAttribute('data-preset')===p); });
+  }
+  function bind(){
+    document.querySelectorAll('#relFiltros .chip[data-preset]').forEach(function(c){
+      c.addEventListener('click',function(){ setPreset(c.getAttribute('data-preset')); aplicar(); });
+    });
+    document.querySelectorAll('#relFiltros .chip[data-base]').forEach(function(c){
+      c.addEventListener('click',function(){
+        F.base=c.getAttribute('data-base');
+        document.querySelectorAll('#relFiltros .chip[data-base]').forEach(function(x){x.classList.toggle('on',x===c);});
+        aplicar();
+      });
+    });
+    $('relDtIni').addEventListener('change',function(e){ if(e.target.value){ F.ini=e.target.value; F.preset='custom'; document.querySelectorAll('#relFiltros .chip[data-preset]').forEach(function(c){c.classList.remove('on');}); aplicar(); }});
+    $('relDtFim').addEventListener('change',function(e){ if(e.target.value){ F.fim=e.target.value; F.preset='custom'; document.querySelectorAll('#relFiltros .chip[data-preset]').forEach(function(c){c.classList.remove('on');}); aplicar(); }});
+    $('relCmp').addEventListener('click',function(){ F.comparar=!F.comparar; $('relCmp').classList.toggle('on',F.comparar); aplicar(); });
+    $('relLimpar').addEventListener('click',function(){
+      DIMS.forEach(function(d){ F.sel[d[0]]={}; });
+      document.querySelectorAll('#relMultis input[type=checkbox]').forEach(function(c){c.checked=false;});
+      document.querySelectorAll('#relMultis summary').forEach(function(s){s.classList.remove('has');});
+      F.comparar=false; $('relCmp').classList.remove('on');
+      setPreset('mesAtual'); aplicar();
+    });
+    document.querySelectorAll('.seg .chip[data-gran]').forEach(function(c){
+      c.addEventListener('click',function(){ F.gran=c.getAttribute('data-gran');
+        document.querySelectorAll('.seg .chip[data-gran]').forEach(function(x){x.classList.toggle('on',x===c);}); aplicar(); });
+    });
+    document.querySelectorAll('.seg .chip[data-tmetric]').forEach(function(c){
+      c.addEventListener('click',function(){ F.tmetric=c.getAttribute('data-tmetric');
+        document.querySelectorAll('.seg .chip[data-tmetric]').forEach(function(x){x.classList.toggle('on',x===c);}); aplicar(); });
+    });
+    $('relPivotDim').addEventListener('change',aplicar);
+    $('relPivotMetric').addEventListener('change',aplicar);
+    $('relBtnRefresh').addEventListener('click',function(){ carregar(DATA?DATA.janelaMeses:12, true); });
+    $('relBtnHistorico').addEventListener('click',function(){
+      if(!confirm('Carregar TODO o histórico (desde 2023)? A carga inicial pode ser mais lenta.')) return;
+      carregar(0, true);
+    });
+  }
+
+  // ── Carregamento ──────────────────────────────────────
+  function aplicarDataset(res){
+    DATA=res; HMAP={}; res.header.forEach(function(h,i){HMAP[h]=i;});
+    $('relLoad').style.display='none'; $('relCorpo').style.display='block'; $('relFiltros').style.display='flex';
+    construirMultis();
+    setPreset(F.preset||'mesAtual');
+    var btn=$('relBtnHistorico');
+    if(res.janelaMeses===0){ btn.textContent='Histórico completo carregado'; btn.disabled=true; btn.style.opacity=.5; }
+    else { btn.textContent='Carregar histórico completo'; btn.disabled=false; btn.style.opacity=1; }
+    relLoadChart(function(){ aplicar(); });
+  }
+  function carregar(janela, forcar){
+    if(!forcar){
+      try{ var raw=sessionStorage.getItem(SS_KEY); if(raw){ var c=JSON.parse(raw);
+        if(c && (Date.now()-c.ts)<SS_TTL && c.res && c.res.janelaMeses===janela){ aplicarDataset(c.res); return; } } }catch(e){}
+    }
+    $('relCorpo').style.display='none'; $('relFiltros').style.display='none';
+    $('relLoad').style.display='block'; $('relLoad').textContent = janela===0?'Carregando histórico completo…':'Carregando relatórios…';
+    google.script.run.withSuccessHandler(function(res){
+      if(!res || !res.ok){ $('relLoad').textContent='Erro: '+((res&&res.mensagem)||'sem dados'); return; }
+      try{ sessionStorage.setItem(SS_KEY, JSON.stringify({ts:Date.now(),res:res})); }catch(e){}
+      aplicarDataset(res);
+    }).withFailureHandler(function(err){ $('relLoad').textContent='Erro ao carregar: '+(err&&err.message||err); })
+     .getRelatoriosDados(janela);
+  }
+
+  function relLoadChart(cb){
+    if(window.Chart){ cb(); return; }
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
+    s.onload=function(){ cb(); };
+    s.onerror=function(){ cb(); }; // segue sem gráficos; tabelas/KPIs continuam
+    document.head.appendChild(s);
+  }
+
+  REL.boot=function(){ /* re-navegação: nada a refazer, estado preservado */ };
+  REL.booted=true;
+  bind();
+  carregar(12, false);
+})();
+</script>
