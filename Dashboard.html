@@ -582,6 +582,17 @@ async function rnFetch(view){
   return sbFetch(view,{select:'*',limit:30});
 }
 
+// Conversão real (lead Renata → venda no CRM) vem do GAS, não do Supabase.
+// Nunca rejeita: em falha resolve null e o dashboard só omite a seção.
+function rnConversao(){
+  return new Promise(function(resolve){
+    google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(function(){resolve(null);})
+      .getRenataConversao(30);
+  });
+}
+
 async function rnLoad(){
   var root=document.getElementById('rn-root');
   if(root)root.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:40vh"><span style="font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase">carregando...</span></div>';
@@ -593,6 +604,7 @@ async function rnLoad(){
       rnFetch('v_top_cidades'),
       rnFetch('v_leads_por_motivo'),
       rnFetch('v_followup_resumo'),
+      rnConversao(),
     ]);
     var metricas=(results[0].status==='fulfilled'&&results[0].value.length?results[0].value[0]:{});
     var convDia=results[1].status==='fulfilled'?results[1].value:[];
@@ -600,7 +612,8 @@ async function rnLoad(){
     var cidades=results[3].status==='fulfilled'?results[3].value:[];
     var motivos=results[4].status==='fulfilled'?results[4].value:[];
     var followup=(results[5].status==='fulfilled'&&results[5].value.length?results[5].value[0]:{});
-    rnRender(metricas,convDia,leadNivel,cidades,motivos,followup);
+    var conversao=(results[6].status==='fulfilled'?results[6].value:null);
+    rnRender(metricas,convDia,leadNivel,cidades,motivos,followup,conversao);
   }catch(err){
     var r2=document.getElementById('rn-root');
     if(r2)r2.innerHTML='<div style="padding:80px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--g3);letter-spacing:.1em;">⚠ '+e(err.message)+'</div>';
@@ -608,7 +621,7 @@ async function rnLoad(){
 }
 window.rnLoad=rnLoad;
 
-function rnRender(m,convDia,leadNivel,cidades,motivos,followup){
+function rnRender(m,convDia,leadNivel,cidades,motivos,followup,conversao){
   var COLORS=['#c8ff5e','#00d4ff','#ff4570','#ffaa00','#a78bfa','#ff8c42'];
   var NIVEL_COLORS={'Qualificado':'#c8ff5e','Interessado':'#00d4ff','Potencial':'#ffaa00','Inicial':'#8490b8'};
   var MOTIVO_LABELS={'dados_completos':'Dados completos','pedido_humano':'Pediu atendente','urgencia_alta':'Urgência alta','objecao':'Objeção','sem_cobertura':'Sem cobertura','followup_frio':'Follow-up frio','followup_morno':'Follow-up morno'};
@@ -623,7 +636,7 @@ function rnRender(m,convDia,leadNivel,cidades,motivos,followup){
     {lbl:'Conversas Totais',val:m.total_conversas||0,c:'var(--g2)',big:true},
     {lbl:'Ativas agora',val:m.conversas_ativas||0,c:'var(--g1)'},
     {lbl:'Handoffs',val:m.conversas_handoff||0,c:'var(--g4)'},
-    {lbl:'Taxa Conversão',val:taxa.toFixed(1)+'%',c:taxa>=20?'var(--g1)':taxa>=10?'var(--g4)':'var(--g3)'},
+    {lbl:'Taxa de Handoff',val:taxa.toFixed(1)+'%',c:taxa>=20?'var(--g1)':taxa>=10?'var(--g4)':'var(--g3)'},
     {lbl:'Leads Gerados',val:m.total_leads||0,c:'var(--g5)'},
     {lbl:'Score Médio',val:parseFloat(m.score_medio||0).toFixed(1),c:'var(--g2)'},
     {lbl:'Erros (24h)',val:erros24,c:erros24>0?'var(--g3)':'var(--dim2)'},
@@ -635,6 +648,26 @@ function rnRender(m,convDia,leadNivel,cidades,motivos,followup){
     h+='</div>';
   });
   h+='</div>';
+
+  // ─ Conversão em venda (cruza leads Renata × vendas do CRM por telefone) ─
+  if(conversao&&conversao.ok){
+    h+='<div class="section-row" style="margin-top:8px"><span>Conversão em venda</span></div>';
+    h+='<div class="rn-kpi-grid">';
+    var cv=[
+      {lbl:'Conversão (venda)',val:parseFloat(conversao.taxaConversaVenda||0).toFixed(1)+'%',sub:(conversao.leadsConvertidos||0)+' de '+(conversao.conversas||0)+' conversas',c:'var(--g1)',big:true},
+      {lbl:'Handoff → Venda',val:parseFloat(conversao.taxaLeadVenda||0).toFixed(1)+'%',sub:(conversao.leadsConvertidos||0)+' de '+(conversao.leads||0)+' leads',c:'var(--g4)'},
+      {lbl:'Vendas Instaladas',val:String(conversao.leadsInstalados||0),sub:parseFloat(conversao.taxaConversaInstalada||0).toFixed(1)+'% das conversas',c:'var(--g2)'},
+    ];
+    cv.forEach(function(k,i){
+      h+='<div class="card" style="animation-delay:'+(i*0.05)+'s">';
+      h+='<div class="card-title" style="font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);margin-bottom:12px">'+k.lbl+'</div>';
+      h+='<div style="font-family:var(--serif);font-size:'+(k.big?'48px':'36px')+';line-height:1;font-style:italic;color:'+k.c+'">'+k.val+'</div>';
+      h+='<div style="font-family:var(--mono);font-size:9px;color:var(--dim2);margin-top:8px">'+e(k.sub)+'</div>';
+      h+='</div>';
+    });
+    h+='</div>';
+    h+='<div style="margin-top:6px;font-family:var(--mono);font-size:9px;color:var(--dim)">atribuição por telefone · janela '+e(conversao.janelaDias)+' dias · venda registrada no CRM</div>';
+  }
 
   // ─ Atividade ─
   h+='<div class="section-row" style="margin-top:8px"><span>Atividade</span></div>';
