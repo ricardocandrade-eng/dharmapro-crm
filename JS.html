@@ -8914,6 +8914,48 @@ function _nvExecutarSalvar(dados) {
   var eR = document.getElementById('nv-rastreamento');
   if (eL && !eL.disabled) dados.linhaMovel   = eL.value.trim();
   if (eR && !eR.disabled) dados.rastreamento = eR.value.trim();
+
+  // Frente B1.1 (26/05/2026): pre-check de Fibra Combo duplicada por CPF.
+  // Se já existe, pergunta ao operador — pode ser cliente legítimo com 2
+  // endereços (casa + trabalho, etc.) ou pode ser duplicata acidental.
+  // Frontend gateia ANTES do salvar pra evitar throw + reversão de Fibra.
+  var ehFibraComboNova = String(dados.produto || '').trim() === 'Fibra Combo';
+  if (ehFibraComboNova && dados.cpf && !dados.permitirCpfDuplicado) {
+    if (typeof nvLoading === 'function') nvLoading(true);
+    google.script.run
+      .withSuccessHandler(function(check) {
+        if (typeof nvLoading === 'function') nvLoading(false);
+        if (check && check.duplicada) {
+          var msg = 'Já existe Fibra Combo ATIVA pra esse CPF:\n\n' +
+            '  L.' + check.linha + ' — ' + check.cliente + '\n' +
+            '  Status: ' + check.status + '\n\n' +
+            'É um cliente legítimo com 2 endereços (casa/trabalho/CNPJ) ou ' +
+            'duplicata acidental?\n\n' +
+            'OK = confirmar 2 combos diferentes (prossegue)\n' +
+            'Cancelar = abortar (vou abrir a venda existente)';
+          if (window.confirm(msg)) {
+            dados.permitirCpfDuplicado = true;
+            _nvExecutarSalvarFinal(dados);
+          } else {
+            mostrarToast('Cadastro abortado. Abra a venda L.' + check.linha + ' na Lista de Vendas.', 'info');
+          }
+        } else {
+          _nvExecutarSalvarFinal(dados);
+        }
+      })
+      .withFailureHandler(function() {
+        if (typeof nvLoading === 'function') nvLoading(false);
+        // Fail-safe: se o pre-check falhar, deixa o salvarVenda decidir (vai
+        // bloquear via B1 se realmente houver duplicata; UX só perdeu a prévia).
+        _nvExecutarSalvarFinal(dados);
+      })
+      .checarFibraComboDuplicadaPorCpf(dados.cpf);
+    return;
+  }
+  _nvExecutarSalvarFinal(dados);
+}
+
+function _nvExecutarSalvarFinal(dados) {
   if (typeof nvLoading === 'function') nvLoading(true);
   google.script.run
     .withSuccessHandler(function(res) {

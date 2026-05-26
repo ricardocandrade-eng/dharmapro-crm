@@ -5391,8 +5391,13 @@ function salvarVenda(dados) {
         // ativa pro mesmo CPF. Caso real (GESLEY 25/05/2026): operador cadastrou
         // 2x o mesmo cliente. Antes esse check passava silencioso.
         // Aceita renovação se a anterior estiver cancelada.
+        //
+        // Frente B1.1 (26/05/2026): bypass com confirmação UI — se o frontend
+        // já perguntou e o operador confirmou (dados.permitirCpfDuplicado=true),
+        // a verificação é pulada. Casos legítimos: cliente com 2 endereços,
+        // CNPJ com 2 pontos, etc.
         var cpfNovo = String(dados.cpf || '').replace(/[^0-9]/g, '');
-        if (cpfNovo && cpfNovo.length >= 11) {
+        if (cpfNovo && cpfNovo.length >= 11 && !dados.permitirCpfDuplicado) {
           var errDup = _verificarFibraComboDuplicada_(sheet, cpfNovo);
           if (errDup) throw new Error(errDup);
         }
@@ -6678,6 +6683,36 @@ function _verificarFibraComboDuplicada_(sheet, cpfNovo) {
       'Se for duplicata acidental, abra a venda existente em vez de cadastrar uma nova.';
   }
   return null;
+}
+
+// Frente B1.1 (26/05/2026): API pública pro frontend perguntar ANTES de salvar
+// se já existe Fibra Combo ativa pro CPF. Retorna estruturado pra UI montar
+// modal de confirmação. Casos legítimos: cliente com 2 endereços, CNPJ etc.
+function checarFibraComboDuplicadaPorCpf(cpf) {
+  var cpfNorm = String(cpf || '').replace(/[^0-9]/g, '');
+  if (!cpfNorm || cpfNorm.length < 11) return { duplicada: false };
+  var sheet = _getSheet();
+  var c = CONFIG.COLUNAS;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 3) return { duplicada: false };
+  var totalLinhas = lastRow - 2;
+  var produtos = sheet.getRange(3, c.PRODUTO + 1, totalLinhas, 1).getValues();
+  var cpfs     = sheet.getRange(3, c.CPF + 1,     totalLinhas, 1).getValues();
+  var statuses = sheet.getRange(3, c.STATUS + 1,  totalLinhas, 1).getValues();
+  var clientes = sheet.getRange(3, c.CLIENTE + 1, totalLinhas, 1).getValues();
+  for (var i = 0; i < totalLinhas; i++) {
+    if (String(produtos[i][0] || '').trim() !== 'Fibra Combo') continue;
+    if (String(cpfs[i][0] || '').replace(/[^0-9]/g, '') !== cpfNorm) continue;
+    var status = String(statuses[i][0] || '').trim();
+    if (/CANCEL/i.test(status)) continue;
+    return {
+      duplicada:   true,
+      linha:       i + 3,
+      cliente:     String(clientes[i][0] || '').trim(),
+      status:      status
+    };
+  }
+  return { duplicada: false };
 }
 
 function _validarTransicaoStatusServer_(oldStatus, newStatus, campos) {
