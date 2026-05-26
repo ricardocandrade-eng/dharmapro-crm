@@ -4491,8 +4491,11 @@ function _verificarVendas800Streaming() {
 // (so escreve celulas que ainda tem o nome antigo). Rodar no editor APOS o Rev8,
 // e somente se _verificarVendas800Streaming() acusar > 0.
 function _migrarNome800Streaming() {
-  var OLD_CORE = '800MB YOUTUBE PREMIUM | HBO MAX | TELECINE';
-  var NEW_CORE = '800MB YOUTUBE PREMIUM ou HBO MAX ou TELECINE';
+  // Casa a TRIADE de streamings independente de prefixo ("800MB", codigo Vero,
+  // etc), caixa e espacamento, e troca SO os "|" entre eles por " ou ". Preserva
+  // prefixo, sufixo "| preco" e o resto da string. Idempotente (linhas ja com
+  // "ou" nao tem "|" entre os streamings e nao re-casam).
+  var TRIADE = /(YOUTUBE\s*PREMIUM)\s*\|\s*(HBO\s*MAX)\s*\|\s*(TELECINE)/gi;
   var ss = _getSpreadsheet_();
   var sheet = ss.getSheetByName('1 - Vendas');
   if (!sheet) { Logger.log('Aba "1 - Vendas" nao encontrada.'); return; }
@@ -4505,8 +4508,10 @@ function _migrarNome800Streaming() {
   var alterados = 0;
   for (var i = 0; i < valores.length; i++) {
     var atual = String(valores[i][0] || '');
-    if (atual.indexOf(OLD_CORE) > -1) {
-      valores[i][0] = atual.split(OLD_CORE).join(NEW_CORE);
+    var novo = atual.replace(TRIADE, '$1 ou $2 ou $3');
+    if (novo !== atual) {
+      Logger.log('Migracao: linha ' + (i + 3) + '  "' + atual + '"  ->  "' + novo + '"');
+      valores[i][0] = novo;
       alterados++;
     }
   }
