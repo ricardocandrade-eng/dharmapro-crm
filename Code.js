@@ -5266,6 +5266,53 @@ function salvarVenda(dados) {
             'o sistema vai criar o Móvel vinculado automaticamente no mesmo ato.'
           );
         }
+        // Frente B3 (26/05/2026): bloqueia desfazer combo via edição (Combo → Alone)
+        // quando há vínculo ATIVO. Deixar o vínculo COMBO_MOVEL pendurado em
+        // produto não-Combo viola a invariante da Frente A3. Operador deve
+        // primeiro cancelar a venda filha/mãe, ou — se for renovação — cancelar
+        // ambas e cadastrar de novo. Caso o vínculo já não esteja ATIVO,
+        // a conversão passa (combo já foi desmontado em sessão anterior).
+        var produtoNovoNorm = _normalizarTexto(dados.produto || '');
+        var produtoAntigoNorm = _normalizarTexto(produtoAntigo);
+        // Fibra Combo → Fibra Alone (Móvel filha pendurada)
+        if (produtoAntigoNorm === 'FIBRA COMBO' && produtoNovoNorm === 'FIBRA ALONE') {
+          var mapaVincFA = _getVinculosVendasMap_();
+          var filhasAtivas = (mapaVincFA.filhasPorMae && mapaVincFA.filhasPorMae[linhaNum]) || [];
+          var temMovelAtivo = false;
+          for (var fA = 0; fA < filhasAtivas.length; fA++) {
+            var fALnFa = filhasAtivas[fA].vendaFilhaLinha;
+            if (!fALnFa) continue;
+            try {
+              var prodFa = _normalizarTexto(sheet.getRange(fALnFa, CONFIG.COLUNAS.PRODUTO + 1).getValue() || '');
+              if (prodFa.indexOf('MOVEL') !== -1) { temMovelAtivo = true; break; }
+            } catch (eFa) {}
+          }
+          if (temMovelAtivo) {
+            throw new Error(
+              '⚠️ Esta Fibra Combo tem um Móvel vinculado ATIVO. ' +
+              'Não dá pra trocar pra Fibra Alone sem antes desfazer o combo. ' +
+              'Cancele primeiro o Móvel filha (status "Cancelamento Comercial"), ou cancele esta venda inteira.'
+            );
+          }
+        }
+        // Móvel Combo → Móvel Alone (Fibra mãe pendurada)
+        if (produtoAntigoNorm === 'MOVEL COMBO' && produtoNovoNorm === 'MOVEL ALONE') {
+          var mapaVincMA = _getVinculosVendasMap_();
+          var maeAtiva = mapaVincMA.maePorFilha && mapaVincMA.maePorFilha[linhaNum];
+          if (maeAtiva && maeAtiva.vendaMaeLinha) {
+            var prodMaeMa = '';
+            try {
+              prodMaeMa = _normalizarTexto(sheet.getRange(maeAtiva.vendaMaeLinha, CONFIG.COLUNAS.PRODUTO + 1).getValue() || '');
+            } catch (eMa) {}
+            if (prodMaeMa.indexOf('FIBRA') !== -1) {
+              throw new Error(
+                '⚠️ Este Móvel Combo tem uma Fibra mãe vinculada ATIVA (L.' + maeAtiva.vendaMaeLinha + '). ' +
+                'Não dá pra trocar pra Móvel Alone sem antes desfazer o combo. ' +
+                'Cancele primeiro a Fibra mãe (status "Cancelamento Comercial"), ou cancele esta venda inteira.'
+              );
+            }
+          }
+        }
       }
       var linhaDados = _construirLinhaDados(dados);
       sheet.getRange(linhaNum, 1, 1, linhaDados.length).setValues([linhaDados]);
