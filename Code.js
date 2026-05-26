@@ -3705,10 +3705,26 @@ function _vhNucleo_(s) {
   s = s.replace(/GLOBOPLAY|GLOBO PLAY/g, 'GLP');
   s = s.replace(/COM ANUNCIO|COM ADS/g, 'ADS');
   s = s.replace(/\bRN\b/g, '').replace(/\bMESH\b/g, '').replace(/\bROKU\b/g, '');
+  // "ou" conector de streaming-escolha (ex. "YOUTUBE PREMIUM ou HBO MAX ou TELECINE")
+  // — tratado como separador (some no núcleo), igual ao "|". Sem isso, o nome novo
+  // (Rev8) ganharia tokens "OU" extras e quebraria o match Jaccard do reverse-lookup.
+  s = s.replace(/\bOU\b/g, ' ');
   s = s.replace(/(\d+)\s*MB/g, '$1MB').replace(/(\d+)\s*GB/g, '$1GB');
   s = s.replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/i, '');
   s = s.replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
   return s;
+}
+
+// Normaliza removendo os CONECTORES de plano ("|" e "ou") — usado pra comparar
+// nome do CRM (Rev8 usa "ou") com nome_crm_match do dicionário de códigos (que
+// ainda pode ter "|"). Sem isso, o reverse-lookup legado quebra pro plano de
+// streaming-escolha (800MB YOUTUBE PREMIUM ou HBO MAX ou TELECINE).
+function _semConectoresVero_(s) {
+  return _normalizarTexto(s)
+    .replace(/\s*\|\s*/g, ' ')
+    .replace(/\bOU\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // Reverse lookup: (nome do plano + cidade) -> codigo Vero. Gravado em COD_PLANO.
@@ -3777,7 +3793,7 @@ function _getCodigoVeroLegado_(planoCore, cidNorm) {
   try {
     var cv = _getCodigosVero();
     var rank = { alta: 3, media: 2, baixa: 1, '': 0 };
-    var planoCoreNorm = _normalizarTexto(planoCore);
+    var planoCoreKey = _semConectoresVero_(planoCore);
     var melhor = null;
     (cv.coletas || []).forEach(function(col) {
       var ctx = col.contexto || {};
@@ -3785,7 +3801,7 @@ function _getCodigoVeroLegado_(planoCore, cidNorm) {
       (col.planos || []).forEach(function(p) {
         if (!p || !p.codigo || !p.nome_crm_match) return;
         var nmCore = String(p.nome_crm_match).replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/i, '').trim();
-        if (_normalizarTexto(nmCore) !== planoCoreNorm) return;
+        if (_semConectoresVero_(nmCore) !== planoCoreKey) return;
         var conf = String(p.confianca || '').toLowerCase();
         var temAddon = !!(p.addon && String(p.addon).trim() !== '');
         var score = (rank[conf] || 0) * 10 + (temAddon ? 0 : 5);
