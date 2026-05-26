@@ -524,7 +524,8 @@ var _cruzCorrecoesAplicadas = false;
 var _cruzOrigemAtual = '';          // 'manual' | 'auto'
 var _cruzQuando = 0;                // timestamp ms do ultimo import
 var _CRUZ_LS_KEY = 'dharmapro_cruzamento_v1';
-var _cruzCodigosMap = {};           // { "4624": {nome, conf} } — codigo Vero -> nome_crm (sobrescrita de plano)
+var _cruzCodigosMap = {};           // { "4624": {nome, conf} } — codigo Vero -> nome_crm (fallback Cowork)
+var _cruzPlanosVeroPorCidade = {};  // { "Juiz de Fora": { "4624": {nome, valorBoleto, valorRecorrente, produtoTipo} } } — Fase C, planos_vero.json por cidade do contrato
 
 function _cruzSetStatus(texto, tipo) {
   var status = document.getElementById('cruzStatus');
@@ -579,13 +580,17 @@ function _cruzamentoImportar(inputEl) {
             _cruzCodigosMap = (res && res.codigosVero) ? res.codigosVero : {};
             document.getElementById('cruzTabs').style.display = 'flex';
             document.getElementById('cruzBtnLimpar').style.display = '';
-            _cruzCorrecoes = _cruzComputarCorrecoes();
-            _cruzCorrecoesAplicadas = false;
-            _cruzSetStatus(file.name + ' importado. CRM: ' + _cruzDadosCRM.length + ' contratos · ' + _cruzCorrecoes.length + ' com correção sugerida.', 'ok');
-            _cruzConsolidarESalvar();
-            _cruzSetBadges();
-            _cruzPersistir('manual');
-            _cruzRenderizar();
+            // Fase C: pré-fetch dos planos canônicos (planos_vero.json) por cidade
+            // dos contratos que potencialmente recebem correção — depois computa diffs.
+            _cruzCarregarPlanosVeroPorCidades(function() {
+              _cruzCorrecoes = _cruzComputarCorrecoes();
+              _cruzCorrecoesAplicadas = false;
+              _cruzSetStatus(file.name + ' importado. CRM: ' + _cruzDadosCRM.length + ' contratos · ' + _cruzCorrecoes.length + ' com correção sugerida.', 'ok');
+              _cruzConsolidarESalvar();
+              _cruzSetBadges();
+              _cruzPersistir('manual');
+              _cruzRenderizar();
+            });
           })
           .withFailureHandler(function(err) {
             var msg = err && err.message ? err.message : 'tente novamente';
@@ -773,6 +778,7 @@ function _cruzamentoLimpar() {
   _cruzOrigemAtual = '';
   _cruzQuando = 0;
   _cruzCodigosMap = {};
+  _cruzPlanosVeroPorCidade = {};
   _cruzLimparStorage();
   _cruzRemoverIconesLista();
   _cruzSetStatus('Nenhum arquivo importado', '');
@@ -1619,6 +1625,43 @@ function _cruzConsolidarCamposVeroCli() {
   return mapa;
 }
 
+// Fase C — pré-fetch dos planos canônicos por cidade. Extrai cidades únicas
+// dos contratos cujos contratos coincidem com algum ID do relatório (escopo
+// mínimo necessário) e busca o mapa código→{nome, valores} via 1 round-trip.
+// Callback dispara após o mapa estar em _cruzPlanosVeroPorCidade.
+function _cruzCarregarPlanosVeroPorCidades(callback) {
+  if (typeof google === 'undefined' || !google.script || !google.script.run) {
+    _cruzPlanosVeroPorCidade = {};
+    callback();
+    return;
+  }
+  // Identifica cidades únicas dos contratos do CRM que aparecem no relatório.
+  var mapaVero = _cruzConsolidarCamposVeroCli();
+  var cidades = {};
+  (_cruzDadosCRM || []).forEach(function(item) {
+    if (!item || !item.linha || !item.cidade) return;
+    var id = _cruzNormId(item.contrato);
+    if (!id || !mapaVero[id]) return;
+    cidades[String(item.cidade).trim()] = true;
+  });
+  var lista = Object.keys(cidades);
+  if (!lista.length) {
+    _cruzPlanosVeroPorCidade = {};
+    callback();
+    return;
+  }
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _cruzPlanosVeroPorCidade = res || {};
+      callback();
+    })
+    .withFailureHandler(function() {
+      _cruzPlanosVeroPorCidade = {};
+      callback(); // segue com fallback (sem canônicos)
+    })
+    .getPlanosVeroPorCidades(lista);
+}
+
 function _cruzComputarCorrecoes() {
   var mapaVero = _cruzConsolidarCamposVeroCli();
   var out = [];
@@ -1644,14 +1687,6 @@ function _cruzComputarCorrecoes() {
       var na = _cruzToBR(v.dataAtiv), aa = _cruzToBR(item.dataAtiv);
       if (na && na !== aa) { campos.DATA_ATIV = na; diffs.push({ campo: 'DATA_ATIV', label: 'Data ativação', atual: aa, novo: na, fonte: v.dataAtiv_fonte || 'Relatório' }); }
     }
-    if (v.valor !== undefined && v.valor !== null && v.valor !== '') {
-      var nv = _cruzNormValor(v.valor);
-      var av = (item.valor === '' || item.valor === undefined || item.valor === null) ? '' : _cruzNormValor(item.valor);
-      if (nv !== '' && nv !== av) {
-        campos.VALOR = nv;
-        diffs.push({ campo: 'VALOR', label: 'Valor', atual: (av === '' ? '' : 'R$ ' + _cruzValorBR(av)), novo: 'R$ ' + _cruzValorBR(nv), fonte: v.valor_fonte || 'Relatório' });
-      }
-    }
     if (v.cidade && String(v.cidade).trim() !== '') {
       var nc = String(v.cidade).trim();
       if (_cruzNormalizarTexto(nc) !== _cruzNormalizarTexto(item.cidade || '')) {
@@ -1666,15 +1701,74 @@ function _cruzComputarCorrecoes() {
         diffs.push({ campo: 'OBSERVACAO_APPEND', label: 'Observação (+)', atual: item.observacao || '', novo: lo, fonte: v.obsAppend_fonte || 'Cancelamento' });
       }
     }
-    if (v.planoCodigo && _cruzCodigosMap[v.planoCodigo]) {
-      var alvoPl = _cruzCodigosMap[v.planoCodigo];
-      if (alvoPl.nome && (alvoPl.conf === 'alta' || alvoPl.conf === 'media')) {
+
+    // ── Fase C: cruzamento CÓDIGO × CÓDIGO (PLANO + VALOR + CODIGO_VERO em conjunto)
+    // Regras:
+    //  1. Relatório traz código + CRM tem código + iguais → nada a corrigir no
+    //     conjunto plano/código. VALOR do relatório segue regra antiga (pode
+    //     divergir por promoção; é o mesmo plano, então valor vem direto).
+    //  2. Relatório traz código + CRM divergente/vazio → resolve canônico no
+    //     planos_vero.json (mapaVeroPorCidade) e propõe PLANO + VALOR + CODIGO_VERO
+    //     em CONJUNTO (mesma fonte = consistente entre si).
+    //  3. Canônico não encontrado → fallback no dicionário Cowork (só PLANO/CODIGO_VERO,
+    //     VALOR cai no caminho do relatório abaixo).
+    //  4. Relatório sem código → mantém só o caminho antigo (VALOR do relatório).
+    var codRel = v.planoCodigo ? String(v.planoCodigo).trim() : '';
+    var codCrm = item.codigoVero ? String(item.codigoVero).trim() : '';
+    var codigosBatem = codRel && codCrm && codRel === codCrm;
+    var valorJaProposto = false;
+
+    if (codRel && !codigosBatem) {
+      var mapaPorCid = _cruzPlanosVeroPorCidade[item.cidade] || {};
+      var canonico = mapaPorCid[codRel];
+
+      if (canonico && canonico.nome) {
+        // Caminho preferido (planos_vero.json) — PLANO + VALOR canônicos juntos
         var atualCore = _cruzPlanoCore(item.plano);
-        var novoCore  = _cruzPlanoCore(alvoPl.nome);
+        var novoCore  = _cruzPlanoCore(canonico.nome);
         if (novoCore && _cruzNormalizarTexto(novoCore) !== _cruzNormalizarTexto(atualCore)) {
-          campos.PLANO = alvoPl.nome;
-          diffs.push({ campo: 'PLANO', label: 'Plano' + (alvoPl.conf === 'media' ? ' (conf. média)' : ''), atual: item.plano || '', novo: alvoPl.nome, fonte: 'Dicionário · cód. ' + v.planoCodigo });
+          campos.PLANO = canonico.nome;
+          diffs.push({ campo: 'PLANO', label: 'Plano', atual: item.plano || '', novo: canonico.nome, fonte: 'planos_vero.json · cód. ' + codRel });
         }
+        var ehRec = String(item.formaPagamento || '').toUpperCase() === 'RECORRENTE';
+        var valorCanon = (ehRec && canonico.valorRecorrente != null) ? canonico.valorRecorrente : canonico.valorBoleto;
+        if (valorCanon != null) {
+          var avC = (item.valor === '' || item.valor === undefined || item.valor === null) ? '' : _cruzNormValor(item.valor);
+          var nvC = _cruzNormValor(valorCanon);
+          if (nvC !== '' && nvC !== avC) {
+            campos.VALOR = nvC;
+            diffs.push({ campo: 'VALOR', label: 'Valor', atual: (avC === '' ? '' : 'R$ ' + _cruzValorBR(avC)), novo: 'R$ ' + _cruzValorBR(nvC), fonte: 'planos_vero.json (' + (ehRec ? 'recorrente' : 'boleto') + ')' });
+            valorJaProposto = true;
+          }
+        }
+      } else if (_cruzCodigosMap[codRel]) {
+        // Fallback: dicionário Cowork (só nome canônico, sem valor)
+        var alvoPl = _cruzCodigosMap[codRel];
+        if (alvoPl.nome && (alvoPl.conf === 'alta' || alvoPl.conf === 'media')) {
+          var atualCoreF = _cruzPlanoCore(item.plano);
+          var novoCoreF  = _cruzPlanoCore(alvoPl.nome);
+          if (novoCoreF && _cruzNormalizarTexto(novoCoreF) !== _cruzNormalizarTexto(atualCoreF)) {
+            campos.PLANO = alvoPl.nome;
+            diffs.push({ campo: 'PLANO', label: 'Plano' + (alvoPl.conf === 'media' ? ' (conf. média)' : ''), atual: item.plano || '', novo: alvoPl.nome, fonte: 'Dicionário · cód. ' + codRel });
+          }
+        }
+      }
+
+      // CODIGO_VERO sempre quando difere — grava FAT mesmo se canônico não resolveu
+      if (codRel !== codCrm) {
+        campos.CODIGO_VERO = codRel;
+        diffs.push({ campo: 'CODIGO_VERO', label: 'Código Vero', atual: codCrm || '', novo: codRel, fonte: 'Relatório · código do plano' });
+      }
+    }
+
+    // VALOR do relatório — só quando o canônico não propôs (códigos batem, ou
+    // relatório sem código, ou canônico não encontrado).
+    if (!valorJaProposto && v.valor !== undefined && v.valor !== null && v.valor !== '') {
+      var nv = _cruzNormValor(v.valor);
+      var av = (item.valor === '' || item.valor === undefined || item.valor === null) ? '' : _cruzNormValor(item.valor);
+      if (nv !== '' && nv !== av) {
+        campos.VALOR = nv;
+        diffs.push({ campo: 'VALOR', label: 'Valor', atual: (av === '' ? '' : 'R$ ' + _cruzValorBR(av)), novo: 'R$ ' + _cruzValorBR(nv), fonte: v.valor_fonte || 'Relatório' });
       }
     }
 

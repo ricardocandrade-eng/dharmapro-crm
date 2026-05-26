@@ -1183,6 +1183,11 @@ function aplicarCorrecaoVero(correcoes) {
         sheet.getRange(linha, c.PLANO + 1).setValue(String(campos.PLANO).trim());
         celulasAfetadas++; mexeu = true;
       }
+      // CODIGO_VERO (Q/FAT) — codigo numerico Vero do plano (Fase C: cruzamento codigo×codigo)
+      if (campos.CODIGO_VERO !== undefined && campos.CODIGO_VERO !== null && String(campos.CODIGO_VERO).trim() !== '') {
+        sheet.getRange(linha, c.FAT + 1).setValue(String(campos.CODIGO_VERO).trim());
+        celulasAfetadas++; mexeu = true;
+      }
       // CIDADE (AF) + relookup SISTEMA (AH) / SEGMENTACAO (AI)
       if (campos.CIDADE !== undefined && campos.CIDADE !== null && String(campos.CIDADE).trim() !== '') {
         var novaCidade = String(campos.CIDADE).trim();
@@ -3987,6 +3992,74 @@ function _criarResolvedorCodigos_(cidade) {
     cache[key] = c || null;
     return cache[key];
   };
+}
+
+// Fase C — lookup canônico (código, cidade) → plano em planos_vero.json.
+// Recebe array de nomes de cidade, retorna mapa aninhado:
+//   { "Juiz de Fora": { "4624": { nome, valorBoleto, valorRecorrente, produtoTipo, tipo }, ... }, ... }
+// Cidade sem segmentação válida ou sem cobertura no sweep → entrada vazia {}.
+// Usado pelo Cruzamento pra propor PLANO+VALOR canônicos a partir do código do relatório.
+function getPlanosVeroPorCidades(cidades) {
+  var out = {};
+  if (!cidades || !cidades.length) return out;
+  try {
+    var dadosTab = _getTabela();
+    if (!dadosTab || dadosTab.length < 3) return out;
+    var cabecalho   = dadosTab[1].map(function(h) { return _normalizarTexto(h); });
+    var colProduto  = cabecalho.indexOf(_normalizarTexto('PRODUTO_TIPO'));
+    var colPublicar = cabecalho.indexOf(_normalizarTexto('PUBLICAR'));
+
+    function _parseValor_(v) {
+      if (v === '' || v === null || v === undefined) return null;
+      if (typeof v === 'number') return v;
+      var s = String(v).replace(/[^0-9.,]/g, '').replace(',', '.');
+      var n = parseFloat(s);
+      return isFinite(n) ? n : null;
+    }
+
+    cidades.forEach(function(cidade) {
+      if (!cidade) return;
+      var mapa = {};
+      try {
+        var segmentacao = String(getSegmentacaoPorCidade(cidade) || '').trim();
+        if (!segmentacao) segmentacao = 'PADRÃO';
+        var segNorm  = _normalizarTexto(segmentacao);
+        var colBol   = cabecalho.indexOf(segNorm);
+        var colRec   = cabecalho.indexOf(segNorm + '_REC');
+        if (colBol === -1) { out[cidade] = mapa; return; }
+
+        var resolver = _criarResolvedorCodigos_(cidade);
+
+        for (var ti = 2; ti < dadosTab.length; ti++) {
+          var nome = String(dadosTab[ti][0] || '').trim();
+          if (!nome) continue;
+          var tipo = String(dadosTab[ti][1] || '').trim();
+          // PUBLICAR ignorado de propósito: planos descontinuados ainda existem em
+          // vendas históricas e precisam casar pelo código no cruzamento.
+          var codigo = resolver(nome);
+          if (!codigo) continue;
+          var vb = _parseValor_(dadosTab[ti][colBol]);
+          var vr = (colRec > -1) ? _parseValor_(dadosTab[ti][colRec]) : null;
+          if (vr == null && vb != null) {
+            var ehMovel = tipo.toUpperCase().indexOf('MOVEL') > -1 || tipo.toUpperCase().indexOf('MÓVEL') > -1;
+            vr = ehMovel ? vb : (vb - 10);
+          }
+          // 1º match por código vence (planos_vero não tem código repetido por cidade na prática).
+          if (!mapa[codigo]) {
+            mapa[codigo] = {
+              nome:            nome,
+              tipo:            tipo,
+              produtoTipo:     colProduto > -1 ? String(dadosTab[ti][colProduto] || '') : '',
+              valorBoleto:     vb,
+              valorRecorrente: vr
+            };
+          }
+        }
+      } catch (eC) { Logger.log('getPlanosVeroPorCidades cidade ' + cidade + ' falhou: ' + eC.message); }
+      out[cidade] = mapa;
+    });
+  } catch (e) { Logger.log('getPlanosVeroPorCidades erro: ' + e.message); }
+  return out;
 }
 
 function _serveActionPlanos_(cidade, produto, forma) {
