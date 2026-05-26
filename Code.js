@@ -4432,6 +4432,102 @@ function _atualizarPlanosVeroJsonRev7() {
   Logger.log('OK rev7 — ' + dados.length + ' linhas, ' + conteudo.length + ' bytes. Cache invalidado.');
 }
 
+// Rev8 (25/05/2026): corrige a apresentacao do plano de streaming-ESCOLHA.
+// O plano "800MB YOUTUBE PREMIUM | HBO MAX | TELECINE" usava "|" no NOME, o que
+// dava a entender combo (3 streamings juntos). Na verdade o cliente ESCOLHE UM.
+// Troca o "|" por "ou" SO no nome desse plano (col 0). Os demais planos cujo nome
+// ou features usam "|" (ex. "10GB | MAIS CONECTADO | COMBO", "Youtube Premium |
+// Wi-Fi 6 | ...") NAO sao tocados — ali o "|" e separador legitimo.
+// Read-modify-write: le o JSON atual do Drive e altera apenas a linha alvo,
+// garantindo que TODO o resto fique byte-identico ao que ja esta em producao
+// (sem risco de transcrever errado os 40+ planos). Rodar UMA VEZ no editor.
+function _atualizarPlanosVeroJsonRev8() {
+  var fileId = CONFIG.TABELA_JSON_FILE_ID;
+  var atual = JSON.parse(DriveApp.getFileById(fileId).getBlob().getDataAsString());
+  var NOVO_NOME = '800MB YOUTUBE PREMIUM ou HBO MAX ou TELECINE';
+  var alterados = 0;
+  for (var i = 2; i < atual.length; i++) {
+    var nome = String(atual[i][0] || '');
+    var up = nome.toUpperCase();
+    // casa pela triade de streamings (robusto a espacamento), nao pela string exata
+    if (up.indexOf('YOUTUBE PREMIUM') > -1 && up.indexOf('HBO MAX') > -1 && up.indexOf('TELECINE') > -1) {
+      Logger.log('Rev8: "' + nome + '"  ->  "' + NOVO_NOME + '"');
+      atual[i][0] = NOVO_NOME;
+      alterados++;
+    }
+  }
+  if (atual[0] && atual[0].length) {
+    atual[0][0] = 'Última atualização: 25/05/2026 — Rev8: plano 800MB YOUTUBE PREMIUM/HBO MAX/TELECINE passa a usar "ou" no nome (cliente escolhe 1 streaming, não é combo).';
+  }
+  var conteudo = JSON.stringify(atual, null, 2);
+  DriveApp.getFileById(fileId).setContent(conteudo);
+  CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'tabela_v1');
+  Logger.log('OK rev8 — ' + atual.length + ' linhas, ' + alterados + ' nome(s) alterado(s), ' + conteudo.length + ' bytes. Cache invalidado.');
+}
+
+// Checker READ-ONLY: conta quantas vendas historicas na aba "1 - Vendas" ainda
+// tem o nome antigo do plano (com "|") na coluna PLANO. So conta e loga — nao
+// grava nada. Se vier > 0, rodar _migrarNome800Streaming() para atualizar.
+function _verificarVendas800Streaming() {
+  var ss = _getSpreadsheet_();
+  var sheet = ss.getSheetByName('1 - Vendas');
+  if (!sheet) { Logger.log('Aba "1 - Vendas" nao encontrada.'); return; }
+  var colPlano = _acharColunaPorHeader_(sheet, 'PLANO');
+  if (colPlano < 0) { Logger.log('Coluna PLANO nao encontrada no cabecalho.'); return; }
+  var ultima = sheet.getLastRow();
+  if (ultima < 3) { Logger.log('Sem linhas de venda.'); return; }
+  var valores = sheet.getRange(3, colPlano + 1, ultima - 2, 1).getValues();
+  var ALVO = 'YOUTUBE PREMIUM | HBO MAX | TELECINE';
+  var n = 0;
+  for (var i = 0; i < valores.length; i++) {
+    if (String(valores[i][0] || '').toUpperCase().indexOf(ALVO) > -1) n++;
+  }
+  Logger.log('Vendas com nome antigo (com "|"): ' + n + (n ? ' — rodar _migrarNome800Streaming()' : ' — nada a migrar.'));
+}
+
+// Migracao das vendas historicas: troca o nome antigo (com "|") pelo novo (com
+// "ou") na coluna PLANO da aba "1 - Vendas". Preserva qualquer sufixo " | preco"
+// que o select monta apos o nome (substituicao de substring do nucleo). Idempotente
+// (so escreve celulas que ainda tem o nome antigo). Rodar no editor APOS o Rev8,
+// e somente se _verificarVendas800Streaming() acusar > 0.
+function _migrarNome800Streaming() {
+  var OLD_CORE = '800MB YOUTUBE PREMIUM | HBO MAX | TELECINE';
+  var NEW_CORE = '800MB YOUTUBE PREMIUM ou HBO MAX ou TELECINE';
+  var ss = _getSpreadsheet_();
+  var sheet = ss.getSheetByName('1 - Vendas');
+  if (!sheet) { Logger.log('Aba "1 - Vendas" nao encontrada.'); return; }
+  var colPlano = _acharColunaPorHeader_(sheet, 'PLANO');
+  if (colPlano < 0) { Logger.log('Coluna PLANO nao encontrada no cabecalho.'); return; }
+  var ultima = sheet.getLastRow();
+  if (ultima < 3) { Logger.log('Sem linhas de venda.'); return; }
+  var rng = sheet.getRange(3, colPlano + 1, ultima - 2, 1);
+  var valores = rng.getValues();
+  var alterados = 0;
+  for (var i = 0; i < valores.length; i++) {
+    var atual = String(valores[i][0] || '');
+    if (atual.indexOf(OLD_CORE) > -1) {
+      valores[i][0] = atual.split(OLD_CORE).join(NEW_CORE);
+      alterados++;
+    }
+  }
+  if (alterados > 0) rng.setValues(valores);
+  Logger.log('Migracao 800 streaming — ' + alterados + ' venda(s) atualizada(s).');
+}
+
+// Helper: acha o indice 0-based de uma coluna pelo nome do header (procura nas
+// linhas 1 e 2, normalizando). Retorna -1 se nao achar.
+function _acharColunaPorHeader_(sheet, header) {
+  var alvo = String(header || '').trim().toUpperCase();
+  var nCols = sheet.getLastColumn();
+  var topo = sheet.getRange(1, 1, Math.min(2, sheet.getLastRow()), nCols).getValues();
+  for (var r = 0; r < topo.length; r++) {
+    for (var c = 0; c < topo[r].length; c++) {
+      if (String(topo[r][c] || '').trim().toUpperCase() === alvo) return c;
+    }
+  }
+  return -1;
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // _migrarNomesVeroDuoFull — 17/05/2026
 // Migra vendas históricas que ainda têm os 3 nomes antigos (VERO MAIS ...) na
