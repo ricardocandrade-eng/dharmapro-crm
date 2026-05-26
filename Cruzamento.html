@@ -423,38 +423,46 @@
   }
 
   .cruz-corr-field {
-    display: flex; align-items: center; gap: 10px; padding: 6px 0;
+    display: flex; align-items: flex-start; gap: 10px; padding: 7px 0;
     border-top: 1px solid var(--border); font-size: 11.5px; cursor: pointer;
   }
   .cruz-corr-field:first-of-type { border-top: none; }
   .cruz-corr-field input[type=checkbox] {
-    width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0;
+    width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer;
+    flex-shrink: 0; margin-top: 2px;
   }
   .cruz-corr-field.off { opacity: 0.4; }
   .cruz-corr-fname {
-    min-width: 110px; font-weight: 700; color: var(--text); font-family: "Sora", sans-serif;
+    min-width: 120px; font-weight: 700; color: var(--text);
+    font-family: "Sora", sans-serif; flex-shrink: 0; padding-top: 1px;
   }
   .cruz-corr-vals {
-    flex: 1; display: flex; align-items: center; gap: 8px;
-    font-family: "DM Mono", monospace; flex-wrap: wrap;
+    flex: 1; display: flex; align-items: baseline; gap: 6px;
+    flex-wrap: wrap; line-height: 1.6; font-family: "DM Mono", monospace;
   }
-  .cruz-corr-de { color: var(--muted); text-decoration: line-through; opacity: 0.8; }
-  .cruz-corr-seta { color: var(--accent); }
-  .cruz-corr-para { color: var(--green); font-weight: 700; }
+  .cruz-corr-lbl {
+    color: var(--muted); font-weight: 800;
+    font-family: "Sora", sans-serif; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .cruz-corr-de-val { color: var(--muted); text-decoration: line-through; opacity: 0.85; }
+  .cruz-corr-para-val { color: var(--green); font-weight: 700; }
+  .cruz-corr-sep { color: var(--border2); padding: 0 2px; }
   .cruz-corr-fonte {
     font-size: 9.5px; font-family: "DM Mono", monospace;
     color: var(--muted); background: var(--surface2);
     border: 1px solid var(--border); border-radius: 5px;
-    padding: 2px 7px; white-space: nowrap; flex-shrink: 0;
+    padding: 2px 7px; white-space: nowrap; flex-shrink: 0; margin-top: 1px;
   }
 
-  .cruz-corr-footer {
+  .cruz-corr-card-actions {
     display: flex; align-items: center; justify-content: flex-end;
-    gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+    gap: 8px; margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid var(--border);
   }
   .cruz-corr-aplicar {
-    padding: 9px 18px; background: var(--accent); color: #fff; border: none;
-    border-radius: 8px; font-size: 12px; font-weight: 800;
+    padding: 7px 14px; background: var(--accent); color: #fff; border: none;
+    border-radius: 7px; font-size: 11.5px; font-weight: 800;
     font-family: "Sora", sans-serif; cursor: pointer; transition: all 0.2s;
   }
   .cruz-corr-aplicar:hover { filter: brightness(1.1); }
@@ -1426,7 +1434,7 @@ function _cruzamentoBuscarGmail() {
         };
         _cruzDadosCRM = res.crmRows || [];
         _cruzArquivoNome = res.anexo || 'Relatório Vero (Gmail)';
-        _cruzCorrecoes = res.correcoes || [];
+        _cruzCorrecoes = _cruzNormalizarCorrecoes(res.correcoes || []);
         _cruzCorrecoesAplicadas = false;
         document.getElementById('cruzTabs').style.display = 'flex';
         document.getElementById('cruzBtnLimpar').style.display = '';
@@ -1675,7 +1683,35 @@ function _cruzComputarCorrecoes() {
   return out;
 }
 
-// ── Painel de diff (revisao caso a caso) ───────────────────────────────────
+// ── Painel de diff (revisao caso a caso, contrato por contrato) ────────────
+// Preenche `campo` faltante em diffs vindos do servidor/storage antigo,
+// pareando pela ordem com as chaves de `campos`.
+function _cruzNormalizarCorrecoes(corrs) {
+  (corrs || []).forEach(function(c) {
+    var keys = c.campos ? Object.keys(c.campos) : [];
+    (c.diffs || []).forEach(function(d, i) {
+      if (!d.campo && keys[i]) d.campo = keys[i];
+      if (!d.fonte) d.fonte = 'Relatório';
+    });
+  });
+  return corrs;
+}
+
+function _cruzDiffValsHtml(d) {
+  // Atual vazio = "Preencher com: yyy" (não está alterando nada, só completando).
+  // Atual com valor = "Alterar de: xxx / Para: yyy".
+  var vazio = (d.atual === '' || d.atual === null || d.atual === undefined);
+  if (vazio) {
+    return '<span class="cruz-corr-lbl">Preencher com:</span>' +
+           '<span class="cruz-corr-para-val">' + _escapeHtml(d.novo) + '</span>';
+  }
+  return '<span class="cruz-corr-lbl">Alterar de:</span>' +
+         '<span class="cruz-corr-de-val">' + _escapeHtml(d.atual) + '</span>' +
+         '<span class="cruz-corr-sep">/</span>' +
+         '<span class="cruz-corr-lbl">Para:</span>' +
+         '<span class="cruz-corr-para-val">' + _escapeHtml(d.novo) + '</span>';
+}
+
 function _cruzPainelCorrecoesHtml() {
   if (_cruzCorrecoesAplicadas) {
     return '<div class="cruz-corr cruz-corr-ok">' +
@@ -1690,6 +1726,7 @@ function _cruzPainelCorrecoesHtml() {
 
   var cards = _cruzCorrecoes.map(function(c) {
     var temValor = false, temPlano = false;
+    var totalCampos = (c.diffs || []).length;
     var fields = (c.diffs || []).map(function(d) {
       if (d.campo === 'VALOR') temValor = true;
       if (d.campo === 'PLANO') temPlano = true;
@@ -1698,11 +1735,7 @@ function _cruzPainelCorrecoesHtml() {
             'data-linha="' + c.linha + '" data-campo="' + _escapeHtml(d.campo) + '" ' +
             'onchange="_cruzOnToggleCampo(this)">' +
           '<span class="cruz-corr-fname">' + _escapeHtml(d.label) + '</span>' +
-          '<span class="cruz-corr-vals">' +
-            '<span class="cruz-corr-de">' + _escapeHtml(d.atual || '—') + '</span>' +
-            '<span class="cruz-corr-seta">→</span>' +
-            '<span class="cruz-corr-para">' + _escapeHtml(d.novo) + '</span>' +
-          '</span>' +
+          '<span class="cruz-corr-vals">' + _cruzDiffValsHtml(d) + '</span>' +
           '<span class="cruz-corr-fonte">' + _escapeHtml(d.fonte || 'Relatório') + '</span>' +
         '</label>';
     }).join('');
@@ -1720,18 +1753,20 @@ function _cruzPainelCorrecoesHtml() {
           '<button type="button" class="cruz-corr-skip" onclick="_cruzPularContrato(' + c.linha + ')">Pular este contrato</button>' +
         '</div>' +
         warn + fields +
+        '<div class="cruz-corr-card-actions">' +
+          '<button class="cruz-corr-aplicar" id="cruzAplicar_' + c.linha + '" onclick="_cruzAplicarContrato(' + c.linha + ')">' +
+            'Aplicar este contrato (' + totalCampos + ' campos)' +
+          '</button>' +
+        '</div>' +
       '</div>';
   }).join('');
 
   return '<div class="cruz-corr">' +
       '<div class="cruz-corr-top">' +
         '<div class="cruz-corr-titulo">📝 Correções detectadas pelo relatório Vero ' +
-          '<span class="cruz-corr-sub">(' + nLinhas + ' contrato(s) · ' + nCampos + ' campo(s) · marque o que aplicar · status preservado)</span></div>' +
+          '<span class="cruz-corr-sub">(' + nLinhas + ' contrato(s) · ' + nCampos + ' campo(s) · revise e aplique um por um · status preservado)</span></div>' +
       '</div>' +
       '<div class="cruz-corr-lista">' + cards + '</div>' +
-      '<div class="cruz-corr-footer">' +
-        '<button class="cruz-corr-aplicar" id="cruzCorrAplicar" onclick="_cruzAplicarCorrecoes()">Aplicar campos selecionados (' + nCampos + ' campos em ' + nLinhas + ' contratos)</button>' +
-      '</div>' +
     '</div>';
 }
 
@@ -1742,14 +1777,14 @@ function _cruzAplicarEstadoCampo(ch) {
 
 function _cruzOnToggleCampo(ch) {
   _cruzAplicarEstadoCampo(ch);
-  // Se voltou a marcar algo num card "pulado", tira o estado de pulado.
   var card = ch.closest ? ch.closest('.cruz-corr-card') : null;
   if (card && ch.checked) {
     card.classList.remove('pulado');
     var b = card.querySelector('.cruz-corr-skip');
     if (b) b.textContent = 'Pular este contrato';
   }
-  _cruzAtualizarContadorCorrecoes();
+  var linha = parseInt(ch.getAttribute('data-linha'), 10);
+  if (linha) _cruzAtualizarBotaoCard(linha);
 }
 
 function _cruzPularContrato(linha) {
@@ -1759,25 +1794,23 @@ function _cruzPularContrato(linha) {
   var checks = card.querySelectorAll('input[type=checkbox]');
   var algumMarcado = false;
   checks.forEach(function(ch) { if (ch.checked) algumMarcado = true; });
-  var novoEstado = !algumMarcado; // algo marcado -> desmarca tudo; nada marcado -> remarca tudo
+  var novoEstado = !algumMarcado;
   checks.forEach(function(ch) { ch.checked = novoEstado; _cruzAplicarEstadoCampo(ch); });
   card.classList.toggle('pulado', !novoEstado);
   if (btn) btn.textContent = novoEstado ? 'Pular este contrato' : 'Reativar contrato';
-  _cruzAtualizarContadorCorrecoes();
+  _cruzAtualizarBotaoCard(linha);
 }
 
-function _cruzAtualizarContadorCorrecoes() {
-  var btn = document.getElementById('cruzCorrAplicar');
-  if (!btn) return;
-  var checks = document.querySelectorAll('.cruz-corr-lista input[type=checkbox]:checked');
-  var nCampos = checks.length;
-  var linhasSet = {};
-  checks.forEach(function(ch) { linhasSet[ch.getAttribute('data-linha')] = true; });
-  var nLinhas = Object.keys(linhasSet).length;
-  btn.disabled = nCampos === 0;
-  btn.textContent = nCampos === 0
+function _cruzAtualizarBotaoCard(linha) {
+  var btn = document.getElementById('cruzAplicar_' + linha);
+  var card = document.getElementById('cruzCard_' + linha);
+  if (!btn || !card) return;
+  var checks = card.querySelectorAll('input[type=checkbox]:checked');
+  var n = checks.length;
+  btn.disabled = n === 0;
+  btn.textContent = n === 0
     ? 'Nenhum campo selecionado'
-    : 'Aplicar campos selecionados (' + nCampos + ' campos em ' + nLinhas + ' contratos)';
+    : 'Aplicar este contrato (' + n + ' campo' + (n === 1 ? '' : 's') + ')';
 }
 
 function _cruzInjetarPainelCorrecoes() {
@@ -1787,8 +1820,8 @@ function _cruzInjetarPainelCorrecoes() {
   if (html) body.insertAdjacentHTML('afterbegin', html);
 }
 
-// Remove do estado local apenas os campos efetivamente aplicados (porLinha = {linha:{campo:true}}).
-// Campos pulados continuam pendentes no painel; contratos zerados saem da lista.
+// Remove do estado local apenas os campos efetivamente aplicados.
+// porLinha = { linha: { campo: true, ... } }. Contratos zerados saem da lista.
 function _cruzRemoverCorrecoesAplicadas(porLinha) {
   var novas = [];
   (_cruzCorrecoes || []).forEach(function(c) {
@@ -1796,7 +1829,7 @@ function _cruzRemoverCorrecoesAplicadas(porLinha) {
     if (!aplicados) { novas.push(c); return; }
     var campos = {}, diffs = [];
     (c.diffs || []).forEach(function(d) {
-      if (aplicados[d.campo]) return; // foi aplicado
+      if (aplicados[d.campo]) return;
       diffs.push(d);
       if (c.campos.hasOwnProperty(d.campo)) campos[d.campo] = c.campos[d.campo];
     });
@@ -1805,37 +1838,30 @@ function _cruzRemoverCorrecoesAplicadas(porLinha) {
   _cruzCorrecoes = novas;
 }
 
-function _cruzAplicarCorrecoes() {
-  if (!_cruzCorrecoes || !_cruzCorrecoes.length) return;
-  var btn = document.getElementById('cruzCorrAplicar');
-
-  // Monta o payload só com os campos marcados.
-  var porLinha = {};
-  document.querySelectorAll('.cruz-corr-lista input[type=checkbox]:checked').forEach(function(ch) {
-    var linha = parseInt(ch.getAttribute('data-linha'), 10);
-    var campo = ch.getAttribute('data-campo');
-    if (!linha || !campo) return;
-    if (!porLinha[linha]) porLinha[linha] = {};
-    porLinha[linha][campo] = true;
-  });
+function _cruzAplicarContrato(linha) {
+  var card = document.getElementById('cruzCard_' + linha);
+  var btn  = document.getElementById('cruzAplicar_' + linha);
+  if (!card) return;
 
   var mapaCorr = {};
-  _cruzCorrecoes.forEach(function(c) { mapaCorr[c.linha] = c; });
+  (_cruzCorrecoes || []).forEach(function(c) { mapaCorr[c.linha] = c; });
+  var corr = mapaCorr[linha];
+  if (!corr) return;
 
-  var payload = [];
-  Object.keys(porLinha).forEach(function(linhaStr) {
-    var linha = parseInt(linhaStr, 10);
-    var corr = mapaCorr[linha];
-    if (!corr) return;
-    var campos = {};
-    Object.keys(corr.campos).forEach(function(k) {
-      if (porLinha[linha][k]) campos[k] = corr.campos[k];
-    });
-    if (Object.keys(campos).length) payload.push({ linha: linha, campos: campos });
+  // Lê só os checkboxes deste card.
+  var marcados = {};
+  card.querySelectorAll('input[type=checkbox]:checked').forEach(function(ch) {
+    var campo = ch.getAttribute('data-campo');
+    if (campo) marcados[campo] = true;
   });
 
-  if (!payload.length) {
-    _cruzSetStatus('Nenhum campo selecionado para aplicar.', 'err');
+  var campos = {};
+  Object.keys(corr.campos).forEach(function(k) {
+    if (marcados[k]) campos[k] = corr.campos[k];
+  });
+
+  if (!Object.keys(campos).length) {
+    _cruzSetStatus('Nenhum campo marcado neste contrato.', 'err');
     return;
   }
 
@@ -1843,30 +1869,35 @@ function _cruzAplicarCorrecoes() {
 
   if (typeof google === 'undefined' || !google.script || !google.script.run) {
     _cruzSetStatus('Ambiente sem backend — correções não aplicadas.', 'err');
-    if (btn) { btn.disabled = false; _cruzAtualizarContadorCorrecoes(); }
+    if (btn) { btn.disabled = false; _cruzAtualizarBotaoCard(linha); }
     return;
   }
+
+  var rotuloCliente = corr.cliente || ('Contrato ' + corr.contrato);
+  var nMarcados = Object.keys(campos).length;
+  var porLinha = {};
+  porLinha[linha] = marcados;
 
   google.script.run
     .withSuccessHandler(function(res) {
       if (!res || !res.sucesso) {
-        _cruzSetStatus('Erro ao aplicar correções: ' + ((res && res.mensagem) || 'falha'), 'err');
-        if (btn) { btn.disabled = false; _cruzAtualizarContadorCorrecoes(); }
+        _cruzSetStatus('Erro ao aplicar ' + rotuloCliente + ': ' + ((res && res.mensagem) || 'falha'), 'err');
+        if (btn) { btn.disabled = false; _cruzAtualizarBotaoCard(linha); }
         return;
       }
       _cruzRemoverCorrecoesAplicadas(porLinha);
       var aplicouTudo = !_cruzCorrecoes.length;
       _cruzCorrecoesAplicadas = aplicouTudo;
-      _cruzSetStatus('Correções aplicadas: ' + (res.atualizados || 0) + ' venda(s), ' + (res.celulas || 0) + ' campo(s).' +
-        (aplicouTudo ? '' : ' ' + _cruzCorrecoes.length + ' contrato(s) ainda pendente(s) no painel.'), 'ok');
+      _cruzSetStatus('✓ ' + rotuloCliente + ' — ' + nMarcados + ' campo(s) aplicado(s).' +
+        (aplicouTudo ? ' Todas as correções foram concluídas.' : ' Restam ' + _cruzCorrecoes.length + ' contrato(s) no painel.'), 'ok');
       _cruzPersistir(_cruzOrigemAtual);
       _cruzRenderizar();
     })
     .withFailureHandler(function(err) {
-      _cruzSetStatus('Falha ao aplicar correções: ' + ((err && err.message) || 'tente novamente'), 'err');
-      if (btn) { btn.disabled = false; _cruzAtualizarContadorCorrecoes(); }
+      _cruzSetStatus('Falha ao aplicar ' + rotuloCliente + ': ' + ((err && err.message) || 'tente novamente'), 'err');
+      if (btn) { btn.disabled = false; _cruzAtualizarBotaoCard(linha); }
     })
-    .aplicarCorrecaoVero(payload);
+    .aplicarCorrecaoVero([{ linha: linha, campos: campos }]);
 }
 
 // ── Persistencia (localStorage) ───────────────────────────────────────────
@@ -1945,7 +1976,7 @@ function _cruzHidratarDoStorage() {
   };
   _cruzDadosCRM = saved.crmRows || [];
   _cruzArquivoNome = saved.arquivo || '';
-  _cruzCorrecoes = saved.correcoes || [];
+  _cruzCorrecoes = _cruzNormalizarCorrecoes(saved.correcoes || []);
   _cruzCorrecoesAplicadas = !!saved.aplicadas;
   _cruzOrigemAtual = saved.origem || '';
   _cruzQuando = saved.quando || 0;
