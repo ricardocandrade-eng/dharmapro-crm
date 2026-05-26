@@ -4952,7 +4952,7 @@ function criarVendaMovelVinculada(payload) {
     var dadosMovel = {
       canal:           vendaOrigem.canal || '',
       produto:         produtoMovel,
-      status:          '2- Aguardando Entrega',
+      status:          '1- Conferencia/Ativação',
       preStatus:       vendaOrigem.preStatus || '',
       dataAtiv:        new Date(),
       contrato:        contrato,

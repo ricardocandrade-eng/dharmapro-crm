@@ -100,7 +100,7 @@ Estado atualizado em 25/04/2026:
   de observacao solta na venda;
 - `Fibra Combo` sem venda movel vinculada deve exibir alerta visual e botao
   `Duplicar para Movel` no painel lateral.
-- a venda movel criada por duplicacao deve entrar em `2- Aguardando Entrega`;
+- a venda movel criada por duplicacao deve entrar em `1- Conferencia/Ativação` (mesmo da Fibra mae); operador promove para `2- Aguardando Entrega` quando enviar o chip;
 - o alerta `Combo sem movel` deve ocupar a area visual onde o `VeroHub` nao e exibido
   nesse fluxo, evitando ruído ao lado do produto.
 - o painel lateral deve permitir navegar entre `Fibra` e `Movel` vinculados
