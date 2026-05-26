@@ -2682,6 +2682,10 @@ function moverLeadAguardando(payload) {
     if (payload.contrato) sheet.getRange(linha, c.CONTRATO  + 1).setValue(payload.contrato);
     if (payload.obs)      sheet.getRange(linha, c.OBSERVACAO + 1).setValue(payload.obs);
 
+    // Combo: ao Fibra entrar em "2- Aguardando Instalação" via mover lead,
+    // promover o Móvel vinculado de "1- Conferencia/Ativação" → "2- Aguardando Entrega".
+    _bumpMovelStatusAguardandoEntrega_(sheet, linha, statusAnt, '2- Aguardando Instalação');
+
     // Funil 20/05: update fino — a venda entra no funil (status 2). _atualizarVendaNoCache_
     // cuida da Lista E do board (funil_v2). Antes invalidava tudo via _limparCache().
     _limparCacheSemLista();
@@ -5290,6 +5294,9 @@ function salvarVenda(dados) {
       try { _propagarFibraParaMovelSeCombo_(sheet, linhaNum, dados); } catch (epm) {
         Logger.log('Falha ao propagar Fibra→Móvel: ' + (epm && epm.message ? epm.message : epm));
       }
+      // Combo: ao Fibra entrar em "2- Aguardando Instalação", promover o Móvel
+      // vinculado de "1- Conferencia/Ativação" → "2- Aguardando Entrega".
+      _bumpMovelStatusAguardandoEntrega_(sheet, linhaNum, _statusAntigoAlerta, dados.status);
       // Fase 5b: update fino no cache da Lista em vez de invalidação total.
       // _atualizarVendaNoCache_ reconstrói vínculos da mãe + filhas, então
       // alterações propagadas (cliente/endereço/contato) aparecem no card combo.
@@ -5769,6 +5776,10 @@ function moverVendaFunil(payload) {
     if (campoExtra === 'observacao' && valorExtra) {
       sheet.getRange(linha, CONFIG.COLUNAS.OBSERVACAO + 1).setValue(valorExtra);
     }
+
+    // Combo: ao Fibra entrar em "2- Aguardando Instalação" via drag, promover o
+    // Móvel vinculado de "1- Conferencia/Ativação" → "2- Aguardando Entrega".
+    _bumpMovelStatusAguardandoEntrega_(sheet, linha, statusAnt, novoStatus);
 
     // Funil 20/05: update fino em vez de invalidação total. _atualizarVendaNoCache_
     // cuida da Lista (lista_v4) E do board (funil_v2 via _atualizarVendaNoFunilCache_).
@@ -6808,6 +6819,48 @@ function _propagarFibraParaMovelSeCombo_(sheet, linhaMae, dadosMae) {
 
     var linhaDados = _construirLinhaDados(atualizado);
     sheet.getRange(linhaFilha, 1, 1, linhaDados.length).setValues([linhaDados]);
+  }
+}
+
+// Quando uma Fibra Combo transita para "2- Aguardando Instalação", o Móvel
+// vinculado (que estava em "1- Conferencia/Ativação") deve subir automaticamente
+// para "2- Aguardando Entrega" — sinal pro time de operações que pode
+// providenciar o chip. Idempotente: só atua quando o Móvel está em status 1
+// (não regride/promove além do esperado se operador já moveu manualmente).
+function _bumpMovelStatusAguardandoEntrega_(sheet, linhaMae, oldStatusMae, novoStatusMae) {
+  try {
+    if (!linhaMae || linhaMae < 3) return;
+    if (String(novoStatusMae || '').trim() !== '2- Aguardando Instalação') return;
+    if (String(oldStatusMae || '').trim() === '2- Aguardando Instalação') return; // já estava
+
+    var vinculos = _getVinculosVendasMap_();
+    var filhas = (vinculos && vinculos.filhasPorMae) ? (vinculos.filhasPorMae[linhaMae] || []) : [];
+    if (!filhas.length) return;
+
+    var ultimaLinha = sheet.getLastRow();
+    var linhasAfetadas = [];
+    for (var i = 0; i < filhas.length; i++) {
+      var linhaFilha = parseInt(filhas[i].vendaFilhaLinha, 10);
+      if (isNaN(linhaFilha) || linhaFilha < 3 || linhaFilha > ultimaLinha) continue;
+
+      var prodCell   = String(sheet.getRange(linhaFilha, CONFIG.COLUNAS.PRODUTO + 1).getValue() || '');
+      if (_normalizarTexto(prodCell).indexOf('MOVEL') === -1) continue;
+
+      var statusCell = String(sheet.getRange(linhaFilha, CONFIG.COLUNAS.STATUS + 1).getValue() || '').trim();
+      if (statusCell !== '1- Conferencia/Ativação') continue; // só promove a partir do status inicial
+
+      sheet.getRange(linhaFilha, CONFIG.COLUNAS.STATUS + 1).setValue('2- Aguardando Entrega');
+      linhasAfetadas.push(linhaFilha);
+    }
+    if (linhasAfetadas.length) {
+      SpreadsheetApp.flush();
+      for (var j = 0; j < linhasAfetadas.length; j++) {
+        try { _atualizarVendaNoCache_(linhasAfetadas[j]); } catch (eC) {}
+      }
+      Logger.log('_bumpMovelStatusAguardandoEntrega_: mãe L' + linhaMae + ' → atualizou ' + linhasAfetadas.length + ' móvel(eis) p/ "2- Aguardando Entrega": ' + linhasAfetadas.join(','));
+    }
+  } catch (e) {
+    Logger.log('_bumpMovelStatusAguardandoEntrega_ falhou (mãe L' + linhaMae + '): ' + (e && e.message || e));
   }
 }
 
