@@ -1626,38 +1626,61 @@ function _cruzConsolidarCamposVeroCli() {
 }
 
 // Fase C — pré-fetch dos planos canônicos por cidade. Extrai cidades únicas
-// dos contratos cujos contratos coincidem com algum ID do relatório (escopo
-// mínimo necessário) e busca o mapa código→{nome, valores} via 1 round-trip.
-// Callback dispara após o mapa estar em _cruzPlanosVeroPorCidade.
+// dos contratos que coincidem com algum ID do relatório (escopo mínimo) e
+// busca o mapa código→{nome, valores} via 1 round-trip. Timeout defensivo:
+// se o backend demorar >25s, segue com fallback (só dicionário Cowork+relatório)
+// pra não travar a UI. Limite de 25 cidades por chamada — relatórios maiores
+// caem em batches futuros (raro: tipicamente 5-15 cidades únicas por relatório).
 function _cruzCarregarPlanosVeroPorCidades(callback) {
+  _cruzPlanosVeroPorCidade = {};
   if (typeof google === 'undefined' || !google.script || !google.script.run) {
-    _cruzPlanosVeroPorCidade = {};
     callback();
     return;
   }
-  // Identifica cidades únicas dos contratos do CRM que aparecem no relatório.
   var mapaVero = _cruzConsolidarCamposVeroCli();
-  var cidades = {};
+  var contagem = {};
   (_cruzDadosCRM || []).forEach(function(item) {
     if (!item || !item.linha || !item.cidade) return;
     var id = _cruzNormId(item.contrato);
     if (!id || !mapaVero[id]) return;
-    cidades[String(item.cidade).trim()] = true;
+    var c = String(item.cidade).trim();
+    if (!c) return;
+    contagem[c] = (contagem[c] || 0) + 1;
   });
-  var lista = Object.keys(cidades);
+  var lista = Object.keys(contagem)
+    .sort(function(a, b) { return contagem[b] - contagem[a]; }) // mais frequentes primeiro
+    .slice(0, 25);
   if (!lista.length) {
-    _cruzPlanosVeroPorCidade = {};
     callback();
     return;
   }
+  _cruzSetStatus('Buscando catálogo Vero (' + lista.length + ' cidade' + (lista.length === 1 ? '' : 's') + ')…', '');
+
+  var resolvido = false;
+  var resolverUmaVez = function(tag) {
+    if (resolvido) return;
+    resolvido = true;
+    callback();
+  };
+
+  // Timeout defensivo: 25s. Se o backend não retornar, segue com mapa vazio
+  // (correções caem no fallback dicionário Cowork + relatório).
+  var timer = setTimeout(function() {
+    if (resolvido) return;
+    _cruzSetStatus('Catálogo Vero demorou demais — seguindo sem canônicos (correções caem no relatório).', 'warn');
+    resolverUmaVez('timeout');
+  }, 25000);
+
   google.script.run
     .withSuccessHandler(function(res) {
+      clearTimeout(timer);
       _cruzPlanosVeroPorCidade = res || {};
-      callback();
+      resolverUmaVez('ok');
     })
-    .withFailureHandler(function() {
-      _cruzPlanosVeroPorCidade = {};
-      callback(); // segue com fallback (sem canônicos)
+    .withFailureHandler(function(err) {
+      clearTimeout(timer);
+      console.warn('getPlanosVeroPorCidades falhou:', err && err.message);
+      resolverUmaVez('falha');
     })
     .getPlanosVeroPorCidades(lista);
 }
