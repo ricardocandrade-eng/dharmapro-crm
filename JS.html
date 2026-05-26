@@ -1020,7 +1020,23 @@ function pifSalvar() {
           // Sprint 3.3: mostrarPainel já reseta tudo (modo leitura, botões etc),
           // não precisa mais alternar visibilidade manualmente aqui.
           mostrarPainel(vAtual);
-          carregarVendas(1, '');
+          // Frente 0 (26/05/2026): patch local imediato — atualiza _dadosListaCache
+          // + sessionStorage com o vAtual fresh do server. carregarVendas a seguir
+          // renderiza com dado atual sem esperar TTL do SS (era 2min de stale).
+          _atualizarVendaNoCacheLocal(vAtual);
+          // Se há venda Móvel vinculada e o backend retornou ela atualizada,
+          // atualiza o cache local dela também (combo aparece agrupado correto).
+          if (vAtual.vendaMovelResumo && vAtual.vendaMovelResumo.linha) {
+            google.script.run
+              .withSuccessHandler(function(mvAtual) {
+                if (mvAtual) _atualizarVendaNoCacheLocal(mvAtual);
+                carregarVendas(1, '');
+              })
+              .withFailureHandler(function() { carregarVendas(1, ''); })
+              .getVendaPorLinha(vAtual.vendaMovelResumo.linha);
+          } else {
+            carregarVendas(1, '');
+          }
         })
         .withFailureHandler(function() { carregarVendas(1, ''); })
         .getVendaPorLinha(v.linha);

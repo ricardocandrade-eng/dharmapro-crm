@@ -5033,9 +5033,15 @@ function criarVendaMovelVinculada(payload) {
   if (!plano) throw new Error('Plano móvel é obrigatório.');
   if (!portabilidade) throw new Error('Portabilidade é obrigatória.');
 
-  var lock = LockService.getScriptLock();
-  try { lock.waitLock(10000); } catch (le) {
-    return { sucesso: false, mensagem: '⚠️ Sistema ocupado. Tente novamente em instantes.' };
+  // Frente A (26/05/2026): caller pode passar _skipLock=true quando já segura o
+  // ScriptLock (combo atômico via salvarVenda). Evita race entre Fibra e Móvel.
+  var skipLock = !!payload._skipLock;
+  var lock = null;
+  if (!skipLock) {
+    lock = LockService.getScriptLock();
+    try { lock.waitLock(10000); } catch (le) {
+      return { sucesso: false, mensagem: '⚠️ Sistema ocupado. Tente novamente em instantes.' };
+    }
   }
 
   try {
@@ -5130,7 +5136,7 @@ function criarVendaMovelVinculada(payload) {
     _atualizarVendaNoCache_(linhaOrigem);
     return { sucesso: true, linha: novaLinha, mensagem: '✅ Venda móvel vinculada criada com sucesso!' };
   } finally {
-    lock.releaseLock();
+    if (lock) lock.releaseLock();
   }
 }
 
@@ -5247,6 +5253,19 @@ function salvarVenda(dados) {
         var produtoAntigo = String(linhaAtualSnapshot[CONFIG.COLUNAS.PRODUTO] || '').trim();
         var errCombo = _validarComboIntegridade_(dados.produto, produtoAntigo, statusAntigo, dados.status, linhaNum);
         if (errCombo) throw new Error(errCombo);
+        // Frente B2 (26/05/2026): bloqueia conversão Alone → Combo via edição.
+        // Edição não cria o Móvel automaticamente (a auto-criação só roda em
+        // cadastro novo — v572). Permitir Alone → Combo aqui deixaria a Fibra
+        // sem Móvel vinculado e re-introduziria órfãos. Operador deve cancelar
+        // a venda Alone e criar uma nova Fibra Combo (que cria Móvel atômico).
+        if (_normalizarTexto(produtoAntigo).indexOf('FIBRA ALONE') !== -1 &&
+            String(dados.produto || '').trim() === 'Fibra Combo') {
+          throw new Error(
+            'Não é possível converter Fibra Alone → Fibra Combo via edição. ' +
+            'Cancele esta venda (status "Cancelamento Comercial") e crie uma nova venda Fibra Combo — ' +
+            'o sistema vai criar o Móvel vinculado automaticamente no mesmo ato.'
+          );
+        }
       }
       var linhaDados = _construirLinhaDados(dados);
       sheet.getRange(linhaNum, 1, 1, linhaDados.length).setValues([linhaDados]);
@@ -5321,6 +5340,15 @@ function salvarVenda(dados) {
       var ehFibraComboNovo = String(dados.produto || '').trim() === 'Fibra Combo';
       var inferidoMovel = null;
       if (ehFibraComboNovo) {
+        // Frente B1 (26/05/2026): guard de unicidade — rejeita 2ª Fibra Combo
+        // ativa pro mesmo CPF. Caso real (GESLEY 25/05/2026): operador cadastrou
+        // 2x o mesmo cliente. Antes esse check passava silencioso.
+        // Aceita renovação se a anterior estiver cancelada.
+        var cpfNovo = String(dados.cpf || '').replace(/[^0-9]/g, '');
+        if (cpfNovo && cpfNovo.length >= 11) {
+          var errDup = _verificarFibraComboDuplicada_(sheet, cpfNovo);
+          if (errDup) throw new Error(errDup);
+        }
         if (!String(dados.movelPortabilidade || '').trim()) {
           // Log de diagnóstico: ajuda detectar payload incompleto (ex: frontend
           // em cache enviou sem o campo). Inclui keys do dados sem valores PII.
@@ -5376,8 +5404,10 @@ function salvarVenda(dados) {
         var resMovel = null;
         var erroMovel = null;
         try {
-          // releases lock antes — criarVendaMovelVinculada adquire o seu próprio
-          lock.releaseLock(); _lockReleased = true;
+          // Frente A (26/05/2026): mantém lock segurado — criarVendaMovelVinculada
+          // recebe _skipLock=true e reusa o ScriptLock atual. Combo nasce atômico:
+          // Fibra+Móvel+Vínculo na mesma transação, sem race contra outros saves
+          // concorrentes que pegariam a linha N+1 entre Fibra e Móvel.
           resMovel = criarVendaMovelVinculada({
             linhaOrigem:   novaLinha,
             produto:       inferidoMovel.produto,
@@ -5385,7 +5415,8 @@ function salvarVenda(dados) {
             valor:         inferidoMovel.valor,
             contrato:      String(dados.movelContrato || '').trim(),
             portabilidade: String(dados.movelPortabilidade || '').trim(),
-            linhaMovel:    String(dados.movelLinha || '').trim()
+            linhaMovel:    String(dados.movelLinha || '').trim(),
+            _skipLock:     true
           });
         } catch (eMovel) {
           erroMovel = (eMovel && eMovel.message) || String(eMovel);
@@ -6572,6 +6603,36 @@ function _validarComboIntegridade_(produto, oldProduto, oldStatus, novoStatus, l
   return null;
 }
 
+// Frente B1 (26/05/2026): unicidade Fibra Combo ativa por CPF.
+// Varre a aba "1 - Vendas" procurando outra Fibra Combo com mesmo CPF cujo status
+// NÃO contenha "CANCEL" (vendas canceladas não bloqueiam — permite renovação).
+// Retorna mensagem de erro pro caller bloquear o cadastro, ou null se OK.
+function _verificarFibraComboDuplicada_(sheet, cpfNovo) {
+  var c = CONFIG.COLUNAS;
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 3) return null;
+  // Leitura mínima: PRODUTO + CPF + STATUS + CLIENTE — sem getRange whole-row pesado
+  var totalLinhas = lastRow - 2;
+  var produtos = sheet.getRange(3, c.PRODUTO + 1, totalLinhas, 1).getValues();
+  var cpfs     = sheet.getRange(3, c.CPF + 1,     totalLinhas, 1).getValues();
+  var statuses = sheet.getRange(3, c.STATUS + 1,  totalLinhas, 1).getValues();
+  var clientes = sheet.getRange(3, c.CLIENTE + 1, totalLinhas, 1).getValues();
+  for (var i = 0; i < totalLinhas; i++) {
+    var prod = String(produtos[i][0] || '').trim();
+    if (prod !== 'Fibra Combo') continue;
+    var cpfRow = String(cpfs[i][0] || '').replace(/[^0-9]/g, '');
+    if (cpfRow !== cpfNovo) continue;
+    var status = String(statuses[i][0] || '').trim();
+    if (/CANCEL/i.test(status)) continue; // venda cancelada não bloqueia renovação
+    var linhaExistente = i + 3;
+    return '⚠️ Já existe uma Fibra Combo ativa para CPF ' + cpfNovo +
+      ' (linha ' + linhaExistente + ' — "' + String(clientes[i][0] || '').trim() + '", status "' + status + '"). ' +
+      'Se for renovação após cancelamento, primeiro mude o status da venda antiga para "Cancelamento Comercial". ' +
+      'Se for duplicata acidental, abra a venda existente em vez de cadastrar uma nova.';
+  }
+  return null;
+}
+
 function _validarTransicaoStatusServer_(oldStatus, newStatus, campos) {
   campos = campos || {};
   var old = String(oldStatus || '').trim();
@@ -7139,6 +7200,38 @@ function _registrarVinculoVenda_(maeLinha, filhaLinha, tipo) {
   var rowMae = sheetVendas.getRange(maeLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
   var rowFilha = sheetVendas.getRange(filhaLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
   var c = CONFIG.COLUNAS;
+
+  // ── Frente A3 (26/05/2026): validação de integridade do vínculo ──────────
+  //  Defesa em profundidade: rejeita vínculo entre clientes diferentes ou com
+  //  produtos incompatíveis. Anteriormente o estrago vinha de race no save +
+  //  inferência heurística que casava linhas adjacentes sem checar CPF/produto.
+  //  Backfill D1 de 26/05 limpou 24 vínculos cruzados; este guard impede que
+  //  o estrago volte por qualquer caller (criar combo, reparo, aprovação manual).
+  if (String(tipo || '').toUpperCase() === 'COMBO_MOVEL') {
+    var prodMae   = _normalizarTexto(rowMae[c.PRODUTO]   || '');
+    var prodFilha = _normalizarTexto(rowFilha[c.PRODUTO] || '');
+    if (prodMae.indexOf('FIBRA') === -1) {
+      throw new Error('Vínculo COMBO_MOVEL rejeitado: mãe L.' + maeLinha + ' não é Fibra (produto="' + prodMae + '").');
+    }
+    if (prodFilha.indexOf('MOVEL') === -1) {
+      throw new Error('Vínculo COMBO_MOVEL rejeitado: filha L.' + filhaLinha + ' não é Móvel (produto="' + prodFilha + '").');
+    }
+    var cpfMae   = String(rowMae[c.CPF]   || '').replace(/[^0-9]/g, '');
+    var cpfFilha = String(rowFilha[c.CPF] || '').replace(/[^0-9]/g, '');
+    var whatsMae   = String(rowMae[c.WHATS]   || '').replace(/[^0-9]/g, '');
+    var whatsFilha = String(rowFilha[c.WHATS] || '').replace(/[^0-9]/g, '');
+    var cpfBate   = cpfMae   && cpfFilha   && cpfMae   === cpfFilha;
+    var whatsBate = whatsMae && whatsFilha && whatsMae === whatsFilha;
+    if (!cpfBate && !whatsBate) {
+      throw new Error(
+        'Vínculo COMBO_MOVEL rejeitado: clientes diferentes. ' +
+        'Mãe L.' + maeLinha + ' CPF=' + (cpfMae || '∅') + ' Zap=' + (whatsMae || '∅') + ' "' + String(rowMae[c.CLIENTE] || '').trim() + '" ' +
+        '↔ Filha L.' + filhaLinha + ' CPF=' + (cpfFilha || '∅') + ' Zap=' + (whatsFilha || '∅') + ' "' + String(rowFilha[c.CLIENTE] || '').trim() + '".'
+      );
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   var sh = _getSheetVinculosVendas_(true);
 
   // ── Arquivar vínculos ATIVO anteriores para a mesma mãe ───────────────────
