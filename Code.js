@@ -2786,6 +2786,7 @@ function getOfertasCidade(cidade) {
     var grupos = [];
     var catAtual = null;
     var planosAtual = [];
+    var resolverCodigo = _criarResolvedorCodigos_(cidade);
 
     function _parseValor_(v) {
       if (v === '' || v === null || v === undefined) return 0;
@@ -2832,7 +2833,9 @@ function getOfertasCidade(cidade) {
         valorRecorrente: valRec.toFixed(2).replace('.', ','),
         // 'valor' mantido por backward-compat: alias para o recorrente
         // (era o comportamento da Rev3 com hardcode -10).
-        valor:           valRec.toFixed(2).replace('.', ',')
+        valor:           valRec.toFixed(2).replace('.', ','),
+        // codigo Vero resolvido por (nome, cidade). null se não determinístico.
+        codigo:          resolverCodigo(nomePlano)
       });
     }
     if (catAtual !== null) grupos.push({ categoria: catAtual, planos: planosAtual });
@@ -3143,6 +3146,8 @@ function getPlanosPorCidadeProduto(cidade, produto) {
     var ehFibraCombo = produtoNorm === 'FIBRA COMBO';
 
     var planos   = [];
+    var planosDetalhes = []; // [{nome, codigo, valor, categoria}] paralelo a `planos` (sem cabeçalhos)
+    var resolverCodigo = _criarResolvedorCodigos_(cidade);
     var catAtual = '';
 
     for (var ti = 2; ti < dadosTab.length; ti++) {
@@ -3186,10 +3191,19 @@ function getPlanosPorCidadeProduto(cidade, produto) {
         planos.push('▶️ ' + cat.toUpperCase() + ' ◀️');
       }
       var valNum = parseFloat(valRaw);
-      planos.push(nome + ' | ' + (!isNaN(valNum) ? valNum.toFixed(2).replace('.', ',') : '0,00'));
+      var valStr = !isNaN(valNum) ? valNum.toFixed(2).replace('.', ',') : '0,00';
+      planos.push(nome + ' | ' + valStr);
+      planosDetalhes.push({
+        nome:      nome,
+        categoria: cat,
+        valor:     valStr,
+        codigo:    resolverCodigo(nome) // null = sem resolução determinística pra cidade
+      });
     }
 
-    return { erro: false, cidade: cidade.toUpperCase(), planos: planos };
+    // planos: backward-compat (array de strings que Nova Venda lê hoje).
+    // planosDetalhes: estrutura nova com código Vero por plano (Fase B passa a usar).
+    return { erro: false, cidade: cidade.toUpperCase(), planos: planos, planosDetalhes: planosDetalhes };
   } catch(e) {
     Logger.log('getPlanosPorCidadeProduto erro: ' + e);
     return { erro: true, mensagem: 'Erro interno: ' + e.message };
@@ -3958,6 +3972,23 @@ function _limparCacheCodigosVero() {
 // e agente-ia-vero (Renata, via HTTP node n8n com cache 1h).
 // Single source: `planos_vero.json` no Drive, lido via _getTabela() (cache 600s).
 
+// Resolvedor memoizado de código Vero por nome do plano, para uma cidade fixa.
+// Compartilhado pelos 3 consumidores (_serveActionPlanos_, getPlanosPorCidadeProduto,
+// getOfertasCidade). Cada nome único é resolvido 1× via getCodigoVeroPorPlanoCidade
+// (que já cacheia _getVerohubCodigos por 600s). Sem resolução determinística → null.
+function _criarResolvedorCodigos_(cidade) {
+  var cache = {};
+  return function(nomePlano) {
+    var key = String(nomePlano || '').trim();
+    if (!key) return null;
+    if (cache.hasOwnProperty(key)) return cache[key];
+    var c = '';
+    try { c = getCodigoVeroPorPlanoCidade(key, cidade); } catch (e) { c = ''; }
+    cache[key] = c || null;
+    return cache[key];
+  };
+}
+
 function _serveActionPlanos_(cidade, produto, forma) {
   try {
     var dadosTab = _getTabela();
@@ -3983,6 +4014,7 @@ function _serveActionPlanos_(cidade, produto, forma) {
 
     var produtoNorm = _normalizarTexto(produto);
     var planos = [];
+    var resolverCodigo = _criarResolvedorCodigos_(cidade);
 
     for (var ti = 2; ti < dadosTab.length; ti++) {
       var publicar = colPublicar > -1 ? dadosTab[ti][colPublicar] : true;
@@ -4023,7 +4055,11 @@ function _serveActionPlanos_(cidade, produto, forma) {
         destaque:         false,
         preco:            _formatarPrecoBR_(forma === 'RECORRENTE' ? precoRecRaw : precoBoletoRaw),
         preco_boleto:     _formatarPrecoBR_(precoBoletoRaw),
-        preco_recorrente: _formatarPrecoBR_(precoRecRaw)
+        preco_recorrente: _formatarPrecoBR_(precoRecRaw),
+        // codigo Vero resolvido por (nome, cidade) via _criarResolvedorCodigos_.
+        // null = sem resolução determinística pra essa cidade (cidade fora do sweep,
+        // ambíguo, ou plano não casa no dicionário). Aditivo — consumidores antigos ignoram.
+        codigo:           resolverCodigo(nome)
       });
     }
 
