@@ -3492,12 +3492,36 @@ function _getCodigosVero() {
   return parsed;
 }
 
-// Mapa flat para o cruzamento: { "4624": { nome: "<nome_crm>", conf: "alta" }, ... }
-// Direcao codigo->nome e' deterministica (cada codigo -> 1 nome_crm). Em duplicatas
-// (mesmo codigo em coletas diferentes), mantem a de maior confianca. Ignora
-// nome_crm_match null (SKU Vero sem par no CRM). Tolerante a falha (retorna {}).
+// Mapa flat para o cruzamento: { "4624": { nome: "<nome_vero>", conf: "alta" }, ... }
+// Fonte da verdade: sweep `verohub_codigos_cidades.json` no Drive (163 códigos ×
+// 359 cidades, deploy 21/05/2026). Antes lia do dicionário Cowork pequeno (4 cidades,
+// flat sem dimensão de cidade) — bug crítico no cruzamento: o mesmo código 4623
+// podia ter sido coletado em outra cidade com plano diferente, e o fallback chutava
+// "550MB MUNDO FIBRA" em casos onde o nome correto é "VERO MAIS 800MB + ...".
+// Mantém o dicionário Cowork como fallback adicional pra preencher gaps eventuais
+// no sweep (caso algum código existir só no Cowork e não no sweep).
 function _getCodigosVeroMapaFlat_() {
   var out = {};
+  // 1) Sweep VeroHub — fonte primária (163 códigos, todos com nome Vero oficial)
+  try {
+    var vh = _getVerohubCodigos();
+    if (vh && vh.codigos) {
+      Object.keys(vh.codigos).forEach(function(cod) {
+        var info = vh.codigos[cod];
+        if (info && info.nome) {
+          out[String(cod).trim()] = {
+            nome: String(info.nome).trim(),
+            conf: 'alta',
+            produtoTipo: info.produto_tipo || ''
+          };
+        }
+      });
+    }
+  } catch (eVh) {
+    Logger.log('_getCodigosVeroMapaFlat_ sweep falhou: ' + eVh.message);
+  }
+
+  // 2) Cowork como fallback aditivo (só preenche códigos que o sweep não tem)
   var rank = { alta: 3, media: 2, baixa: 1, '': 0 };
   try {
     var cv = _getCodigosVero();
@@ -3506,6 +3530,8 @@ function _getCodigosVeroMapaFlat_() {
         if (!p || !p.codigo || !p.nome_crm_match) return;
         var cod  = String(p.codigo).trim();
         var conf = String(p.confianca || '').toLowerCase();
+        // Sweep tem prioridade — só preenche se sweep não cobriu
+        if (out[cod]) return;
         if (!out[cod] || (rank[conf] || 0) > (rank[out[cod].conf] || 0)) {
           out[cod] = { nome: String(p.nome_crm_match).trim(), conf: conf };
         }

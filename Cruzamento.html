@@ -1772,7 +1772,7 @@ function _cruzComputarCorrecoes() {
           var novoCoreF  = _cruzPlanoCore(alvoPl.nome);
           if (novoCoreF && _cruzNormalizarTexto(novoCoreF) !== _cruzNormalizarTexto(atualCoreF)) {
             campos.PLANO = alvoPl.nome;
-            diffs.push({ campo: 'PLANO', label: 'Plano' + (alvoPl.conf === 'media' ? ' (conf. média)' : ''), atual: item.plano || '', novo: alvoPl.nome, fonte: 'Dicionário · cód. ' + codRel });
+            diffs.push({ campo: 'PLANO', label: 'Plano' + (alvoPl.conf === 'media' ? ' (conf. média)' : ''), atual: item.plano || '', novo: alvoPl.nome, fonte: 'VeroHub · cód. ' + codRel });
           }
         }
       }
