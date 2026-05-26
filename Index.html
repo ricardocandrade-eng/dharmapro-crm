@@ -497,6 +497,23 @@
                     white-space: nowrap; }
     .vi-vero-status { cursor: help; vertical-align: middle; }
 
+    /* Badge "cód. 4624" (Fase B) — ao lado do nome do plano no card */
+    .vi-cod-vero {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 6px;
+      font-size: 9.5px;
+      font-weight: 700;
+      font-family: "DM Mono", monospace;
+      color: var(--muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      vertical-align: middle;
+      white-space: nowrap;
+      cursor: help;
+    }
+
     /* BotConversa: removido em 19/05/2026 (Performance Lista) */
 
     /* Separador vertical */
@@ -3269,6 +3286,7 @@
                     <select id="pif-plano" onchange="pifOnPlanoChange()">
                       <option value="">—</option>
                     </select>
+                    <span id="pif-codigoVeroHint" style="display:none;font-size:11px;margin-top:4px;font-family:'DM Mono',monospace;line-height:1.4"></span>
                   </div>
                   <div class="pif-group">
                     <label>Vencimento</label>

@@ -212,9 +212,10 @@ function pifOnProdutoChange() {
         if (hint) { hint.textContent = '⚠️ Nenhum plano para esta cidade.'; hint.style.color = 'var(--yellow)'; }
         return;
       }
-      _pifPreencherPlanos(d.planos);
+      _pifPreencherPlanos(d.planos, d.planosDetalhes);
       var qtd = d.planos.filter(function(p) { return p.indexOf('▶️') === -1; }).length;
       if (hint) { hint.textContent = '✅ ' + qtd + ' plano(s)'; hint.style.color = 'var(--green)'; }
+      _atualizarHintCodigoVero('pif-plano', 'pif-codigoVeroHint');
     })
     .withFailureHandler(function() {
       selPlano.disabled = false;
@@ -301,19 +302,28 @@ function _filtrarStatusPorProduto(produto, statusAtual) {
   });
 }
 
-function _pifPreencherPlanos(planos) {
+function _pifPreencherPlanos(planos, planosDetalhes) {
   var sel = document.getElementById('pif-plano');
   sel.innerHTML = '<option value="">— Selecione o plano —</option>';
+  var mapa = _mapaCodigosPorNomePlano(planosDetalhes);
   planos.forEach(function(item) {
     var opt = document.createElement('option');
     if (item.indexOf('▶️') === 0) { opt.disabled = true; opt.style.color = 'var(--muted)'; }
-    opt.value = item; opt.textContent = item;
+    opt.value = item;
+    var codigo = '';
+    if (item.indexOf('▶️') !== 0) {
+      var nome = item.split(' | ')[0].trim().toUpperCase();
+      codigo = mapa[nome] || '';
+      if (codigo) opt.setAttribute('data-codigo', codigo);
+    }
+    opt.textContent = _labelOptionPlano(item, codigo);
     sel.appendChild(opt);
   });
 }
 
 function pifOnPlanoChange() {
   var plano = document.getElementById('pif-plano').value;
+  _atualizarHintCodigoVero('pif-plano', 'pif-codigoVeroHint');
   if (!plano || plano.indexOf('▶️') === 0) return;
   // Sprint 3: se Forma já está definida, recalcula via backend (preço exato).
   var formaEl = document.getElementById('pif-formaPagamento');
@@ -651,6 +661,58 @@ function painelToggleEdicao() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// ── Helpers compartilhados — Código Vero no dropdown de plano (Fase B) ──
+// O backend (getPlanosPorCidadeProduto) entrega `planos: ['NOME | preco', ...]`
+// (legado, mantido por compat) + `planosDetalhes: [{nome, codigo, ...}]` novo.
+// Esses helpers casam os dois lados pra popular o <option> com data-codigo
+// e label visível "4624 — NOME | preco" sem mudar o value (que segue "NOME | preco"
+// — getValorPlano, _cruzExtrairCodigoPlano e cards parseiam por esse formato).
+
+function _mapaCodigosPorNomePlano(planosDetalhes) {
+  var m = {};
+  (planosDetalhes || []).forEach(function(p) {
+    if (p && p.nome) m[String(p.nome).trim().toUpperCase()] = p.codigo || null;
+  });
+  return m;
+}
+
+function _labelOptionPlano(item, codigo) {
+  if (!codigo) return item;
+  return String(codigo).trim() + ' — ' + item;
+}
+
+// Lê data-codigo da <option> selecionada do select de plano. '' se sem código.
+function _codigoVeroDeSelectPlano(selectEl) {
+  if (!selectEl) return '';
+  var opt = null;
+  if (selectEl.selectedOptions && selectEl.selectedOptions.length) {
+    opt = selectEl.selectedOptions[0];
+  } else if (selectEl.selectedIndex >= 0) {
+    opt = selectEl.options[selectEl.selectedIndex];
+  }
+  return (opt && opt.getAttribute('data-codigo')) || '';
+}
+
+// Atualiza hint visual (✓ código X / ⚠ sem código). Usa cores tema. Esconde se vazio/header.
+function _atualizarHintCodigoVero(selectId, hintId) {
+  var sel  = document.getElementById(selectId);
+  var hint = document.getElementById(hintId);
+  if (!sel || !hint) return;
+  var plano = sel.value;
+  if (!plano || plano.indexOf('▶️') === 0) {
+    hint.textContent = ''; hint.style.display = 'none'; return;
+  }
+  var cod = _codigoVeroDeSelectPlano(sel);
+  hint.style.display = '';
+  if (cod) {
+    hint.textContent = '✓ Código Vero: ' + cod;
+    hint.style.color = 'var(--muted)';
+  } else {
+    hint.textContent = '⚠️ Plano sem código Vero mapeado — pode cadastrar, mas considere completar o mapeamento depois.';
+    hint.style.color = 'var(--yellow)';
+  }
+}
+
 // _buildVendaPayload_(contexto, vendaAtual)
 // Fonte única de verdade para o payload de salvarVenda — usado por Nova
 // Venda (cadastro), painel inline (edicao) e transicoes de status. Substitui
@@ -685,6 +747,9 @@ function _buildVendaPayload_(contexto, vendaAtual) {
       segmentacao: getTrim('nv-segmentacao'),
       produto:     getVal('nv-produto'),
       plano:       getVal('nv-plano'),
+      // codigoVero vem do data-codigo da option selecionada (resolvido na Fase A).
+      // Backend (salvarVenda) usa direto na col FAT; sem reverse-lookup.
+      codigoVero:  _codigoVeroDeSelectPlano(document.getElementById('nv-plano')),
       valor:       getTrim('nv-valor'),
       // Sprint 3 (12/05/2026): Forma de Pagamento e Vencimento (col P e AT)
       formaPagamento: getVal('nv-formaPagamento'),
@@ -730,6 +795,7 @@ function _buildVendaPayload_(contexto, vendaAtual) {
     segmentacao:   getTrim('pif-segmentacao'),
     produto:       getVal('pif-produto'),
     plano:         getVal('pif-plano'),
+    codigoVero:    _codigoVeroDeSelectPlano(document.getElementById('pif-plano')),
     valor:         _pifValorNumero(getVal('pif-valor'), document.getElementById('pif-plano')),
     observacao:    getTrim('pif-observacao'),
     contrato:      getTrim('pif-contrato'),
@@ -7767,6 +7833,13 @@ function _limparNomePlano(plano) {
   if (!plano) return '';
   return String(plano).replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/, '').trim();
 }
+// Badge "cód. 4624" (Fase B) — ao lado do nome do plano nos cards.
+// Lê v.codigoVero (alias) ou v.fat (col Q, fonte). Vazio = sem código mapeado.
+function _badgeCodigoVero(v) {
+  var c = v && (v.codigoVero || v.fat);
+  if (!c) return '';
+  return ' <span class="vi-cod-vero" title="Código Vero do plano">cód. ' + esc(String(c).trim()) + '</span>';
+}
 function _formatarValorBR(valor) {
   if (valor === null || valor === undefined || valor === '') return '';
   var num;
@@ -7895,6 +7968,7 @@ function _criarItemVenda(v, index) {
             '<div class="vi-plano-nome">' +
               (v.veroStatus ? '<span class="vi-vero-status" title="' + (v.veroStatus.substring(0,2) === '🟢' ? 'Encontrado: aba ' + (v.veroStatus.substring(3) || 'Vero') : 'Não encontrado no relatório Vero') + '">' + v.veroStatus.substring(0,2) + '</span> ' : '') +
               esc(planoNome || '—') +
+              _badgeCodigoVero(v) +
             '</div>' +
           '</div>' +
           (valorFmt ? '<span class="vi-plano-valor">' + esc(valorFmt) + '</span>' : '') +
@@ -8803,10 +8877,11 @@ function _nvCarregarPlanos(cidade, produto, selPlano, hint) {
         hint.textContent = d && d.mensagem ? '⚠️ ' + d.mensagem : '⚠️ Nenhum plano para esta cidade.';
         hint.style.color = 'var(--yellow)'; return;
       }
-      if (typeof _nvPreencherPlanos === 'function') _nvPreencherPlanos(d.planos);
+      if (typeof _nvPreencherPlanos === 'function') _nvPreencherPlanos(d.planos, d.planosDetalhes);
       var qtd = d.planos.filter(function(p) { return p.indexOf('▶️') === -1; }).length;
       hint.textContent = '✅ ' + qtd + ' plano' + (qtd !== 1 ? 's' : '') + ' em ' + d.cidade;
       hint.style.color = 'var(--green)';
+      _atualizarHintCodigoVero('nv-plano', 'nv-codigoVeroHint');
     })
     .withFailureHandler(function(err) {
       selPlano.disabled = false;
@@ -10351,6 +10426,7 @@ function _dhpBlocoPlanoV6(venda, index, extraHtml) {
       '<div class="vi-plano-nome">' +
         (venda.veroStatus ? '<span class="vi-vero-status" title="' + (venda.veroStatus.substring(0,2) === '🟢' ? 'Encontrado: aba ' + (venda.veroStatus.substring(3) || 'Vero') : 'Não encontrado no relatório Vero') + '">' + venda.veroStatus.substring(0,2) + '</span> ' : '') +
         esc(planoNome || '—') +
+        _badgeCodigoVero(venda) +
       '</div>' +
       '<div class="vi-plano-substatus" style="color:' + corStatus + '">' +
         '<span class="vi-plano-substatus-dot" style="background:' + corStatus + '"></span>' +

@@ -5254,11 +5254,18 @@ function salvarVenda(dados) {
       }
 
       var linhaDados = _construirLinhaDados(dados);
-      // Captura forward-only do codigo Vero do plano na coluna FAT (Q) — so cadastro novo.
-      // Cobertura parcial (cidades ja no dicionario); sem match fica em branco. Sem backfill.
+      // Codigo Vero na coluna FAT (Q) — forward-only (so cadastro novo).
+      // Preferência: codigoVero veio do frontend (option escolhida no dropdown,
+      // entregue pelo backend Fase A — fonte da verdade direta, sem ambiguidade).
+      // Fallback: reverse-lookup por (plano+cidade) pra compat com callers que
+      // não passam codigoVero (ex: webhook BotConversa).
       try {
-        var _codVero = getCodigoVeroPorPlanoCidade(dados.plano, dados.cidade);
-        if (_codVero) linhaDados[CONFIG.COLUNAS.FAT] = _codVero;
+        if (dados.codigoVero) {
+          linhaDados[CONFIG.COLUNAS.FAT] = String(dados.codigoVero).trim();
+        } else {
+          var _codVero = getCodigoVeroPorPlanoCidade(dados.plano, dados.cidade);
+          if (_codVero) linhaDados[CONFIG.COLUNAS.FAT] = _codVero;
+        }
       } catch (eCodVero) { Logger.log('codigo Vero (nova venda) falhou: ' + eCodVero.message); }
       var ultimaSheet = sheet.getLastRow();
       var novaLinha;
@@ -6275,6 +6282,7 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     })(),
     venc:        row[c.VENC]         || '',
     fat:         row[c.FAT]          || '',
+    codigoVero:  row[c.FAT]          || '', // alias semântico (col Q guarda o código Vero desde v562)
     plano:       row[c.PLANO]        || '',
     valor:       _valorListaSemDuplicar(row[c.PLANO], row[c.VALOR]),
     linhaMovel:    row[c.LINHA_MOVEL]    || '',
@@ -6354,6 +6362,7 @@ function _mapearLinha(row, numeroLinha) {
     })(),
     venc:        row[c.VENC]         || '',
     fat:         row[c.FAT]          || '',
+    codigoVero:  row[c.FAT]          || '', // alias semântico (col Q guarda o código Vero desde v562)
     plano:       row[c.PLANO]        || '',
     valor:       String(row[c.VALOR] || '').trim(),
     linhaMovel:    row[c.LINHA_MOVEL]    || '',

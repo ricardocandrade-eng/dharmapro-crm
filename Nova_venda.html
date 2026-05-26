@@ -361,6 +361,7 @@
             <option value="">— Preencha o CEP e Produto —</option>
           </select>
           <span class="err-msg" id="nv-err-plano">Selecione um Plano válido.</span>
+          <span id="nv-codigoVeroHint" style="display:none;font-size:11px;margin-top:4px;font-family:'DM Mono',monospace;line-height:1.4"></span>
         </div>
 
         <div class="form-group" id="nv-grp-formaPagamento">
@@ -736,13 +737,25 @@ function _nvExtrairGBMovel(planoNome) {
   return m ? (m[1] + 'GB') : '';
 }
 
-function _nvPreencherPlanos(planos) {
+function _nvPreencherPlanos(planos, planosDetalhes) {
   var sel = document.getElementById('nv-plano');
   sel.innerHTML = '<option value="">— Selecione o plano —</option>';
+  // Indexa codigos por nome (Fase B). Helpers globais definidos em JS.html.
+  var mapa = (typeof _mapaCodigosPorNomePlano === 'function')
+    ? _mapaCodigosPorNomePlano(planosDetalhes) : {};
   planos.forEach(function(item) {
     var opt = document.createElement('option');
     if (item.indexOf('▶️') === 0) { opt.disabled = true; opt.style.color = 'var(--muted)'; }
-    opt.value = item; opt.textContent = item;
+    opt.value = item;
+    var codigo = '';
+    if (item.indexOf('▶️') !== 0) {
+      var nome = item.split(' | ')[0].trim().toUpperCase();
+      codigo = mapa[nome] || '';
+      if (codigo) opt.setAttribute('data-codigo', codigo);
+    }
+    opt.textContent = (typeof _labelOptionPlano === 'function')
+      ? _labelOptionPlano(item, codigo)
+      : (codigo ? (codigo + ' — ' + item) : item);
     sel.appendChild(opt);
   });
 }
@@ -750,6 +763,10 @@ function _nvPreencherPlanos(planos) {
 function nvOnPlanoChange() {
   var plano = document.getElementById('nv-plano').value;
   var hint  = document.getElementById('nv-valorHint');
+  // Atualiza hint de código Vero (Fase B) abaixo do select de plano.
+  if (typeof _atualizarHintCodigoVero === 'function') {
+    _atualizarHintCodigoVero('nv-plano', 'nv-codigoVeroHint');
+  }
   // Sprint 3.2: atualiza hint do chip Móvel inferido (só Fibra Combo)
   var produto = document.getElementById('nv-produto').value;
   var movelInf = document.getElementById('nv-movelInferido');
@@ -833,6 +850,8 @@ function nvSalvar() {
           cidade: gt('nv-cidade'), uf: gt('nv-uf'),
           sistema: gt('nv-sistema'), segmentacao: gt('nv-segmentacao'),
           produto: g('nv-produto'), plano: g('nv-plano'),
+          codigoVero: (typeof _codigoVeroDeSelectPlano === 'function')
+            ? _codigoVeroDeSelectPlano(document.getElementById('nv-plano')) : '',
           valor: gt('nv-valor'), observacao: gt('nv-observacao'),
           nomeMae: gt('nv-nomeMae'), dtNasc: g('nv-dtNasc'), rg: gt('nv-rg'),
           criadoPor: (typeof AppState !== 'undefined' && AppState.get('nomeUsuario')) || '',
