@@ -1,0 +1,415 @@
+<!-- ══════════════════════════════════════════════════════════════════════════
+     Conciliacao.html — Tela admin "◆ Conciliação" (Q3 visual, §8.3)
+     Lê a aba `Conciliacao Mensal` materializada pela Fase 7.2 e mostra
+     KPIs do mês + tabela filtrável por flag e busca por contrato/cliente.
+     Criado em: 27/05/2026
+     ══════════════════════════════════════════════════════════════════════════ -->
+<style>
+#conciliacaoPage {
+  width: 100%; height: 100%; overflow-y: auto;
+  padding: 28px 32px 56px;
+  background: var(--bg, #0d0f14);
+  font-family: 'Sora', sans-serif;
+  color: var(--text, #e4e8f5);
+}
+#conciliacaoPage * { box-sizing: border-box; }
+
+.cn-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 16px; }
+.cn-title-group .cn-tag {
+  font-family: 'DM Mono', monospace; font-size: 10px; color: var(--accent, #e63e6d);
+  letter-spacing: 3px; text-transform: uppercase; display: block; margin-bottom: 4px;
+}
+.cn-title-group h2 { font-size: 22px; font-weight: 800; margin: 0; }
+.cn-title-group .cn-sub { font-size: 12px; color: var(--text-dim,#8089a8); margin-top: 4px; }
+
+.cn-month-bar {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface, #141720); border: 1px solid var(--border, #252a3a);
+  border-radius: var(--radius, 12px); padding: 12px 18px; margin-bottom: 20px;
+}
+.cn-month-bar .cn-month-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px; color: var(--text-dim,#8089a8); }
+.cn-month-select {
+  background: transparent; color: var(--text,#e4e8f5); border: 1px solid var(--border,#252a3a);
+  border-radius: 8px; padding: 7px 12px; font-size: 13px; font-family: 'Sora', sans-serif; cursor: pointer;
+}
+.cn-month-select:focus { outline: none; border-color: var(--accent,#e63e6d); }
+.cn-month-bar .cn-aplicado { font-size: 11px; color: var(--text-dim,#8089a8); margin-left: auto; font-family: 'DM Mono', monospace; }
+
+.cn-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.cn-kpi {
+  background: var(--surface,#141720); border: 1px solid var(--border,#252a3a);
+  border-radius: 12px; padding: 14px 16px;
+}
+.cn-kpi-label {
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-dim,#8089a8); margin-bottom: 6px;
+}
+.cn-kpi-value { font-size: 20px; font-weight: 700; color: var(--text,#e4e8f5); }
+.cn-kpi-value.brl { font-size: 17px; }
+.cn-kpi.ok    .cn-kpi-value { color: var(--green,#22d98a); }
+.cn-kpi.warn  .cn-kpi-value { color: var(--yellow,#f7a23b); }
+.cn-kpi.bad   .cn-kpi-value { color: #ff4d6d; }
+.cn-kpi-sub { font-size: 11px; color: var(--text-dim,#8089a8); margin-top: 4px; }
+
+.cn-filters {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px;
+}
+.cn-pill {
+  background: var(--surface,#141720); border: 1px solid var(--border,#252a3a);
+  color: var(--text-dim,#8089a8); border-radius: 999px; padding: 6px 14px;
+  font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
+.cn-pill:hover { color: var(--text,#e4e8f5); }
+.cn-pill.ativa { background: var(--accent,#e63e6d); color: #fff; border-color: var(--accent,#e63e6d); }
+.cn-pill.ativa.ok    { background: var(--green,#22d98a); border-color: var(--green,#22d98a); color: #0d0f14; }
+.cn-pill.ativa.warn  { background: var(--yellow,#f7a23b); border-color: var(--yellow,#f7a23b); color: #0d0f14; }
+.cn-pill.ativa.bad   { background: #ff4d6d; border-color: #ff4d6d; }
+.cn-pill .cn-pill-count { opacity: 0.7; margin-left: 4px; font-weight: 400; }
+
+.cn-search {
+  background: var(--surface,#141720); border: 1px solid var(--border,#252a3a);
+  color: var(--text,#e4e8f5); border-radius: 8px; padding: 7px 12px; font-size: 13px;
+  font-family: 'Sora', sans-serif; min-width: 220px; margin-left: auto;
+}
+.cn-search:focus { outline: none; border-color: var(--accent,#e63e6d); }
+
+.cn-table-wrap {
+  background: var(--surface,#141720); border: 1px solid var(--border,#252a3a);
+  border-radius: 12px; overflow: hidden;
+}
+.cn-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cn-table thead th {
+  background: var(--surface-2,#1a1e2a); padding: 12px 10px; text-align: left;
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--text-dim,#8089a8); border-bottom: 1px solid var(--border,#252a3a);
+  white-space: nowrap; cursor: pointer; user-select: none;
+}
+.cn-table thead th:hover { color: var(--text,#e4e8f5); }
+.cn-table thead th.cn-sorted-asc::after  { content: ' ▲'; opacity: 0.6; }
+.cn-table thead th.cn-sorted-desc::after { content: ' ▼'; opacity: 0.6; }
+.cn-table tbody td {
+  padding: 9px 10px; border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text,#e4e8f5); vertical-align: middle;
+}
+.cn-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
+.cn-table tbody td.cn-mono { font-family: 'DM Mono', monospace; font-size: 11px; }
+.cn-table tbody td.cn-num  { text-align: right; font-family: 'DM Mono', monospace; font-size: 11px; }
+.cn-table tbody td.cn-diff-pos { color: var(--green,#22d98a); }
+.cn-table tbody td.cn-diff-neg { color: #ff4d6d; }
+
+.cn-flag-badge {
+  display: inline-block; padding: 2px 9px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
+}
+.cn-flag-OK            { background: rgba(34,217,138,0.12); color: var(--green,#22d98a); }
+.cn-flag-DIVERG_LEVE   { background: rgba(247,162,59,0.12); color: var(--yellow,#f7a23b); }
+.cn-flag-DIVERG_GRAVE  { background: rgba(255,77,109,0.12); color: #ff4d6d; }
+.cn-flag-SEM_PREVISTO  { background: rgba(128,137,168,0.12); color: var(--text-dim,#8089a8); }
+
+.cn-empty { padding: 60px 20px; text-align: center; color: var(--text-dim,#8089a8); }
+.cn-empty-icon { font-size: 48px; margin-bottom: 12px; }
+.cn-empty h3 { font-size: 16px; color: var(--text,#e4e8f5); margin-bottom: 6px; }
+.cn-empty p  { font-size: 13px; max-width: 460px; margin: 0 auto; line-height: 1.5; }
+
+.cn-loading { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 60px 0; color: var(--text-dim,#8089a8); }
+.cn-spinner {
+  width: 32px; height: 32px; border: 3px solid var(--border,#252a3a);
+  border-top-color: var(--accent,#e63e6d); border-radius: 50%;
+  animation: cn-spin 0.8s linear infinite;
+}
+@keyframes cn-spin { to { transform: rotate(360deg); } }
+
+.cn-info-row { font-size: 11px; color: var(--text-dim,#8089a8); margin-top: 8px; }
+</style>
+
+<div id="conciliacaoPage">
+  <!-- Header -->
+  <div class="cn-header">
+    <div class="cn-title-group">
+      <span class="cn-tag">Módulo Financeiro · Q3</span>
+      <h2>Conciliação Mensal</h2>
+      <div class="cn-sub">Cruzamento previsto × realizado do extrato Vero — alimentado pela aba <code>Conciliacao Mensal</code>.</div>
+    </div>
+  </div>
+
+  <!-- Barra de meses -->
+  <div class="cn-month-bar" id="cn-month-bar" style="display:none">
+    <span class="cn-month-label">MÊS</span>
+    <select class="cn-month-select" id="cn-month-select" onchange="cnTrocarMes(this.value)"></select>
+    <span class="cn-aplicado" id="cn-aplicado"></span>
+  </div>
+
+  <!-- KPIs -->
+  <div class="cn-kpis" id="cn-kpis" style="display:none"></div>
+
+  <!-- Filtros -->
+  <div class="cn-filters" id="cn-filters" style="display:none"></div>
+
+  <!-- Tabela -->
+  <div id="cn-table-area"></div>
+
+  <div class="cn-info-row" id="cn-info-row" style="display:none"></div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// CONCILIACAO.JS — Tela ◆ Conciliação Mensal (Q3 visual, Fase 7.2 visualizado)
+// Prefixo: cn* (evita colisão com epPage do Extrato e namespace global)
+// ══════════════════════════════════════════════════════════════════════════════
+
+var cnDados = null;           // { mesesDisponiveis, mesAtivo, kpis, linhas }
+var cnFiltroFlag = 'TODOS';   // TODOS | OK | DIVERG_LEVE | DIVERG_GRAVE | SEM_PREVISTO
+var cnBusca = '';
+var cnSortCol = 'diff';       // ordenação ativa
+var cnSortDir = 'desc';
+
+document.addEventListener('DOMContentLoaded', cnInit);
+if (document.readyState !== 'loading') cnInit();
+
+function cnInit() {
+  cnRenderLoading();
+  cnCarregar(null);
+}
+
+function cnCarregar(mes) {
+  if (typeof google === 'undefined' || !google.script) {
+    cnRenderEmpty('Apps Script não disponível.', 'Esta página precisa rodar dentro do CRM.');
+    return;
+  }
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res || !res.ok) {
+        cnRenderEmpty('Erro ao carregar', (res && res.erro) ? res.erro : 'desconhecido');
+        return;
+      }
+      if (res.vazio) {
+        cnRenderEmpty('Sem conciliação ainda', res.mensagem || 'Aplique um extrato na página Extrato Mensal pra gerar a primeira conciliação.');
+        return;
+      }
+      cnDados = res;
+      cnRenderTudo();
+    })
+    .withFailureHandler(function(err) {
+      cnRenderEmpty('Falha na chamada', err && err.message ? err.message : String(err));
+    })
+    .getConciliacaoDados(mes || null);
+}
+
+function cnTrocarMes(mes) {
+  if (!mes || (cnDados && mes === cnDados.mesAtivo)) return;
+  cnRenderLoading();
+  cnCarregar(mes);
+}
+
+function cnRenderLoading() {
+  document.getElementById('cn-table-area').innerHTML =
+    '<div class="cn-loading"><div class="cn-spinner"></div><div>Carregando conciliação…</div></div>';
+  document.getElementById('cn-month-bar').style.display = 'none';
+  document.getElementById('cn-kpis').style.display = 'none';
+  document.getElementById('cn-filters').style.display = 'none';
+  document.getElementById('cn-info-row').style.display = 'none';
+}
+
+function cnRenderEmpty(titulo, msg) {
+  document.getElementById('cn-table-area').innerHTML =
+    '<div class="cn-empty">' +
+      '<div class="cn-empty-icon">📊</div>' +
+      '<h3>' + cnHtml(titulo) + '</h3>' +
+      '<p>' + cnHtml(msg) + '</p>' +
+    '</div>';
+  document.getElementById('cn-month-bar').style.display = 'none';
+  document.getElementById('cn-kpis').style.display = 'none';
+  document.getElementById('cn-filters').style.display = 'none';
+  document.getElementById('cn-info-row').style.display = 'none';
+}
+
+function cnRenderTudo() {
+  cnRenderMonthBar();
+  cnRenderKpis();
+  cnRenderFiltros();
+  cnRenderTabela();
+}
+
+function cnRenderMonthBar() {
+  var bar = document.getElementById('cn-month-bar');
+  var sel = document.getElementById('cn-month-select');
+  sel.innerHTML = cnDados.mesesDisponiveis.map(function(m) {
+    return '<option value="' + cnHtml(m) + '"' + (m === cnDados.mesAtivo ? ' selected' : '') + '>' + cnHtml(cnMesLabel(m)) + '</option>';
+  }).join('');
+  document.getElementById('cn-aplicado').textContent = cnDados.kpis.aplicadoEm
+    ? 'Aplicado em ' + cnDados.kpis.aplicadoEm
+    : '';
+  bar.style.display = '';
+}
+
+function cnRenderKpis() {
+  var k = cnDados.kpis;
+  var f = k.flagDist || {};
+  var totalDiffTone = Math.abs(k.totalDiff) < 0.01 ? '' : (k.totalDiff >= 0 ? 'ok' : 'bad');
+  var leves = f.DIVERG_LEVE || 0;
+  var graves = f.DIVERG_GRAVE || 0;
+  var ok = f.OK || 0;
+  var sem = f.SEM_PREVISTO || 0;
+
+  var html =
+    cnKpi('Vendas conciliadas', k.totalLinhas, '', 'No mês selecionado') +
+    cnKpi('Previsto', cnBRL(k.totalPrevisto), '', 'Soma de RECEITA_PREVISTA') +
+    cnKpi('Realizado', cnBRL(k.totalRealizado), '', 'Soma de RECEITA_REALIZADA') +
+    cnKpi('Diferença', (k.totalDiff >= 0 ? '+' : '') + cnBRL(k.totalDiff), totalDiffTone, 'Realizado − Previsto') +
+    cnKpi('OK (<5%)', ok, ok > 0 ? 'ok' : '', 'Sem divergência') +
+    (leves  > 0 ? cnKpi('Leves (5-20%)', leves, 'warn', 'Divergência leve') : '') +
+    (graves > 0 ? cnKpi('Graves (≥20%)', graves, 'bad', 'Divergência grave') : '') +
+    (sem    > 0 ? cnKpi('Sem previsto', sem, 'warn', 'RECEITA_PREVISTA vazia ou zero') : '');
+
+  document.getElementById('cn-kpis').innerHTML = html;
+  document.getElementById('cn-kpis').style.display = '';
+}
+
+function cnKpi(label, value, tone, sub) {
+  var cls = tone ? ' ' + tone : '';
+  var brl = String(value).indexOf('R$') > -1 ? ' brl' : '';
+  return '<div class="cn-kpi' + cls + '">' +
+    '<div class="cn-kpi-label">' + cnHtml(label) + '</div>' +
+    '<div class="cn-kpi-value' + brl + '">' + cnHtml(value) + '</div>' +
+    (sub ? '<div class="cn-kpi-sub">' + cnHtml(sub) + '</div>' : '') +
+  '</div>';
+}
+
+function cnRenderFiltros() {
+  var f = cnDados.kpis.flagDist || {};
+  var total = cnDados.kpis.totalLinhas;
+  var html = '';
+  var pills = [
+    { id: 'TODOS',          label: 'Todos',        count: total,                tone: '' },
+    { id: 'DIVERG_GRAVE',   label: 'Graves',       count: f.DIVERG_GRAVE || 0,  tone: 'bad' },
+    { id: 'DIVERG_LEVE',    label: 'Leves',        count: f.DIVERG_LEVE || 0,   tone: 'warn' },
+    { id: 'OK',             label: 'OK',           count: f.OK || 0,            tone: 'ok' },
+    { id: 'SEM_PREVISTO',   label: 'Sem previsto', count: f.SEM_PREVISTO || 0,  tone: 'warn' }
+  ];
+  pills.forEach(function(p) {
+    var ativa = cnFiltroFlag === p.id;
+    var cls = 'cn-pill' + (ativa ? ' ativa ' + p.tone : '');
+    html += '<button class="' + cls + '" onclick="cnSetFiltro(\'' + p.id + '\')">' +
+      cnHtml(p.label) + ' <span class="cn-pill-count">' + p.count + '</span></button>';
+  });
+  html += '<input type="text" class="cn-search" placeholder="Buscar contrato ou cliente…" ' +
+    'value="' + cnHtml(cnBusca) + '" oninput="cnSetBusca(this.value)">';
+  document.getElementById('cn-filters').innerHTML = html;
+  document.getElementById('cn-filters').style.display = '';
+}
+
+function cnSetFiltro(flag) {
+  cnFiltroFlag = flag;
+  cnRenderFiltros();
+  cnRenderTabela();
+}
+function cnSetBusca(s) {
+  cnBusca = String(s || '').toLowerCase().trim();
+  cnRenderTabela();
+}
+function cnSetSort(col) {
+  if (cnSortCol === col) cnSortDir = (cnSortDir === 'asc' ? 'desc' : 'asc');
+  else { cnSortCol = col; cnSortDir = 'desc'; }
+  cnRenderTabela();
+}
+
+function cnRenderTabela() {
+  if (!cnDados || !cnDados.linhas) return;
+  var linhas = cnDados.linhas.slice();
+
+  // Filtro por flag
+  if (cnFiltroFlag !== 'TODOS') {
+    linhas = linhas.filter(function(l) { return l.flag === cnFiltroFlag; });
+  }
+  // Busca
+  if (cnBusca) {
+    linhas = linhas.filter(function(l) {
+      return String(l.contrato).toLowerCase().indexOf(cnBusca) > -1 ||
+             String(l.cliente).toLowerCase().indexOf(cnBusca) > -1 ||
+             String(l.plano).toLowerCase().indexOf(cnBusca) > -1;
+    });
+  }
+  // Sort. Default (definido no backend) já vem por |diff| desc. Quando o usuário
+  // clica numa coluna, usa o valor direto (não absoluto) — clique 2x alterna direção.
+  var dir = cnSortDir === 'asc' ? 1 : -1;
+  var col = cnSortCol;
+  linhas.sort(function(a, b) {
+    var va = a[col], vb = b[col];
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    if (typeof va === 'number' && typeof vb === 'number') return dir * (va - vb);
+    return dir * String(va).localeCompare(String(vb));
+  });
+
+  if (!linhas.length) {
+    document.getElementById('cn-table-area').innerHTML =
+      '<div class="cn-empty">' +
+        '<div class="cn-empty-icon">🔍</div>' +
+        '<h3>Nenhuma linha bate com o filtro</h3>' +
+        '<p>Tente outro filtro ou limpe a busca.</p>' +
+      '</div>';
+    return;
+  }
+
+  var headers = [
+    { k: 'contrato',  label: 'Contrato' },
+    { k: 'cliente',   label: 'Cliente' },
+    { k: 'plano',     label: 'Plano' },
+    { k: 'previsto',  label: 'Previsto',  num: true },
+    { k: 'realizado', label: 'Realizado', num: true },
+    { k: 'diff',      label: 'Diff',      num: true },
+    { k: 'pct',       label: 'Pct',       num: true },
+    { k: 'flag',      label: 'Flag' }
+  ];
+
+  var thead = '<thead><tr>' + headers.map(function(h) {
+    var cls = '';
+    if (cnSortCol === h.k) cls = cnSortDir === 'asc' ? 'cn-sorted-asc' : 'cn-sorted-desc';
+    return '<th class="' + cls + '" onclick="cnSetSort(\'' + h.k + '\')">' + cnHtml(h.label) + '</th>';
+  }).join('') + '</tr></thead>';
+
+  var tbody = '<tbody>' + linhas.map(function(l) {
+    var diffCls = Math.abs(l.diff) < 0.01 ? '' : (l.diff > 0 ? 'cn-diff-pos' : 'cn-diff-neg');
+    return '<tr>' +
+      '<td class="cn-mono">' + cnHtml(l.contrato) + '</td>' +
+      '<td>' + cnHtml(l.cliente) + '</td>' +
+      '<td>' + cnHtml(l.plano) + '</td>' +
+      '<td class="cn-num">' + cnBRL(l.previsto) + '</td>' +
+      '<td class="cn-num">' + cnBRL(l.realizado) + '</td>' +
+      '<td class="cn-num ' + diffCls + '">' + (l.diff >= 0 ? '+' : '') + cnBRL(l.diff) + '</td>' +
+      '<td class="cn-num ' + diffCls + '">' + (l.pct == null ? '—' : cnPct(l.pct)) + '</td>' +
+      '<td><span class="cn-flag-badge cn-flag-' + cnHtml(l.flag) + '">' + cnHtml(l.flag) + '</span></td>' +
+    '</tr>';
+  }).join('') + '</tbody>';
+
+  document.getElementById('cn-table-area').innerHTML =
+    '<div class="cn-table-wrap"><table class="cn-table">' + thead + tbody + '</table></div>';
+
+  document.getElementById('cn-info-row').textContent =
+    linhas.length + ' linha(s) exibida(s) de ' + cnDados.linhas.length + ' totais no mês ' + cnMesLabel(cnDados.mesAtivo) + '.';
+  document.getElementById('cn-info-row').style.display = '';
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function cnBRL(v) {
+  var n = Number(v || 0);
+  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function cnPct(v) {
+  if (v == null) return '—';
+  return (v >= 0 ? '+' : '') + (v * 100).toFixed(1).replace('.', ',') + '%';
+}
+var CN_MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+function cnMesLabel(m) {
+  if (!m) return '';
+  var p = String(m).split('-');
+  if (p.length !== 2) return m;
+  var idx = parseInt(p[1], 10) - 1;
+  return CN_MESES[idx] + '/' + p[0];
+}
+function cnHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>

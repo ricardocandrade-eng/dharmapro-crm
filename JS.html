@@ -5474,7 +5474,7 @@ function _resetarTimerInatividade() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal','viabilidade','vinculosPendentes','financeiro','codigosVero']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal','viabilidade','vinculosPendentes','financeiro','codigosVero','conciliacao']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -5491,6 +5491,7 @@ var _menuMap = {
   'cruzamento':  'menuCruzamento',
   'tickets':     'menuTickets',
   'extrato':     'menuExtrato',
+  'conciliacao': 'menuConciliacao',
   'config':      'menuConfig',
   'disparos':    'menuDisparos',
   'usuarios':    'menuUsuarios',
@@ -5761,6 +5762,28 @@ function navegar(pagina) {
           ec.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Extrato: ' + e.message + '</div>';
         })
         .getExtratoHtml();
+    }
+
+  } else if (pagina === 'conciliacao') {
+    document.getElementById('menuConciliacao').classList.add('ativo');
+    document.getElementById('pageConciliacao').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Conciliação Mensal';
+    var cnc = document.getElementById('conciliacaoContainer');
+    if (!cnc.getAttribute('data-loaded')) {
+      cnc.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          cnc.innerHTML = html;
+          cnc.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+        })
+        .withFailureHandler(function(e) {
+          cnc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Conciliação: ' + e.message + '</div>';
+        })
+        .getConciliacaoHtml();
     }
 
   } else if (pagina === 'filaPAP') {

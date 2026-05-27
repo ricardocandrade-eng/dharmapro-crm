@@ -214,6 +214,7 @@ function aplicarExtratoMensal(payload, opts) {
 
     // ── 8. Limpa cache da lista (mudou RECEITA_REALIZADA visível em painéis) ──
     try { _limparCacheListaV3(); } catch (e) {}
+    try { _limparCacheConciliacao_(mes); } catch (e) {}
 
     return {
       ok: true, modo: 'aplicado', mes: mes,
