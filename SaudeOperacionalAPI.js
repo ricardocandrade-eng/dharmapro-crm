@@ -88,8 +88,15 @@ function getSaudeOperacionalDados(mes) {
         }
       }
 
-      // ── Por instalação (status 3 + mes_competencia) ──
-      if (status === '3 - Finalizada/Instalada') {
+      // ── Por instalação (INSTAL preenchido) ──
+      // KPI histórico fiel: conta TODAS as instalações que ocorreram no mês,
+      // independente do status atual no CRM. Vendas que foram instaladas em
+      // abril e depois cancelaram (churn) ainda contam pra "Inst. BL de abril".
+      // É o que a Vero pagou (e o que o tier de estrela do mês usa).
+      // Pontos só vêm das que têm snapshot calculado (forward-only); meses
+      // antigos majoritariamente têm INSTAL mas não PONTOS (memo legacy).
+      var temInstal = !!row[c.INSTAL];
+      if (temInstal) {
         var mesComp = String(row[c.MES_COMPETENCIA] || '').trim() || _q4MesDeData_(row[c.INSTAL]);
         if (mesComp && buckets[mesComp]) {
           var pbl = Number(row[c.PONTOS_VENDA]) || 0;
