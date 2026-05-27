@@ -725,6 +725,24 @@ A aba `BD_INSTALAÇÃO` já traz por contrato as colunas `Pontos BL`, `Pontos M�
 - **Identificação automática de vendas suspeitas** no upload do extrato: se o extrato cobra contrato que o CRM não tem, o que fazer além de alertar? (Provável: virar tarefa no painel, não tomar ação automática.)
 - **Edição manual de campos econômicos** — admin pode sobrescrever `FATOR_APLICADO` ou `PONTOS_VENDA` na linha em casos específicos? Probably sim, com log de auditoria.
 
+### 11.11 — FECHADA (26/05/2026): backfill de COD_PLANO é forward-only
+
+Após o deploy do sweep VeroHub (21/05 23:45 — `getCodigoVeroPorPlanoCidade` em camadas, 432 cidades/163 códigos) e do Rev9 do `planos_vero.json` (26/05 — coluna 14 `NOME_VERO` canônica + passo (0) no resolver), o `fase3Backfill` em janela 6m carimbou **112 de 413 vendas** com `COD_PLANO`. As 301 sem código foram diagnosticadas via `_diagBackfillSemCod` (one-shot, descartado após o uso):
+
+- **282 (94%)** têm na coluna PLANO **nomes legacy** que não existem em nenhuma rev do `planos_vero.json` atual: formato com pipes (`"800MB | PROMO | VERO MAIS 800MB + GLOBOPLAY PREMIUM + MAIS CONECTADO 60GB"`), `NAKED` (planos descontinuados sem combo móvel), erro de digitação `"ENTRENIMENTO"` (vez de "ENTRETENIMENTO"), B2B, e a sazonal `OFERTA VERÃO`.
+- **14 (5%)** têm `NOME_VERO` propositalmente vazio (Móvel Alone/Combo — sem código fibra próprio — e a oferta sazonal linha 6).
+- **5 (1%)** outras variações da oferta sazonal escritas em formatos diferentes.
+
+**Decisão (com Ricardo, 26/05):** não migrar vendas históricas nem expandir o JSON com aliases legacy. Aceita-se que vendas antigas (formatos pre-Rev5/6/7) ficam sem `COD_PLANO`. O resolver passa a operar **forward-only**: vendas novas (cadastro a partir de 20/05 19:52, que já carimba COD no save) e re-edições de vendas antigas que reescolham o plano via dropdown atual recebem `COD_PLANO` automaticamente. As 112 vendas já carimbadas + as vendas novas alimentam o Painel Q1.
+
+**Tradeoff aceito:** Painel Q1 sub-conta a projeção do trimestre atual enquanto a base for majoritariamente legacy. À medida que vendas novas vão entrando (e as antigas saem da janela 6m), a cobertura sobe organicamente. Em ~3 meses o efeito legacy deve sumir naturalmente.
+
+**Saídas técnicas desta decisão:**
+
+- `_plansVeroNomeVeroSetup.js` é one-shot, foi rodado e **deletado do repo** (deploy 26/05). A coluna 14 do JSON e o passo (0) do resolver ficam — destravam o long tail truncado se/quando aparecer em vendas novas (cidades com sufixo `RH`/`RN` no sweep, etc).
+- `PLANO_PADRONIZACAO_NOMES.md` está concluído. A opção alternativa (padronização total dos nomes) continua arquivada como melhoria futura de consistência, não como caminho pro backfill.
+- Sem nova ação no fluxo. O Rev9 já gravou; o resolver completo (0+1+2) está ativo.
+
 ---
 
 ## 12. Riscos e mitigações
