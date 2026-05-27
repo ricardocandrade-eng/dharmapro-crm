@@ -514,6 +514,26 @@ function _cruzComputarCorrecoesServer_(dados, crmRows) {
         diffs.push({ campo: 'OBSERVACAO', label: 'Observação (+)', atual: item.observacao || '', novo: linhaObs });
       }
     }
+    // STATUS sugerido pelo SNIPER (Cancelamento Comercial / Tecnico).
+    // Só propõe se a venda NÃO está em status 3 (Finalizada/Instalada) — porque
+    // venda já instalada que aparece em "cancelamentos" é CHURN pós-instalação,
+    // tratado por STATUS_CHURN (Fase 4 via SAFRA). Pré-instalação vira CN no CRM.
+    if (v.cancel && v.cancel.statusSugerido) {
+      var statusAtual = String(item.status || '').trim();
+      var jaInstalada = (statusAtual === '3 - Finalizada/Instalada');
+      if (!jaInstalada && statusAtual !== v.cancel.statusSugerido) {
+        campos.STATUS = v.cancel.statusSugerido;
+        var fonteInfo = [v.cancel.tipo, v.cancel.motivo, v.cancel.data]
+          .filter(function(x){ return x && String(x).trim() !== ''; }).join(' · ');
+        diffs.push({
+          campo: 'STATUS', label: 'Status (cancelamento Vero)',
+          atual: statusAtual || '(vazio)',
+          novo: v.cancel.statusSugerido,
+          fonte: 'SNIPER · ' + (fonteInfo || 'aba CANCELAMENTO')
+        });
+      }
+    }
+
     // PLANO (codigo Vero -> nome_crm canonico; so confianca alta/media)
     if (v.planoCodigo && mapaCodigos[v.planoCodigo]) {
       var alvoPl = mapaCodigos[v.planoCodigo];
@@ -594,6 +614,25 @@ function _cruzConsolidarCamposVeroServer_(dados) {
     if (!id) return;
     var o = ensure(id);
     if (!o.obsAppend) o.obsAppend = _cruzMontarObsCancelamentoServer_(row);
+
+    // STATUS sugerido a partir do TIPO_CANCELAMENTO do SNIPER (aba CANCELAMENTO).
+    // Só "Comercial" e "Tecnico" entram no STATUS pré-instalação do CRM — CHURN
+    // (combinado na mesma lista de cancelamentos pelo _extrairAbasVero_) é
+    // pós-instalação e fica de fora; o consumidor (_cruzComputarCorrecoesServer_)
+    // filtra também pelo status atual da venda (não sugere mudar status 3).
+    if (!o.cancel) {
+      var tipo = String(row.TIPO_CANCELAMENTO || '').toUpperCase();
+      var motivo = String(row.MOTIVO_CANCELAMENTO || '').toUpperCase();
+      var statusSugerido = null;
+      if (tipo.indexOf('COMERCIAL') > -1) statusSugerido = 'Cancelamento Comercial';
+      else if (tipo.indexOf('TECNICO') > -1 || tipo.indexOf('TÉCNICO') > -1) statusSugerido = 'Cancelamento Tecnico';
+      o.cancel = {
+        tipo: row.TIPO_CANCELAMENTO || '',
+        motivo: row.MOTIVO_CANCELAMENTO || '',
+        data: row.DATA_CANCELAMENTO || '',
+        statusSugerido: statusSugerido
+      };
+    }
   });
 
   return mapa;

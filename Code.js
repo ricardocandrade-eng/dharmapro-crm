@@ -1202,6 +1202,15 @@ function aplicarCorrecaoVero(correcoes) {
           Logger.log('aplicarCorrecaoVero relookup cidade falhou (linha ' + linha + '): ' + eLook.message);
         }
       }
+      // STATUS (B) — Cancelamento Comercial / Tecnico vindo do SNIPER (aba
+      // CANCELAMENTO). Backend só propõe quando STATUS atual != status 3 e
+      // diverge do sugerido. Aplicar é decisão do operador via UI de
+      // confirmação de correções.
+      if (campos.STATUS !== undefined && campos.STATUS !== null && String(campos.STATUS).trim() !== '') {
+        sheet.getRange(linha, c.STATUS + 1).setValue(String(campos.STATUS).trim());
+        celulasAfetadas++; mexeu = true;
+      }
+
       // OBSERVACAO (L) — append idempotente
       if (campos.OBSERVACAO_APPEND && String(campos.OBSERVACAO_APPEND).trim() !== '') {
         var linhaNova = String(campos.OBSERVACAO_APPEND).trim();
