@@ -414,6 +414,7 @@
     </div>
     <div class="ep-drive-actions">
       <button class="ep-drive-save-btn" id="ep-drive-save-btn" onclick="epArquivarNoDrive()" title="Salva o fechamento atual no Google Drive">💾 Arquivar</button>
+      <button class="ep-drive-save-btn" id="ep-aplicar-crm-btn" onclick="epAplicarAoCRM()" title="Aplica este extrato em 1 - Vendas (FATOR_APLICADO, RECEITA_REALIZADA, MES_REF_VENDA)">📥 Aplicar ao CRM</button>
       <button class="ep-drive-refresh-btn" onclick="epCarregarListaDrive()" title="Atualizar lista do Drive">↺</button>
     </div>
   </div>
@@ -1740,6 +1741,98 @@ function epRenderListaDrive(){
 }
 
 // Arquiva o fechamento atual no Drive
+// ── Aplicar Extrato ao CRM (Módulo Financeiro Fase 7 — sub-fatia 1) ─────────
+// Envia o `_sheets.instBL` parseado (headers + rows) pro backend, que faz
+// preview (server-side) e, após confirmação do usuário, escreve em batch
+// FATOR_APLICADO + RECEITA_REALIZADA + MES_REF_VENDA das vendas matched.
+function epAplicarAoCRM(){
+  var d = epMesAtual ? epGetData(epMesAtual) : null;
+  if(!d){ epToast('Selecione um fechamento primeiro.','error'); return; }
+  if(!d._sheets || !d._sheets.instBL || !d._sheets.instBL.rows || !d._sheets.instBL.rows.length){
+    epToast('Este fechamento não tem dados de BD_INSTALAÇÃO. Re-envie o arquivo XLSX.','error');
+    return;
+  }
+  if(typeof google === 'undefined' || !google.script){
+    epToast('Apps Script não disponível.','error'); return;
+  }
+
+  var btn = document.getElementById('ep-aplicar-crm-btn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Calculando…'; }
+
+  var payload = {
+    mes: epMesAtual,
+    instBL: {
+      headers: d._sheets.instBL.headers || [],
+      rows: d._sheets.instBL.rows || [],
+      contractColIdx: typeof d._sheets.instBL.contractColIdx === 'number' ? d._sheets.instBL.contractColIdx : 0
+    }
+  };
+
+  google.script.run
+    .withSuccessHandler(function(res){
+      if(!res || !res.ok){
+        if(btn){ btn.disabled=false; btn.textContent='📥 Aplicar ao CRM'; }
+        epToast('Erro no preview: ' + (res && res.erro ? res.erro : 'desconhecido'),'error');
+        console.error('[EP] preview erro:', res);
+        return;
+      }
+      _epConfirmarAplicacao(res, payload, btn);
+    })
+    .withFailureHandler(function(err){
+      if(btn){ btn.disabled=false; btn.textContent='📥 Aplicar ao CRM'; }
+      epToast('Falha na chamada: ' + (err && err.message ? err.message : err),'error');
+      console.error('[EP] preview falha:', err);
+    })
+    .aplicarExtratoMensal(payload, { confirmar: false });
+}
+
+function _epConfirmarAplicacao(preview, payload, btn){
+  var alerta = preview.jaProcessado
+    ? '⚠️ Este mês JÁ foi processado em ' + (preview.infoUltimo && preview.infoUltimo.quando) +
+      '. Aplicar de novo vai SOBRESCREVER os valores no 1 - Vendas.\n\n'
+    : '';
+  var amostraSemMatch = preview.semMatchNoCRMAmostra && preview.semMatchNoCRMAmostra.length
+    ? '\n  Amostra contratos sem match: ' + preview.semMatchNoCRMAmostra.slice(0,5).join(', ') + (preview.semMatchNoCRM > 5 ? ' (e mais ' + (preview.semMatchNoCRM-5) + ')' : '')
+    : '';
+  var amostraDiv = preview.divergenciasAmostra && preview.divergenciasAmostra.length
+    ? '\n  Amostra divergências (>5%): ' + preview.divergenciasAmostra.slice(0,3).map(function(x){
+        return 'contrato ' + x.contrato + ' previsto R$' + x.previsto.toFixed(2) + ' × realizado R$' + x.realizado.toFixed(2);
+      }).join(' | ')
+    : '';
+  var msg = alerta +
+    'Pré-visualização do extrato ' + preview.mes + ':\n\n' +
+    '  • Contratos no extrato: ' + preview.contratosNoExtrato + '\n' +
+    '  • Vendas do CRM que serão atualizadas: ' + preview.matched + '\n' +
+    '  • Contratos do extrato sem match no CRM: ' + preview.semMatchNoCRM + amostraSemMatch + '\n' +
+    '  • Divergências previsto × realizado: ' + preview.divergencias + amostraDiv + '\n' +
+    '  • Total Pago somado: R$ ' + (preview.agregados && preview.agregados.totalPagoSomado ? preview.agregados.totalPagoSomado.toFixed(2) : '0') + '\n\n' +
+    'Confirma a aplicação? (escrita em batch nas cols FATOR_APLICADO, RECEITA_REALIZADA, MES_REF_VENDA do 1 - Vendas)';
+  if(!confirm(msg)){
+    if(btn){ btn.disabled=false; btn.textContent='📥 Aplicar ao CRM'; }
+    epToast('Cancelado.','warning');
+    return;
+  }
+
+  if(btn){ btn.textContent='⏳ Aplicando…'; }
+  google.script.run
+    .withSuccessHandler(function(res){
+      if(btn){ btn.disabled=false; btn.textContent='📥 Aplicar ao CRM'; }
+      if(!res || !res.ok){
+        epToast('Erro ao aplicar: ' + (res && res.erro ? res.erro : 'desconhecido'),'error');
+        console.error('[EP] aplicar erro:', res);
+        return;
+      }
+      epToast('✓ Extrato aplicado: ' + res.escrito + ' vendas atualizadas.','success');
+      console.info('[EP] aplicado:', res);
+    })
+    .withFailureHandler(function(err){
+      if(btn){ btn.disabled=false; btn.textContent='📥 Aplicar ao CRM'; }
+      epToast('Falha ao aplicar: ' + (err && err.message ? err.message : err),'error');
+      console.error('[EP] aplicar falha:', err);
+    })
+    .aplicarExtratoMensal(payload, { confirmar: true });
+}
+
 function epArquivarNoDrive(){
   var d = epMesAtual ? epGetData(epMesAtual) : null;
   if(!d){ epToast('Selecione um fechamento primeiro.','error'); return; }
