@@ -536,6 +536,20 @@
     </div>
   </div>
 
+  <!-- ══ Modal: Confirm genérico (substitui confirm() nativo) ══ -->
+  <div class="ep-modal-overlay" id="ep-confirm-overlay" style="display:none" onclick="if(event.target===this)_epConfirmFechar(false)">
+    <div class="ep-modal" style="max-width:520px">
+      <div class="ep-modal-header">
+        <div>
+          <div class="ep-modal-subt" id="ep-confirm-subt">Confirmação</div>
+          <div class="ep-modal-ttl" id="ep-confirm-ttl">Tem certeza?</div>
+        </div>
+        <button class="ep-modal-close" onclick="_epConfirmFechar(false)" title="Fechar">✕</button>
+      </div>
+      <div class="ep-modal-body" id="ep-confirm-body"></div>
+    </div>
+  </div>
+
   <!-- ══ Modal: Aplicar Extrato ao CRM (Fase 7) ══ -->
   <div class="ep-modal-overlay" id="ep-aplicar-overlay" style="display:none" onclick="if(event.target===this && !epAplicarBloqueado)_epFecharModalAplicar()">
     <div class="ep-modal">
@@ -608,6 +622,14 @@
 }
 .ep-aplicar-btn-primary:hover { filter: brightness(1.1); }
 .ep-aplicar-btn-primary:disabled { opacity: 0.5; cursor: wait; }
+.ep-aplicar-btn-danger {
+  background: #ff4d6d; color: #fff;
+}
+.ep-aplicar-btn-danger:hover { filter: brightness(1.1); }
+.ep-aplicar-alert.danger {
+  background: rgba(255,77,109,0.08); border-color: rgba(255,77,109,0.35); color: #ff4d6d;
+}
+.ep-aplicar-alert.danger b { color: #ff4d6d; }
 .ep-aplicar-loading {
   display: flex; flex-direction: column; align-items: center; gap: 14px;
   padding: 32px 0; color: var(--text-dim,#8089a8);
@@ -771,22 +793,31 @@ function epNavMes(dir){
 function epApagarMes(){
   if(!epMesAtual) return;
   var label = epMesLabel(epMesAtual);
-  if(!confirm('Apagar o fechamento de ' + label + '?\n\nEsta ação não pode ser desfeita.')) return;
+  var mesAlvo = epMesAtual;
+  epConfirm({
+    subt: label,
+    titulo: 'Apagar fechamento?',
+    alerta: 'Esta ação não pode ser desfeita.',
+    alertaTipo: 'danger',
+    mensagem: 'Remove o fechamento de ' + label + ' do navegador (localStorage). O arquivo arquivado no Drive (se houver) NÃO é apagado por esta ação.',
+    btnConfirmarText: '🗑 Apagar',
+    btnConfirmarTone: 'danger'
+  }, function(){
+    var all = epGetAll();
+    delete all[mesAlvo];
+    try{ localStorage.setItem(EP_KEY, JSON.stringify(all)); }catch(e){ console.warn('[EP] localStorage erro ao apagar',e); }
 
-  var all = epGetAll();
-  delete all[epMesAtual];
-  try{ localStorage.setItem(EP_KEY, JSON.stringify(all)); }catch(e){ console.warn('[EP] localStorage erro ao apagar',e); }
-
-  var meses = Object.keys(all).sort();
-  if(meses.length === 0){
-    epMesAtual = null;
-    epDados    = null;
-    epDestroyCharts();
-    epShowEmpty();
-  } else {
-    epSelecionarMes(meses[meses.length - 1]); // mais recente disponível
-  }
-  epToast('🗑 Fechamento de ' + label + ' apagado.', 'info');
+    var meses = Object.keys(all).sort();
+    if(meses.length === 0){
+      epMesAtual = null;
+      epDados    = null;
+      epDestroyCharts();
+      epShowEmpty();
+    } else {
+      epSelecionarMes(meses[meses.length - 1]); // mais recente disponível
+    }
+    epToast('🗑 Fechamento de ' + label + ' apagado.', 'info');
+  });
 }
 
 // ── Upload ───────────────────────────────────────────��────────────────────────
@@ -821,16 +852,26 @@ function epProcessarBuffer(buf, fileName){
     var mesKey = dados.mes;
 
     // Verificar duplicata
+    var aplicar = function(){
+      epSaveRec(mesKey, dados);
+      epSelecionarMes(mesKey);
+      epToast('✅ Fechamento de ' + epMesLabel(mesKey) + ' importado com sucesso.','success');
+    };
+    var cancelar = function(){
+      if(epMesAtual) epSelecionarMes(epMesAtual); else epShowEmpty();
+    };
     if(epGetData(mesKey)){
-      if(!confirm('Já existe um fechamento para ' + epMesLabel(mesKey) + '. Substituir?')){
-        epShowEmpty();
-        if(epMesAtual) epSelecionarMes(epMesAtual); else epShowEmpty();
-        return;
-      }
+      epConfirm({
+        subt: epMesLabel(mesKey),
+        titulo: 'Substituir fechamento existente?',
+        alerta: 'Já existe um fechamento salvo para ' + epMesLabel(mesKey) + '. Confirmar SUBSTITUI os dados atuais pelo arquivo recém-enviado.',
+        alertaTipo: 'warn',
+        btnConfirmarText: '✓ Substituir',
+        btnConfirmarTone: 'primary'
+      }, aplicar, cancelar);
+    } else {
+      aplicar();
     }
-    epSaveRec(mesKey, dados);
-    epSelecionarMes(mesKey);
-    epToast('✅ Fechamento de ' + epMesLabel(mesKey) + ' importado com sucesso.','success');
   } catch(err){
     epShowEmpty();
     if(epMesAtual) epSelecionarMes(epMesAtual);
@@ -1824,6 +1865,63 @@ function epRenderListaDrive(){
 }
 
 // Arquiva o fechamento atual no Drive
+// ── Confirm genérico (substitui confirm() nativo do browser) ─────────────────
+// Uso:
+//   epConfirm({
+//     titulo: 'Apagar fechamento',
+//     subt:   'Abril/2026',                       // opcional, vai no subtítulo
+//     mensagem: 'Esta ação não pode ser desfeita.',
+//     alerta:   'Texto opcional em destaque',     // opcional
+//     alertaTipo: 'warn' | 'danger',              // default 'warn'
+//     btnConfirmarText: '✓ Apagar',               // default '✓ Confirmar'
+//     btnConfirmarTone: 'primary' | 'danger',     // default 'primary'
+//     btnCancelarText: 'Cancelar'                 // default 'Cancelar'
+//   }, function onConfirm(){...}, function onCancel(){...});
+var _epConfirmHandlers = { ok: null, cancel: null };
+
+function epConfirm(opts, onConfirm, onCancel){
+  opts = opts || {};
+  _epConfirmHandlers.ok = onConfirm || null;
+  _epConfirmHandlers.cancel = onCancel || null;
+
+  document.getElementById('ep-confirm-subt').textContent = opts.subt || 'Confirmação';
+  document.getElementById('ep-confirm-ttl').textContent  = opts.titulo || 'Tem certeza?';
+
+  var alertaHtml = '';
+  if(opts.alerta){
+    var alertaCls = opts.alertaTipo === 'danger' ? 'ep-aplicar-alert danger' : 'ep-aplicar-alert';
+    alertaHtml = '<div class="' + alertaCls + '">' + _epHtml(opts.alerta) + '</div>';
+  }
+
+  var msgHtml = opts.mensagem
+    ? '<div style="font-size:13px;color:var(--text,#e4e8f5);line-height:1.55">' + _epHtml(opts.mensagem) + '</div>'
+    : '';
+
+  var btnConfirmarText = opts.btnConfirmarText || '✓ Confirmar';
+  var btnCancelarText  = opts.btnCancelarText  || 'Cancelar';
+  var btnTone = opts.btnConfirmarTone === 'danger' ? 'ep-aplicar-btn-danger' : 'ep-aplicar-btn-primary';
+
+  document.getElementById('ep-confirm-body').innerHTML =
+    alertaHtml + msgHtml +
+    '<div class="ep-aplicar-footer">' +
+      '<button class="ep-aplicar-btn ep-aplicar-btn-cancel" onclick="_epConfirmFechar(false)">' + _epHtml(btnCancelarText) + '</button>' +
+      '<button class="ep-aplicar-btn ' + btnTone + '" onclick="_epConfirmFechar(true)">' + _epHtml(btnConfirmarText) + '</button>' +
+    '</div>';
+
+  epEscaparOverlay('ep-confirm-overlay', 'flex');
+}
+
+function _epConfirmFechar(confirmou){
+  document.getElementById('ep-confirm-overlay').style.display = 'none';
+  document.getElementById('ep-confirm-body').innerHTML = '';
+  var h = _epConfirmHandlers;
+  _epConfirmHandlers = { ok: null, cancel: null };
+  try {
+    if(confirmou && h.ok) h.ok();
+    else if(!confirmou && h.cancel) h.cancel();
+  } catch(e){ console.error('[EP] epConfirm handler erro:', e); }
+}
+
 // ── Aplicar Extrato ao CRM (Módulo Financeiro Fase 7 — sub-fatia 1) ─────────
 // Envia o `_sheets.instBL` parseado (headers + rows) pro backend, que faz
 // preview (server-side) e, após confirmação do usuário, escreve em batch
@@ -1874,7 +1972,7 @@ function epAplicarAoCRM(){
 
 // ── Modal Aplicar ao CRM — abrir/fechar ────────────────────────────────────
 function _epAbrirModalAplicar(){
-  document.getElementById('ep-aplicar-overlay').style.display = 'flex';
+  epEscaparOverlay('ep-aplicar-overlay', 'flex');
   document.getElementById('ep-aplicar-subt').textContent = 'Módulo Financeiro · Fase 7';
   document.getElementById('ep-aplicar-ttl').textContent  = 'Aplicar Extrato ao CRM';
   document.getElementById('ep-aplicar-close').style.display = '';
@@ -2121,20 +2219,28 @@ function epCarregarDoDrive(fileId){
 
 // Apaga um extrato do Drive
 function epApagarDoDrive(fileId, nome){
-  if(!confirm('Apagar "'+nome+'" do Google Drive?')) return;
   if(typeof google === 'undefined' || !google.script){ return; }
-
-  google.script.run
-    .withSuccessHandler(function(res){
-      if(res && res.ok){
-        epToast('🗑 Arquivo apagado do Drive.','success');
-        epCarregarListaDrive();
-      } else {
-        epToast('Erro ao apagar: '+(res&&res.mensagem||'?'),'error');
-      }
-    })
-    .withFailureHandler(function(){ epToast('Falha ao apagar do Drive.','error'); })
-    .epApagarExtratoDrive(fileId);
+  epConfirm({
+    subt: 'Google Drive',
+    titulo: 'Apagar arquivo do Drive?',
+    alerta: 'Esta ação remove o arquivo permanentemente do Drive (vai pra lixeira).',
+    alertaTipo: 'danger',
+    mensagem: 'Arquivo: ' + nome,
+    btnConfirmarText: '🗑 Apagar do Drive',
+    btnConfirmarTone: 'danger'
+  }, function(){
+    google.script.run
+      .withSuccessHandler(function(res){
+        if(res && res.ok){
+          epToast('🗑 Arquivo apagado do Drive.','success');
+          epCarregarListaDrive();
+        } else {
+          epToast('Erro ao apagar: '+(res&&res.mensagem||'?'),'error');
+        }
+      })
+      .withFailureHandler(function(){ epToast('Falha ao apagar do Drive.','error'); })
+      .epApagarExtratoDrive(fileId);
+  });
 }
 
 // ── Escape de stacking context ────────────────────────────────────────────────
