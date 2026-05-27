@@ -314,10 +314,12 @@ function _materializarConciliacaoMensal_(ss, mes, plano, quandoStr) {
       sheet.getRange(1, 1, 1, EXTRATO_CONCILIACAO_HEADERS.length).setValues([EXTRATO_CONCILIACAO_HEADERS]);
     }
 
-    // Força col A (MES_REF) como texto puro pra evitar auto-convert "2026-04" → Date
+    // Força col A (MES_REF) e col Q (APLICADO_EM) como texto puro pra evitar
+    // auto-convert do Sheets ("2026-04" → Date, "27/05/2026 17:38" → Date).
     try {
       var maxRowsForFmt = Math.max(sheet.getMaxRows(), 2);
       sheet.getRange(1, 1, maxRowsForFmt, 1).setNumberFormat('@');
+      sheet.getRange(1, 17, maxRowsForFmt, 1).setNumberFormat('@');
     } catch (e) {}
 
     var last = sheet.getLastRow();

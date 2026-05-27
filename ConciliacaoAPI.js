@@ -52,14 +52,17 @@ function getConciliacaoDados(mes) {
     // 14 DIFF | 15 PCT | 16 FLAG | 17 APLICADO_EM
     var raw = sheet.getRange(2, 1, n, 17).getValues();
 
-    // Distinct MES_REF (desc) + último aplicado_em por mês
+    // Distinct MES_REF (desc) + último aplicado_em por mês.
+    // Normalizamos defensivamente: o Sheets pode ter convertido strings em Date
+    // se as cols não estavam formatadas como @ no momento da escrita (caso das
+    // execuções de 27/05 antes do fix). Reconvertemos pra string esperada.
     var mesesSet = {};
     var aplicadoEmPorMes = {};
     raw.forEach(function(row) {
-      var m = String(row[0] || '').trim();
+      var m = _conciliacaoNormMesRef_(row[0]);
       if (!m) return;
       mesesSet[m] = true;
-      var aplicado = row[16] ? String(row[16]) : '';
+      var aplicado = _conciliacaoNormAplicadoEm_(row[16]);
       if (aplicado && (!aplicadoEmPorMes[m] || aplicado > aplicadoEmPorMes[m])) {
         aplicadoEmPorMes[m] = aplicado;
       }
@@ -82,7 +85,7 @@ function getConciliacaoDados(mes) {
     };
 
     raw.forEach(function(row) {
-      if (String(row[0] || '').trim() !== mesAtivo) return;
+      if (_conciliacaoNormMesRef_(row[0]) !== mesAtivo) return;
       var previsto = Number(row[11] || 0);
       var real = Number(row[12] || 0);
       var diff = Number(row[13] || (real - previsto));
@@ -147,4 +150,42 @@ function _limparCacheConciliacao_(mes) {
     cache.remove(CONFIG.CACHE_PREFIX + 'conciliacao_v1_auto');
     if (mes) cache.remove(CONFIG.CACHE_PREFIX + 'conciliacao_v1_' + mes);
   } catch (e) {}
+}
+
+// Normaliza MES_REF (col A). Aceita string "YYYY-MM" (esperado) ou Date
+// (o Sheets pode ter convertido — bug pré-fix). Devolve "YYYY-MM" sempre.
+function _conciliacaoNormMesRef_(v) {
+  if (v == null || v === '') return '';
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    var y = v.getFullYear();
+    var m = v.getMonth() + 1;
+    return y + '-' + (m < 10 ? '0' + m : '' + m);
+  }
+  var s = String(v).trim();
+  // Já no formato esperado?
+  if (/^\d{4}-\d{2}$/.test(s)) return s;
+  // Pode ter vindo como "01/05/2026" ou similar — tenta extrair Y-M.
+  var m1 = s.match(/(\d{4})-(\d{2})/);
+  if (m1) return m1[1] + '-' + m1[2];
+  var m2 = s.match(/\d{2}\/(\d{2})\/(\d{4})/);
+  if (m2) return m2[2] + '-' + m2[1];
+  return s; // último recurso — devolve o que tem, frontend lida
+}
+
+// Normaliza APLICADO_EM (col Q) pra string "dd/MM/yyyy HH:mm".
+// Cobre o caso do Sheets ter convertido a string pra Date.
+function _conciliacaoNormAplicadoEm_(v) {
+  if (v == null || v === '') return '';
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return Utilities.formatDate(v, Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+  }
+  var s = String(v).trim();
+  // Se já parece "dd/MM/yyyy HH:mm" devolve cru
+  if (/^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}/.test(s)) return s;
+  // String stringificada de Date ("Wed May 27 2026 17:38:00 ...")? Tenta parsear.
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return Utilities.formatDate(d, Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+  }
+  return s;
 }
