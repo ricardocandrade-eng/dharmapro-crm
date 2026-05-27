@@ -45,8 +45,10 @@ function getSaudeOperacionalDados(mes) {
     meses.forEach(function(m) {
       buckets[m] = {
         // Vendas criadas no mês (CRIADO_EM, ou DATA_ATIV como fallback)
-        vendasCriadas: 0,
-        vendasCanceladas: 0,    // status CN-* (pré-instalação)
+        vendasCriadas: 0,         // qualquer produto — usado pra DU médio
+        // %CN da Vero: trigger de multa em 5% / bônus abaixo (§8.4 + regra Ricardo)
+        vendasBrutasFibra: 0,     // denominador — Fibra Alone + Fibra Combo no mês
+        cancelComercialFibra: 0,  // numerador — STATUS = "Cancelamento Comercial"
         // Instalações no mês (status 3 + INSTAL no mês OU MES_COMPETENCIA do mês)
         instalacoesBL: 0,       // fibra instaladas
         pontosBL: 0,
@@ -63,21 +65,27 @@ function getSaudeOperacionalDados(mes) {
       };
     });
 
-    // Status considerados "cancelamento pré-instalação" (CN)
-    var STATUS_CN = ['Cancelamento Tecnico', 'Cancelamento Comercial', 'Cancelado pelo cliente', 'CN', 'Cancelado'];
-
     for (var i = 0; i < raw.length; i++) {
       var row = raw[i];
       var status = String(row[c.STATUS] || '').trim();
-      var statusLow = status.toLowerCase();
+      var produto = _normalizarTexto(row[c.PRODUTO] || '');
+      var ehFibra = produto.indexOf('FIBRA') !== -1; // pega "Fibra Alone" e "Fibra Combo"
 
-      // ── Por CRIADO_EM (cancelamento + DU + total mês) ──
+      // ── Por CRIADO_EM (DU médio + %CN da Vero) ──
       var criadoEm = row[c.CRIADO_EM];
       var mesCriacao = _q4MesDeData_(criadoEm);
       if (!mesCriacao) mesCriacao = _q4MesDeData_(row[c.DATA_ATIV]);
       if (mesCriacao && buckets[mesCriacao]) {
         buckets[mesCriacao].vendasCriadas++;
-        if (statusLow.indexOf('cancel') > -1) buckets[mesCriacao].vendasCanceladas++;
+        // %CN Vero: só Fibra. Denominador = vendas brutas Fibra criadas no mês.
+        //           Numerador = mesmas vendas que terminaram em "Cancelamento Comercial".
+        // Trigger de multa em 5%, bônus abaixo. Cohort do mês.
+        if (ehFibra) {
+          buckets[mesCriacao].vendasBrutasFibra++;
+          if (status === 'Cancelamento Comercial') {
+            buckets[mesCriacao].cancelComercialFibra++;
+          }
+        }
       }
 
       // ── Por instalação (status 3 + mes_competencia) ──
@@ -86,8 +94,6 @@ function getSaudeOperacionalDados(mes) {
         if (mesComp && buckets[mesComp]) {
           var pbl = Number(row[c.PONTOS_VENDA]) || 0;
           var pmv = Number(row[c.PONTOS_MOVEL]) || 0;
-          var produto = _normalizarTexto(row[c.PRODUTO] || '');
-          var ehFibra = produto.indexOf('FIBRA') !== -1;
           if (ehFibra) buckets[mesComp].instalacoesBL++;
           buckets[mesComp].pontosBL += pbl;
           buckets[mesComp].pontosMovel += pmv;
@@ -125,7 +131,9 @@ function getSaudeOperacionalDados(mes) {
           if (est) { tier = est.tier; fatorBase = est.fator_base; }
         } catch (e) {}
       }
-      var pctCN = b.vendasCriadas > 0 ? (b.vendasCanceladas / b.vendasCriadas) : null;
+      // %CN Vero: Cancelamento Comercial / vendas brutas Fibra (cohort do mês).
+      // Threshold 5%: acima = multa, abaixo = bônus. Regra Ricardo 27/05.
+      var pctCN = b.vendasBrutasFibra > 0 ? (b.cancelComercialFibra / b.vendasBrutasFibra) : null;
       var pctHUB = b.origemPreenchidos > 0 ? (b.origemHUB / b.origemPreenchidos) : null;
       var diasUteis = _q4DiasUteis_(m);
       var duMedio = diasUteis > 0 ? (b.vendasCriadas / diasUteis) : null;
@@ -142,10 +150,12 @@ function getSaudeOperacionalDados(mes) {
         pontos_movel: b.pontosMovel,
         pontos_total: pontosTotal,
         receita_estimada: receitaEst,
-        vendas_criadas: b.vendasCriadas,
-        vendas_canceladas: b.vendasCanceladas,
+        vendas_criadas: b.vendasCriadas,           // qualquer produto — pra DU médio
+        vendas_brutas_fibra: b.vendasBrutasFibra,  // denominador do %CN
+        cancel_comercial_fibra: b.cancelComercialFibra, // numerador do %CN
         pct_cn: pctCN,
-        alerta_cn: pctCN != null && pctCN >= 0.05,
+        alerta_cn: pctCN != null && pctCN >= 0.05, // multa Vero acima de 5%
+        bonus_cn: pctCN != null && pctCN < 0.05 && b.vendasBrutasFibra > 0, // bônus abaixo
         origem_preenchidos: b.origemPreenchidos,
         origem_hub: b.origemHUB,
         pct_hub: pctHUB,
@@ -244,7 +254,8 @@ function _q4VazioKpi_(mes) {
     mes: mes, label: _q4LabelMes_(mes),
     tier: null, fator_base: null,
     instalacoes_bl: 0, pontos_bl: 0, pontos_movel: 0, pontos_total: 0, receita_estimada: null,
-    vendas_criadas: 0, vendas_canceladas: 0, pct_cn: null, alerta_cn: false,
+    vendas_criadas: 0, vendas_brutas_fibra: 0, cancel_comercial_fibra: 0,
+    pct_cn: null, alerta_cn: false, bonus_cn: false,
     origem_preenchidos: 0, origem_hub: 0, pct_hub: null, alerta_hub: false,
     churn_total: 0, churn_cancel_comercial: 0, churn_voluntario: 0, churn_involuntario: 0,
     dias_uteis: 0, du_medio: null

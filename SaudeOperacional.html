@@ -229,12 +229,15 @@ function soRenderConteudo() {
   // ── Seção 2: Indicadores operacionais ──
   html += '<div class="so-section-title">Indicadores operacionais</div>';
   html += '<div class="so-kpis">';
-  var pctCnTone = k.alerta_cn ? 'bad' : (k.pct_cn != null && k.pct_cn > 0.02 ? 'warn' : '');
+  // %CN Vero: cohort de Fibra, threshold 5% (multa acima / bônus abaixo)
+  var pctCnTone = k.alerta_cn ? 'bad' : (k.bonus_cn ? 'ok' : (k.pct_cn != null && k.pct_cn > 0.025 ? 'warn' : ''));
+  var pctCnSub = k.vendas_brutas_fibra > 0
+    ? k.cancel_comercial_fibra + ' canc. comercial / ' + k.vendas_brutas_fibra + ' vendas Fibra · ' +
+      (k.alerta_cn ? '⚠️ MULTA (≥5%)' : (k.bonus_cn ? '✓ BÔNUS (<5%)' : 'limite 5%'))
+    : 'Sem vendas Fibra no mês';
   html += soKpi('%CN Vendas',
     k.pct_cn != null ? soPct(k.pct_cn) : '—',
-    pctCnTone,
-    k.vendas_canceladas + ' canceladas / ' + k.vendas_criadas + ' criadas · alerta ≥ 5%',
-    true, k.alerta_cn);
+    pctCnTone, pctCnSub, true, k.alerta_cn);
   var pctHubTone = k.alerta_hub ? 'bad' : (k.pct_hub != null && k.pct_hub > 0.02 ? 'warn' : '');
   html += soKpi('HUB disciplina',
     k.pct_hub != null ? soPct(k.pct_hub) : '—',
