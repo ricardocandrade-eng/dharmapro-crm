@@ -536,7 +536,90 @@
     </div>
   </div>
 
+  <!-- ══ Modal: Aplicar Extrato ao CRM (Fase 7) ══ -->
+  <div class="ep-modal-overlay" id="ep-aplicar-overlay" style="display:none" onclick="if(event.target===this && !epAplicarBloqueado)_epFecharModalAplicar()">
+    <div class="ep-modal">
+      <div class="ep-modal-header">
+        <div>
+          <div class="ep-modal-subt" id="ep-aplicar-subt">Módulo Financeiro · Fase 7</div>
+          <div class="ep-modal-ttl" id="ep-aplicar-ttl">Aplicar Extrato ao CRM</div>
+        </div>
+        <button class="ep-modal-close" id="ep-aplicar-close" onclick="_epFecharModalAplicar()" title="Fechar">✕</button>
+      </div>
+      <div class="ep-modal-body" id="ep-aplicar-body"></div>
+    </div>
+  </div>
+
 </div><!-- /extratoPage -->
+
+<style>
+/* ── Modal Aplicar ao CRM — extensões pontuais do ep-modal ───────────── */
+.ep-aplicar-alert {
+  background: rgba(247,162,59,0.08); border: 1px solid rgba(247,162,59,0.35);
+  color: var(--yellow,#f7a23b); padding: 10px 14px; border-radius: 8px;
+  font-size: 13px; margin-bottom: 16px; line-height: 1.45;
+}
+.ep-aplicar-alert b { color: var(--yellow,#f7a23b); }
+.ep-aplicar-kpis {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px; margin-bottom: 16px;
+}
+.ep-aplicar-kpi {
+  background: var(--surface-2,#1a1e2a); border: 1px solid var(--border,#252a3a);
+  border-radius: 10px; padding: 12px 14px;
+}
+.ep-aplicar-kpi-label {
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-dim,#8089a8); margin-bottom: 4px;
+}
+.ep-aplicar-kpi-value {
+  font-size: 20px; font-weight: 700; color: var(--text,#e4e8f5);
+}
+.ep-aplicar-kpi.ok    .ep-aplicar-kpi-value { color: var(--green,#22d98a); }
+.ep-aplicar-kpi.warn  .ep-aplicar-kpi-value { color: var(--yellow,#f7a23b); }
+.ep-aplicar-kpi.bad   .ep-aplicar-kpi-value { color: #ff4d6d; }
+.ep-aplicar-amostra {
+  background: rgba(255,255,255,0.02); border-radius: 8px;
+  padding: 10px 12px; margin-top: 10px; font-size: 12px;
+  color: var(--text-dim,#8089a8); line-height: 1.55;
+  max-height: 140px; overflow-y: auto;
+}
+.ep-aplicar-amostra b { color: var(--text,#e4e8f5); }
+.ep-aplicar-section-title {
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-dim,#8089a8);
+  margin: 14px 0 6px 0;
+}
+.ep-aplicar-footer {
+  display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;
+  padding-top: 16px; border-top: 1px solid var(--border,#252a3a);
+}
+.ep-aplicar-btn {
+  padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  cursor: pointer; border: 1px solid transparent; transition: all 0.15s;
+}
+.ep-aplicar-btn-cancel {
+  background: transparent; color: var(--text-dim,#8089a8);
+  border-color: var(--border,#252a3a);
+}
+.ep-aplicar-btn-cancel:hover { background: var(--surface-2,#1a1e2a); color: var(--text,#e4e8f5); }
+.ep-aplicar-btn-primary {
+  background: var(--accent,#e63e6d); color: #fff;
+}
+.ep-aplicar-btn-primary:hover { filter: brightness(1.1); }
+.ep-aplicar-btn-primary:disabled { opacity: 0.5; cursor: wait; }
+.ep-aplicar-loading {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 32px 0; color: var(--text-dim,#8089a8);
+}
+.ep-aplicar-loading .ep-spinner { width: 36px; height: 36px; }
+.ep-aplicar-result {
+  padding: 20px 0; text-align: center;
+}
+.ep-aplicar-result-icon { font-size: 48px; margin-bottom: 10px; }
+.ep-aplicar-result-msg { font-size: 16px; font-weight: 600; margin-bottom: 6px; color: var(--text,#e4e8f5); }
+.ep-aplicar-result-sub { font-size: 13px; color: var(--text-dim,#8089a8); line-height: 1.55; }
+</style>
 
 <script>
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1745,6 +1828,11 @@ function epRenderListaDrive(){
 // Envia o `_sheets.instBL` parseado (headers + rows) pro backend, que faz
 // preview (server-side) e, após confirmação do usuário, escreve em batch
 // FATOR_APLICADO + RECEITA_REALIZADA + MES_REF_VENDA das vendas matched.
+// UI: modal customizado (mesmo padrão dos modais ep-modal-overlay da página)
+// com 3 estados — preview, loading, resultado (sucesso/erro).
+var epAplicarBloqueado = false; // trava fechamento por clique no overlay durante write
+var _epAplicarPayload  = null;  // payload em andamento (mantido entre preview/confirm)
+
 function epAplicarAoCRM(){
   var d = epMesAtual ? epGetData(epMesAtual) : null;
   if(!d){ epToast('Selecione um fechamento primeiro.','error'); return; }
@@ -1756,10 +1844,7 @@ function epAplicarAoCRM(){
     epToast('Apps Script não disponível.','error'); return;
   }
 
-  var btn = document.getElementById('ep-aplicar-crm-btn');
-  if(btn){ btn.disabled=true; btn.textContent='⏳ Calculando…'; }
-
-  var payload = {
+  _epAplicarPayload = {
     mes: epMesAtual,
     instBL: {
       headers: d._sheets.instBL.headers || [],
@@ -1768,69 +1853,196 @@ function epAplicarAoCRM(){
     }
   };
 
+  _epAbrirModalAplicar();
+  _epRenderModalLoading('Calculando preview do extrato ' + epMesAtual + '…');
+
   google.script.run
     .withSuccessHandler(function(res){
       if(!res || !res.ok){
-        if(btn){ btn.disabled=false; btn.textContent='📥 Aplicar ao CRM'; }
-        epToast('Erro no preview: ' + (res && res.erro ? res.erro : 'desconhecido'),'error');
+        _epRenderModalResult('error', 'Erro no preview', (res && res.erro ? res.erro : 'desconhecido'));
         console.error('[EP] preview erro:', res);
         return;
       }
-      _epConfirmarAplicacao(res, payload, btn);
+      _epRenderModalPreview(res);
     })
     .withFailureHandler(function(err){
-      if(btn){ btn.disabled=false; btn.textContent='📥 Aplicar ao CRM'; }
-      epToast('Falha na chamada: ' + (err && err.message ? err.message : err),'error');
+      _epRenderModalResult('error', 'Falha na chamada', (err && err.message ? err.message : String(err)));
       console.error('[EP] preview falha:', err);
     })
-    .aplicarExtratoMensal(payload, { confirmar: false });
+    .aplicarExtratoMensal(_epAplicarPayload, { confirmar: false });
 }
 
-function _epConfirmarAplicacao(preview, payload, btn){
-  var alerta = preview.jaProcessado
-    ? '⚠️ Este mês JÁ foi processado em ' + (preview.infoUltimo && preview.infoUltimo.quando) +
-      '. Aplicar de novo vai SOBRESCREVER os valores no 1 - Vendas.\n\n'
-    : '';
-  var amostraSemMatch = preview.semMatchNoCRMAmostra && preview.semMatchNoCRMAmostra.length
-    ? '\n  Amostra contratos sem match: ' + preview.semMatchNoCRMAmostra.slice(0,5).join(', ') + (preview.semMatchNoCRM > 5 ? ' (e mais ' + (preview.semMatchNoCRM-5) + ')' : '')
-    : '';
-  var amostraDiv = preview.divergenciasAmostra && preview.divergenciasAmostra.length
-    ? '\n  Amostra divergências (>5%): ' + preview.divergenciasAmostra.slice(0,3).map(function(x){
-        return 'contrato ' + x.contrato + ' previsto R$' + x.previsto.toFixed(2) + ' × realizado R$' + x.realizado.toFixed(2);
-      }).join(' | ')
-    : '';
-  var msg = alerta +
-    'Pré-visualização do extrato ' + preview.mes + ':\n\n' +
-    '  • Contratos no extrato: ' + preview.contratosNoExtrato + '\n' +
-    '  • Vendas do CRM que serão atualizadas: ' + preview.matched + '\n' +
-    '  • Contratos do extrato sem match no CRM: ' + preview.semMatchNoCRM + amostraSemMatch + '\n' +
-    '  • Divergências previsto × realizado: ' + preview.divergencias + amostraDiv + '\n' +
-    '  • Total Pago somado: R$ ' + (preview.agregados && preview.agregados.totalPagoSomado ? preview.agregados.totalPagoSomado.toFixed(2) : '0') + '\n\n' +
-    'Confirma a aplicação? (escrita em batch nas cols FATOR_APLICADO, RECEITA_REALIZADA, MES_REF_VENDA do 1 - Vendas)';
-  if(!confirm(msg)){
-    if(btn){ btn.disabled=false; btn.textContent='📥 Aplicar ao CRM'; }
-    epToast('Cancelado.','warning');
-    return;
+// ── Modal Aplicar ao CRM — abrir/fechar ────────────────────────────────────
+function _epAbrirModalAplicar(){
+  document.getElementById('ep-aplicar-overlay').style.display = 'flex';
+  document.getElementById('ep-aplicar-subt').textContent = 'Módulo Financeiro · Fase 7';
+  document.getElementById('ep-aplicar-ttl').textContent  = 'Aplicar Extrato ao CRM';
+  document.getElementById('ep-aplicar-close').style.display = '';
+  epAplicarBloqueado = false;
+}
+function _epFecharModalAplicar(){
+  if(epAplicarBloqueado) return;
+  document.getElementById('ep-aplicar-overlay').style.display = 'none';
+  document.getElementById('ep-aplicar-body').innerHTML = '';
+  _epAplicarPayload = null;
+}
+
+// ── Estado: loading ─────────────────────────────────────────────────────────
+function _epRenderModalLoading(msg){
+  document.getElementById('ep-aplicar-body').innerHTML =
+    '<div class="ep-aplicar-loading">' +
+      '<div class="ep-spinner"></div>' +
+      '<div>' + _epHtml(msg) + '</div>' +
+    '</div>';
+  // bloqueia fechamento por clique no overlay durante operações longas
+  epAplicarBloqueado = true;
+  document.getElementById('ep-aplicar-close').style.display = 'none';
+}
+
+// ── Estado: preview ─────────────────────────────────────────────────────────
+function _epRenderModalPreview(preview){
+  epAplicarBloqueado = false;
+  document.getElementById('ep-aplicar-close').style.display = '';
+  document.getElementById('ep-aplicar-subt').textContent = 'Extrato ' + epMesLabel(preview.mes);
+  document.getElementById('ep-aplicar-ttl').textContent  = 'Aplicar ao CRM — pré-visualização';
+
+  var html = '';
+  if(preview.jaProcessado){
+    var info = preview.infoUltimo || {};
+    html += '<div class="ep-aplicar-alert">' +
+      '<b>⚠️ Mês já processado.</b> Última aplicação em ' + _epHtml(info.quando || '—') +
+      ' (' + (info.matched || 0) + ' vendas). Aplicar de novo vai <b>sobrescrever</b> os valores.' +
+    '</div>';
   }
 
-  if(btn){ btn.textContent='⏳ Aplicando…'; }
+  var matchedClass = preview.matched > 0 ? 'ok' : 'warn';
+  var semMatchClass = preview.semMatchNoCRM > 0 ? 'warn' : '';
+  var divClass = preview.divergencias > 0 ? 'warn' : '';
+  var totalPago = preview.agregados && preview.agregados.totalPagoSomado ? preview.agregados.totalPagoSomado : 0;
+
+  html +=
+    '<div class="ep-aplicar-kpis">' +
+      _epKpi('Contratos no extrato', preview.contratosNoExtrato, '') +
+      _epKpi('Vendas que serão atualizadas', preview.matched, matchedClass) +
+      _epKpi('Sem match no CRM', preview.semMatchNoCRM, semMatchClass) +
+      _epKpi('Divergências (≥5%)', preview.divergencias, divClass) +
+      _epKpi('Total Pago somado', epBRL(totalPago), '') +
+    '</div>';
+
+  if(preview.semMatchNoCRM > 0){
+    html += '<div class="ep-aplicar-section-title">Contratos do extrato sem venda correspondente no CRM</div>';
+    html += '<div class="ep-aplicar-amostra">';
+    var lista = (preview.semMatchNoCRMAmostra || []).map(function(c){ return '<b>' + _epHtml(c) + '</b>'; }).join(', ');
+    html += lista || '(sem amostra)';
+    if(preview.semMatchNoCRM > (preview.semMatchNoCRMAmostra || []).length){
+      html += ' <span style="opacity:0.6">… e mais ' + (preview.semMatchNoCRM - preview.semMatchNoCRMAmostra.length) + '</span>';
+    }
+    html += '</div>';
+  }
+
+  if(preview.divergencias > 0){
+    html += '<div class="ep-aplicar-section-title">Amostra de divergências previsto × realizado</div>';
+    html += '<div class="ep-aplicar-amostra">';
+    html += (preview.divergenciasAmostra || []).slice(0,10).map(function(x){
+      return 'Contrato <b>' + _epHtml(x.contrato) + '</b>: previsto ' + epBRL(x.previsto) +
+        ' × realizado ' + epBRL(x.realizado) +
+        ' <span style="opacity:0.7">(' + (x.diff >= 0 ? '+' : '') + epBRL(x.diff) + ', ' + (x.pct*100).toFixed(1) + '%)</span>';
+    }).join('<br>');
+    html += '</div>';
+  }
+
+  html += '<div style="font-size:12px;color:var(--text-dim,#8089a8);margin-top:14px;line-height:1.5">' +
+    'A aplicação grava em batch nas colunas <b>FATOR_APLICADO</b> (AZ), ' +
+    '<b>RECEITA_REALIZADA</b> (BB) e <b>MES_REF_VENDA</b> (BK) do <b>1 - Vendas</b>. ' +
+    'Idempotente — re-aplicar o mesmo mês sobrescreve.' +
+  '</div>';
+
+  html +=
+    '<div class="ep-aplicar-footer">' +
+      '<button class="ep-aplicar-btn ep-aplicar-btn-cancel" onclick="_epFecharModalAplicar()">Cancelar</button>' +
+      '<button class="ep-aplicar-btn ep-aplicar-btn-primary" id="ep-aplicar-confirm-btn" onclick="_epAplicarConfirmar()">' +
+        '✓ Confirmar aplicação' +
+      '</button>' +
+    '</div>';
+
+  document.getElementById('ep-aplicar-body').innerHTML = html;
+}
+
+// ── Estado: resultado (sucesso ou erro) ─────────────────────────────────────
+function _epRenderModalResult(tipo, titulo, msg, extras){
+  epAplicarBloqueado = false;
+  document.getElementById('ep-aplicar-close').style.display = '';
+  var icon = tipo === 'success' ? '✓' : '✕';
+  var color = tipo === 'success' ? 'var(--green,#22d98a)' : '#ff4d6d';
+
+  var sub = msg ? '<div class="ep-aplicar-result-sub">' + _epHtml(msg) + '</div>' : '';
+
+  var kpisHtml = '';
+  if(extras && extras.kpis && extras.kpis.length){
+    kpisHtml = '<div class="ep-aplicar-kpis" style="margin-top:18px">' +
+      extras.kpis.map(function(k){ return _epKpi(k.label, k.value, k.tone || ''); }).join('') +
+    '</div>';
+  }
+
+  document.getElementById('ep-aplicar-body').innerHTML =
+    '<div class="ep-aplicar-result">' +
+      '<div class="ep-aplicar-result-icon" style="color:' + color + '">' + icon + '</div>' +
+      '<div class="ep-aplicar-result-msg">' + _epHtml(titulo) + '</div>' +
+      sub +
+    '</div>' +
+    kpisHtml +
+    '<div class="ep-aplicar-footer">' +
+      '<button class="ep-aplicar-btn ep-aplicar-btn-primary" onclick="_epFecharModalAplicar()">Fechar</button>' +
+    '</div>';
+}
+
+// ── Confirmar: dispara a aplicação ───────────────────────────────────────────
+function _epAplicarConfirmar(){
+  if(!_epAplicarPayload){
+    _epRenderModalResult('error', 'Sessão expirada', 'Reabra a aplicação.');
+    return;
+  }
+  _epRenderModalLoading('Aplicando ' + epMesLabel(_epAplicarPayload.mes) + ' em 1 - Vendas…');
+
   google.script.run
     .withSuccessHandler(function(res){
-      if(btn){ btn.disabled=false; btn.textContent='📥 Aplicar ao CRM'; }
       if(!res || !res.ok){
-        epToast('Erro ao aplicar: ' + (res && res.erro ? res.erro : 'desconhecido'),'error');
+        _epRenderModalResult('error', 'Erro ao aplicar', (res && res.erro ? res.erro : 'desconhecido'));
         console.error('[EP] aplicar erro:', res);
         return;
       }
-      epToast('✓ Extrato aplicado: ' + res.escrito + ' vendas atualizadas.','success');
+      _epRenderModalResult('success',
+        res.escrito + ' venda(s) atualizada(s) com sucesso',
+        'Extrato ' + epMesLabel(res.mes) + ' aplicado em ' + (res.registro && res.registro.quando ? res.registro.quando : 'agora') + '.',
+        {
+          kpis: [
+            { label: 'Vendas atualizadas', value: res.escrito, tone: 'ok' },
+            { label: 'Contratos no extrato', value: res.contratosNoExtrato },
+            { label: 'Sem match no CRM', value: res.semMatchNoCRM, tone: res.semMatchNoCRM > 0 ? 'warn' : '' },
+            { label: 'Divergências (≥5%)', value: res.divergencias, tone: res.divergencias > 0 ? 'warn' : '' }
+          ]
+        }
+      );
       console.info('[EP] aplicado:', res);
     })
     .withFailureHandler(function(err){
-      if(btn){ btn.disabled=false; btn.textContent='📥 Aplicar ao CRM'; }
-      epToast('Falha ao aplicar: ' + (err && err.message ? err.message : err),'error');
+      _epRenderModalResult('error', 'Falha ao aplicar', (err && err.message ? err.message : String(err)));
       console.error('[EP] aplicar falha:', err);
     })
-    .aplicarExtratoMensal(payload, { confirmar: true });
+    .aplicarExtratoMensal(_epAplicarPayload, { confirmar: true });
+}
+
+// ── Helpers do modal ────────────────────────────────────────────────────────
+function _epKpi(label, value, tone){
+  var cls = tone ? ' ' + tone : '';
+  return '<div class="ep-aplicar-kpi' + cls + '">' +
+    '<div class="ep-aplicar-kpi-label">' + _epHtml(label) + '</div>' +
+    '<div class="ep-aplicar-kpi-value">' + _epHtml(value) + '</div>' +
+  '</div>';
+}
+function _epHtml(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function epArquivarNoDrive(){
