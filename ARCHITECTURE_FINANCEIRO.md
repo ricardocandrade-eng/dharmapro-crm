@@ -498,7 +498,9 @@ Estorno iminente (>180d):
 
 **Total exposto:** somatório de `RECEITA_PREVISTA` dos contratos listados, decomposto por janela.
 
-### 8.3. Q3 — Conciliação Mensal
+### 8.3. Q3 — Conciliação Mensal ⏳ ABA MATERIALIZADA 27/05 — painel visual pendente
+
+A aba `Conciliacao Mensal` está em produção desde 27/05 (sub-fatia 7.2). Cada vez que o Ricardo aplica um extrato pelo botão "📥 Aplicar ao CRM", a aba é wipe-and-replaced para o mês alvo (preserva outros meses) com 1 linha por venda matched: previsto × realizado, diff, pct, flag. Hoje a aba é consultável diretamente no Sheets (filtrar por `FLAG=DIVERG_GRAVE`, etc); o painel visual abaixo está pendente.
 
 **O que mostra:** após import do extrato mensal, tabela de divergências.
 
@@ -647,11 +649,24 @@ Tela admin com upload de pdf + parser com fallback para formulário manual. Appe
 
 **Tamanho:** 1 semana.
 
-### Fase 7 — Tela `◆ Extrato` + pipeline de upload de extrato mensal
+### Fase 7 — Tela `◆ Extrato` + pipeline de upload de extrato mensal — EM ANDAMENTO (fatiada)
 
-Tela admin com upload do xlsx SNIPER MOBILE mensal. Parser das 14 abas. Preview obrigatório. Escrita em `Extrato Vero` + update de `1 - Vendas`. Visualização do extrato após import.
+A página `◆ Extrato` (`Extrato.html`) **já existia** em produção desde 17/03 — parser SheetJS client-side, dashboard Chart.js, persistência em localStorage, arquivamento no Drive. O que faltava era a **ponte pro `1 - Vendas`** (escrita das cols econômicas) e a **conciliação** (§8.3). Entregues como sub-fatias separadas:
 
-**Tamanho:** 2 semanas.
+**Sub-fatia 7.1 ✅ ENTREGUE 27/05/2026 — BD_INSTALAÇÃO → 1-Vendas.**
+Backend `ExtratoAPI.js` novo. Frontend ganha botão **📥 Aplicar ao CRM** no header da página. Reusa o parser SheetJS (sem reescrever), envia `_sheets.instBL` via `google.script.run`, faz **preview obrigatório server-side** com modal customizado (KPIs + amostras + alerta se mês já processado) e, na confirmação, escreve em batch nas cols `FATOR_APLICADO` (AZ=51), `RECEITA_REALIZADA` (BB=53), `MES_REF_VENDA` (BK=62). Match por contrato via `_cruzNormIdServer_` (mesma normalização da Fase 4/cruzamento). Idempotente via Script Property `EXTRATO_VERO_PROCESSADO_<YYYY-MM>`. **1ª aplicação real (abril/2026)**: 51 contratos no extrato → 53 vendas atualizadas (2 a mais por duplicatas no CRM — mesmo achado da Fase 4), 0 sem match, 0 divergências (≥5%), R$ 14.340,02 Total Pago.
+
+**Sub-fatia 7.2 ✅ ENTREGUE 27/05/2026 — aba materializada `Conciliacao Mensal`.**
+Backend amplia `aplicarExtratoMensal` (no `confirmar: true`) pra também gerar/atualizar a aba `Conciliacao Mensal` no Sheets. Schema de 17 cols: `MES_REF`, `LINHA_CRM`, `CONTRATO`, `CLIENTE`, `PLANO`, `PRODUTO`, `SEGMENTACAO`, `COD_PLANO`, `PONTOS_VENDA`, `PONTOS_MOVEL`, `FATOR_APLICADO`, `RECEITA_PREVISTA`, `RECEITA_REALIZADA`, `DIFF`, `PCT`, `FLAG`, `APLICADO_EM`. `FLAG`: `OK` (|pct|<5%) / `DIVERG_LEVE` (5-20%) / `DIVERG_GRAVE` (≥20%) / `SEM_PREVISTO` (previsto≤0). **Wipe-and-replace POR MÊS** (deleta só linhas do mês alvo em blocos contíguos descendentes, preserva outros meses). Permite histórico acumulado sem reprocessar tudo. Formatação aplicada (R$/pct/fator). Distribuição de flags volta no resultado e aparece no modal de sucesso (KPIs extras: OK / leve / grave / sem previsto).
+
+**Sub-fatia 7.x — UX dos modais ✅ 27/05/2026.** Os 4 `confirm()`/`alert()` nativos da página foram substituídos por modais customizados seguindo o padrão `ep-modal-overlay`: `epConfirm({...}, onConfirm, onCancel)` genérico com variantes `warn`/`danger`. Cobre: re-upload de mês existente, apagar fechamento (botão 🗑), apagar arquivo do Drive, e o fluxo "Aplicar ao CRM" (3 estados — preview / loading / resultado). Bug fix incluso: overlays movidos pra `document.body` (`epEscaparOverlay`) pra escapar do stacking context do `#pageExtrato`.
+
+**Sub-fatias pendentes** (sob demanda):
+- **7.3** — abas `Bônus Quinzenal`, `Adimplência`, `Estorno Móvel Venda Combo` → camadas adicionais de reconciliação no `RECEITA_REALIZADA`. Hoje só BD_INSTALAÇÃO é aplicada; a soma já bate com o componente "Pontos × Fator" do RESUMO (§11.9), mas não inclui bônus/adimplência/estornos.
+- **7.4** — aba `BD_CHURN` → refina `STATUS_CHURN` (voluntario/involuntario) que a Fase 4 hoje colapsa em `CANCELADO_COMERCIAL`.
+- **Painel Q3 visual** (§8.3) — tela que lê a aba `Conciliacao Mensal` (já materializada). Resumo agregado por mês + filtro por flag + explicação automática via `cartas_meta_pap.json`.
+
+**Tamanho original:** 2 semanas. **Entregue até agora:** ~3h (reuso máximo do parser existente).
 
 ### Fase 8 — Tela `◇ Inadimplência` + pipeline de upload
 
