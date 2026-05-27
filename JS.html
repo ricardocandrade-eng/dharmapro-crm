@@ -5474,7 +5474,7 @@ function _resetarTimerInatividade() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal','viabilidade','vinculosPendentes','financeiro','codigosVero','conciliacao']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal','viabilidade','vinculosPendentes','financeiro','codigosVero','conciliacao','saudeOperacional']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -5492,6 +5492,7 @@ var _menuMap = {
   'tickets':     'menuTickets',
   'extrato':     'menuExtrato',
   'conciliacao': 'menuConciliacao',
+  'saudeOperacional': 'menuSaudeOperacional',
   'config':      'menuConfig',
   'disparos':    'menuDisparos',
   'usuarios':    'menuUsuarios',
@@ -5784,6 +5785,28 @@ function navegar(pagina) {
           cnc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Conciliação: ' + e.message + '</div>';
         })
         .getConciliacaoHtml();
+    }
+
+  } else if (pagina === 'saudeOperacional') {
+    document.getElementById('menuSaudeOperacional').classList.add('ativo');
+    document.getElementById('pageSaudeOperacional').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Saúde Operacional';
+    var soc = document.getElementById('saudeOperacionalContainer');
+    if (!soc.getAttribute('data-loaded')) {
+      soc.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          soc.innerHTML = html;
+          soc.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+        })
+        .withFailureHandler(function(e) {
+          soc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Saúde Operacional: ' + e.message + '</div>';
+        })
+        .getSaudeOperacionalHtml();
     }
 
   } else if (pagina === 'filaPAP') {

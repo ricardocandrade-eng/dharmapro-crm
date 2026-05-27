@@ -1,0 +1,334 @@
+<!-- ══════════════════════════════════════════════════════════════════════════
+     SaudeOperacional.html — Tela admin "⊙ Saúde Operacional" (Q4, §8.4)
+     KPIs operacionais do mês + comparativo dos 3 anteriores.
+     Criado em: 27/05/2026
+     ══════════════════════════════════════════════════════════════════════════ -->
+<style>
+#saudeOpPage {
+  width: 100%; height: 100%; overflow-y: auto;
+  padding: 28px 32px 56px;
+  background: var(--bg, #0d0f14);
+  font-family: 'Sora', sans-serif;
+  color: var(--text, #e4e8f5);
+}
+#saudeOpPage * { box-sizing: border-box; }
+
+.so-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 16px; }
+.so-title-group .so-tag {
+  font-family: 'DM Mono', monospace; font-size: 10px; color: var(--accent, #e63e6d);
+  letter-spacing: 3px; text-transform: uppercase; display: block; margin-bottom: 4px;
+}
+.so-title-group h2 { font-size: 22px; font-weight: 800; margin: 0; }
+.so-title-group .so-sub { font-size: 12px; color: var(--text-dim,#8089a8); margin-top: 4px; max-width: 700px; }
+
+.so-month-bar {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface, #141720); border: 1px solid var(--border, #252a3a);
+  border-radius: var(--radius, 12px); padding: 12px 18px; margin-bottom: 20px;
+}
+.so-month-bar .so-month-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px; color: var(--text-dim,#8089a8); }
+.so-month-select {
+  background: transparent; color: var(--text,#e4e8f5); border: 1px solid var(--border,#252a3a);
+  border-radius: 8px; padding: 7px 12px; font-size: 13px; font-family: 'Sora', sans-serif; cursor: pointer;
+}
+.so-month-select:focus { outline: none; border-color: var(--accent,#e63e6d); }
+.so-month-bar .so-gerado { font-size: 11px; color: var(--text-dim,#8089a8); margin-left: auto; font-family: 'DM Mono', monospace; }
+
+.so-section-title {
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-dim,#8089a8); margin: 18px 0 10px 0;
+}
+
+.so-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+
+.so-kpi {
+  background: var(--surface,#141720); border: 1px solid var(--border,#252a3a);
+  border-radius: 12px; padding: 14px 16px;
+}
+.so-kpi.has-alert { border-color: rgba(255,77,109,0.5); background: rgba(255,77,109,0.05); }
+.so-kpi-label {
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-dim,#8089a8); margin-bottom: 6px;
+}
+.so-kpi-value { font-size: 22px; font-weight: 700; color: var(--text,#e4e8f5); }
+.so-kpi-value.brl { font-size: 18px; }
+.so-kpi.ok    .so-kpi-value { color: var(--green,#22d98a); }
+.so-kpi.warn  .so-kpi-value { color: var(--yellow,#f7a23b); }
+.so-kpi.bad   .so-kpi-value { color: #ff4d6d; }
+.so-kpi-sub { font-size: 11px; color: var(--text-dim,#8089a8); margin-top: 4px; line-height: 1.4; }
+.so-kpi-trend { display: inline-block; font-size: 11px; margin-left: 6px; font-weight: 600; }
+.so-kpi-trend.up   { color: var(--green,#22d98a); }
+.so-kpi-trend.down { color: #ff4d6d; }
+.so-kpi-trend.neutral { color: var(--text-dim,#8089a8); }
+
+.so-comparativo {
+  background: var(--surface,#141720); border: 1px solid var(--border,#252a3a);
+  border-radius: 12px; overflow: hidden;
+}
+.so-comp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.so-comp-table thead th {
+  background: var(--surface-2,#1a1e2a); padding: 11px 12px; text-align: left;
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--text-dim,#8089a8); border-bottom: 1px solid var(--border,#252a3a);
+  white-space: nowrap;
+}
+.so-comp-table tbody td {
+  padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text,#e4e8f5); vertical-align: middle;
+}
+.so-comp-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
+.so-comp-table td.so-num { text-align: right; font-family: 'DM Mono', monospace; font-size: 11px; }
+.so-comp-table td.so-mes-cell {
+  font-weight: 700; font-family: 'DM Mono', monospace; color: var(--accent,#e63e6d);
+}
+
+.so-obs {
+  background: rgba(247,162,59,0.06); border: 1px solid rgba(247,162,59,0.25);
+  color: var(--yellow,#f7a23b); padding: 12px 14px; border-radius: 8px;
+  font-size: 12px; line-height: 1.55; margin-top: 16px;
+}
+.so-obs b { color: var(--yellow,#f7a23b); }
+.so-obs ul { margin: 6px 0 0 0; padding-left: 18px; }
+
+.so-tier-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+  background: rgba(34,217,138,0.12); color: var(--green,#22d98a);
+}
+
+.so-empty { padding: 60px 20px; text-align: center; color: var(--text-dim,#8089a8); }
+.so-empty-icon { font-size: 48px; margin-bottom: 12px; }
+.so-empty h3 { font-size: 16px; color: var(--text,#e4e8f5); margin-bottom: 6px; }
+.so-loading { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 60px 0; color: var(--text-dim,#8089a8); }
+.so-spinner {
+  width: 32px; height: 32px; border: 3px solid var(--border,#252a3a);
+  border-top-color: var(--accent,#e63e6d); border-radius: 50%;
+  animation: so-spin 0.8s linear infinite;
+}
+@keyframes so-spin { to { transform: rotate(360deg); } }
+</style>
+
+<div id="saudeOpPage">
+  <div class="so-header">
+    <div class="so-title-group">
+      <span class="so-tag">Módulo Financeiro · Q4</span>
+      <h2>Saúde Operacional</h2>
+      <div class="so-sub">KPIs do mês corrente + comparativo dos 3 anteriores. Alimentado pelas fases entregues (SAFRA + Conciliação). Métricas que dependem de fases futuras aparecem como "—" com explicação.</div>
+    </div>
+  </div>
+
+  <div class="so-month-bar" id="so-month-bar" style="display:none">
+    <span class="so-month-label">MÊS</span>
+    <select class="so-month-select" id="so-month-select" onchange="soTrocarMes(this.value)"></select>
+    <span class="so-gerado" id="so-gerado"></span>
+  </div>
+
+  <div id="so-content"></div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+// SAUDEOPERACIONAL.JS — Q4 (§8.4) — KPIs operacionais do mês + comparativo.
+// Prefixo: so* (evita colisão com epPage, cnPage e namespace global).
+// ══════════════════════════════════════════════════════════════════════════════
+
+var soDados = null;
+
+document.addEventListener('DOMContentLoaded', soInit);
+if (document.readyState !== 'loading') soInit();
+
+function soInit() {
+  soRenderLoading();
+  soCarregar(null);
+}
+
+function soCarregar(mes) {
+  if (typeof google === 'undefined' || !google.script) {
+    soRenderEmpty('Apps Script não disponível.', 'Esta página precisa rodar dentro do CRM.');
+    return;
+  }
+  google.script.run
+    .withSuccessHandler(function(res) {
+      if (!res || !res.ok) {
+        soRenderEmpty('Erro ao carregar', (res && res.mensagem) ? res.mensagem : 'desconhecido');
+        return;
+      }
+      soDados = res;
+      soRenderTudo();
+    })
+    .withFailureHandler(function(err) {
+      soRenderEmpty('Falha na chamada', err && err.message ? err.message : String(err));
+    })
+    .getSaudeOperacionalDados(mes || null);
+}
+
+function soTrocarMes(mes) {
+  if (!mes || (soDados && mes === soDados.mes)) return;
+  soRenderLoading();
+  soCarregar(mes);
+}
+
+function soRenderLoading() {
+  document.getElementById('so-content').innerHTML =
+    '<div class="so-loading"><div class="so-spinner"></div><div>Carregando saúde operacional…</div></div>';
+  document.getElementById('so-month-bar').style.display = 'none';
+}
+
+function soRenderEmpty(titulo, msg) {
+  document.getElementById('so-content').innerHTML =
+    '<div class="so-empty"><div class="so-empty-icon">📈</div><h3>' + soHtml(titulo) + '</h3><p>' + soHtml(msg) + '</p></div>';
+  document.getElementById('so-month-bar').style.display = 'none';
+}
+
+function soRenderTudo() {
+  soRenderMonthBar();
+  soRenderConteudo();
+}
+
+function soRenderMonthBar() {
+  var bar = document.getElementById('so-month-bar');
+  var sel = document.getElementById('so-month-select');
+  var meses = (soDados.mesesDisponiveis || [soDados.mes]).slice();
+  // Garante o mês atual no topo + permite navegação pelos últimos 12
+  // (o backend retorna alvo + 3 anteriores; aqui expandimos pra 12 pra UX).
+  var extras = [];
+  var base = soDados.mes;
+  for (var i = -6; i <= 6; i++) extras.push(soAddMes(base, i));
+  var todos = {};
+  meses.concat(extras).forEach(function(m) { todos[m] = true; });
+  var lista = Object.keys(todos).sort().reverse();
+
+  sel.innerHTML = lista.map(function(m) {
+    return '<option value="' + soHtml(m) + '"' + (m === soDados.mes ? ' selected' : '') + '>' + soHtml(soLabelMes(m)) + '</option>';
+  }).join('');
+  document.getElementById('so-gerado').textContent = soDados.gerado_em
+    ? 'Gerado em ' + (new Date(soDados.gerado_em).toLocaleString('pt-BR'))
+    : '';
+  bar.style.display = '';
+}
+
+function soRenderConteudo() {
+  var k = soDados.kpis;
+  var anteriores = soDados.comparativo || [];
+  // Compara com o mês anterior pra trend
+  var prev = anteriores.length ? anteriores[0] : null;
+
+  var html = '';
+
+  // ── Seção 1: Estrelas + receita estimada ──
+  html += '<div class="so-section-title">Faixa de estrelas estimada — ' + soHtml(k.label) + '</div>';
+  html += '<div class="so-kpis">';
+  html += soKpi('Tier do mês', k.tier ? '<span class="so-tier-badge">' + soHtml(k.tier) + '</span>' : '—',
+    k.tier ? 'ok' : '', k.fator_base != null ? 'Fator: ' + k.fator_base : 'Sem instalações no mês', true);
+  html += soKpi('Instalações BL', k.instalacoes_bl, '', soTrend(k.instalacoes_bl, prev && prev.instalacoes_bl));
+  html += soKpi('Pontos totais', k.pontos_total, '', 'BL: ' + k.pontos_bl + ' · Móvel: ' + k.pontos_movel);
+  html += soKpi('Receita estimada', k.receita_estimada != null ? soBRL(k.receita_estimada) : '—',
+    k.receita_estimada != null ? 'ok' : '', 'pontos × fator do tier');
+  html += '</div>';
+
+  // ── Seção 2: Indicadores operacionais ──
+  html += '<div class="so-section-title">Indicadores operacionais</div>';
+  html += '<div class="so-kpis">';
+  var pctCnTone = k.alerta_cn ? 'bad' : (k.pct_cn != null && k.pct_cn > 0.02 ? 'warn' : '');
+  html += soKpi('%CN Vendas',
+    k.pct_cn != null ? soPct(k.pct_cn) : '—',
+    pctCnTone,
+    k.vendas_canceladas + ' canceladas / ' + k.vendas_criadas + ' criadas · alerta ≥ 5%',
+    true, k.alerta_cn);
+  var pctHubTone = k.alerta_hub ? 'bad' : (k.pct_hub != null && k.pct_hub > 0.02 ? 'warn' : '');
+  html += soKpi('HUB disciplina',
+    k.pct_hub != null ? soPct(k.pct_hub) : '—',
+    pctHubTone,
+    k.origem_preenchidos > 0
+      ? k.origem_hub + ' HUB / ' + k.origem_preenchidos + ' preenchidos · tolerância ≥ 5%'
+      : 'Indisponível — depende Fase 7.3',
+    true, k.alerta_hub);
+  html += soKpi('DU médio',
+    k.du_medio != null ? k.du_medio.toFixed(1) : '—',
+    '',
+    k.vendas_criadas + ' vendas / ' + k.dias_uteis + ' dias úteis');
+  html += soKpi('Churn no mês',
+    k.churn_total,
+    k.churn_total > 0 ? 'bad' : '',
+    k.churn_voluntario || k.churn_involuntario
+      ? 'Vol: ' + k.churn_voluntario + ' · Invol: ' + k.churn_involuntario
+      : (k.churn_total > 0 ? 'Breakdown depende Fase 7.4' : 'Sem churn registrado'));
+  html += '</div>';
+
+  // ── Seção 3: Comparativo dos últimos meses ──
+  if (anteriores.length > 0) {
+    html += '<div class="so-section-title">Comparativo — últimos meses</div>';
+    html += '<div class="so-comparativo"><table class="so-comp-table">';
+    html += '<thead><tr>' +
+      '<th>Mês</th><th>Tier</th><th class="so-num">Inst. BL</th>' +
+      '<th class="so-num">Pontos</th><th class="so-num">Receita est.</th>' +
+      '<th class="so-num">Vendas</th><th class="so-num">%CN</th>' +
+      '<th class="so-num">DU médio</th><th class="so-num">Churn</th>' +
+      '</tr></thead><tbody>';
+    // Inclui o mês atual na primeira linha pra comparar
+    var todasLinhas = [k].concat(anteriores);
+    todasLinhas.forEach(function(r) {
+      html += '<tr>' +
+        '<td class="so-mes-cell">' + soHtml(r.label) + '</td>' +
+        '<td>' + (r.tier ? '<span class="so-tier-badge">' + soHtml(r.tier) + '</span>' : '—') + '</td>' +
+        '<td class="so-num">' + r.instalacoes_bl + '</td>' +
+        '<td class="so-num">' + r.pontos_total + '</td>' +
+        '<td class="so-num">' + (r.receita_estimada != null ? soBRL(r.receita_estimada) : '—') + '</td>' +
+        '<td class="so-num">' + r.vendas_criadas + '</td>' +
+        '<td class="so-num">' + (r.pct_cn != null ? soPct(r.pct_cn) : '—') + '</td>' +
+        '<td class="so-num">' + (r.du_medio != null ? r.du_medio.toFixed(1) : '—') + '</td>' +
+        '<td class="so-num">' + r.churn_total + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // ── Observações (avisos sobre dados pendentes) ──
+  if (soDados.obs && soDados.obs.length) {
+    html += '<div class="so-obs"><b>Observações</b><ul>';
+    soDados.obs.forEach(function(o) { html += '<li>' + soHtml(o) + '</li>'; });
+    html += '</ul></div>';
+  }
+
+  document.getElementById('so-content').innerHTML = html;
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function soKpi(label, value, tone, sub, allowHtml, hasAlert) {
+  var cls = 'so-kpi' + (tone ? ' ' + tone : '') + (hasAlert ? ' has-alert' : '');
+  var brl = String(value).indexOf('R$') > -1 ? ' brl' : '';
+  var vHtml = allowHtml ? String(value) : soHtml(value);
+  return '<div class="' + cls + '">' +
+    '<div class="so-kpi-label">' + soHtml(label) + '</div>' +
+    '<div class="so-kpi-value' + brl + '">' + vHtml + '</div>' +
+    (sub ? '<div class="so-kpi-sub">' + soHtml(sub) + '</div>' : '') +
+  '</div>';
+}
+function soTrend(cur, prev) {
+  if (prev == null || prev === cur) return prev != null ? 'Igual ao mês anterior' : '';
+  var diff = cur - prev;
+  var arrow = diff > 0 ? '↑' : '↓';
+  return arrow + ' ' + Math.abs(diff) + ' vs mês anterior (' + prev + ')';
+}
+function soBRL(v) {
+  return 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function soPct(v) {
+  if (v == null) return '—';
+  return (v * 100).toFixed(1).replace('.', ',') + '%';
+}
+var SO_MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+function soLabelMes(ym) {
+  var p = ym.split('-');
+  return SO_MESES[parseInt(p[1], 10) - 1] + '/' + p[0].slice(2);
+}
+function soAddMes(ym, n) {
+  var p = ym.split('-');
+  var d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1 + n, 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function soHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
