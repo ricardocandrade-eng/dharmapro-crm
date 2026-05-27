@@ -120,6 +120,62 @@
 @keyframes cn-spin { to { transform: rotate(360deg); } }
 
 .cn-info-row { font-size: 11px; color: var(--text-dim,#8089a8); margin-top: 8px; }
+
+/* ── Decomposição do Realizado (Fase 7.3) ── */
+.cn-section-title-row {
+  display: flex; align-items: baseline; gap: 12px; margin: 22px 0 12px;
+}
+.cn-section-title-block {
+  font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 2px;
+  color: var(--text-dim,#8089a8); text-transform: uppercase;
+}
+.cn-section-hint {
+  font-size: 11px; color: var(--text-dim,#8089a8); font-style: italic;
+}
+.cn-decomp-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px; margin-bottom: 12px;
+}
+.cn-decomp-card {
+  background: var(--surface,#141720); border: 1px solid var(--border,#252a3a);
+  border-radius: 12px; padding: 12px 14px;
+}
+.cn-decomp-card.ok  { border-color: rgba(34,217,138,0.25); }
+.cn-decomp-card.bad { border-color: rgba(255,77,109,0.3); }
+.cn-decomp-cat {
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--text-dim,#8089a8); margin-bottom: 8px;
+}
+.cn-decomp-list {
+  list-style: none; padding: 0; margin: 0 0 8px 0; font-size: 12px;
+}
+.cn-decomp-list li {
+  display: flex; justify-content: space-between; padding: 4px 0;
+  border-bottom: 1px dashed rgba(255,255,255,0.04);
+  color: var(--text,#e4e8f5);
+}
+.cn-decomp-list li:last-child { border-bottom: none; }
+.cn-decomp-list .pos { color: var(--green,#22d98a); font-family: 'DM Mono', monospace; font-size: 11px; }
+.cn-decomp-list .neg { color: #ff4d6d; font-family: 'DM Mono', monospace; font-size: 11px; }
+.cn-decomp-subtotal {
+  font-size: 11px; color: var(--text-dim,#8089a8); padding-top: 6px;
+  border-top: 1px solid var(--border,#252a3a); margin-top: 4px;
+}
+.cn-decomp-subtotal b { color: var(--text,#e4e8f5); font-family: 'DM Mono', monospace; }
+.cn-decomp-total {
+  display: flex; justify-content: space-between; align-items: center;
+  background: linear-gradient(135deg, rgba(230,62,109,0.08), rgba(230,62,109,0.02));
+  border: 1px solid var(--accent,#e63e6d); border-radius: 12px;
+  padding: 14px 18px; margin-bottom: 18px;
+}
+.cn-decomp-total-label {
+  font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 2px;
+  color: var(--accent,#e63e6d);
+}
+.cn-decomp-total-value {
+  font-size: 22px; font-weight: 800; color: var(--text,#e4e8f5);
+  font-family: 'DM Mono', monospace;
+}
 </style>
 
 <div id="conciliacaoPage">
@@ -226,8 +282,77 @@ function cnRenderEmpty(titulo, msg) {
 function cnRenderTudo() {
   cnRenderMonthBar();
   cnRenderKpis();
+  cnRenderDecomposicao();
   cnRenderFiltros();
   cnRenderTabela();
+}
+
+// Sub-fatia 7.3: decomposição do Realizado (componentes da aba `Extrato Vero`).
+// Mostra os componentes agrupados por categoria com soma + total realizado.
+function cnRenderDecomposicao() {
+  var alvo = document.getElementById('cn-decomposicao');
+  if (!alvo) {
+    // Cria container abaixo dos KPIs na 1ª renderização
+    var kp = document.getElementById('cn-kpis');
+    alvo = document.createElement('div');
+    alvo.id = 'cn-decomposicao';
+    kp.parentNode.insertBefore(alvo, document.getElementById('cn-filters'));
+  }
+  var ag = cnDados.agregadosExtrato;
+  if (!ag || !ag.componentes || !ag.componentes.length) {
+    alvo.innerHTML = '';
+    alvo.style.display = 'none';
+    return;
+  }
+
+  var grupos = { BASE: [], BONIFICACAO: [], AJUSTE: [], DESCONTO: [], EXTRA: [] };
+  ag.componentes.forEach(function(comp) {
+    if (grupos[comp.categoria]) grupos[comp.categoria].push(comp);
+  });
+
+  var GRUPO_LABELS = {
+    BASE:        'Base (instalações)',
+    BONIFICACAO: 'Bonificações',
+    AJUSTE:      'Ajustes',
+    DESCONTO:    'Descontos',
+    EXTRA:       'Extras'
+  };
+
+  var html = '<div class="cn-decomp-grid">';
+  ['BASE', 'BONIFICACAO', 'AJUSTE', 'EXTRA', 'DESCONTO'].forEach(function(cat) {
+    var lista = grupos[cat];
+    if (!lista.length) return;
+    var subtotal = ag.categorias[cat] || 0;
+    var tone = (cat === 'DESCONTO') ? 'bad' : (subtotal > 0 ? 'ok' : '');
+    html += '<div class="cn-decomp-card ' + tone + '">';
+    html += '<div class="cn-decomp-cat">' + cnHtml(GRUPO_LABELS[cat]) + '</div>';
+    html += '<ul class="cn-decomp-list">';
+    lista.forEach(function(c) {
+      var v = c.valor;
+      var cls = v >= 0 ? 'pos' : 'neg';
+      html += '<li><span>' + cnHtml(c.label) + '</span><span class="' + cls + '">' +
+        (v >= 0 ? '+' : '') + cnBRL(v) + '</span></li>';
+    });
+    html += '</ul>';
+    html += '<div class="cn-decomp-subtotal">Subtotal: <b>' + (subtotal >= 0 ? '+' : '') + cnBRL(subtotal) + '</b></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  if (ag.realizadoTotal != null) {
+    html += '<div class="cn-decomp-total">' +
+      '<span class="cn-decomp-total-label">REALIZADO TOTAL DA VERO</span>' +
+      '<span class="cn-decomp-total-value">' + cnBRL(ag.realizadoTotal) + '</span>' +
+    '</div>';
+  }
+
+  alvo.innerHTML =
+    '<div class="cn-section-title-row">' +
+      '<div class="cn-section-title-block">Decomposição do Realizado</div>' +
+      '<div class="cn-section-hint">Componentes do extrato fechado da Vero (RESUMO COMPLETO)</div>' +
+    '</div>' +
+    html;
+  alvo.style.display = '';
 }
 
 function cnRenderMonthBar() {

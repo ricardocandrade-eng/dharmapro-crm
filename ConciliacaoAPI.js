@@ -135,13 +135,19 @@ function getConciliacaoDados(mes) {
     // Ordena por |diff| desc — divergências em cima
     linhas.sort(function(a, b) { return Math.abs(b.diff) - Math.abs(a.diff); });
 
+    // Sub-fatia 7.3: agregados mensais da aba `Extrato Vero` (componentes do
+    // Realizado — instBL/Móvel/Adimplência/Bônus − Descontos). Renderizados
+    // numa seção própria no frontend (decomposição §8.3).
+    var agregadosMes = _conciliacaoLerExtratoVero_(ss, mesAtivo);
+
     var resultado = {
       ok: true,
       vazio: false,
       mesesDisponiveis: mesesDisponiveis,
       mesAtivo: mesAtivo,
       kpis: kpis,
-      linhas: linhas
+      linhas: linhas,
+      agregadosExtrato: agregadosMes
     };
 
     try {
@@ -165,6 +171,54 @@ function _limparCacheConciliacao_(mes) {
     cache.remove(CONFIG.CACHE_PREFIX + 'conciliacao_v1_auto');
     if (mes) cache.remove(CONFIG.CACHE_PREFIX + 'conciliacao_v1_' + mes);
   } catch (e) {}
+}
+
+// Lê os agregados do mês na aba `Extrato Vero` (Fase 7.3). Devolve null se
+// a aba não existe ou não tem dados do mês. Schema: MES_REF | COMPONENTE |
+// VALOR | SINAL | CATEGORIA | APLICADO_EM. Agrupa por categoria pro frontend.
+function _conciliacaoLerExtratoVero_(ss, mes) {
+  try {
+    var sheet = ss.getSheetByName('Extrato Vero');
+    if (!sheet) return null;
+    var last = sheet.getLastRow();
+    if (last < 2) return null;
+    var raw = sheet.getRange(2, 1, last - 1, 6).getValues();
+
+    var componentes = [];
+    var categorias = { BASE: 0, BONIFICACAO: 0, AJUSTE: 0, DESCONTO: 0, EXTRA: 0 };
+    var realizadoTotal = null;
+    var aplicadoEm = '';
+
+    raw.forEach(function(row) {
+      var m = String(row[0] || '').trim();
+      if (m !== mes) return;
+      var label = String(row[1] || '');
+      var valor = Number(row[2] || 0);
+      var sinal = String(row[3] || '').trim();
+      var categoria = String(row[4] || '').trim();
+      var aplic = String(row[5] || '').trim();
+      if (aplic && aplic > aplicadoEm) aplicadoEm = aplic;
+
+      if (categoria === 'TOTAL') {
+        realizadoTotal = valor;
+        return;
+      }
+      componentes.push({ label: label, valor: valor, sinal: sinal, categoria: categoria });
+      if (categorias[categoria] != null) categorias[categoria] += valor;
+    });
+
+    if (!componentes.length && realizadoTotal == null) return null;
+    return {
+      mes: mes,
+      componentes: componentes,
+      categorias: categorias,
+      realizadoTotal: realizadoTotal,
+      aplicadoEm: aplicadoEm
+    };
+  } catch (e) {
+    Logger.log('_conciliacaoLerExtratoVero_ erro: ' + e.message);
+    return null;
+  }
 }
 
 // Normaliza MES_REF (col A). Aceita string "YYYY-MM" (esperado) ou Date

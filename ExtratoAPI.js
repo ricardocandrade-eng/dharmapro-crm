@@ -215,6 +215,14 @@ function aplicarExtratoMensal(payload, opts) {
       resBdChurn = _aplicarBdChurnEm1Vendas_(payload.bdChurn, sheet, c, n, crmContratos);
     }
 
+    // ── 6.d. Sub-fatia 7.3: materializa agregados mensais (Extrato Vero) ──
+    // Componentes do Realizado por mês: instBL, móvel, adimplência, bônus,
+    // descontos (churn/inadimp/susp/estorno). Spec §8.3 do roadmap.
+    var resAgregados = null;
+    if (payload.agregadosResumo) {
+      resAgregados = _materializarExtratoVero_(ss, mes, payload.agregadosResumo, quandoStr);
+    }
+
     // ── 7. Marca idempotência ──
     var registro = {
       mes: mes,
@@ -224,7 +232,8 @@ function aplicarExtratoMensal(payload, opts) {
       semMatchNoCRM: semMatchNoCRM.length,
       divergencias: divergencias.length,
       conciliacao: resConciliacao,
-      bdChurn: resBdChurn
+      bdChurn: resBdChurn,
+      agregados: resAgregados
     };
     PropertiesService.getScriptProperties().setProperty('EXTRATO_VERO_PROCESSADO_' + mes, JSON.stringify(registro));
 
@@ -242,6 +251,7 @@ function aplicarExtratoMensal(payload, opts) {
       divergenciasAmostra: divergencias.slice(0, 20),
       conciliacao: resConciliacao,
       bdChurn: resBdChurn,
+      agregados: resAgregados,
       registro: registro
     };
   } catch (e) {
@@ -297,6 +307,135 @@ var EXTRATO_CONCILIACAO_HEADERS = [
   'COD_PLANO', 'PONTOS_VENDA', 'PONTOS_MOVEL', 'FATOR_APLICADO',
   'RECEITA_PREVISTA', 'RECEITA_REALIZADA', 'DIFF', 'PCT', 'FLAG', 'APLICADO_EM'
 ];
+
+// ─── Sub-fatia 7.3 (§8.3) — agregados mensais em aba `Extrato Vero` ────────
+// Snapshot dos componentes do Realizado por mês. Wipe-and-replace POR MÊS.
+// Permite ao Painel Q3 (Conciliação) mostrar a tabela do §8.3 — decomposição
+// do Realizado total: Pontos×Fator + Móvel + Adimplência + Bônus − Descontos.
+//
+// Os valores vêm direto do RESUMO COMPLETO parseado client-side (epDados).
+// O backend não recalcula nada — só materializa pra o Q3 ler depois.
+
+var EXTRATO_VERO_SHEET = 'Extrato Vero';
+var EXTRATO_VERO_HEADERS = ['MES_REF', 'COMPONENTE', 'VALOR', 'SINAL', 'CATEGORIA', 'APLICADO_EM'];
+
+// Definição dos componentes: label legível, campo no payload, sinal (positivo
+// soma no Realizado / negativo desconta), categoria pra agrupamento visual.
+var EXTRATO_VERO_COMPONENTES = [
+  { campo: 'instBL',       label: 'Instalações BL',         sinal: '+', categoria: 'BASE' },
+  { campo: 'movel',        label: 'Móvel',                  sinal: '+', categoria: 'BASE' },
+  { campo: 'adimplencia',  label: 'Adimplência M-3',        sinal: '+', categoria: 'BONIFICACAO' },
+  { campo: 'bonusQuin',    label: 'Bônus Quinzenal',        sinal: '+', categoria: 'BONIFICACAO' },
+  { campo: 'bonusExtra',   label: 'Bônus Extra',            sinal: '+', categoria: 'BONIFICACAO' },
+  { campo: 'multaCanc',    label: 'Multa Cancelamento',     sinal: '+', categoria: 'AJUSTE' },
+  { campo: 'descChurn',    label: 'Desconto Churn',         sinal: '-', categoria: 'DESCONTO' },
+  { campo: 'descInadimp',  label: 'Desconto Inadimplentes', sinal: '-', categoria: 'DESCONTO' },
+  { campo: 'susp120',      label: 'Suspensos 120 dias',     sinal: '-', categoria: 'DESCONTO' },
+  { campo: 'estornoMovel', label: 'Estorno Móvel Combo',    sinal: '-', categoria: 'DESCONTO' },
+  { campo: 'descHUB',      label: 'Desconto HUB',           sinal: '-', categoria: 'DESCONTO' },
+  { campo: 'b2bReal',      label: 'B2B Realizado',          sinal: '+', categoria: 'EXTRA' },
+  { campo: 'realizado',    label: 'REALIZADO TOTAL',        sinal: '=', categoria: 'TOTAL' }
+];
+
+function _materializarExtratoVero_(ss, mes, agregados, quandoStr) {
+  try {
+    var sheet = ss.getSheetByName(EXTRATO_VERO_SHEET);
+    if (!sheet) {
+      sheet = ss.insertSheet(EXTRATO_VERO_SHEET);
+      sheet.getRange(1, 1, 1, EXTRATO_VERO_HEADERS.length).setValues([EXTRATO_VERO_HEADERS]);
+      sheet.setFrozenRows(1);
+      sheet.getRange(1, 1, 1, EXTRATO_VERO_HEADERS.length)
+        .setFontWeight('bold').setBackground('#1a1e2a').setFontColor('#e4e8f5');
+      try {
+        sheet.setColumnWidth(1, 80);   // MES_REF
+        sheet.setColumnWidth(2, 220);  // COMPONENTE
+        sheet.setColumnWidth(3, 120);  // VALOR
+        sheet.setColumnWidth(4, 60);   // SINAL
+        sheet.setColumnWidth(5, 130);  // CATEGORIA
+        sheet.setColumnWidth(6, 130);  // APLICADO_EM
+      } catch (e) {}
+    } else {
+      sheet.getRange(1, 1, 1, EXTRATO_VERO_HEADERS.length).setValues([EXTRATO_VERO_HEADERS]);
+    }
+
+    // Texto puro nas cols MES_REF e APLICADO_EM (evita auto-convert Date)
+    try {
+      var maxRowsForFmt = Math.max(sheet.getMaxRows(), 2);
+      sheet.getRange(1, 1, maxRowsForFmt, 1).setNumberFormat('@');
+      sheet.getRange(1, 6, maxRowsForFmt, 1).setNumberFormat('@');
+    } catch (e) {}
+
+    // Wipe-and-replace por MES_REF
+    var last = sheet.getLastRow();
+    var removidas = 0;
+    if (last >= 2) {
+      var colMes = sheet.getRange(2, 1, last - 1, 1).getValues();
+      var linhasARemover = [];
+      for (var i = 0; i < colMes.length; i++) {
+        if (String(colMes[i][0] || '').trim() === mes) linhasARemover.push(i + 2);
+      }
+      linhasARemover.reverse();
+      var j = 0;
+      while (j < linhasARemover.length) {
+        var fim = linhasARemover[j];
+        var inicio = fim;
+        var k = j + 1;
+        while (k < linhasARemover.length && linhasARemover[k] === inicio - 1) {
+          inicio = linhasARemover[k]; k++;
+        }
+        sheet.deleteRows(inicio, fim - inicio + 1);
+        removidas += fim - inicio + 1;
+        j = k;
+      }
+    }
+
+    // Insere componentes do mês
+    var novasLinhas = [];
+    var totaisCat = { BASE: 0, BONIFICACAO: 0, AJUSTE: 0, DESCONTO: 0, EXTRA: 0 };
+    EXTRATO_VERO_COMPONENTES.forEach(function(comp) {
+      var v = Number(agregados[comp.campo] || 0);
+      if (comp.categoria === 'TOTAL') {
+        novasLinhas.push([mes, comp.label, v, comp.sinal, comp.categoria, quandoStr]);
+        return;
+      }
+      // Componentes zerados não viram linha (mantém a aba limpa). Negativos
+      // ficam como valor positivo + sinal '-' na col D.
+      var abs = Math.abs(v);
+      if (abs < 0.005) return;
+      var valorGravado = comp.sinal === '-' ? -abs : abs;
+      novasLinhas.push([mes, comp.label, valorGravado, comp.sinal, comp.categoria, quandoStr]);
+      if (totaisCat[comp.categoria] != null) {
+        totaisCat[comp.categoria] += (comp.sinal === '-' ? -abs : abs);
+      }
+    });
+
+    var inseridas = 0;
+    if (novasLinhas.length) {
+      var startRow = sheet.getLastRow() + 1;
+      sheet.getRange(startRow, 1, novasLinhas.length, EXTRATO_VERO_HEADERS.length).setValues(novasLinhas);
+      inseridas = novasLinhas.length;
+      try {
+        sheet.getRange(startRow, 3, novasLinhas.length, 1).setNumberFormat('R$ #,##0.00');
+      } catch (e) {}
+    }
+
+    Logger.log('_materializarExtratoVero_ [' + mes + ']: removidas=' + removidas + ' inseridas=' + inseridas +
+      ' | base=' + totaisCat.BASE.toFixed(2) +
+      ' bonif=' + totaisCat.BONIFICACAO.toFixed(2) +
+      ' desc=' + totaisCat.DESCONTO.toFixed(2) +
+      ' realizado=' + (agregados.realizado || 0));
+
+    return {
+      sheet: EXTRATO_VERO_SHEET, mes: mes,
+      removidas: removidas, inseridas: inseridas,
+      totais: totaisCat,
+      realizadoTotal: Number(agregados.realizado || 0)
+    };
+  } catch (e) {
+    Logger.log('_materializarExtratoVero_ ERRO: ' + e.message + ' | ' + e.stack);
+    return { erro: e.message };
+  }
+}
 
 // ─── Sub-fatia 7.4 (§5 BD col) — refina STATUS_CHURN via aba BD_CHURN ──────
 // Hoje a SAFRA (Fase 4) colapsa STATUS_CHURN em CANCELADO_COMERCIAL pra tudo

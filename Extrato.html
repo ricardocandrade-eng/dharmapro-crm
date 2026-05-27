@@ -1968,6 +1968,25 @@ function epAplicarAoCRM(){
       contractColIdx: typeof d._sheets.bdChurn.contractColIdx === 'number' ? d._sheets.bdChurn.contractColIdx : 0
     };
   }
+  // Fase 7.3: agregados do mês (componentes do Realizado) — já parseados do
+  // RESUMO COMPLETO. Backend materializa em aba `Extrato Vero` (snapshot mensal).
+  _epAplicarPayload.agregadosResumo = {
+    instBL:       Number(d.instBL || 0),
+    movel:        Number(d.movel || 0),
+    adimplencia:  Number(d.adimplencia || 0),
+    bonusQuin:    Number(d.bonusQuin || 0),
+    bonusExtra:   Number(d.bonusExtra || 0),
+    descChurn:    Number(d.descChurn || 0),
+    multaCanc:    Number(d.multaCanc || 0),
+    descInadimp:  Number(d.descInadimp || 0),
+    susp120:      Number(d.susp120 || 0),
+    estornoMovel: Number(d.estornoMovel || 0),
+    descHUB:      Number(d.descHUB || 0),
+    realizado:    Number(d.realizado || 0),
+    realizadoUN:  Number(d.realizadoUN || 0),
+    b2bReal:      Number(d.b2bReal || 0),
+    b2cReal:      Number(d.b2cReal || 0)
+  };
 
   _epAbrirModalAplicar();
   _epRenderModalLoading('Calculando preview do extrato ' + epMesAtual + '…');
@@ -2145,6 +2164,14 @@ function _epAplicarConfirmar(){
       if(res.bdChurn && res.bdChurn.matched != null){
         if(res.bdChurn.vol > 0)   kpis.push({ label: 'Churn voluntário', value: res.bdChurn.vol, tone: 'warn' });
         if(res.bdChurn.invol > 0) kpis.push({ label: 'Churn involuntário', value: res.bdChurn.invol, tone: 'bad' });
+      }
+      // Sub-fatia 7.3: agregados materializados em Extrato Vero
+      if(res.agregados && res.agregados.realizadoTotal != null){
+        kpis.push({ label: 'Realizado total', value: epBRL(res.agregados.realizadoTotal), tone: 'ok' });
+        var totais = res.agregados.totais || {};
+        if(totais.DESCONTO && totais.DESCONTO !== 0) {
+          kpis.push({ label: 'Descontos', value: epBRL(totais.DESCONTO), tone: 'warn' });
+        }
       }
       var subMsg = 'Extrato ' + epMesLabel(res.mes) + ' aplicado em ' +
         (res.registro && res.registro.quando ? res.registro.quando : 'agora') + '.';
