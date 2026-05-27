@@ -103,6 +103,14 @@ function aplicarExtratoMensal(payload, opts) {
     var crmFatorAtual = sheet.getRange(3, c.FATOR_APLICADO + 1, n, 1).getValues();
     var crmReceitaRealAtual = sheet.getRange(3, c.RECEITA_REALIZADA + 1, n, 1).getValues();
     var crmMesRefAtual = sheet.getRange(3, c.MES_REF_VENDA + 1, n, 1).getValues();
+    // Cols extras p/ alimentar a aba Conciliacao Mensal na confirmação
+    var crmCliente = sheet.getRange(3, c.CLIENTE + 1, n, 1).getValues();
+    var crmPlano = sheet.getRange(3, c.PLANO + 1, n, 1).getValues();
+    var crmProduto = sheet.getRange(3, c.PRODUTO + 1, n, 1).getValues();
+    var crmSegmentacao = sheet.getRange(3, c.SEGMENTACAO + 1, n, 1).getValues();
+    var crmCodPlano = sheet.getRange(3, c.COD_PLANO + 1, n, 1).getValues();
+    var crmPontosVenda = sheet.getRange(3, c.PONTOS_VENDA + 1, n, 1).getValues();
+    var crmPontosMovel = sheet.getRange(3, c.PONTOS_MOVEL + 1, n, 1).getValues();
 
     // ── 4. Match + montar plano de escrita ──
     var matched = 0, semMatchNoCRM = [], divergencias = [];
@@ -131,7 +139,17 @@ function aplicarExtratoMensal(payload, opts) {
         }
       }
 
-      plano.push({ linha: i + 3, contrato: idCRM, fator: fator, receitaReal: receitaReal, mes: mes });
+      plano.push({
+        linha: i + 3, contrato: idCRM, fator: fator, receitaReal: receitaReal, mes: mes,
+        previsto: previsto,
+        cliente: String(crmCliente[i][0] || ''),
+        planoNome: String(crmPlano[i][0] || ''),
+        produto: String(crmProduto[i][0] || ''),
+        segmentacao: String(crmSegmentacao[i][0] || ''),
+        codPlano: String(crmCodPlano[i][0] || ''),
+        pontosVenda: Number(crmPontosVenda[i][0] || 0),
+        pontosMovel: Number(crmPontosMovel[i][0] || 0)
+      });
       matched++;
     }
 
@@ -178,6 +196,10 @@ function aplicarExtratoMensal(payload, opts) {
     sheet.getRange(3, c.RECEITA_REALIZADA + 1, n, 1).setValues(receitaOut);
     sheet.getRange(3, c.MES_REF_VENDA + 1, n, 1).setValues(mesOut);
 
+    // ── 6.b. Materializa aba `Conciliacao Mensal` (sub-fatia 7.2, §8.3) ──
+    var quandoStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+    var resConciliacao = _materializarConciliacaoMensal_(ss, mes, plano, quandoStr);
+
     // ── 7. Marca idempotência ──
     var registro = {
       mes: mes,
@@ -185,7 +207,8 @@ function aplicarExtratoMensal(payload, opts) {
       matched: matched,
       contratosNoExtrato: contratos.length,
       semMatchNoCRM: semMatchNoCRM.length,
-      divergencias: divergencias.length
+      divergencias: divergencias.length,
+      conciliacao: resConciliacao
     };
     PropertiesService.getScriptProperties().setProperty('EXTRATO_VERO_PROCESSADO_' + mes, JSON.stringify(registro));
 
@@ -200,6 +223,7 @@ function aplicarExtratoMensal(payload, opts) {
       semMatchNoCRMAmostra: semMatchNoCRM.slice(0, 20),
       divergencias: divergencias.length,
       divergenciasAmostra: divergencias.slice(0, 20),
+      conciliacao: resConciliacao,
       registro: registro
     };
   } catch (e) {
@@ -241,4 +265,134 @@ function _extratoNumOrNull_(v) {
   var s = String(v).replace(/R\$\s*/i, '').replace(/\s+/g, '').replace(/\./g, '').replace(/,/g, '.');
   var n = parseFloat(s);
   return isFinite(n) ? n : null;
+}
+
+// ─── Sub-fatia 7.2 (§8.3) — aba `Conciliacao Mensal` ────────────────────────
+// Snapshot do cruzamento RECEITA_PREVISTA × RECEITA_REALIZADA por contrato,
+// com flag de divergência. Wipe-and-replace POR MÊS: remove só as linhas do
+// mes alvo e re-insere. Outros meses ficam intactos. Permite histórico
+// acumulado mês a mês sem reprocessar tudo.
+
+var EXTRATO_CONCILIACAO_SHEET = 'Conciliacao Mensal';
+var EXTRATO_CONCILIACAO_HEADERS = [
+  'MES_REF', 'LINHA_CRM', 'CONTRATO', 'CLIENTE', 'PLANO', 'PRODUTO', 'SEGMENTACAO',
+  'COD_PLANO', 'PONTOS_VENDA', 'PONTOS_MOVEL', 'FATOR_APLICADO',
+  'RECEITA_PREVISTA', 'RECEITA_REALIZADA', 'DIFF', 'PCT', 'FLAG', 'APLICADO_EM'
+];
+
+function _materializarConciliacaoMensal_(ss, mes, plano, quandoStr) {
+  try {
+    var sheet = ss.getSheetByName(EXTRATO_CONCILIACAO_SHEET);
+    if (!sheet) {
+      sheet = ss.insertSheet(EXTRATO_CONCILIACAO_SHEET);
+      sheet.getRange(1, 1, 1, EXTRATO_CONCILIACAO_HEADERS.length).setValues([EXTRATO_CONCILIACAO_HEADERS]);
+      sheet.setFrozenRows(1);
+      sheet.getRange(1, 1, 1, EXTRATO_CONCILIACAO_HEADERS.length)
+        .setFontWeight('bold').setBackground('#1a1e2a').setFontColor('#e4e8f5');
+      // Larguras razoáveis
+      try {
+        sheet.setColumnWidth(1, 80);   // MES_REF
+        sheet.setColumnWidth(2, 80);   // LINHA_CRM
+        sheet.setColumnWidth(3, 100);  // CONTRATO
+        sheet.setColumnWidth(4, 200);  // CLIENTE
+        sheet.setColumnWidth(5, 260);  // PLANO
+        sheet.setColumnWidth(16, 110); // FLAG
+        sheet.setColumnWidth(17, 130); // APLICADO_EM
+      } catch (e) {}
+    } else {
+      // Garante headers atualizados (idempotente — caso schema mude na fase futura)
+      sheet.getRange(1, 1, 1, EXTRATO_CONCILIACAO_HEADERS.length).setValues([EXTRATO_CONCILIACAO_HEADERS]);
+    }
+
+    var last = sheet.getLastRow();
+    // Wipe-and-replace por MES_REF: lê col A das linhas existentes, identifica as do mês,
+    // e remove em blocos contíguos (de baixo pra cima pra não bagunçar índices).
+    var removidas = 0;
+    if (last >= 2) {
+      var colMes = sheet.getRange(2, 1, last - 1, 1).getValues();
+      // Identifica linhas a remover (1-based, na planilha)
+      var linhasARemover = [];
+      for (var i = 0; i < colMes.length; i++) {
+        if (String(colMes[i][0] || '').trim() === mes) linhasARemover.push(i + 2);
+      }
+      // Agrupa em ranges contíguos descendentes
+      linhasARemover.reverse();
+      var j = 0;
+      while (j < linhasARemover.length) {
+        var fim = linhasARemover[j];
+        var inicio = fim;
+        var k = j + 1;
+        while (k < linhasARemover.length && linhasARemover[k] === inicio - 1) {
+          inicio = linhasARemover[k];
+          k++;
+        }
+        sheet.deleteRows(inicio, fim - inicio + 1);
+        removidas += fim - inicio + 1;
+        j = k;
+      }
+    }
+
+    // Monta linhas novas
+    var novasLinhas = [];
+    var flagDist = { OK: 0, DIVERG_LEVE: 0, DIVERG_GRAVE: 0, SEM_PREVISTO: 0 };
+    plano.forEach(function(p) {
+      var previsto = Number(p.previsto || 0);
+      var real = Number(p.receitaReal || 0);
+      var diff = real - previsto;
+      var pct = previsto > 0 ? diff / previsto : null;
+      var flag;
+      if (previsto <= 0) flag = 'SEM_PREVISTO';
+      else if (Math.abs(pct) < 0.05) flag = 'OK';
+      else if (Math.abs(pct) < 0.20) flag = 'DIVERG_LEVE';
+      else flag = 'DIVERG_GRAVE';
+      flagDist[flag]++;
+
+      novasLinhas.push([
+        mes,
+        p.linha,
+        p.contrato,
+        p.cliente,
+        p.planoNome,
+        p.produto,
+        p.segmentacao,
+        p.codPlano,
+        p.pontosVenda || '',
+        p.pontosMovel || '',
+        p.fator != null ? p.fator : '',
+        previsto || '',
+        real || '',
+        diff,
+        pct != null ? pct : '',
+        flag,
+        quandoStr
+      ]);
+    });
+
+    var inseridas = 0;
+    if (novasLinhas.length) {
+      var startRow = sheet.getLastRow() + 1;
+      sheet.getRange(startRow, 1, novasLinhas.length, EXTRATO_CONCILIACAO_HEADERS.length).setValues(novasLinhas);
+      inseridas = novasLinhas.length;
+
+      // Formatação leve: pct % e R$ nas cols numéricas
+      try {
+        sheet.getRange(startRow, 11, novasLinhas.length, 1).setNumberFormat('0.000'); // fator
+        sheet.getRange(startRow, 12, novasLinhas.length, 3).setNumberFormat('R$ #,##0.00'); // previsto/realizado/diff
+        sheet.getRange(startRow, 15, novasLinhas.length, 1).setNumberFormat('+0.0%;-0.0%;0.0%'); // pct
+      } catch (e) {}
+    }
+
+    Logger.log('_materializarConciliacaoMensal_ [' + mes + ']: removidas=' + removidas + ' inseridas=' + inseridas +
+      ' | flags=' + JSON.stringify(flagDist));
+    return {
+      sheet: EXTRATO_CONCILIACAO_SHEET,
+      mes: mes,
+      removidas: removidas,
+      inseridas: inseridas,
+      flagDist: flagDist
+    };
+  } catch (e) {
+    Logger.log('_materializarConciliacaoMensal_ ERRO: ' + e.message + ' | ' + e.stack);
+    return { erro: e.message };
+  }
 }

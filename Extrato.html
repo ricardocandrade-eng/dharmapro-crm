@@ -2011,17 +2011,29 @@ function _epAplicarConfirmar(){
         console.error('[EP] aplicar erro:', res);
         return;
       }
+      var kpis = [
+        { label: 'Vendas atualizadas', value: res.escrito, tone: 'ok' },
+        { label: 'Contratos no extrato', value: res.contratosNoExtrato },
+        { label: 'Sem match no CRM', value: res.semMatchNoCRM, tone: res.semMatchNoCRM > 0 ? 'warn' : '' },
+        { label: 'Divergências (≥5%)', value: res.divergencias, tone: res.divergencias > 0 ? 'warn' : '' }
+      ];
+      // Sub-fatia 7.2: insumo da conciliação mensal (aba materializada)
+      if(res.conciliacao && res.conciliacao.flagDist){
+        var fd = res.conciliacao.flagDist;
+        kpis.push({ label: 'Conc. OK', value: fd.OK || 0, tone: 'ok' });
+        if((fd.DIVERG_LEVE || 0) > 0)  kpis.push({ label: 'Conc. leve (5-20%)', value: fd.DIVERG_LEVE, tone: 'warn' });
+        if((fd.DIVERG_GRAVE || 0) > 0) kpis.push({ label: 'Conc. grave (≥20%)', value: fd.DIVERG_GRAVE, tone: 'bad' });
+        if((fd.SEM_PREVISTO || 0) > 0) kpis.push({ label: 'Sem previsto', value: fd.SEM_PREVISTO, tone: 'warn' });
+      }
+      var subMsg = 'Extrato ' + epMesLabel(res.mes) + ' aplicado em ' +
+        (res.registro && res.registro.quando ? res.registro.quando : 'agora') + '.';
+      if(res.conciliacao && (res.conciliacao.inseridas != null)){
+        subMsg += ' Aba "Conciliacao Mensal": ' + res.conciliacao.inseridas + ' linhas atualizadas.';
+      }
       _epRenderModalResult('success',
         res.escrito + ' venda(s) atualizada(s) com sucesso',
-        'Extrato ' + epMesLabel(res.mes) + ' aplicado em ' + (res.registro && res.registro.quando ? res.registro.quando : 'agora') + '.',
-        {
-          kpis: [
-            { label: 'Vendas atualizadas', value: res.escrito, tone: 'ok' },
-            { label: 'Contratos no extrato', value: res.contratosNoExtrato },
-            { label: 'Sem match no CRM', value: res.semMatchNoCRM, tone: res.semMatchNoCRM > 0 ? 'warn' : '' },
-            { label: 'Divergências (≥5%)', value: res.divergencias, tone: res.divergencias > 0 ? 'warn' : '' }
-          ]
-        }
+        subMsg,
+        { kpis: kpis }
       );
       console.info('[EP] aplicado:', res);
     })
