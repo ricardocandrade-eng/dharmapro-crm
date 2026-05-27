@@ -127,7 +127,16 @@ function aplicarExtratoMensal(payload, opts) {
       var fator = info.fator;
       var receitaReal = info.totalPago;
 
+      // RECEITA_PREVISTA: usa o que está em 1-Vendas (BA=52). Se vazio (caso
+      // default hoje — não há job que popule), calcula retroativamente como
+      // (PONTOS_VENDA + PONTOS_MOVEL) × FATOR_APLICADO (§11.9). Garante que
+      // preview e aba materializada conciliem o mesmo número.
       var previsto = Number(crmPrevistas[i][0] || 0);
+      if (previsto <= 0 && fator != null) {
+        var pontosTotal = Number(crmPontosVenda[i][0] || 0) + Number(crmPontosMovel[i][0] || 0);
+        if (pontosTotal > 0) previsto = pontosTotal * Number(fator);
+      }
+
       if (previsto > 0 && receitaReal > 0) {
         var diff = receitaReal - previsto;
         var pctDiff = Math.abs(diff) / previsto;
@@ -305,6 +314,12 @@ function _materializarConciliacaoMensal_(ss, mes, plano, quandoStr) {
       sheet.getRange(1, 1, 1, EXTRATO_CONCILIACAO_HEADERS.length).setValues([EXTRATO_CONCILIACAO_HEADERS]);
     }
 
+    // Força col A (MES_REF) como texto puro pra evitar auto-convert "2026-04" → Date
+    try {
+      var maxRowsForFmt = Math.max(sheet.getMaxRows(), 2);
+      sheet.getRange(1, 1, maxRowsForFmt, 1).setNumberFormat('@');
+    } catch (e) {}
+
     var last = sheet.getLastRow();
     // Wipe-and-replace por MES_REF: lê col A das linhas existentes, identifica as do mês,
     // e remove em blocos contíguos (de baixo pra cima pra não bagunçar índices).
@@ -337,7 +352,15 @@ function _materializarConciliacaoMensal_(ss, mes, plano, quandoStr) {
     var novasLinhas = [];
     var flagDist = { OK: 0, DIVERG_LEVE: 0, DIVERG_GRAVE: 0, SEM_PREVISTO: 0 };
     plano.forEach(function(p) {
+      // RECEITA_PREVISTA: prioriza valor já gravado em 1-Vendas (BA=52). Se vazio
+      // (que é o caso default hoje — não há job que popule a col), calcula
+      // retroativamente: (PONTOS_VENDA + PONTOS_MOVEL) × FATOR_APLICADO. Como
+      // estamos materializando POR MÊS APLICADO, o fator é conhecido. §11.9.
       var previsto = Number(p.previsto || 0);
+      if (previsto <= 0 && p.fator != null) {
+        var pontosTotal = Number(p.pontosVenda || 0) + Number(p.pontosMovel || 0);
+        if (pontosTotal > 0) previsto = pontosTotal * Number(p.fator);
+      }
       var real = Number(p.receitaReal || 0);
       var diff = real - previsto;
       var pct = previsto > 0 ? diff / previsto : null;
