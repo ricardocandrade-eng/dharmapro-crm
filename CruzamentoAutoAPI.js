@@ -106,8 +106,8 @@ function _importarRelatorioVero_(opts) {
     tempFileId = _xlsxParaSheetsTemp_(anexo.blob, anexo.nome);
     var dados = _extrairAbasVero_(tempFileId);
 
-    if (!dados.vendas.length && !dados.instalacoes.length && !dados.cancelamentos.length && !dados.movel.length) {
-      return { sucesso: false, mensagem: 'Anexo XLSX nao tem abas conhecidas (VENDAS, INSTALACOES, CANCELAMENTO/CHURN, MOVEL).' };
+    if (!dados.vendas.length && !dados.instalacoes.length && !dados.cancelamentos.length && !dados.movel.length && !dados.safra.length) {
+      return { sucesso: false, mensagem: 'Anexo XLSX nao tem abas conhecidas (VENDAS, INSTALACOES, CANCELAMENTO/CHURN, MOVEL, SAFRA).' };
     }
 
     var resCRM = getContratosParaCruzamento();
@@ -121,6 +121,11 @@ function _importarRelatorioVero_(opts) {
     // So o emoji VERO_STATUS e' gravado automaticamente (acima).
     var correcoes = _cruzComputarCorrecoesServer_(dados, crmRows);
 
+    // Fase 4 (espelho diario SAFRA): atualiza AGING_DIAS, STATUS_ADIMPL_90D,
+    // STATUS_SUSPENSAO, STATUS_CHURN em '1 - Vendas' a partir do agregado da
+    // aba SAFRA. Idempotente; contratos do CRM sem linha na SAFRA ficam intactos.
+    var resSafra = _aplicarSafraEm1Vendas_(dados.safra || []);
+
     props.setProperty(CRUZ_VERO_PROP_LAST, threadId);
 
     return {
@@ -133,12 +138,14 @@ function _importarRelatorioVero_(opts) {
         instalacoes: dados.instalacoes.length,
         cancelamentos: dados.cancelamentos.length,
         movel: dados.movel.length,
+        safra: (dados.safra || []).length,
         crmContratos: crmRows.length,
         marcados: consolidacao.resultados.length,
         verde_instalacoes: consolidacao.contagemInstalacoes,
         verde_vendas: consolidacao.contagemVendas,
         amarelos: consolidacao.contagemAmarelos,
-        correcoes: correcoes.length
+        correcoes: correcoes.length,
+        safra_aplicada: resSafra || null
       },
       atualizadosNoSheet: resSalvar && resSalvar.atualizados || 0,
       // Dados detalhados pro frontend desenhar o kanban + persistir (localStorage)
@@ -262,7 +269,8 @@ function _extrairAbasVero_(fileId) {
                      _lerAbaVero_(mapaAbas, ['CANCELAMENTO', 'CANCELAMENTOS']),
                      _lerAbaVero_(mapaAbas, ['CHURN'])
                    ]),
-    movel:         _lerAbaVero_(mapaAbas, ['MOVEL'])
+    movel:         _lerAbaVero_(mapaAbas, ['MOVEL']),
+    safra:         _lerAbaVero_(mapaAbas, ['SAFRA'])
   };
 }
 
@@ -629,4 +637,140 @@ function _cruzExtrairCodigoPlano_(s) {
 function _cruzPlanoCore_(s) {
   if (!s) return '';
   return String(s).replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/i, '').trim();
+}
+
+// ─── FASE 4 (Módulo Financeiro §7.1, §5) — Espelho diário SAFRA ────────────
+// A aba SAFRA do espelho diário lista uma linha POR FATURA (não por contrato).
+// O mesmo contrato pode aparecer várias vezes (1 por mês de competência).
+// Pra cada contrato em `1 - Vendas` cujo CONTRATO (col E) bate com a SAFRA,
+// gravamos 4 campos econômicos live:
+//   - AGING_DIAS (BH=59):           max(DIAS ATRASO) entre faturas EM ABERTO (PAGAMENTO=='')
+//   - STATUS_ADIMPL_90D (BC=54):    INADIMPLENTE_90D se aging>=90; senão EM_DIA
+//   - STATUS_SUSPENSAO (BE=56):     NORMAL / SUSPENSO — derivado de STATUS_CONTRATO
+//   - STATUS_CHURN (BD=55):         ATIVO / CANCELADO_COMERCIAL — derivado idem
+// Contratos do CRM SEM linha na SAFRA são preservados (não escreve por cima).
+// Idempotente: rodar 2x sobrescreve com mesmo valor.
+
+function _consolidarSafraServer_(safra) {
+  var porContrato = {};
+  var statusContratoDist = {};
+  (safra || []).forEach(function(row) {
+    var idBruto = row.CONTRATO || row.Contrato || row.ID_CONTRATO || '';
+    var id = _cruzNormIdServer_(idBruto);
+    if (!id) return;
+    var statusContrato = String(row.STATUS_CONTRATO || row.Status_Contrato || '').toUpperCase().trim();
+    statusContratoDist[statusContrato] = (statusContratoDist[statusContrato] || 0) + 1;
+
+    var diasAtraso = _safraParseInt_(row['DIAS ATRASO'] || row.DIAS_ATRASO || row['DIAS_ATRASO']);
+    var pagamento = String(row.PAGAMENTO || '').trim();
+    var emAberto = !pagamento;
+
+    if (!porContrato[id]) {
+      porContrato[id] = {
+        aging_dias: 0,
+        status_contrato: statusContrato, // último visto; majoritário se houver divergência
+        status_dist: {}
+      };
+    }
+    var bucket = porContrato[id];
+    if (emAberto && diasAtraso > bucket.aging_dias) bucket.aging_dias = diasAtraso;
+    bucket.status_dist[statusContrato] = (bucket.status_dist[statusContrato] || 0) + 1;
+  });
+
+  // Resolve o STATUS_CONTRATO de cada contrato como o mais frequente entre suas linhas.
+  Object.keys(porContrato).forEach(function(id) {
+    var dist = porContrato[id].status_dist;
+    var winner = ''; var max = -1;
+    Object.keys(dist).forEach(function(k) {
+      if (dist[k] > max) { winner = k; max = dist[k]; }
+    });
+    porContrato[id].status_contrato = winner;
+    delete porContrato[id].status_dist;
+
+    // Deriva os 4 campos finais.
+    var aging = porContrato[id].aging_dias;
+    porContrato[id].status_adimpl_90d = aging >= 90 ? 'INADIMPLENTE_90D' : 'EM_DIA';
+    var mapeado = _mapearStatusContrato_(winner);
+    porContrato[id].status_suspensao = mapeado.suspensao;
+    porContrato[id].status_churn = mapeado.churn;
+  });
+
+  return { porContrato: porContrato, statusContratoDist: statusContratoDist };
+}
+
+function _safraParseInt_(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  var n = parseInt(String(v).replace(/[^\d-]/g, ''), 10);
+  return isNaN(n) ? 0 : n;
+}
+
+// Mapeia o STATUS_CONTRATO da SAFRA pros enums de STATUS_SUSPENSAO + STATUS_CHURN
+// (§5). Defensivo: status desconhecido vira ATIVO/NORMAL + log. Refinamento mais
+// fino (CHURN_VOLUNTARIO vs INVOLUNTARIO) virá pelo extrato mensal (Fase 7).
+function _mapearStatusContrato_(statusContrato) {
+  var s = String(statusContrato || '').toUpperCase().trim();
+  if (!s) return { suspensao: '', churn: '' };
+  if (s.indexOf('HABILITAD') > -1) return { suspensao: 'NORMAL', churn: 'ATIVO' };
+  if (s.indexOf('SUSPENS') > -1) return { suspensao: 'SUSPENSO', churn: 'ATIVO' };
+  if (s.indexOf('CANCEL') > -1 || s.indexOf('CHURN') > -1 || s.indexOf('INATIV') > -1 || s.indexOf('DESATIV') > -1) {
+    return { suspensao: 'NORMAL', churn: 'CANCELADO_COMERCIAL' };
+  }
+  // Status desconhecido: log e default ATIVO/NORMAL pra não causar regressão.
+  Logger.log('_mapearStatusContrato_: status desconhecido "' + statusContrato + '" — tratando como ATIVO/NORMAL.');
+  return { suspensao: 'NORMAL', churn: 'ATIVO' };
+}
+
+// Escrita em batch nas 4 cols (BC=54, BD=55, BE=56, BH=59) das linhas de
+// `1 - Vendas` cujo CONTRATO (col E=4) está no consolidado da SAFRA.
+function _aplicarSafraEm1Vendas_(safra) {
+  if (!safra || !safra.length) {
+    Logger.log('_aplicarSafraEm1Vendas_: SAFRA vazia, nada a fazer.');
+    return { contratos_safra: 0, contratos_match: 0, inadimplentes_90d: 0, max_aging: 0 };
+  }
+
+  var consolidacao = _consolidarSafraServer_(safra);
+  var porContrato = consolidacao.porContrato;
+
+  var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  if (!sheet) { Logger.log('_aplicarSafraEm1Vendas_: aba "' + CONFIG.SHEET_NAME + '" não encontrada.'); return null; }
+  var last = sheet.getLastRow();
+  if (last < 3) return { contratos_safra: Object.keys(porContrato).length, contratos_match: 0, inadimplentes_90d: 0, max_aging: 0 };
+
+  var n = last - 2;
+  var c = CONFIG.COLUNAS;
+  // Lê só a col CONTRATO (E=4) + as 4 cols-alvo (BC=54, BD=55, BE=56, BH=59) — leitura
+  // econômica: 5 ranges pequenos em vez de getValues do bloco inteiro de 64 cols.
+  var contratos = sheet.getRange(3, c.CONTRATO + 1, n, 1).getValues();
+  var statusAdimpl = sheet.getRange(3, c.STATUS_ADIMPL_90D + 1, n, 1).getValues();
+  var statusChurn = sheet.getRange(3, c.STATUS_CHURN + 1, n, 1).getValues();
+  var statusSusp = sheet.getRange(3, c.STATUS_SUSPENSAO + 1, n, 1).getValues();
+  var aging = sheet.getRange(3, c.AGING_DIAS + 1, n, 1).getValues();
+
+  var contagem = { contratos_safra: Object.keys(porContrato).length, contratos_match: 0, inadimplentes_90d: 0, max_aging: 0 };
+
+  for (var i = 0; i < n; i++) {
+    var id = _cruzNormIdServer_(contratos[i][0]);
+    if (!id) continue;
+    var info = porContrato[id];
+    if (!info) continue; // contrato do CRM sem linha SAFRA → preserva
+
+    statusAdimpl[i][0] = info.status_adimpl_90d;
+    statusChurn[i][0] = info.status_churn;
+    statusSusp[i][0] = info.status_suspensao;
+    aging[i][0] = info.aging_dias;
+    contagem.contratos_match++;
+    if (info.status_adimpl_90d === 'INADIMPLENTE_90D') contagem.inadimplentes_90d++;
+    if (info.aging_dias > contagem.max_aging) contagem.max_aging = info.aging_dias;
+  }
+
+  // Batch write das 4 cols.
+  sheet.getRange(3, c.STATUS_ADIMPL_90D + 1, n, 1).setValues(statusAdimpl);
+  sheet.getRange(3, c.STATUS_CHURN + 1, n, 1).setValues(statusChurn);
+  sheet.getRange(3, c.STATUS_SUSPENSAO + 1, n, 1).setValues(statusSusp);
+  sheet.getRange(3, c.AGING_DIAS + 1, n, 1).setValues(aging);
+
+  Logger.log('_aplicarSafraEm1Vendas_: ' + contagem.contratos_match + ' matches / ' + contagem.contratos_safra + ' contratos na SAFRA. Inadimplentes 90d: ' + contagem.inadimplentes_90d + ' | aging max: ' + contagem.max_aging);
+  Logger.log('  Distribuição STATUS_CONTRATO na SAFRA: ' + JSON.stringify(consolidacao.statusContratoDist));
+  return contagem;
 }
