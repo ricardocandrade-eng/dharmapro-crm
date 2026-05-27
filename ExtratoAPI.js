@@ -209,6 +209,12 @@ function aplicarExtratoMensal(payload, opts) {
     var quandoStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
     var resConciliacao = _materializarConciliacaoMensal_(ss, mes, plano, quandoStr);
 
+    // ── 6.c. Sub-fatia 7.4: refina STATUS_CHURN via aba BD_CHURN ──
+    var resBdChurn = null;
+    if (payload.bdChurn && payload.bdChurn.rows && payload.bdChurn.rows.length) {
+      resBdChurn = _aplicarBdChurnEm1Vendas_(payload.bdChurn, sheet, c, n, crmContratos);
+    }
+
     // ── 7. Marca idempotência ──
     var registro = {
       mes: mes,
@@ -217,7 +223,8 @@ function aplicarExtratoMensal(payload, opts) {
       contratosNoExtrato: contratos.length,
       semMatchNoCRM: semMatchNoCRM.length,
       divergencias: divergencias.length,
-      conciliacao: resConciliacao
+      conciliacao: resConciliacao,
+      bdChurn: resBdChurn
     };
     PropertiesService.getScriptProperties().setProperty('EXTRATO_VERO_PROCESSADO_' + mes, JSON.stringify(registro));
 
@@ -234,6 +241,7 @@ function aplicarExtratoMensal(payload, opts) {
       divergencias: divergencias.length,
       divergenciasAmostra: divergencias.slice(0, 20),
       conciliacao: resConciliacao,
+      bdChurn: resBdChurn,
       registro: registro
     };
   } catch (e) {
@@ -289,6 +297,76 @@ var EXTRATO_CONCILIACAO_HEADERS = [
   'COD_PLANO', 'PONTOS_VENDA', 'PONTOS_MOVEL', 'FATOR_APLICADO',
   'RECEITA_PREVISTA', 'RECEITA_REALIZADA', 'DIFF', 'PCT', 'FLAG', 'APLICADO_EM'
 ];
+
+// ─── Sub-fatia 7.4 (§5 BD col) — refina STATUS_CHURN via aba BD_CHURN ──────
+// Hoje a SAFRA (Fase 4) colapsa STATUS_CHURN em CANCELADO_COMERCIAL pra tudo
+// que apareceu como cancelado/inativo. BD_CHURN do extrato fechado distingue
+// CHURN_VOLUNTARIO (cliente cancelou) de CHURN_INVOLUNTARIO (Vero cortou).
+//
+// Detecta o tipo por header da aba (defensivo — nome da col pode variar):
+//   - col "TIPO" / "TIPO_CHURN" / "CATEGORIA" / "MOTIVO_CHURN"
+//   - valor contendo "VOLUNTAR" → CHURN_VOLUNTARIO
+//   - valor contendo "INVOLUNTAR" → CHURN_INVOLUNTARIO
+// Linhas sem tipo identificável caem em CHURN_VOLUNTARIO por default (a aba
+// BD_CHURN historicamente lista voluntários; involuntários têm aba própria
+// em alguns extratos). Log defensivo + amostra de tipos desconhecidos.
+function _aplicarBdChurnEm1Vendas_(bdChurn, sheet, c, n, crmContratos) {
+  try {
+    var headers = bdChurn.headers || [];
+    var rows = bdChurn.rows || [];
+    if (!rows.length) return { processados: 0, matched: 0, vol: 0, invol: 0, semTipo: 0 };
+
+    // Resolve cols por header
+    var idxContrato = bdChurn.contractColIdx != null ? bdChurn.contractColIdx : 0;
+    var idxTipo = -1;
+    for (var i = 0; i < headers.length; i++) {
+      var h = _extratoNormHeader_(headers[i]);
+      if (idxTipo < 0 && (/\btipo\b/.test(h) || /\bcategoria\b/.test(h) || /motivo[\s_]*churn/.test(h))) {
+        idxTipo = i;
+      }
+    }
+
+    // Agrega por contrato (último tipo visto vence)
+    var porContrato = {};
+    var tiposDist = {};
+    rows.forEach(function(row) {
+      var id = _cruzNormIdServer_(row[idxContrato]);
+      if (!id) return;
+      var tipoRaw = idxTipo >= 0 ? String(row[idxTipo] || '').toUpperCase().trim() : '';
+      tiposDist[tipoRaw || '(vazio)'] = (tiposDist[tipoRaw || '(vazio)'] || 0) + 1;
+      var statusChurn = 'CHURN_VOLUNTARIO'; // default (memo)
+      if (tipoRaw.indexOf('INVOLUNT') > -1) statusChurn = 'CHURN_INVOLUNTARIO';
+      else if (tipoRaw.indexOf('VOLUNT') > -1) statusChurn = 'CHURN_VOLUNTARIO';
+      porContrato[id] = statusChurn;
+    });
+
+    // Lê col STATUS_CHURN atual em batch, escreve por contrato matched
+    var statusChurnArr = sheet.getRange(3, c.STATUS_CHURN + 1, n, 1).getValues();
+    var stats = { processados: rows.length, matched: 0, vol: 0, invol: 0, semTipo: 0 };
+    for (var k = 0; k < n; k++) {
+      var idCRM = _cruzNormIdServer_(crmContratos[k][0]);
+      if (!idCRM) continue;
+      var novoStatus = porContrato[idCRM];
+      if (!novoStatus) continue;
+      statusChurnArr[k][0] = novoStatus;
+      stats.matched++;
+      if (novoStatus === 'CHURN_INVOLUNTARIO') stats.invol++;
+      else stats.vol++;
+    }
+    sheet.getRange(3, c.STATUS_CHURN + 1, n, 1).setValues(statusChurnArr);
+
+    if (idxTipo < 0) {
+      Logger.log('_aplicarBdChurnEm1Vendas_: header de TIPO não encontrado. Headers: ' + JSON.stringify(headers));
+      stats.semTipo = rows.length;
+    }
+    Logger.log('_aplicarBdChurnEm1Vendas_: ' + stats.matched + ' matches | vol ' + stats.vol + ' / invol ' + stats.invol +
+      ' | dist tipos: ' + JSON.stringify(tiposDist));
+    return stats;
+  } catch (e) {
+    Logger.log('_aplicarBdChurnEm1Vendas_ ERRO: ' + e.message + ' | ' + e.stack);
+    return { erro: e.message };
+  }
+}
 
 function _materializarConciliacaoMensal_(ss, mes, plano, quandoStr) {
   try {

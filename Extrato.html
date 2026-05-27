@@ -1114,6 +1114,16 @@ function epParsear(wb, ws, fileName){
       if(sd && sd.rows.length) _sheets[fk] = sd;
     } catch(e){ console.warn('[EP] Não foi possível extrair aba', def.sheet, e); }
   });
+
+  // 6.b. Extra: aba BD_CHURN completa (todas cols) pra Fase 7.4 refinar
+  // STATUS_CHURN. EP_DETAIL_MAP.descChurn já extrai alguns campos pro modal
+  // de detalhe, mas com cols fixas — pra detectar TIPO de churn (voluntário
+  // /involuntário) precisamos do header completo, que pode estar em col diferente.
+  try {
+    var sdChurn = epExtractSheet(wb, 'BD_CHURN', null, true);
+    if(sdChurn && sdChurn.rows.length) _sheets.bdChurn = sdChurn;
+  } catch(e){ console.warn('[EP] Não foi possível extrair BD_CHURN completa', e); }
+
   dados._sheets = _sheets;
 
   return dados;
@@ -1950,6 +1960,14 @@ function epAplicarAoCRM(){
       contractColIdx: typeof d._sheets.instBL.contractColIdx === 'number' ? d._sheets.instBL.contractColIdx : 0
     }
   };
+  // Fase 7.4: BD_CHURN completa pra refinar STATUS_CHURN (voluntário/involuntário)
+  if(d._sheets.bdChurn && d._sheets.bdChurn.rows && d._sheets.bdChurn.rows.length){
+    _epAplicarPayload.bdChurn = {
+      headers: d._sheets.bdChurn.headers || [],
+      rows: d._sheets.bdChurn.rows || [],
+      contractColIdx: typeof d._sheets.bdChurn.contractColIdx === 'number' ? d._sheets.bdChurn.contractColIdx : 0
+    };
+  }
 
   _epAbrirModalAplicar();
   _epRenderModalLoading('Calculando preview do extrato ' + epMesAtual + '…');
@@ -2122,6 +2140,11 @@ function _epAplicarConfirmar(){
         if((fd.DIVERG_LEVE || 0) > 0)  kpis.push({ label: 'Conc. leve (5-20%)', value: fd.DIVERG_LEVE, tone: 'warn' });
         if((fd.DIVERG_GRAVE || 0) > 0) kpis.push({ label: 'Conc. grave (≥20%)', value: fd.DIVERG_GRAVE, tone: 'bad' });
         if((fd.SEM_PREVISTO || 0) > 0) kpis.push({ label: 'Sem previsto', value: fd.SEM_PREVISTO, tone: 'warn' });
+      }
+      // Sub-fatia 7.4: refinamento STATUS_CHURN via BD_CHURN
+      if(res.bdChurn && res.bdChurn.matched != null){
+        if(res.bdChurn.vol > 0)   kpis.push({ label: 'Churn voluntário', value: res.bdChurn.vol, tone: 'warn' });
+        if(res.bdChurn.invol > 0) kpis.push({ label: 'Churn involuntário', value: res.bdChurn.invol, tone: 'bad' });
       }
       var subMsg = 'Extrato ' + epMesLabel(res.mes) + ' aplicado em ' +
         (res.registro && res.registro.quando ? res.registro.quando : 'agora') + '.';
