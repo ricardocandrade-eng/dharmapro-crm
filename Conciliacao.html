@@ -245,23 +245,47 @@ function cnRenderMonthBar() {
 function cnRenderKpis() {
   var k = cnDados.kpis;
   var f = k.flagDist || {};
-  var totalDiffTone = Math.abs(k.totalDiff) < 0.01 ? '' : (k.totalDiff >= 0 ? 'ok' : 'bad');
+  var cmp = k.comparaveis || { qtd:0, previsto:0, realizado:0, diff:0 };
+  var sem = k.semPrevisto || { qtd:0, realizado:0 };
+
+  var diffTone = Math.abs(cmp.diff) < 0.01 ? '' : (cmp.diff >= 0 ? 'ok' : 'bad');
+  var pctDiff = cmp.previsto > 0 ? cmp.diff / cmp.previsto : null;
+
+  // Linha 1: foco em CONCILIAÇÃO (comparáveis). Diferença SÓ aqui — é a única
+  // dimensão onde Realizado − Previsto faz sentido (mesmo escopo de vendas).
+  var html1 =
+    cnKpi('Comparáveis', cmp.qtd, '', 'Vendas com Previsto > 0') +
+    cnKpi('Previsto', cnBRL(cmp.previsto), '', 'Soma das comparáveis') +
+    cnKpi('Realizado', cnBRL(cmp.realizado), '', 'Soma das comparáveis') +
+    cnKpi('Diferença', (cmp.diff >= 0 ? '+' : '') + cnBRL(cmp.diff),
+          diffTone,
+          (pctDiff != null ? cnPct(pctDiff) + ' · Realizado − Previsto' : 'Realizado − Previsto'));
+
+  // Linha 2: contexto sobre o que ficou DE FORA da conciliação + total bruto.
+  var html2 = '';
+  if (sem.qtd > 0) {
+    html2 += cnKpi('Sem previsto', sem.qtd, 'warn', 'Sem PONTOS — provável legacy');
+    html2 += cnKpi('Realizado (sem previsto)', cnBRL(sem.realizado), 'warn', 'Não comparável');
+  }
+  html2 += cnKpi('Total geral', k.totalLinhas, '', 'Todas as vendas do mês');
+  html2 += cnKpi('Realizado total bruto', cnBRL(k.totalRealizadoBruto), '', 'Comparáveis + sem previsto');
+
+  // Linha 3: distribuição de flags (só comparáveis — sem previsto tem chip próprio acima).
+  var ok = f.OK || 0;
   var leves = f.DIVERG_LEVE || 0;
   var graves = f.DIVERG_GRAVE || 0;
-  var ok = f.OK || 0;
-  var sem = f.SEM_PREVISTO || 0;
-
-  var html =
-    cnKpi('Vendas conciliadas', k.totalLinhas, '', 'No mês selecionado') +
-    cnKpi('Previsto', cnBRL(k.totalPrevisto), '', 'Soma de RECEITA_PREVISTA') +
-    cnKpi('Realizado', cnBRL(k.totalRealizado), '', 'Soma de RECEITA_REALIZADA') +
-    cnKpi('Diferença', (k.totalDiff >= 0 ? '+' : '') + cnBRL(k.totalDiff), totalDiffTone, 'Realizado − Previsto') +
-    cnKpi('OK (<5%)', ok, ok > 0 ? 'ok' : '', 'Sem divergência') +
+  var html3 =
+    cnKpi('OK (<5%)', ok, ok > 0 ? 'ok' : '', 'Conciliados sem desvio') +
     (leves  > 0 ? cnKpi('Leves (5-20%)', leves, 'warn', 'Divergência leve') : '') +
-    (graves > 0 ? cnKpi('Graves (≥20%)', graves, 'bad', 'Divergência grave') : '') +
-    (sem    > 0 ? cnKpi('Sem previsto', sem, 'warn', 'RECEITA_PREVISTA vazia ou zero') : '');
+    (graves > 0 ? cnKpi('Graves (≥20%)', graves, 'bad', 'Investigar c/ a Vero') : '');
 
-  document.getElementById('cn-kpis').innerHTML = html;
+  document.getElementById('cn-kpis').innerHTML =
+    '<div style="grid-column:1/-1;font-family:DM Mono,monospace;font-size:10px;letter-spacing:2px;color:var(--text-dim,#8089a8);text-transform:uppercase;margin-bottom:-4px">Conciliação (vendas com previsto)</div>' +
+    html1 +
+    '<div style="grid-column:1/-1;font-family:DM Mono,monospace;font-size:10px;letter-spacing:2px;color:var(--text-dim,#8089a8);text-transform:uppercase;margin:14px 0 -4px 0">Contexto</div>' +
+    html2 +
+    '<div style="grid-column:1/-1;font-family:DM Mono,monospace;font-size:10px;letter-spacing:2px;color:var(--text-dim,#8089a8);text-transform:uppercase;margin:14px 0 -4px 0">Distribuição</div>' +
+    html3;
   document.getElementById('cn-kpis').style.display = '';
 }
 

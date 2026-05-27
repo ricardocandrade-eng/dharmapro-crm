@@ -75,11 +75,19 @@ function getConciliacaoDados(mes) {
     var mesAtivo = (mes && mesesSet[mes]) ? mes : mesesDisponiveis[0];
 
     var linhas = [];
+    // KPIs em 2 dimensões pra evitar a falsa "diferença gigante" causada por
+    // misturar comparáveis (têm previsto) com sem-previsto (só têm realizado).
     var kpis = {
       totalLinhas: 0,
-      totalPrevisto: 0,
-      totalRealizado: 0,
-      totalDiff: 0,
+      // Comparáveis: vendas com previsto > 0 — única dimensão onde a conciliação
+      // tem significado (Realizado − Previsto = diferença real).
+      comparaveis: { qtd: 0, previsto: 0, realizado: 0, diff: 0 },
+      // Sem previsto: vendas sem PONTOS_VENDA/PONTOS_MOVEL (legacy massivo).
+      // Só Realizado, sem diferença comparável.
+      semPrevisto: { qtd: 0, realizado: 0 },
+      // Bruto: soma de todas as linhas (informativo). Diff bruto NÃO é métrica
+      // de conciliação — só pra mostrar magnitude do realizado total.
+      totalRealizadoBruto: 0,
       flagDist: { OK: 0, DIVERG_LEVE: 0, DIVERG_GRAVE: 0, SEM_PREVISTO: 0 },
       aplicadoEm: aplicadoEmPorMes[mesAtivo] || ''
     };
@@ -111,9 +119,16 @@ function getConciliacaoDados(mes) {
       });
 
       kpis.totalLinhas++;
-      kpis.totalPrevisto += previsto;
-      kpis.totalRealizado += real;
-      kpis.totalDiff += diff;
+      kpis.totalRealizadoBruto += real;
+      if (flag === 'SEM_PREVISTO') {
+        kpis.semPrevisto.qtd++;
+        kpis.semPrevisto.realizado += real;
+      } else {
+        kpis.comparaveis.qtd++;
+        kpis.comparaveis.previsto += previsto;
+        kpis.comparaveis.realizado += real;
+        kpis.comparaveis.diff += (real - previsto);
+      }
       if (kpis.flagDist[flag] != null) kpis.flagDist[flag]++;
     });
 
