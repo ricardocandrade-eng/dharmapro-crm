@@ -345,9 +345,25 @@ Dois canais distintos:
 - **Automático (Gmail)** — só o espelho diário, já implementado em `CruzamentoAutoAPI.js`. Não mexer no que funciona.
 - **Manual (upload via UI)** — todos os outros 4 arquivos. Pipeline reusa o parser/conversor de xlsx existente em `CruzamentoAutoAPI.js`, mas chamado a partir das telas admin de upload.
 
-### 7.1. Pipeline existente — espelho diário (estender com SAFRA)
+### 7.1. Pipeline existente — espelho diário (estender com SAFRA) ✅ IMPLEMENTADO 26/05/2026
 
-Continua como está: trigger 09h, label `vero-sniper`, lê VENDAS/INSTALACOES/CANCELAMENTO/MOVEL, atualiza `VERO_STATUS` + propõe correções via Cruzamento Vero. **Mudança única:** acrescentar leitura da aba `SAFRA` que vinha sendo ignorada. SAFRA virá ser o canal de sinal contínuo de inadimplência (atualiza `AGING_DIAS` e `STATUS_ADIMPL_90D` em `1 - Vendas` diariamente).
+Trigger 09h via `importarRelatorioVeroAutomatico`, label `vero-sniper`. Lê VENDAS/INSTALACOES/CANCELAMENTO/MOVEL **+ SAFRA** (adicionada na Fase 4). Atualiza `VERO_STATUS` + propõe correções via Cruzamento Vero **+ aplica SAFRA em `1 - Vendas`** (4 campos econômicos live: BC/BD/BE/BH).
+
+**Aba SAFRA — shape** (1670 linhas × 18 cols na amostra de 26/05):
+
+| Col | Tipo | Uso na Fase 4 |
+|---|---|---|
+| `CONTRATO` (col 2) | string `NG\d+` | Chave de join (normalizada via `_cruzNormIdServer_`) |
+| `STATUS_CONTRATO` (col 3) | enum | Mapeia pra `STATUS_SUSPENSAO` + `STATUS_CHURN` (§5) |
+| `DIAS ATRASO` (col 14) | int | Compõe `AGING_DIAS` (max entre faturas em aberto) |
+| `PAGAMENTO` (col 12) | data ou vazio | Vazio = fatura em aberto (entra no aging) |
+| (demais 14 cols) | meta | Não usadas nesta fase; podem alimentar a aba `Espelho Vero` no futuro |
+
+**Granularidade**: 1 linha por **fatura** (não por contrato). Mesmo contrato aparece N vezes (1 por safra/mês). `_consolidarSafraServer_` agrupa por contrato antes da escrita.
+
+**Helpers** (`CruzamentoAutoAPI.js`): `_consolidarSafraServer_`, `_safraParseInt_`, `_mapearStatusContrato_`, `_aplicarSafraEm1Vendas_`.
+
+**Idempotência**: trigger respeita `CRUZ_VERO_LAST_THREAD` — não re-processa o mesmo thread. Pipeline manual (`buscarEImportarVero`, `forcar=true`) re-processa, com mesmo resultado (overwriting com mesmo valor).
 
 ### 7.2. Pipeline novo — extrato fechado mensal (upload via UI)
 
@@ -607,11 +623,17 @@ Append das 17 novas colunas (AU-BL). One-shot de migração que popula `COD_PLAN
 
 **Tamanho:** 3-5 dias.
 
-### Fase 4 — Espelho diário: extensão SAFRA
+### Fase 4 — Espelho diário: extensão SAFRA ✅ ENTREGUE 26/05/2026 11:11
 
-Adicionar leitura da aba SAFRA no `CruzamentoAutoAPI.js` existente. Update de `AGING_DIAS` e `STATUS_ADIMPL_90D` diário. Aproveita pipeline já funcionando.
+Implementação ampliou o escopo original: além de `AGING_DIAS` (BH=59) e `STATUS_ADIMPL_90D` (BC=54), a mesma passagem grava `STATUS_SUSPENSAO` (BE=56) e `STATUS_CHURN` (BD=55), aproveitando que `STATUS_CONTRATO` vem na mesma aba (custo marginal zero). Refinamento `CHURN_VOLUNTARIO`/`CHURN_INVOLUNTARIO` segue na Fase 7 (extrato fechado).
 
-**Tamanho:** 2-3 dias.
+**Dados reais observados na 1ª aplicação:**
+- SAFRA: 1670 linhas-fatura → 589 contratos únicos.
+- CRM `1 - Vendas`: 593 linhas atualizadas (4 a mais que contratos únicos — investigar duplicatas de CONTRATO no CRM em fase 6.x).
+- **87 inadimplentes 90d** identificados. Aging máximo: 194 dias.
+- Distribuição STATUS_CONTRATO: HABILITADO 1127 | SUSPENSO 308 | SUSPENSO PARCIALMENTE 121 | CANCELADO 108 | HABILITADO EM CONFIANCA 6.
+
+**Refinamento futuro (baixa prioridade):** distinguir `SUSPENSO_PARCIAL` de `SUSPENSO` total em STATUS_SUSPENSAO. Hoje ambos caem em `SUSPENSO`. Q2 (Risco) pode querer essa granularidade — parcial = navega com restrição (cliente usável), total = sem internet (mais grave). Sem urgência; refinar quando atacar Q2/Q4.
 
 ### Fase 5 — Tela `◈ Tabela de Pontuação` + pipeline de upload
 
