@@ -1620,6 +1620,25 @@ function _cruzConsolidarCamposVeroCli() {
     if (!id) return;
     var o = ensure(id);
     setF(o, 'obsAppend', _cruzMontarObsCancelamentoCli(row), 'Cancelamento');
+
+    // STATUS sugerido a partir do TIPO_CANCELAMENTO (espelha lógica server
+    // em _cruzConsolidarCamposVeroServer_). Comercial → "Cancelamento
+    // Comercial"; Tecnico → "Cancelamento Tecnico". CHURN combinado nessa
+    // mesma lista é filtrado depois pelo consumidor (não sugere mudar STATUS
+    // se a venda já está em "3 - Finalizada/Instalada"). Mantém só a 1ª
+    // sugestão por contrato (primeiro tipo identificado vence).
+    if (!o.cancel) {
+      var tipo = String(row.TIPO_CANCELAMENTO || '').toUpperCase();
+      var statusSugerido = null;
+      if (tipo.indexOf('COMERCIAL') > -1) statusSugerido = 'Cancelamento Comercial';
+      else if (tipo.indexOf('TECNICO') > -1 || tipo.indexOf('TÉCNICO') > -1) statusSugerido = 'Cancelamento Tecnico';
+      o.cancel = {
+        tipo: row.TIPO_CANCELAMENTO || '',
+        motivo: row.MOTIVO_CANCELAMENTO || '',
+        data: row.DATA_CANCELAMENTO || '',
+        statusSugerido: statusSugerido
+      };
+    }
   });
 
   return mapa;
@@ -1722,6 +1741,27 @@ function _cruzComputarCorrecoes() {
       if (String(item.observacao || '').indexOf(lo) === -1) {
         campos.OBSERVACAO_APPEND = lo;
         diffs.push({ campo: 'OBSERVACAO_APPEND', label: 'Observação (+)', atual: item.observacao || '', novo: lo, fonte: v.obsAppend_fonte || 'Cancelamento' });
+      }
+    }
+
+    // STATUS sugerido pelo SNIPER (espelho client da lógica server em
+    // _cruzComputarCorrecoesServer_). Só propõe quando:
+    //   - cancel.statusSugerido foi resolvido (Comercial ou Tecnico)
+    //   - venda NÃO está em "3 - Finalizada/Instalada" (caso = churn, filtra)
+    //   - STATUS atual diverge do sugerido
+    if (v.cancel && v.cancel.statusSugerido) {
+      var statusAtual = String(item.status || '').trim();
+      var jaInstalada = (statusAtual === '3 - Finalizada/Instalada');
+      if (!jaInstalada && statusAtual !== v.cancel.statusSugerido) {
+        campos.STATUS = v.cancel.statusSugerido;
+        var fonteInfo = [v.cancel.tipo, v.cancel.motivo, v.cancel.data]
+          .filter(function(x){ return x && String(x).trim() !== ''; }).join(' · ');
+        diffs.push({
+          campo: 'STATUS', label: 'Status (cancelamento Vero)',
+          atual: statusAtual || '(vazio)',
+          novo: v.cancel.statusSugerido,
+          fonte: 'SNIPER · ' + (fonteInfo || 'aba CANCELAMENTO')
+        });
       }
     }
 
