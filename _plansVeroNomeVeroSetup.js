@@ -108,6 +108,85 @@ function _atualizarPlanosVeroJsonRev9() {
   Logger.log('Cache "tabela_v1" invalidado.');
 }
 
+// Diagnóstico — usa exatamente a mesma janela do fase3Backfill (status 2 / Pendencia
+// Vero / status 3 c/ INSTAL nos últimos 6m). Agrupa vendas SEM COD_PLANO por (plano,
+// cidade), mostra se o NOME_VERO existe e tenta resolver isoladamente via passo 0
+// e via resolver completo. Read-only.
+function _diagBackfillSemCod() {
+  var sheet = _getSheet();
+  var last = sheet.getLastRow();
+  if (last < 3) { Logger.log('Sem dados.'); return; }
+
+  var c = CONFIG.COLUNAS;
+  var COL_COD = 46; // AU — COD_PLANO
+
+  var n = last - 2;
+  var raw = sheet.getRange(3, 1, n, 64).getValues();
+
+  var tab = _getTabela();
+  var nomesJson = {};
+  for (var r = 2; r < tab.length; r++) {
+    var k = String(tab[r][0] || '').toUpperCase().trim();
+    if (k) nomesJson[k] = tab[r][14] || '';
+  }
+
+  var grupos = {}; // key = PLANO || CIDADE
+  var foraJanela = 0, comCod = 0;
+  for (var i = 0; i < raw.length; i++) {
+    if (!_fase3NaJanela_(raw[i])) { foraJanela++; continue; }
+    var cod = String(raw[i][COL_COD] || '').trim();
+    if (cod) { comCod++; continue; }
+    var plano = String(raw[i][c.PLANO] || '').trim();
+    var cidade = String(raw[i][c.CIDADE] || '').trim();
+    var key = plano + ' || ' + cidade;
+    if (!grupos[key]) grupos[key] = { plano: plano, cidade: cidade, count: 0 };
+    grupos[key].count++;
+  }
+
+  Logger.log('Janela: status 2 / Pendencia Vero / status 3 c/ INSTAL últimos 6m.');
+  Logger.log('Total vendas na aba: ' + n + ' | com COD: ' + comCod + ' | fora janela: ' + foraJanela);
+  Logger.log('Grupos (plano||cidade) SEM COD na janela: ' + Object.keys(grupos).length);
+  Logger.log('───');
+
+  var arr = Object.keys(grupos).map(function(k){ return grupos[k]; });
+  arr.sort(function(a,b){ return b.count - a.count; });
+
+  var totalSemCod = 0;
+  for (var i = 0; i < arr.length; i++) totalSemCod += arr[i].count;
+  Logger.log('Vendas SEM COD totalizadas pelos grupos: ' + totalSemCod);
+  Logger.log('───');
+
+  var totalCobreP0 = 0, totalCobreP1 = 0, totalSemNomeJson = 0, totalNomeVeroVazio = 0;
+  for (var i = 0; i < arr.length; i++) {
+    var g = arr[i];
+    var planoNorm = String(g.plano).toUpperCase().trim().replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/i, '').trim();
+    var nv = nomesJson[planoNorm];
+    var statusJson = nv === undefined ? 'SEM-LINHA-NO-JSON' : (!nv || (Array.isArray(nv) && !nv.length) ? 'NOME_VERO-VAZIO' : 'NOME_VERO-OK');
+
+    var cidNorm = _normalizarTexto(g.cidade);
+    var codP0 = '';
+    try { codP0 = _resolverCodViaNomeVero_(planoNorm, cidNorm) || ''; } catch (e) { codP0 = 'ERR'; }
+    var codAtual = '';
+    try { codAtual = getCodigoVeroPorPlanoCidade(g.plano, g.cidade) || ''; } catch (e) { codAtual = 'ERR'; }
+
+    if (statusJson === 'SEM-LINHA-NO-JSON') totalSemNomeJson += g.count;
+    if (statusJson === 'NOME_VERO-VAZIO') totalNomeVeroVazio += g.count;
+    if (codP0) totalCobreP0 += g.count;
+    if (codAtual) totalCobreP1 += g.count;
+
+    if (i < 25) { // top 25
+      Logger.log('  [' + g.count + '] "' + g.plano + '" @ "' + g.cidade + '" | json:' + statusJson + ' | P0:"' + codP0 + '" | total:"' + codAtual + '"');
+    }
+  }
+  Logger.log('───');
+  Logger.log('SUMÁRIO das vendas sem COD na janela:');
+  Logger.log('  Plano sem linha no planos_vero.json: ' + totalSemNomeJson);
+  Logger.log('  Plano c/ NOME_VERO vazio (móvel/sazonal): ' + totalNomeVeroVazio);
+  Logger.log('  Passo 0 (NOME_VERO) resolveria agora: ' + totalCobreP0);
+  Logger.log('  Resolver completo (P0+P1+P2) resolveria agora: ' + totalCobreP1);
+  Logger.log('  (Se P1 > 0 mas o backfill anterior deu 0, é cache de _getTabela/sweep.)');
+}
+
 // Smoke test READ-ONLY: relê o JSON do Drive (sem cache) e printa os NOME_VERO
 // preenchidos. Roda depois do Rev9 pra conferir a gravação.
 function _verNomeVeroRev9() {
