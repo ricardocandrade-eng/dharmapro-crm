@@ -3753,7 +3753,7 @@ function _vhNucleo_(s) {
   s = s.replace(/MAIS CONECTADO/g, 'MOVEL').replace(/VERO CONTROLE/g, 'MOVEL');
   s = s.replace(/GLOBOPLAY|GLOBO PLAY/g, 'GLP');
   s = s.replace(/COM ANUNCIO|COM ADS/g, 'ADS');
-  s = s.replace(/\bRN\b/g, '').replace(/\bMESH\b/g, '').replace(/\bROKU\b/g, '');
+  s = s.replace(/\bRN\b/g, '').replace(/\bRH\b/g, '').replace(/\bMESH\b/g, '').replace(/\bROKU\b/g, '');
   // "ou" conector de streaming-escolha (ex. "YOUTUBE PREMIUM ou HBO MAX ou TELECINE")
   // — tratado como separador (some no núcleo), igual ao "|". Sem isso, o nome novo
   // (Rev8) ganharia tokens "OU" extras e quebraria o match Jaccard do reverse-lookup.
@@ -3776,18 +3776,87 @@ function _semConectoresVero_(s) {
     .trim();
 }
 
+// Resolve o código Vero via NOME_VERO (col 14 do planos_vero.json — Rev9).
+// Lê o NOME_VERO da linha cujo nome (col 0) bate com `planoCore`, e procura
+// no sweep VeroHub da cidade o código cujo nome canonicalizado (via _vhNucleo_)
+// bate com o canonicalizado do NOME_VERO. Match exato pós-normalização, sem
+// fuzzy. Se múltiplos códigos casarem na cidade (com/sem MESH/ROKU/RN/RH), prefere
+// não-PACOTE; empate → não retorna (deixa o passo 1 do resolver decidir).
+// Retorna '' se nada bater ou se a linha não tem NOME_VERO definido.
+function _resolverCodViaNomeVero_(planoCore, cidNorm) {
+  try {
+    var tab = _getTabela();
+    if (!tab || tab.length < 3) return '';
+    var planoNorm = String(planoCore || '').toUpperCase().trim();
+    var nomeVero = null;
+    for (var r = 2; r < tab.length; r++) {
+      if (String(tab[r][0] || '').toUpperCase().trim() === planoNorm) {
+        nomeVero = tab[r][14];
+        break;
+      }
+    }
+    if (!nomeVero) return '';
+    var candidatos = Array.isArray(nomeVero) ? nomeVero : [nomeVero];
+    candidatos = candidatos.filter(function(c){ return c && String(c).trim(); });
+    if (!candidatos.length) return '';
+
+    var vh = _getVerohubCodigos();
+    if (!vh || !vh.cidadeIndex || !vh.porCidade || !vh.codigos) return '';
+    var cityId = vh.cidadeIndex[cidNorm];
+    if (cityId == null) return '';
+    var cods = vh.porCidade[cityId] || vh.porCidade[String(cityId)] || [];
+    if (!cods.length) return '';
+
+    var alvos = candidatos.map(function(n){ return _vhNucleo_(n); }).filter(Boolean);
+    if (!alvos.length) return '';
+
+    var hits = [];
+    for (var i = 0; i < cods.length; i++) {
+      var info = vh.codigos[cods[i]];
+      if (!info || !info.nome) continue;
+      var nuc = _vhNucleo_(info.nome);
+      if (!nuc) continue;
+      for (var j = 0; j < alvos.length; j++) {
+        if (nuc === alvos[j]) {
+          hits.push({ cod: cods[i], pacote: info.produto_tipo === 'PACOTE' });
+          break;
+        }
+      }
+    }
+    if (!hits.length) return '';
+    var naoPacote = hits.filter(function(h){ return !h.pacote; });
+    var pool = naoPacote.length ? naoPacote : hits;
+    // dedup por código (variantes regionais do mesmo plano normalizam igual)
+    var unicos = {};
+    pool.forEach(function(h){ unicos[h.cod] = h; });
+    var codsUnicos = Object.keys(unicos);
+    if (codsUnicos.length === 1) return codsUnicos[0];
+    return ''; // ambíguo — deixa cair pro sweep fuzzy do passo 1
+  } catch (e) {
+    Logger.log('_resolverCodViaNomeVero_ erro: ' + e.message);
+    return '';
+  }
+}
+
 // Reverse lookup: (nome do plano + cidade) -> codigo Vero. Gravado em COD_PLANO.
-// Estratégia (Sprint sweep VeroHub, 21/05): tenta o SWEEP primeiro (todas as
-// cidades, match CONSERVADOR — núcleo exato ou Jaccard≥0.92, prefere não-PACOTE,
-// pula ambíguos pra não chutar código errado num dado financeiro); se não achar,
-// cai no dicionário legado (_getCodigoVeroLegado_, 4 cidades coletadas). Match
-// inseguro NUNCA é feito — sem match retorna '' (cobertura cresce, sem risco).
+// Estratégia em camadas:
+//   0) NOME_VERO (col 14 do planos_vero.json, Rev9 — match exato pós-normalização)
+//   1) SWEEP VeroHub fuzzy (Jaccard ≥0.92, prefere não-PACOTE, pula ambíguos)
+//   2) Dicionário legado (planos_vero_codigos.json, 4 cidades coletadas)
+// Match inseguro NUNCA é feito — sem match retorna '' (cobertura cresce, sem risco).
 function getCodigoVeroPorPlanoCidade(plano, cidade) {
   try {
     var planoCore = String(plano || '').replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/i, '').trim();
     if (!planoCore) return '';
     var cidNorm = _normalizarTexto(cidade);
     if (!cidNorm) return '';
+
+    // 0) Via NOME_VERO (col 14 do planos_vero.json — Rev9, 26/05). Match exato
+    //    pós-normalização _vhNucleo_; destrava os nomes truncados (MUNDO/avulsos)
+    //    que o fuzzy Jaccard ≥0.92 do passo (1) deixava de fora ou casava errado.
+    //    Aceita string (1 código) ou array (plano-escolha: linha 19 c/ 3 streamings).
+    var codViaNomeVero = _resolverCodViaNomeVero_(planoCore, cidNorm);
+    if (codViaNomeVero) return codViaNomeVero;
 
     // 1) SWEEP VeroHub (todas as cidades)
     var vh = _getVerohubCodigos();
