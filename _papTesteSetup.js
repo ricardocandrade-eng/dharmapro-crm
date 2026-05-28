@@ -86,3 +86,63 @@ function _papDiagEvolution() {
   Logger.log('_papDiagEvolution →\n' + JSON.stringify(resultado, null, 2));
   return resultado;
 }
+
+/**
+ * DIAGNÓSTICO #2 — pergunta à Evolution qual é o JID real do número 988015161
+ * (resolve o caso "número de 12 dígitos legacy vs 13 dígitos modernos").
+ *
+ * POST /chat/whatsappNumbers/Ricardo_Andrade { numbers: [...várias formas...] }
+ *
+ * Retorna pra cada candidato: { exists, jid, name }. Se nenhum `exists:true`,
+ * o número não tem WhatsApp ativo. Se algum vier, o `jid` retornado é o que
+ * a Evolution espera no campo `number` do sendText.
+ */
+function _papDiagWhatsAppNumber() {
+  var p = PropertiesService.getScriptProperties();
+  var url = (p.getProperty('EVOLUTION_API_URL') || '').replace(/\/+$/, '');
+  var key = p.getProperty('EVOLUTION_API_KEY');
+  if (!url || !key) return { erro: 'Properties ausentes.' };
+
+  var candidatos = ['5532988015161', '553288015161', '32988015161', '3288015161'];
+  var resp = UrlFetchApp.fetch(url + '/chat/whatsappNumbers/Ricardo_Andrade', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'apikey': key },
+    payload: JSON.stringify({ numbers: candidatos }),
+    muteHttpExceptions: true
+  });
+  var out = {
+    http: resp.getResponseCode(),
+    body: resp.getContentText().slice(0, 2000)
+  };
+  Logger.log('_papDiagWhatsAppNumber →\n' + JSON.stringify(out, null, 2));
+  return out;
+}
+
+/**
+ * TESTE 2 — manda direto pra `553288015161` (12 dígitos, sem o "9" extra
+ * entre DDD e número). Bypassa `_papPhoneToEvolutionNumber_` que sempre
+ * prepend "9" em mobile de 8 dígitos.
+ */
+function _papTesteEnvioSemNove() {
+  var p = PropertiesService.getScriptProperties();
+  var url = (p.getProperty('EVOLUTION_API_URL') || '').replace(/\/+$/, '');
+  var key = p.getProperty('EVOLUTION_API_KEY');
+  if (!url || !key) return { sucesso: false, mensagem: 'Properties ausentes.' };
+
+  var endpoint = url + '/message/sendText/Ricardo_Andrade';
+  var resp = UrlFetchApp.fetch(endpoint, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'apikey': key },
+    payload: JSON.stringify({
+      number: '553288015161',
+      options: { delay: 800, presence: 'composing' },
+      textMessage: { text: '🧪 [Teste DharmaPro] Tentativa SEM 9 extra (legacy 12 dig).' }
+    }),
+    muteHttpExceptions: true
+  });
+  var out = { http: resp.getResponseCode(), body: resp.getContentText().slice(0, 500) };
+  Logger.log('_papTesteEnvioSemNove →\n' + JSON.stringify(out, null, 2));
+  return out;
+}
