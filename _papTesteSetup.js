@@ -147,9 +147,8 @@ function _papTesteEnvioComPresence() {
       contentType: 'application/json',
       headers: headers,
       payload: JSON.stringify({
-        number:   '5532988015161',
-        presence: 'composing',
-        delay:    2000
+        number: '5532988015161',
+        options: { delay: 2000, presence: 'composing' }
       }),
       muteHttpExceptions: true
     });
