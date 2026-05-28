@@ -7965,8 +7965,7 @@ function _criarItemVenda(v, index) {
                       'rgba(79,158,255,.15)/var(--blue)',  'rgba(247,162,59,.15)/var(--yellow)'];
     var rc = respColors[(ini.charCodeAt(0) || 0) % respColors.length].split('/');
     respHtml = '<div class="vi-av" style="background:' + rc[0] + ';color:' + rc[1] + '">' + esc(ini) + '</div>' +
-               '<span class="vi-resp-nm">' + esc(v.resp) + '</span>' +
-               '<button class="btn-popup" title="Disparar fluxo para o Responsável" style="font-size:11px;padding:1px 4px;" onclick="event.stopPropagation();abrirModalBotConversa(\'resp\',' + index + ',\'🟣PAP\')">📨</button>';
+               '<span class="vi-resp-nm">' + esc(v.resp) + '</span>';
   }
   if (v.canal) {
     respHtml += '<span class="vi-canal-sm">' + esc(v.canal) + '</span>';
@@ -8042,7 +8041,6 @@ function _criarItemVenda(v, index) {
           '<div class="vi-actions">' +
             (v.cpf ? '<button class="btn-popup" title="Consultar CPF Assertiva" onclick="event.stopPropagation();abrirModalAssertiva(\'' + esc(v.cpf.replace(/\D/g,'')) + '\')">👤</button>' : '') +
             '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
-            '<button class="btn-popup" title="Disparar fluxo BotConversa para o Cliente" onclick="event.stopPropagation();abrirModalBotConversa(\'cliente\',' + index + ')">🤖</button>' +
             (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">🔍</button>' : '') +
             (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
             (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
@@ -9165,75 +9163,11 @@ function _confirmarMovelCombo() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
-//  BOTCONVERSA — MODAL DE FLUXOS
+//  BOTCONVERSA — MODAL DE FLUXOS (removido em 27/05/2026)
 // ══════════════════════════════════════════════════════════════════════════
-
-var _bcFluxosCache = null;   // cache local (session) da lista de fluxos
-var _bcModalTipo   = '';     // 'cliente' ou 'resp'
-var _bcModalIndex  = null;   // índice em _paginaAtual
-
-// Abre o modal de seleção de fluxo
-// tipo: 'cliente' | 'resp'   index: posição em _paginaAtual
-// filtro (opcional): string para filtrar fluxos pelo nome (ex: '🟣PAP')
-function abrirModalBotConversa(tipo, index, filtro) {
-  _bcModalTipo  = tipo;
-  _bcModalIndex = index;
-
-  var v      = _paginaAtual[index];
-  var titulo = document.getElementById('modalBCTitulo');
-  var foot   = document.getElementById('modalBCFoot');
-  var body   = document.getElementById('modalBCBody');
-
-  titulo.textContent = tipo === 'cliente'
-    ? '🤖 Fluxo → ' + esc(v.cliente || 'Cliente')
-    : '📨 Fluxo → ' + esc(v.resp    || 'Responsável');
-
-  foot.style.display = 'none';
-  body.innerHTML = '<div class="ofertas-loading">⏳ Carregando fluxos...</div>';
-  document.getElementById('modalBotConversa').classList.add('ativo');
-
-  _bcCarregarFluxos(function(lista) {
-    // Aplica filtro de pasta se informado
-    var listFiltrada = filtro
-      ? lista.filter(function(f) { return f.name.indexOf(filtro) !== -1; })
-      : lista;
-
-    if (!listFiltrada || !listFiltrada.length) {
-      body.innerHTML = '<div class="ofertas-loading" style="color:var(--accent);">❌ Nenhum fluxo encontrado' +
-        (filtro ? ' na pasta "' + esc(filtro) + '".' : '.') + '</div>';
-      return;
-    }
-    var html = '<div style="padding:4px 0 8px;">' +
-      '<label style="display:block;font-size:12px;color:var(--text2);margin-bottom:8px;">Selecione o fluxo a disparar:</label>' +
-      '<select id="bcSelectFluxo" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--text);font-size:13px;color-scheme:dark;">';
-    listFiltrada.forEach(function(f) {
-      html += '<option value="' + f.id + '" style="background:var(--surface2);color:var(--text);">' + esc(f.name) + '</option>';
-    });
-    html += '</select></div>';
-    body.innerHTML = html;
-    foot.style.display = 'flex';
-  });
-}
-
-// Carrega a lista de fluxos uma vez por sessão (cache em memória)
-function _bcCarregarFluxos(callback) {
-  if (_bcFluxosCache) { callback(_bcFluxosCache); return; }
-  google.script.run
-    .withSuccessHandler(function(res) {
-      if (res.erro || !res.lista) { callback(null); return; }
-      _bcFluxosCache = res.lista;
-      callback(_bcFluxosCache);
-    })
-    .withFailureHandler(function(err) {
-      mostrarToast('❌ ' + (err && err.message ? err.message : 'Erro ao carregar fluxos'), 'error');
-      callback(null);
-    })
-    .getBotConversaFlows();
-}
-
-function fecharModalBotConversa() {
-  document.getElementById('modalBotConversa').classList.remove('ativo');
-}
+//  Notificações PAP foram migradas pra Evolution API (chip 5532991534154).
+//  O disparo manual de fluxos BC (botão 🤖 no card) era a única dependência
+//  restante do produto BC e perdeu sentido com a descontinuidade do serviço.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MODAL ASSERTIVA — Consulta CPF
@@ -9643,39 +9577,7 @@ function _renderResultadoPessoas(data, origem) {
 // alias legado
 function _renderResultadoTelefone(data) { _renderResultadoPessoas(data, 'telefone'); }
 
-// Confirma e dispara o fluxo selecionado
-function _bcConfirmar() {
-  var sel = document.getElementById('bcSelectFluxo');
-  if (!sel || !sel.value) return;
-  var flowId = parseInt(sel.value);
-  var btn    = document.getElementById('btnBCConfirmar');
-  btn.disabled    = true;
-  btn.textContent = '⏳ Enviando...';
-
-  var v        = _paginaAtual[_bcModalIndex];
-  var fnBack   = _bcModalTipo === 'cliente' ? 'dispararFluxoCliente' : 'dispararFluxoResponsavel';
-  var payload  = _bcModalTipo === 'cliente'
-    ? { linha: v.linha, flowId: flowId }
-    : { nomeResp: v.resp, flowId: flowId };
-
-  google.script.run
-    .withSuccessHandler(function(res) {
-      btn.disabled    = false;
-      btn.textContent = '▶ Disparar';
-      if (res && res.sucesso) {
-        mostrarToast('✅ ' + res.mensagem, 'success');
-        fecharModalBotConversa();
-      } else {
-        mostrarToast('❌ ' + (res ? res.mensagem : 'Erro desconhecido'), 'error');
-      }
-    })
-    .withFailureHandler(function(err) {
-      btn.disabled    = false;
-      btn.textContent = '▶ Disparar';
-      mostrarToast('❌ ' + (err && err.message ? err.message : 'Erro de comunicação'), 'error');
-    })
-    [fnBack](payload);
-}
+// _bcConfirmar removida em 27/05/2026 junto com o modal de fluxos BotConversa.
 
 // ══════════════════════════════════════════════════════════════════════════
 //  ANIMAÇÕES DE CELEBRAÇÃO
@@ -10469,7 +10371,6 @@ function _dhpAcoesVendaV3(index, v) {
   return '<div class="vi-actions">' +
     (v.cpf ? '<button class="btn-popup" title="Consultar CPF Assertiva" onclick="event.stopPropagation();abrirModalAssertiva(\'' + esc(v.cpf.replace(/\D/g,'')) + '\')">👤</button>' : '') +
     '<button class="btn-popup" title="Copiar resumo" onclick="event.stopPropagation();copiarVenda(' + index + ')">📋</button>' +
-    '<button class="btn-popup" title="Disparar fluxo BotConversa para o Cliente" onclick="event.stopPropagation();abrirModalBotConversa(\'cliente\',' + index + ')">🤖</button>' +
     (v.cep && v.num ? '<button class="btn-popup" id="viab-btn-' + index + '" title="Consultar viabilidade" onclick="event.stopPropagation();_consultarViabilidadeVenda(' + index + ')">🔍</button>' : '') +
     (v.cpf && (v.sistema || '').toUpperCase() === 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar NG" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarNGVenda(' + index + ')">NG</button>' : '') +
     (v.cpf && (v.sistema || '').toUpperCase() !== 'NG' ? '<button class="btn-popup btn-popup--consulta" title="Consultar Adapter" style="color:#17a2b8;" onclick="event.stopPropagation();_consultarAdapterVenda(' + index + ')">AD</button>' : '') +
