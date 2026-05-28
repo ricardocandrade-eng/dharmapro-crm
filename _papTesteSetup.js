@@ -179,6 +179,72 @@ function _papTesteEnvioComPresence() {
 }
 
 /**
+ * RESET — logout + delete da instância Ricardo_Andrade na Evolution.
+ *
+ * Necessário porque a Baileys store local está corrompida pra DMs (sessão
+ * Signal não estabelece, vide _papTesteEnvioComPresence retornando
+ * SessionError mesmo com presence prévio aceito). Delete apaga a store
+ * inteira. Depois disso, o user clica "Conectar" no Dashboard WA Pessoal
+ * e escaneia o QR com o chip 4154 — instância renasce fresh, sem o
+ * legado corrompido.
+ *
+ * Também limpa a linha de `WA Instâncias` no Sheets pra o Dashboard
+ * mostrar "Desconectado" e o botão Conectar criar a instância nova.
+ */
+function _papResetInstanciaRicardoAndrade() {
+  var p = PropertiesService.getScriptProperties();
+  var url = (p.getProperty('EVOLUTION_API_URL') || '').replace(/\/+$/, '');
+  var key = p.getProperty('EVOLUTION_API_KEY');
+  if (!url || !key) return { ok: false, mensagem: 'Properties ausentes.' };
+
+  var headers = { 'apikey': key };
+  var out = { url: url, instance: 'Ricardo_Andrade' };
+
+  // 1) logout (idempotente; 404 OK se já deslogado)
+  try {
+    var r1 = UrlFetchApp.fetch(url + '/instance/logout/Ricardo_Andrade',
+      { method: 'delete', headers: headers, muteHttpExceptions: true });
+    out.logout = { http: r1.getResponseCode(), body: r1.getContentText().slice(0, 300) };
+  } catch(e) { out.logout = { erro: e.message }; }
+
+  // 2) delete (apaga a Baileys store local — passo crítico)
+  try {
+    var r2 = UrlFetchApp.fetch(url + '/instance/delete/Ricardo_Andrade',
+      { method: 'delete', headers: headers, muteHttpExceptions: true });
+    out.delete = { http: r2.getResponseCode(), body: r2.getContentText().slice(0, 300) };
+  } catch(e) { out.delete = { erro: e.message }; }
+
+  // 3) confirma que sumiu mesmo
+  try {
+    var r3 = UrlFetchApp.fetch(url + '/instance/connectionState/Ricardo_Andrade',
+      { method: 'get', headers: headers, muteHttpExceptions: true });
+    out.checkAfter = { http: r3.getResponseCode(), body: r3.getContentText().slice(0, 300) };
+  } catch(e) { out.checkAfter = { erro: e.message }; }
+
+  // 4) limpa cache local em WA Instâncias (caso Dashboard não atualize sozinho)
+  try {
+    var sh = _waSheet_('WA Instâncias');
+    var data = _waLerLinhas_(sh);
+    var idxUsr = _waColIdx_(data.header, 'usuario');
+    var idxSt  = _waColIdx_(data.header, 'status');
+    var idxPh  = _waColIdx_(data.header, 'phone_display');
+    for (var i = 0; i < data.linhas.length; i++) {
+      var inst = _instanceNameFromUser_(String(data.linhas[i][idxUsr] || ''));
+      if (inst === 'Ricardo_Andrade') {
+        var row = i + 2; // header em row 1
+        if (idxSt >= 0) sh.getRange(row, idxSt + 1).setValue('desconectado');
+        if (idxPh >= 0) sh.getRange(row, idxPh + 1).setValue('');
+        out.sheetRowUpdated = row;
+        break;
+      }
+    }
+  } catch(e) { out.sheetUpdate = { erro: e.message }; }
+
+  Logger.log('_papResetInstanciaRicardoAndrade →\n' + JSON.stringify(out, null, 2));
+  return out;
+}
+
+/**
  * DIAGNÓSTICO #3 — lista as últimas conversas conhecidas pela instância.
  * Se o "oi" inverso (5161 → 4154) chegou de verdade, deve aparecer aqui
  * uma chat com `id: "553288015161@s.whatsapp.net"`.
