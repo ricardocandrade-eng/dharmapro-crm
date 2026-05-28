@@ -656,8 +656,8 @@ function atualizarVendaComAdapter(dados) {
         var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
         if (rowPAP[c.CANAL] === 'PAP') {
           var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-          if (vPAP && vPAP.subscriberId && dados.notificarVendedor !== false) {
-            _papNotificarVendedorPAP('instalada', vPAP.subscriberId, {
+          if (vPAP && vPAP.whatsapp && dados.notificarVendedor !== false) {
+            _papNotificarVendedorPAP('instalada', vPAP.whatsapp, {
               pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
               pap_plano:        String(rowPAP[c.PLANO]   || ''),
               pap_status:       '3 - Finalizada/Instalada'
@@ -720,8 +720,8 @@ function atualizarVendaComNG(dados) {
         var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
         if (rowPAP[c.CANAL] === 'PAP') {
           var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-          if (vPAP && vPAP.subscriberId && dados.notificarVendedor !== false) {
-            _papNotificarVendedorPAP('instalada', vPAP.subscriberId, {
+          if (vPAP && vPAP.whatsapp && dados.notificarVendedor !== false) {
+            _papNotificarVendedorPAP('instalada', vPAP.whatsapp, {
               pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
               pap_plano:        String(rowPAP[c.PLANO]   || ''),
               pap_status:       '3 - Finalizada/Instalada'
@@ -2418,7 +2418,9 @@ function marcarPagoPAP(linha) {
   }
 }
 
-// Marca pago + envia mensagem de comissão ao vendedor via BotConversa
+// Marca pago + envia mensagem de comissão ao vendedor via Evolution API
+// (chip 5532991534154, instância Ricardo_Andrade). Migrado do BotConversa
+// em 27/05/2026 — ver § "NOTIFICAÇÕES PAP" em ParceirosAPI.js.
 // payload: { linha, mensagem, whatsapp }
 function marcarPagoENotificarPAP(payload) {
   var resultado = { sucesso: false, pagamento: false, notificacao: false, mensagem: '' };
@@ -2430,25 +2432,19 @@ function marcarPagoENotificarPAP(payload) {
     resultado.pagamento = true;
     Logger.log('marcarPagoENotificarPAP: linha ' + payload.linha + ' marcada como Pago.');
 
-    // 2) Envia mensagem via BotConversa
+    // 2) Envia mensagem via Evolution
     var whats = String(payload.whatsapp || '').trim();
     if (!whats) {
       resultado.sucesso = true;
       resultado.mensagem = 'Pagamento registrado, mas vendedor sem WhatsApp cadastrado.';
       return resultado;
     }
-    var sid = _bcGetSubscriberPorTelefone(whats);
-    if (!sid) {
-      resultado.sucesso = true;
-      resultado.mensagem = 'Pagamento registrado, mas vendedor não encontrado no BotConversa.';
-      return resultado;
-    }
-    var resMsg = _bcEnviarMensagemTexto(sid, payload.mensagem);
-    resultado.notificacao = resMsg.sucesso;
+    var resMsg = _papEnviarMensagemDireta(whats, payload.mensagem);
+    resultado.notificacao = !!(resMsg && resMsg.sucesso);
     resultado.sucesso = true;
-    resultado.mensagem = resMsg.sucesso
+    resultado.mensagem = resultado.notificacao
       ? 'Pagamento registrado e vendedor notificado!'
-      : 'Pagamento registrado, mas falha ao notificar: ' + (resMsg.mensagem || '');
+      : 'Pagamento registrado, mas falha ao notificar: ' + ((resMsg && resMsg.mensagem) || '');
     return resultado;
   } catch(e) {
     Logger.log('marcarPagoENotificarPAP erro: ' + e.message);
@@ -2483,14 +2479,18 @@ function _bcEnviarMensagemTexto(subscriberId, texto) {
   }
 }
 
-// Envia resumo consolidado dos pagamentos PAP para o número do admin
+// Envia resumo consolidado dos pagamentos PAP para o DM do Ricardo via
+// Flow 1 do disparo-grupo (apelido 'ricardo' = +55 32 98801-5161). Antes ia
+// pelo BotConversa para o próprio chip (5532991534154); como esse chip agora
+// É o emissor (instância Ricardo_Andrade na Evolution), não é possível mandar
+// pra si mesmo — roteado pra DM Ricardo via chip da Evolution → 988015161.
 // payload: { resumoTexto } — texto montado no frontend
 function enviarResumoPAPAdmin(resumoTexto) {
   try {
-    var ADMIN_WHATS = '5532991534154'; // +55 32 99153-4154
-    var sid = _bcGetSubscriberPorTelefone(ADMIN_WHATS);
-    if (!sid) return { sucesso: false, mensagem: 'Número admin não encontrado no BotConversa.' };
-    return _bcEnviarMensagemTexto(sid, resumoTexto);
+    var ok = enviarParaGrupoWhatsApp(resumoTexto, 'ricardo');
+    return ok
+      ? { sucesso: true }
+      : { sucesso: false, mensagem: 'Falha ao enviar via Flow 1 (ver logs do n8n / Apps Script).' };
   } catch(e) {
     Logger.log('enviarResumoPAPAdmin erro: ' + e.message);
     return { sucesso: false, mensagem: e.message };
@@ -2717,8 +2717,8 @@ function moverLeadAguardando(payload) {
       var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
       if (rowPAP[c.CANAL] === 'PAP') {
         var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-        if (vPAP && vPAP.subscriberId && payload.notificarVendedor !== false) {
-          _papNotificarVendedorPAP('aguardando_instalacao', vPAP.subscriberId, {
+        if (vPAP && vPAP.whatsapp && payload.notificarVendedor !== false) {
+          _papNotificarVendedorPAP('aguardando_instalacao', vPAP.whatsapp, {
             pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
             pap_plano:        String(rowPAP[c.PLANO]   || ''),
             pap_agenda:       (function(v){ if(!v) return ''; var d = new Date(v); return isNaN(d)?String(v):Utilities.formatDate(d,Session.getScriptTimeZone(),'dd/MM/yyyy'); })(rowPAP[c.AGENDA]),
@@ -5617,8 +5617,8 @@ function salvarVenda(dados) {
       if (rowPAP[c.CANAL] === 'PAP') {
         var evPAP = (dados.status === '3 - Finalizada/Instalada') ? 'instalada' : 'aguardando_instalacao';
         var vPAP  = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-        if (vPAP && vPAP.subscriberId && dados.notificarVendedor !== false) {
-          _papNotificarVendedorPAP(evPAP, vPAP.subscriberId, {
+        if (vPAP && vPAP.whatsapp && dados.notificarVendedor !== false) {
+          _papNotificarVendedorPAP(evPAP, vPAP.whatsapp, {
             pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
             pap_plano:        String(rowPAP[c.PLANO]   || ''),
             pap_agenda:       (function(v){ if(!v) return ''; var d = new Date(v); return isNaN(d)?String(v):Utilities.formatDate(d,Session.getScriptTimeZone(),'dd/MM/yyyy'); })(rowPAP[c.AGENDA]),
@@ -5995,9 +5995,9 @@ function moverVendaFunil(payload) {
       var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
       if (rowPAP[c.CANAL] === 'PAP') {
         var vPAP  = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-        if (vPAP && vPAP.subscriberId && payload.notificarVendedor !== false) {
+        if (vPAP && vPAP.whatsapp && payload.notificarVendedor !== false) {
           var evPAP = (novoStatus === '3 - Finalizada/Instalada') ? 'instalada' : 'aguardando_instalacao';
-          _papNotificarVendedorPAP(evPAP, vPAP.subscriberId, {
+          _papNotificarVendedorPAP(evPAP, vPAP.whatsapp, {
             pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
             pap_plano:        String(rowPAP[c.PLANO]   || ''),
             pap_agenda:       (function(v){ if(!v) return ''; var d = new Date(v); return isNaN(d)?String(v):Utilities.formatDate(d,Session.getScriptTimeZone(),'dd/MM/yyyy'); })(rowPAP[c.AGENDA]),
