@@ -136,8 +136,12 @@ function aplicarExtratoMensal(payload, opts) {
       // 7.5 — pontos efetivos: prioriza o que já está em 1-Vendas; se vazio
       // e o extrato trouxe pontos > 0, usa o do extrato (e marca pra escrita
       // no batch). Idempotente: nunca sobrescreve valor existente.
-      var pvAtual = Number(crmPontosVenda[i][0] || 0);
-      var pmAtual = Number(crmPontosMovel[i][0] || 0);
+      // Math.max(0, ...) clampa lixo: células que tiveram Date object gravado
+      // (visto no caso ANDRESSA 3013549: PONTOS_MOVEL = -2.2e12, timestamp em
+      // ms) viram 0 e disparam o backfill normalmente em vez de poluir o
+      // previsto com valor negativo absurdo (que vira SEM_PREVISTO falso).
+      var pvAtual = Math.max(0, Number(crmPontosVenda[i][0] || 0));
+      var pmAtual = Math.max(0, Number(crmPontosMovel[i][0] || 0));
       var pvEfetivo = pvAtual;
       var pmEfetivo = pmAtual;
       var stampedPV = false, stampedPM = false;
