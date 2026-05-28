@@ -120,6 +120,99 @@ function _papDiagWhatsAppNumber() {
 }
 
 /**
+ * TESTE 3 — sendPresence ANTES do sendText.
+ *
+ * Workaround documentado pra Evolution v1.8.x + Baileys: ao chamar
+ * sendPresence numa instância, o Baileys faz `assertSessions` (busca pre-keys
+ * do destinatário). Esperar uns 2s depois dá tempo da sessão Signal
+ * estabilizar antes do sendText. Em alguns casos resolve `SessionError`.
+ *
+ * Se ESTE também falhar, o problema é estrutural na Baileys store da
+ * instância — DMs simplesmente não vão funcionar sem reset (logout +
+ * delete instance + re-pair via QR), o que limpa o store local.
+ */
+function _papTesteEnvioComPresence() {
+  var p = PropertiesService.getScriptProperties();
+  var url = (p.getProperty('EVOLUTION_API_URL') || '').replace(/\/+$/, '');
+  var key = p.getProperty('EVOLUTION_API_KEY');
+  if (!url || !key) return { sucesso: false, mensagem: 'Properties ausentes.' };
+
+  var headers = { 'apikey': key };
+  var resultado = {};
+
+  // 1) sendPresence -> força assertSessions no Baileys
+  try {
+    var r1 = UrlFetchApp.fetch(url + '/chat/sendPresence/Ricardo_Andrade', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: headers,
+      payload: JSON.stringify({
+        number:   '5532988015161',
+        presence: 'composing',
+        delay:    2000
+      }),
+      muteHttpExceptions: true
+    });
+    resultado.presence = { http: r1.getResponseCode(), body: r1.getContentText().slice(0, 300) };
+  } catch(e) { resultado.presence = { erro: e.message }; }
+
+  // 2) espera 3s pra Baileys terminar o assertSessions
+  Utilities.sleep(3000);
+
+  // 3) sendText
+  try {
+    var r2 = UrlFetchApp.fetch(url + '/message/sendText/Ricardo_Andrade', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: headers,
+      payload: JSON.stringify({
+        number: '5532988015161',
+        options: { delay: 1200, presence: 'composing' },
+        textMessage: { text: '🧪 [Teste DharmaPro] Tentativa com sendPresence prévio (workaround Baileys assertSessions).' }
+      }),
+      muteHttpExceptions: true
+    });
+    resultado.sendText = { http: r2.getResponseCode(), body: r2.getContentText().slice(0, 500) };
+  } catch(e) { resultado.sendText = { erro: e.message }; }
+
+  Logger.log('_papTesteEnvioComPresence →\n' + JSON.stringify(resultado, null, 2));
+  return resultado;
+}
+
+/**
+ * DIAGNÓSTICO #3 — lista as últimas conversas conhecidas pela instância.
+ * Se o "oi" inverso (5161 → 4154) chegou de verdade, deve aparecer aqui
+ * uma chat com `id: "553288015161@s.whatsapp.net"`.
+ *
+ * Se NÃO aparecer, o receive não chegou — ou o webhook do n8n consumiu
+ * sem nada acontecer no lado Baileys, ou a mensagem realmente não foi
+ * entregue.
+ */
+function _papDiagListarChats() {
+  var p = PropertiesService.getScriptProperties();
+  var url = (p.getProperty('EVOLUTION_API_URL') || '').replace(/\/+$/, '');
+  var key = p.getProperty('EVOLUTION_API_KEY');
+  if (!url || !key) return { erro: 'Properties ausentes.' };
+
+  // POST /chat/findChats/Ricardo_Andrade (v1.x) -> lista as chats
+  var resp = UrlFetchApp.fetch(url + '/chat/findChats/Ricardo_Andrade', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'apikey': key },
+    payload: JSON.stringify({}),
+    muteHttpExceptions: true
+  });
+  var http = resp.getResponseCode();
+  var txt  = resp.getContentText();
+
+  var alvo = '553288015161';
+  var encontrado = txt.indexOf(alvo) !== -1;
+  var resumo = { http: http, encontrouAlvo: encontrado, tamanhoBody: txt.length, primeiros500: txt.slice(0, 500) };
+  Logger.log('_papDiagListarChats →\n' + JSON.stringify(resumo, null, 2));
+  return resumo;
+}
+
+/**
  * TESTE 2 — manda direto pra `553288015161` (12 dígitos, sem o "9" extra
  * entre DDD e número). Bypassa `_papPhoneToEvolutionNumber_` que sempre
  * prepend "9" em mobile de 8 dígitos.
