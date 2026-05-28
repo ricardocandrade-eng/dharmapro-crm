@@ -96,6 +96,24 @@ function _diag75() {
 // Limpa células corrompidas (zera). Roda APÓS revisar _diag75.
 // Aceita um array de linhas {linha, campo:'PV'|'PM'} pra ser preciso.
 // Default: limpa TUDO que _diag75 encontrou.
+// Reseta o numberFormat das cols PONTOS_VENDA e PONTOS_MOVEL pra '0' (inteiro).
+// Causa raiz das células Date detectadas em 27/05: as cols estavam formatadas
+// como Data (provavelmente arrasto de formatação da col vizinha). Toda vez que
+// alguém grava pontos nelas, o Sheets converte o número em Date pra exibição,
+// e ao re-ler vem Date object. Resetar o formato é a única forma de prevenir
+// reincidência — limpar as células sem isso só adia o próximo episódio.
+function _diag75CorrigirFormatoCols() {
+  var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  var c = CONFIG.COLUNAS;
+  var maxR = sheet.getMaxRows();
+  sheet.getRange(1, c.PONTOS_VENDA + 1, maxR, 1).setNumberFormat('0');
+  sheet.getRange(1, c.PONTOS_MOVEL + 1, maxR, 1).setNumberFormat('0');
+  Logger.log('_diag75CorrigirFormatoCols: PONTOS_VENDA (col ' + (c.PONTOS_VENDA+1) +
+    ') e PONTOS_MOVEL (col ' + (c.PONTOS_MOVEL+1) + ') resetadas pra formato 0.');
+  return { ok: true };
+}
+
 function _diag75LimparCorrompidas(alvos) {
   var ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   var sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
