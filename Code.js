@@ -2326,31 +2326,9 @@ function marcarPagoENotificarPAP(payload) {
   }
 }
 
-// Envia mensagem de texto direta para um subscriber do BotConversa (helper privado)
-function _bcEnviarMensagemTexto(subscriberId, texto) {
-  try {
-    var apiKey = PropertiesService.getScriptProperties().getProperty('botconversa_api_key') || '';
-    if (!apiKey) return { sucesso: false, mensagem: 'Chave BotConversa não configurada.' };
-    var resp = UrlFetchApp.fetch(
-      'https://backend.botconversa.com.br/api/v1/webhook/subscriber/' + subscriberId + '/send_message/',
-      {
-        method         : 'post',
-        contentType    : 'application/json',
-        headers        : { 'api-key': apiKey },
-        payload        : JSON.stringify({ type: 'text', value: texto }),
-        muteHttpExceptions: true
-      }
-    );
-    var code = resp.getResponseCode();
-    if (code === 200 || code === 201) return { sucesso: true };
-    var msg = '';
-    try { msg = JSON.parse(resp.getContentText()).error_message || ''; } catch(e2) {}
-    return { sucesso: false, mensagem: 'BotConversa HTTP ' + code + (msg ? ': ' + msg : '') };
-  } catch(e) {
-    Logger.log('_bcEnviarMensagemTexto erro: ' + e.message);
-    return { sucesso: false, mensagem: e.message };
-  }
-}
+// _bcEnviarMensagemTexto removida em 27/05/2026 — todos os disparos PAP
+// foram migrados pra _papEnviarMensagemDireta (Evolution) ou
+// enviarParaGrupoWhatsApp (Flow 1).
 
 // Envia resumo consolidado dos pagamentos PAP para o DM do Ricardo via
 // Flow 1 do disparo-grupo (apelido 'ricardo' = +55 32 98801-5161). Antes ia

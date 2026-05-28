@@ -235,6 +235,6 @@ clasp push
 ## Pontos que o Claude Code deve confirmar com Ricardo
 
 1. **Stub `sincronizarTagsBotConversa`**: manter como segurança ou deletar completamente?
-2. **Helpers `_bcEnviarFluxo`, `_bcSubscriberByPhone`, `enviarMensagemBotConversa`**: continuam ativos no Code.js — são usados pra disparar fluxos pro cliente via botão no card. NÃO mexer.
+2. ~~**Helpers `_bcEnviarFluxo`, `_bcSubscriberByPhone`, `enviarMensagemBotConversa`**: continuam ativos no Code.js — são usados pra disparar fluxos pro cliente via botão no card. NÃO mexer.~~ **REMOVIDOS em 27/05/2026** junto com o botão 🤖 do card e a migração das notificações PAP pra Evolution API. Ver § "NOTIFICAÇÕES PAP" em `ParceirosAPI.js`.
 3. **Trigger time-based** do GAS: confirmar que NÃO existe trigger chamando `sincronizarTagsBotConversa` (se existir, desativar manualmente em `Apps Script → Triggers`).
 4. **Versão do CACHE_PREFIX**: o atual é `'crm_v3_'`. Se quiser invalidar TODOS os caches num bump, atualizar pra `'crm_v4_'` em Code.js.
