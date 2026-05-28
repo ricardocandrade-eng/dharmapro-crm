@@ -656,8 +656,8 @@ function atualizarVendaComAdapter(dados) {
         var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
         if (rowPAP[c.CANAL] === 'PAP') {
           var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-          if (vPAP && vPAP.subscriberId && dados.notificarVendedor !== false) {
-            _papNotificarVendedorPAP('instalada', vPAP.subscriberId, {
+          if (vPAP && vPAP.whatsapp && dados.notificarVendedor !== false) {
+            _papNotificarVendedorPAP('instalada', vPAP.whatsapp, {
               pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
               pap_plano:        String(rowPAP[c.PLANO]   || ''),
               pap_status:       '3 - Finalizada/Instalada'
@@ -720,8 +720,8 @@ function atualizarVendaComNG(dados) {
         var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
         if (rowPAP[c.CANAL] === 'PAP') {
           var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-          if (vPAP && vPAP.subscriberId && dados.notificarVendedor !== false) {
-            _papNotificarVendedorPAP('instalada', vPAP.subscriberId, {
+          if (vPAP && vPAP.whatsapp && dados.notificarVendedor !== false) {
+            _papNotificarVendedorPAP('instalada', vPAP.whatsapp, {
               pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
               pap_plano:        String(rowPAP[c.PLANO]   || ''),
               pap_status:       '3 - Finalizada/Instalada'
@@ -2068,140 +2068,13 @@ function getResponsaveis() {
 }
 
 
-// ─── BOTCONVERSA — INTEGRAÇÃO ──────────────────────────────────────────────
-// Base URL: https://backend.botconversa.com.br/api/v1/webhook
-// Autenticação: header 'api-key'
-// Limite: 600 RPM
-
-// Lista os fluxos disponíveis na conta (cache 5 min)
-function getBotConversaFlows() {
-  try {
-    var cache    = CacheService.getScriptCache();
-    var cacheKey = CONFIG.CACHE_PREFIX + 'bc_flows_v1';
-    try {
-      var hit = cache.get(cacheKey);
-      if (hit) return JSON.parse(hit);
-    } catch(ce) {}
-
-    var apiKey = PropertiesService.getScriptProperties().getProperty('botconversa_api_key') || '';
-    if (!apiKey) return { erro: true, mensagem: 'Chave BotConversa não configurada. Execute configurarBotConversa() no editor.' };
-
-    var resp = UrlFetchApp.fetch(
-      'https://backend.botconversa.com.br/api/v1/webhook/flows/',
-      { method: 'get', headers: { 'api-key': apiKey }, muteHttpExceptions: true }
-    );
-    if (resp.getResponseCode() !== 200) {
-      return { erro: true, mensagem: 'BotConversa retornou HTTP ' + resp.getResponseCode() };
-    }
-    var lista = JSON.parse(resp.getContentText());
-    var retorno = { erro: false, lista: lista };
-    try { cache.put(cacheKey, JSON.stringify(retorno), 300); } catch(ce) {}
-    Logger.log('getBotConversaFlows: ' + lista.length + ' fluxos.');
-    return retorno;
-  } catch(e) {
-    Logger.log('getBotConversaFlows erro: ' + e.message);
-    return { erro: true, mensagem: e.message };
-  }
-}
-
-// Busca o subscriber_id pelo número de telefone (helper privado)
-function _bcGetSubscriberPorTelefone(telefone) {
-  try {
-    var fone = String(telefone).replace(/\D/g, '');
-    if (fone.length < 8) return null;
-    // BotConversa armazena com DDI; CRM guarda sem "+55" → adiciona se necessário
-    if (fone.length <= 11 && fone.substring(0, 2) !== '55') {
-      fone = '55' + fone;
-    }
-    var apiKey = PropertiesService.getScriptProperties().getProperty('botconversa_api_key') || '';
-    if (!apiKey) return null;
-    var resp = UrlFetchApp.fetch(
-      'https://backend.botconversa.com.br/api/v1/webhook/subscriber/get_by_phone/' + fone + '/',
-      { method: 'get', headers: { 'api-key': apiKey }, muteHttpExceptions: true }
-    );
-    if (resp.getResponseCode() !== 200) return null;
-    return JSON.parse(resp.getContentText()).id || null;
-  } catch(e) {
-    Logger.log('_bcGetSubscriberPorTelefone erro: ' + e.message);
-    return null;
-  }
-}
-
-// Envia um fluxo para um subscriber já identificado (helper privado)
-// extraCampos: objeto opcional com campos adicionais mesclados no payload (ex: variáveis PAP)
-function _bcEnviarFluxo(subscriberId, flowId, extraCampos) {
-  try {
-    var apiKey = PropertiesService.getScriptProperties().getProperty('botconversa_api_key') || '';
-    if (!apiKey) return { sucesso: false, mensagem: 'Chave BotConversa não configurada.' };
-    var body = { flow: parseInt(flowId) };
-    if (extraCampos) {
-      Object.keys(extraCampos).forEach(function(k) { body[k] = extraCampos[k]; });
-    }
-    var resp = UrlFetchApp.fetch(
-      'https://backend.botconversa.com.br/api/v1/webhook/subscriber/' + subscriberId + '/send_flow/',
-      {
-        method         : 'post',
-        contentType    : 'application/json',
-        headers        : { 'api-key': apiKey },
-        payload        : JSON.stringify(body),
-        muteHttpExceptions: true
-      }
-    );
-    var code = resp.getResponseCode();
-    if (code === 200 || code === 201) return { sucesso: true, mensagem: 'Fluxo disparado com sucesso!' };
-    var msg = '';
-    try { msg = JSON.parse(resp.getContentText()).error_message || ''; } catch(e2) {}
-    return { sucesso: false, mensagem: 'Erro BotConversa (' + code + ')' + (msg ? ': ' + msg : '') };
-  } catch(e) {
-    Logger.log('_bcEnviarFluxo erro: ' + e.message);
-    return { sucesso: false, mensagem: e.message };
-  }
-}
-
-// Dispara fluxo para o cliente de uma venda — payload: { linha, flowId }
-function dispararFluxoCliente(payload) {
-  try {
-    var sheet = _getSheet();
-    if (!sheet) return { sucesso: false, mensagem: 'Planilha não encontrada.' };
-    var linha = parseInt(payload.linha);
-    if (!linha || linha < 3) return { sucesso: false, mensagem: 'Linha inválida.' };
-    var whats = String(sheet.getRange(linha, CONFIG.COLUNAS.WHATS + 1).getValue() || '').trim();
-    if (!whats) return { sucesso: false, mensagem: 'Cliente sem WhatsApp cadastrado.' };
-    var sid = _bcGetSubscriberPorTelefone(whats);
-    if (!sid) return { sucesso: false, mensagem: 'Contato não encontrado no BotConversa.' };
-    return _bcEnviarFluxo(sid, payload.flowId);
-  } catch(e) {
-    Logger.log('dispararFluxoCliente erro: ' + e.message);
-    return { sucesso: false, mensagem: e.message };
-  }
-}
-
-// Dispara fluxo para um responsável — payload: { nomeResp, flowId }
-// Lookup do WhatsApp na aba '3 - PAP': col S = nome, col U = whatsapp
-function dispararFluxoResponsavel(payload) {
-  try {
-    var sh = _getSpreadsheet_().getSheetByName('3 - PAP');
-    if (!sh) return { sucesso: false, mensagem: 'Aba "3 - PAP" não encontrada.' };
-    var ultimaLinha = sh.getLastRow();
-    if (ultimaLinha < 5) return { sucesso: false, mensagem: 'Sem dados na aba PAP.' };
-    var raw       = sh.getRange(5, 19, ultimaLinha - 4, 3).getValues(); // cols S, T, U
-    var nomeBusca = String(payload.nomeResp || '').trim().toLowerCase();
-    var whatsResp = '';
-    for (var i = 0; i < raw.length; i++) {
-      if (String(raw[i][0] || '').trim().toLowerCase() === nomeBusca) {
-        whatsResp = String(raw[i][2] || '').trim(); // col U = índice 2
-        break;
-      }
-    }
-    if (!whatsResp) return { sucesso: false, mensagem: 'WhatsApp do responsável não encontrado na aba PAP.' };
-    var sid = _bcGetSubscriberPorTelefone(whatsResp);
-    if (!sid) return { sucesso: false, mensagem: 'Responsável não encontrado no BotConversa.' };
-    return _bcEnviarFluxo(sid, payload.flowId);
-  } catch(e) {
-    Logger.log('dispararFluxoResponsavel erro: ' + e.message);
-    return { sucesso: false, mensagem: e.message };
-  }
-}
+// ─── BOTCONVERSA — REMOVIDO em 27/05/2026 ─────────────────────────────────
+// `getBotConversaFlows`, `dispararFluxoCliente`, `dispararFluxoResponsavel`,
+// `_bcEnviarFluxo` e `_bcGetSubscriberPorTelefone` foram removidos junto com
+// o botão 🤖 do card (modal manual de disparo de fluxo BC). Notificações PAP
+// automáticas migraram pra Evolution API — ver § "NOTIFICAÇÕES PAP" em
+// ParceirosAPI.js. O webhook BC de entrada (doPost) continua ativo apenas
+// para receber leads Meta Ads — saída via BC foi descontinuada.
 
 // ─── REMOVIDO (Performance Lista de Vendas — 19/05/2026) ──────────────────
 // `sincronizarTagsBotConversa` foi removida porque rodava em paralelo ao
@@ -2418,7 +2291,9 @@ function marcarPagoPAP(linha) {
   }
 }
 
-// Marca pago + envia mensagem de comissão ao vendedor via BotConversa
+// Marca pago + envia mensagem de comissão ao vendedor via Evolution API
+// (chip 5532991534154, instância Ricardo_Andrade). Migrado do BotConversa
+// em 27/05/2026 — ver § "NOTIFICAÇÕES PAP" em ParceirosAPI.js.
 // payload: { linha, mensagem, whatsapp }
 function marcarPagoENotificarPAP(payload) {
   var resultado = { sucesso: false, pagamento: false, notificacao: false, mensagem: '' };
@@ -2430,25 +2305,19 @@ function marcarPagoENotificarPAP(payload) {
     resultado.pagamento = true;
     Logger.log('marcarPagoENotificarPAP: linha ' + payload.linha + ' marcada como Pago.');
 
-    // 2) Envia mensagem via BotConversa
+    // 2) Envia mensagem via Evolution
     var whats = String(payload.whatsapp || '').trim();
     if (!whats) {
       resultado.sucesso = true;
       resultado.mensagem = 'Pagamento registrado, mas vendedor sem WhatsApp cadastrado.';
       return resultado;
     }
-    var sid = _bcGetSubscriberPorTelefone(whats);
-    if (!sid) {
-      resultado.sucesso = true;
-      resultado.mensagem = 'Pagamento registrado, mas vendedor não encontrado no BotConversa.';
-      return resultado;
-    }
-    var resMsg = _bcEnviarMensagemTexto(sid, payload.mensagem);
-    resultado.notificacao = resMsg.sucesso;
+    var resMsg = _papEnviarMensagemDireta(whats, payload.mensagem);
+    resultado.notificacao = !!(resMsg && resMsg.sucesso);
     resultado.sucesso = true;
-    resultado.mensagem = resMsg.sucesso
+    resultado.mensagem = resultado.notificacao
       ? 'Pagamento registrado e vendedor notificado!'
-      : 'Pagamento registrado, mas falha ao notificar: ' + (resMsg.mensagem || '');
+      : 'Pagamento registrado, mas falha ao notificar: ' + ((resMsg && resMsg.mensagem) || '');
     return resultado;
   } catch(e) {
     Logger.log('marcarPagoENotificarPAP erro: ' + e.message);
@@ -2457,40 +2326,22 @@ function marcarPagoENotificarPAP(payload) {
   }
 }
 
-// Envia mensagem de texto direta para um subscriber do BotConversa (helper privado)
-function _bcEnviarMensagemTexto(subscriberId, texto) {
-  try {
-    var apiKey = PropertiesService.getScriptProperties().getProperty('botconversa_api_key') || '';
-    if (!apiKey) return { sucesso: false, mensagem: 'Chave BotConversa não configurada.' };
-    var resp = UrlFetchApp.fetch(
-      'https://backend.botconversa.com.br/api/v1/webhook/subscriber/' + subscriberId + '/send_message/',
-      {
-        method         : 'post',
-        contentType    : 'application/json',
-        headers        : { 'api-key': apiKey },
-        payload        : JSON.stringify({ type: 'text', value: texto }),
-        muteHttpExceptions: true
-      }
-    );
-    var code = resp.getResponseCode();
-    if (code === 200 || code === 201) return { sucesso: true };
-    var msg = '';
-    try { msg = JSON.parse(resp.getContentText()).error_message || ''; } catch(e2) {}
-    return { sucesso: false, mensagem: 'BotConversa HTTP ' + code + (msg ? ': ' + msg : '') };
-  } catch(e) {
-    Logger.log('_bcEnviarMensagemTexto erro: ' + e.message);
-    return { sucesso: false, mensagem: e.message };
-  }
-}
+// _bcEnviarMensagemTexto removida em 27/05/2026 — todos os disparos PAP
+// foram migrados pra _papEnviarMensagemDireta (Evolution) ou
+// enviarParaGrupoWhatsApp (Flow 1).
 
-// Envia resumo consolidado dos pagamentos PAP para o número do admin
+// Envia resumo consolidado dos pagamentos PAP para o DM do Ricardo via
+// Flow 1 do disparo-grupo (apelido 'ricardo' = +55 32 98801-5161). Antes ia
+// pelo BotConversa para o próprio chip (5532991534154); como esse chip agora
+// É o emissor (instância Ricardo_Andrade na Evolution), não é possível mandar
+// pra si mesmo — roteado pra DM Ricardo via chip da Evolution → 988015161.
 // payload: { resumoTexto } — texto montado no frontend
 function enviarResumoPAPAdmin(resumoTexto) {
   try {
-    var ADMIN_WHATS = '5532991534154'; // +55 32 99153-4154
-    var sid = _bcGetSubscriberPorTelefone(ADMIN_WHATS);
-    if (!sid) return { sucesso: false, mensagem: 'Número admin não encontrado no BotConversa.' };
-    return _bcEnviarMensagemTexto(sid, resumoTexto);
+    var ok = enviarParaGrupoWhatsApp(resumoTexto, 'ricardo');
+    return ok
+      ? { sucesso: true }
+      : { sucesso: false, mensagem: 'Falha ao enviar via Flow 1 (ver logs do n8n / Apps Script).' };
   } catch(e) {
     Logger.log('enviarResumoPAPAdmin erro: ' + e.message);
     return { sucesso: false, mensagem: e.message };
@@ -2717,8 +2568,8 @@ function moverLeadAguardando(payload) {
       var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
       if (rowPAP[c.CANAL] === 'PAP') {
         var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-        if (vPAP && vPAP.subscriberId && payload.notificarVendedor !== false) {
-          _papNotificarVendedorPAP('aguardando_instalacao', vPAP.subscriberId, {
+        if (vPAP && vPAP.whatsapp && payload.notificarVendedor !== false) {
+          _papNotificarVendedorPAP('aguardando_instalacao', vPAP.whatsapp, {
             pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
             pap_plano:        String(rowPAP[c.PLANO]   || ''),
             pap_agenda:       (function(v){ if(!v) return ''; var d = new Date(v); return isNaN(d)?String(v):Utilities.formatDate(d,Session.getScriptTimeZone(),'dd/MM/yyyy'); })(rowPAP[c.AGENDA]),
@@ -5617,8 +5468,8 @@ function salvarVenda(dados) {
       if (rowPAP[c.CANAL] === 'PAP') {
         var evPAP = (dados.status === '3 - Finalizada/Instalada') ? 'instalada' : 'aguardando_instalacao';
         var vPAP  = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-        if (vPAP && vPAP.subscriberId && dados.notificarVendedor !== false) {
-          _papNotificarVendedorPAP(evPAP, vPAP.subscriberId, {
+        if (vPAP && vPAP.whatsapp && dados.notificarVendedor !== false) {
+          _papNotificarVendedorPAP(evPAP, vPAP.whatsapp, {
             pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
             pap_plano:        String(rowPAP[c.PLANO]   || ''),
             pap_agenda:       (function(v){ if(!v) return ''; var d = new Date(v); return isNaN(d)?String(v):Utilities.formatDate(d,Session.getScriptTimeZone(),'dd/MM/yyyy'); })(rowPAP[c.AGENDA]),
@@ -5995,9 +5846,9 @@ function moverVendaFunil(payload) {
       var rowPAP = sheet.getRange(linha, 1, 1, c.CLIENTE + 1).getValues()[0];
       if (rowPAP[c.CANAL] === 'PAP') {
         var vPAP  = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-        if (vPAP && vPAP.subscriberId && payload.notificarVendedor !== false) {
+        if (vPAP && vPAP.whatsapp && payload.notificarVendedor !== false) {
           var evPAP = (novoStatus === '3 - Finalizada/Instalada') ? 'instalada' : 'aguardando_instalacao';
-          _papNotificarVendedorPAP(evPAP, vPAP.subscriberId, {
+          _papNotificarVendedorPAP(evPAP, vPAP.whatsapp, {
             pap_nome_cliente: String(rowPAP[c.CLIENTE] || ''),
             pap_plano:        String(rowPAP[c.PLANO]   || ''),
             pap_agenda:       (function(v){ if(!v) return ''; var d = new Date(v); return isNaN(d)?String(v):Utilities.formatDate(d,Session.getScriptTimeZone(),'dd/MM/yyyy'); })(rowPAP[c.AGENDA]),

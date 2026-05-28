@@ -328,8 +328,8 @@ function salvarPreVenda(data) {
   if (pvId) {
     try {
       const v = _papBuscarSubscriberVendedor(data.parceiroCpf, data.parceiro);
-      if (v && v.subscriberId) {
-        _papNotificarVendedorPAP('pv_recebida', v.subscriberId, {
+      if (v && v.whatsapp) {
+        _papNotificarVendedorPAP('pv_recebida', v.whatsapp, {
           pap_pv_id:        pvId,
           pap_nome_cliente: data.nomeCliente || '',
           pap_plano:        data.plano       || '',
@@ -440,8 +440,8 @@ function aprovarPreVenda(id, emailAprovador) {
   if (resultado.ok && pvCopia) {
     try {
       const v = _papBuscarSubscriberVendedor(pvCopia[4], pvCopia[3]);
-      if (v && v.subscriberId) {
-        _papNotificarVendedorPAP('pv_aprovada', v.subscriberId, {
+      if (v && v.whatsapp) {
+        _papNotificarVendedorPAP('pv_aprovada', v.whatsapp, {
           pap_pv_id:        pvCopia[0],
           pap_nome_cliente: pvCopia[6] || '',
           pap_plano:        pvCopia[11] || '',
@@ -570,8 +570,8 @@ function rejeitarPreVenda(id, emailRejeitor, motivo) {
   if (resultado.ok && pvCopia) {
     try {
       const v = _papBuscarSubscriberVendedor(pvCopia[4], pvCopia[3]);
-      if (v && v.subscriberId) {
-        _papNotificarVendedorPAP('pv_rejeitada', v.subscriberId, {
+      if (v && v.whatsapp) {
+        _papNotificarVendedorPAP('pv_rejeitada', v.whatsapp, {
           pap_pv_id:           pvCopia[0],
           pap_nome_cliente:    pvCopia[6] || '',
           pap_plano:           pvCopia[11] || '',
@@ -787,13 +787,25 @@ function _papGetOrCreateSheet(name, headers) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 11. NOTIFICAÇÕES PAP — BotConversa
-//     Dispara fluxos para vendedores PAP nos 5 eventos do ciclo da pré-venda.
+// 11. NOTIFICAÇÕES PAP — Evolution API (chip 5532991534154)
+//     Dispara mensagens de texto para vendedores PAP nos 5 eventos do ciclo
+//     da pré-venda + pagamento. Migrado do BotConversa para Evolution em
+//     27/05/2026 devido à descontinuidade do serviço BC. Usa a instância
+//     `Ricardo_Andrade` (mesmo chip do disparo-grupo Flow 1 — risco de
+//     compartilhamento aceito por Ricardo). Respostas dos vendedores ficam
+//     no próprio chip (não roteiam pro CRM).
+//
+//     Kill switch: Script Property `PAP_CANAL_NOTIFICACAO`
+//        'EVOLUTION' (default, ausente) → envia
+//        'OFF'                          → no-op silencioso (mantém pagamento, suprime msg)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Busca subscriber BotConversa do vendedor na aba "3 - PAP" por CPF (prioridade)
-// ou por nome. Retorna { subscriberId, whatsapp, nome } ou null.
-// Cols lidas a partir de S (col 19, 1-based): S=nome T=bcId U=whats V=dataCad W=cpf
+// Instância Evolution usada pelos disparos PAP. Mesma do disparo-grupo Flow 1.
+var PAP_EVOLUTION_INSTANCE = 'Ricardo_Andrade';
+
+// Busca dados do vendedor na aba "3 - PAP" por CPF (prioridade) ou por nome.
+// Retorna { whatsapp, nome } ou null. Cols lidas a partir de S (col 19,
+// 1-based): S=nome T=(legacy bcId — não mais usado) U=whats V=dataCad W=cpf
 function _papBuscarSubscriberVendedor(cpf, nome) {
   try {
     const sh = _getSpreadsheet_().getSheetByName('3 - PAP');
@@ -803,16 +815,13 @@ function _papBuscarSubscriberVendedor(cpf, nome) {
     const nomeBusc = nome ? String(nome).trim().toLowerCase()         : '';
     for (let i = 0; i < raw.length; i++) {
       const rowNome  = String(raw[i][0] || '').trim();
-      const rowBcId  = String(raw[i][1] || '').trim();
       const rowWhats = String(raw[i][2] || '').trim();
       const rowCpf   = String(raw[i][4] || '').replace(/\D/g, '');
       const match    = (cpfLimpo && rowCpf   && rowCpf === cpfLimpo) ||
                        (nomeBusc && rowNome  && rowNome.toLowerCase() === nomeBusc);
       if (!match) continue;
-      // Busca pelo telefone primeiro (col T pode conter ID de outro sistema)
-      const subscriberId = String(_bcGetSubscriberPorTelefone(rowWhats) || rowBcId || '');
-      if (!subscriberId) return null;
-      return { subscriberId, whatsapp: rowWhats, nome: rowNome };
+      if (!rowWhats) return null;
+      return { whatsapp: rowWhats, nome: rowNome };
     }
     return null;
   } catch(e) {
@@ -821,28 +830,68 @@ function _papBuscarSubscriberVendedor(cpf, nome) {
   }
 }
 
-// Envia mensagem de texto direta ao vendedor PAP via BotConversa.
-// Substitui a abordagem de fluxos + variáveis (API não suporta definir campos via PATCH/PUT).
-function _papEnviarMensagemDireta(subscriberId, mensagem) {
+// Normaliza qualquer telefone BR para o formato "number" aceito pela Evolution
+// v1.8.x: dígitos puros com DDI 55, sem `@s.whatsapp.net` (rejeitado em DM com
+// `Bad request — exists:false`). Vendedores PAP são sempre celular: garante o
+// dígito 9 entre DDD e número quando vier no formato legado de 8 dígitos.
+function _papPhoneToEvolutionNumber_(whatsapp) {
+  // _normalizePhoneBR_ reduz a 10 dígitos canônicos (DDD + 8) — compartilhado
+  // com o módulo wa-pessoal (DispPessoalAPI.js).
+  const norm = _normalizePhoneBR_(whatsapp);
+  if (!norm || norm.length < 10) return null;
+  const ddd   = norm.substr(0, 2);
+  const resto = norm.substr(2);
+  // Mobile BR: prepend "9" quando vier no formato antigo de 8 dígitos.
+  const numeroSemDDI = (resto.length === 8) ? (ddd + '9' + resto) : (ddd + resto);
+  return '55' + numeroSemDDI;
+}
+
+// Envia mensagem de texto ao vendedor PAP via Evolution API (chip 5532991534154).
+// Compatível com a assinatura anterior do `_papEnviarMensagemDireta(subscriberId, msg)`
+// — o 1º arg agora carrega o WhatsApp do vendedor em vez do subscriber_id BC.
+// Retorna { sucesso, mensagem }.
+function _papEnviarMensagemDireta(whatsapp, mensagem) {
+  const canal = (PropertiesService.getScriptProperties().getProperty('PAP_CANAL_NOTIFICACAO') || 'EVOLUTION').toUpperCase();
+  if (canal === 'OFF') {
+    Logger.log('_papEnviarMensagemDireta: PAP_CANAL_NOTIFICACAO=OFF — disparo suprimido.');
+    return { sucesso: true, mensagem: 'Canal de notificação desligado (kill switch).' };
+  }
+  return _papEnviarMensagemEvolution_(whatsapp, mensagem);
+}
+
+// Helper interno: efetiva o POST /message/sendText na Evolution.
+function _papEnviarMensagemEvolution_(whatsapp, mensagem) {
   try {
-    const apiKey = PropertiesService.getScriptProperties().getProperty('botconversa_api_key') || '';
-    if (!apiKey) return { sucesso: false, mensagem: 'Chave BotConversa não configurada.' };
-    const resp = UrlFetchApp.fetch(
-      'https://backend.botconversa.com.br/api/v1/webhook/subscriber/' + subscriberId + '/send_message/',
-      {
-        method             : 'post',
-        contentType        : 'application/json',
-        headers            : { 'api-key': apiKey },
-        payload            : JSON.stringify({ type: 'text', value: mensagem }),
-        muteHttpExceptions : true
-      }
-    );
+    const p = PropertiesService.getScriptProperties();
+    const url = p.getProperty('EVOLUTION_API_URL');
+    const key = p.getProperty('EVOLUTION_API_KEY');
+    if (!url || !key) {
+      Logger.log('_papEnviarMensagemEvolution_: EVOLUTION_API_URL/EVOLUTION_API_KEY ausentes em Script Properties.');
+      return { sucesso: false, mensagem: 'Evolution API não configurada.' };
+    }
+    const numero = _papPhoneToEvolutionNumber_(whatsapp);
+    if (!numero) {
+      Logger.log('_papEnviarMensagemEvolution_: WhatsApp inválido (' + whatsapp + ').');
+      return { sucesso: false, mensagem: 'WhatsApp inválido: ' + whatsapp };
+    }
+    const endpoint = url.replace(/\/+$/, '') + '/message/sendText/' + PAP_EVOLUTION_INSTANCE;
+    const resp = UrlFetchApp.fetch(endpoint, {
+      method             : 'post',
+      contentType        : 'application/json',
+      headers            : { 'apikey': key },
+      payload            : JSON.stringify({
+        number      : numero,
+        options     : { delay: 800, presence: 'composing' },
+        textMessage : { text: String(mensagem == null ? '' : mensagem) }
+      }),
+      muteHttpExceptions : true
+    });
     const code = resp.getResponseCode();
     if (code >= 200 && code < 300) return { sucesso: true };
-    Logger.log('_papEnviarMensagemDireta HTTP ' + code + ': ' + resp.getContentText().slice(0, 200));
+    Logger.log('_papEnviarMensagemEvolution_ HTTP ' + code + ': ' + resp.getContentText().slice(0, 300));
     return { sucesso: false, mensagem: 'HTTP ' + code };
   } catch(e) {
-    Logger.log('_papEnviarMensagemDireta erro: ' + e.message);
+    Logger.log('_papEnviarMensagemEvolution_ erro: ' + e.message);
     return { sucesso: false, mensagem: e.message };
   }
 }
@@ -910,13 +959,14 @@ function _papMontarMensagemNotificacao(evento, dados) {
 // Orquestra notificação PAP: monta mensagem formatada → envia direto ao vendedor.
 // evento: 'pv_recebida' | 'pv_aprovada' | 'pv_rejeitada' |
 //         'aguardando_instalacao' | 'instalada'
+// whatsapp: telefone do vendedor (qualquer formato BR; normalizado pelo helper).
 // dados: { pap_pv_id?, pap_nome_cliente, pap_plano }
 // Nunca lança exceção — todos os erros são apenas logados.
-function _papNotificarVendedorPAP(evento, subscriberId, dados) {
+function _papNotificarVendedorPAP(evento, whatsapp, dados) {
   try {
     const mensagem = _papMontarMensagemNotificacao(evento, dados);
-    const res      = _papEnviarMensagemDireta(subscriberId, mensagem);
-    Logger.log('_papNotificarVendedorPAP [' + evento + '] sub=' + subscriberId +
+    const res      = _papEnviarMensagemDireta(whatsapp, mensagem);
+    Logger.log('_papNotificarVendedorPAP [' + evento + '] whats=' + whatsapp +
                ' → ' + JSON.stringify(res));
   } catch(e) {
     Logger.log('_papNotificarVendedorPAP erro [' + evento + ']: ' + e.message);
@@ -987,7 +1037,7 @@ function enviarNotificacaoVendedor(linha, novoStatus) {
     if (!ehInstalada && !ehAgInst) return { ok: false, mensagem: 'Status não notificável.' };
     if (rowPAP[c.CANAL] !== 'PAP')  return { ok: false, mensagem: 'Venda não é do canal PAP.' };
     var vPAP = _papBuscarSubscriberVendedor(null, rowPAP[c.RESP]);
-    if (!vPAP || !vPAP.subscriberId) return { ok: false, mensagem: 'Vendedor sem WhatsApp no BotConversa.' };
+    if (!vPAP || !vPAP.whatsapp) return { ok: false, mensagem: 'Vendedor sem WhatsApp cadastrado na aba "3 - PAP".' };
 
     var evento  = ehInstalada ? 'instalada' : 'aguardando_instalacao';
     var agenda  = (function(v){ if(!v) return ''; var d = new Date(v); return isNaN(d) ? String(v) : Utilities.formatDate(d, Session.getScriptTimeZone(), 'dd/MM/yyyy'); })(rowPAP[c.AGENDA]);
@@ -998,9 +1048,9 @@ function enviarNotificacaoVendedor(linha, novoStatus) {
       pap_turno:        String(rowPAP[c.TURNO]   || ''),
       pap_status:       st
     });
-    var res = _papEnviarMensagemDireta(vPAP.subscriberId, msg);
+    var res = _papEnviarMensagemDireta(vPAP.whatsapp, msg);
     if (res && res.sucesso) {
-      Logger.log('enviarNotificacaoVendedor [' + evento + '] linha ' + linha + ' → enviado para ' + vPAP.subscriberId);
+      Logger.log('enviarNotificacaoVendedor [' + evento + '] linha ' + linha + ' → enviado para ' + vPAP.whatsapp);
       return { ok: true };
     }
     return { ok: false, mensagem: (res && res.mensagem) || 'Falha no envio.' };
