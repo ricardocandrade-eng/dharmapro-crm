@@ -498,9 +498,9 @@ Estorno iminente (>180d):
 
 **Total exposto:** somatório de `RECEITA_PREVISTA` dos contratos listados, decomposto por janela.
 
-### 8.3. Q3 — Conciliação Mensal ⏳ ABA MATERIALIZADA 27/05 — painel visual pendente
+### 8.3. Q3 — Conciliação Mensal ✅ ENTREGUE 27/05/2026 — `◆ Conciliação` em produção
 
-A aba `Conciliacao Mensal` está em produção desde 27/05 (sub-fatia 7.2). Cada vez que o Ricardo aplica um extrato pelo botão "📥 Aplicar ao CRM", a aba é wipe-and-replaced para o mês alvo (preserva outros meses) com 1 linha por venda matched: previsto × realizado, diff, pct, flag. Hoje a aba é consultável diretamente no Sheets (filtrar por `FLAG=DIVERG_GRAVE`, etc); o painel visual abaixo está pendente.
+Aba `Conciliacao Mensal` (sub-fatia 7.2) + aba `Extrato Vero` (sub-fatia 7.3) alimentam o painel `◆ Conciliação`. Painel inclui: dropdown de mês, KPIs em 3 grupos (Conciliação comparáveis vs Contexto sem-previsto vs Distribuição de flags), decomposição do Realizado por 5 categorias (Base/Bonificações/Ajustes/Extras/Descontos + total da Vero), filtros por flag, busca, tabela ordenável por contrato/cliente/plano. Refinamento futuro: explicação automática por linha via `cartas_meta_pap.json` (churn voluntário 31-60d aplica 50% etc).
 
 **O que mostra:** após import do extrato mensal, tabela de divergências.
 
@@ -529,7 +529,9 @@ Divergências por contrato (>R$10):
 
 **Tarefas pendentes:** divergências sem explicação automática viram tarefa para o Ricardo investigar.
 
-### 8.4. Q4 — Saúde Operacional
+### 8.4. Q4 — Saúde Operacional ✅ ENTREGUE 27/05/2026 — `⊙ Saúde Operacional` em produção
+
+Tela admin standalone (`SaudeOperacional.html` + `SaudeOperacionalAPI.js`). 3 seções: estrelas estimadas (tier resolvido por instalações BL do mês), indicadores operacionais (%CN com regra Vero — Cancelamento Comercial Fibra / vendas brutas Fibra do mês cohort, threshold 5% multa/bônus; HUB disciplina dependendo da Fase 7.3 da `ORIGEM_CONTRATO_VERO`; DU médio = vendas/dias úteis; Churn breakdown vol/invol), comparativo dos últimos 3 meses. Plugado no menu admin. Defensivas: cols pendentes mostram "—" com observação. **Ricardo solicitou revisão geral de dados após Fase 8 entregar** (inconsistências históricas residuais por causa da base legacy forward-only).
 
 **O que mostra:** indicadores de operação no mês corrente.
 
@@ -661,12 +663,20 @@ Backend amplia `aplicarExtratoMensal` (no `confirmar: true`) pra também gerar/a
 
 **Sub-fatia 7.x — UX dos modais ✅ 27/05/2026.** Os 4 `confirm()`/`alert()` nativos da página foram substituídos por modais customizados seguindo o padrão `ep-modal-overlay`: `epConfirm({...}, onConfirm, onCancel)` genérico com variantes `warn`/`danger`. Cobre: re-upload de mês existente, apagar fechamento (botão 🗑), apagar arquivo do Drive, e o fluxo "Aplicar ao CRM" (3 estados — preview / loading / resultado). Bug fix incluso: overlays movidos pra `document.body` (`epEscaparOverlay`) pra escapar do stacking context do `#pageExtrato`.
 
-**Sub-fatias pendentes** (sob demanda):
-- **7.3** — abas `Bônus Quinzenal`, `Adimplência`, `Estorno Móvel Venda Combo` → camadas adicionais de reconciliação no `RECEITA_REALIZADA`. Hoje só BD_INSTALAÇÃO é aplicada; a soma já bate com o componente "Pontos × Fator" do RESUMO (§11.9), mas não inclui bônus/adimplência/estornos.
-- **7.4** — aba `BD_CHURN` → refina `STATUS_CHURN` (voluntario/involuntario) que a Fase 4 hoje colapsa em `CANCELADO_COMERCIAL`.
-- **Painel Q3 visual** (§8.3) — tela que lê a aba `Conciliacao Mensal` (já materializada). Resumo agregado por mês + filtro por flag + explicação automática via `cartas_meta_pap.json`.
+**Sub-fatia 7.3 ✅ ENTREGUE 27/05/2026 — agregados em `Extrato Vero` + decomposição visual no Q3.**
+Materializa nova aba `Extrato Vero` (snapshot mensal, wipe-and-replace) com os 13 componentes do Realizado parseados do RESUMO COMPLETO (instBL, móvel, adimplência, bônus quin/extra, multa cancelamento, descontos churn/inadimp/susp/estorno/HUB, B2B, e TOTAL). Schema: `MES_REF | COMPONENTE | VALOR | SINAL | CATEGORIA | APLICADO_EM`. Frontend `ConciliacaoAPI` lê o mês ativo e devolve agregados pra renderizar a seção "Decomposição do Realizado" no painel Q3 (5 cards categorizados: Base, Bonificações, Ajustes, Extras, Descontos + card grande "REALIZADO TOTAL DA VERO"). Implementa a tabela do §8.3 sem precisar de "explicação automática" por contrato (refinamento futuro: cruzar com `cartas_meta_pap.json` por linha).
 
-**Tamanho original:** 2 semanas. **Entregue até agora:** ~3h (reuso máximo do parser existente).
+**Sub-fatia 7.4 ✅ ENTREGUE 27/05/2026 — BD_CHURN refina STATUS_CHURN.**
+Frontend extrai aba `BD_CHURN` completa via SheetJS e envia ao backend. Helper `_aplicarBdChurnEm1Vendas_` detecta `TIPO`/`CATEGORIA`/`MOTIVO_CHURN` por header (defensivo), mapeia `VOLUNT → CHURN_VOLUNTARIO` e `INVOLUNT → CHURN_INVOLUNTARIO`, e sobrescreve `STATUS_CHURN` (BD=55) das vendas matched. SAFRA continua marcando `CANCELADO_COMERCIAL` como default — BD_CHURN substitui com granularidade quando o extrato fechado é aplicado. Modal de sucesso ganha KPIs `Churn voluntário` (warn) e `Churn involuntário` (bad). Observação amarela do Q4 sobre "depende Fase 7.4" some sozinha.
+
+**Painel Q3 visual ✅ ENTREGUE 27/05/2026 — `◆ Conciliação`.**
+Tela admin standalone (`Conciliacao.html` + `ConciliacaoAPI.js`). Lê a aba `Conciliacao Mensal` materializada na Fase 7.2 + agregados da Fase 7.3. Inclui: dropdown de mês, KPIs em 3 grupos (Conciliação, Contexto, Distribuição) — comparáveis vs sem-previsto isolados pra evitar artefato de soma; decomposição do Realizado por categorias; filtros por flag (Todos/Graves/Leves/OK/Sem previsto); busca por contrato/cliente; tabela ordenável por qualquer coluna; badges coloridos por flag. Plugado no menu admin (Config.js + Index.html + JS.html + Usuarios.html). Cache 60s no backend, invalidado por `_limparCacheConciliacao_` chamado pelo ExtratoAPI.
+
+**Sub-fatias pendentes** (sob demanda):
+- **Migração de planos legacy** (decisão Ricardo: rejeitada por enquanto, ver memo `project_dharmapro_cod_plano_forward_only`). 39/53 vendas de abril ficam SEM_PREVISTO porque coluna PLANO tem nomes antigos (pipe, NAKED, "ENTRENIMENTO"). Vai diluir organicamente em ~3 meses; revisitar se a base estiver pequena e quiser empurrar cobertura.
+- **Refinamento Q4 Tier** — `resolverEstrelaPorInstalacoes` usa contagem de instalações com `STATUS atual = 3` (corrigido em 27/05 pra contar `INSTAL` preenchido independente do status). Inconsistências históricas residuais ainda podem aparecer — Ricardo solicitou **revisão geral de dados após Fase 8 entregar** (não ajustar painel por painel agora).
+
+**Tamanho original:** 2 semanas. **Entregue 27/05/2026:** 4 sub-fatias em ~1 dia (reuso máximo do parser SheetJS existente).
 
 ### Fase 8 — Tela `◇ Inadimplência` + pipeline de upload
 
