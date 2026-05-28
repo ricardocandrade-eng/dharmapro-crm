@@ -40,3 +40,49 @@ function _papTesteEnvioForcado() {
   Logger.log('_papTesteEnvioForcado → ' + JSON.stringify(res));
   return res;
 }
+
+/**
+ * DIAGNÓSTICO — chama a Evolution direto pra ver o estado da instância
+ * `Ricardo_Andrade`. Útil quando `_papTesteEnvio` volta com `SessionError`
+ * ou outro erro de baixo nível, antes de tentar reparar.
+ *
+ * Endpoints checados:
+ *   - GET /instance/fetchInstances?instanceName=Ricardo_Andrade — lista a
+ *     instância com `instance.status`, `qrcode`, etc.
+ *   - GET /instance/connectionState/Ricardo_Andrade — `state: open|connecting|close`.
+ *
+ * `state === 'open'` = chip pareado e enviando. Qualquer outro = precisa
+ * de QR code novo (ou via WA Campanha no CRM, ou via Evolution manager).
+ */
+function _papDiagEvolution() {
+  var p = PropertiesService.getScriptProperties();
+  var url = (p.getProperty('EVOLUTION_API_URL') || '').replace(/\/+$/, '');
+  var key = p.getProperty('EVOLUTION_API_KEY');
+  if (!url || !key) {
+    Logger.log('_papDiagEvolution: EVOLUTION_API_URL/EVOLUTION_API_KEY ausentes.');
+    return { ok: false, mensagem: 'Properties ausentes.' };
+  }
+  var headers = { 'apikey': key };
+  var resultado = { url: url, instance: 'Ricardo_Andrade' };
+
+  try {
+    var r1 = UrlFetchApp.fetch(url + '/instance/connectionState/Ricardo_Andrade',
+      { method: 'get', headers: headers, muteHttpExceptions: true });
+    resultado.connectionState = {
+      http: r1.getResponseCode(),
+      body: r1.getContentText().slice(0, 500)
+    };
+  } catch(e) { resultado.connectionState = { erro: e.message }; }
+
+  try {
+    var r2 = UrlFetchApp.fetch(url + '/instance/fetchInstances?instanceName=Ricardo_Andrade',
+      { method: 'get', headers: headers, muteHttpExceptions: true });
+    resultado.fetchInstances = {
+      http: r2.getResponseCode(),
+      body: r2.getContentText().slice(0, 1000)
+    };
+  } catch(e) { resultado.fetchInstances = { erro: e.message }; }
+
+  Logger.log('_papDiagEvolution →\n' + JSON.stringify(resultado, null, 2));
+  return resultado;
+}
