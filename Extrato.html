@@ -2062,6 +2062,9 @@ function _epRenderModalPreview(preview){
       _epKpi('Sem match no CRM', preview.semMatchNoCRM, semMatchClass) +
       _epKpi('Divergências (≥5%)', preview.divergencias, divClass) +
       _epKpi('Total Pago somado', epBRL(totalPago), '') +
+      (preview.backfill75 && preview.backfill75.vendas > 0
+        ? _epKpi('Pontos backfilled (7.5)', preview.backfill75.vendas, 'ok')
+        : '') +
     '</div>';
 
   if(preview.semMatchNoCRM > 0){
@@ -2159,6 +2162,10 @@ function _epAplicarConfirmar(){
         if((fd.DIVERG_LEVE || 0) > 0)  kpis.push({ label: 'Conc. leve (5-20%)', value: fd.DIVERG_LEVE, tone: 'warn' });
         if((fd.DIVERG_GRAVE || 0) > 0) kpis.push({ label: 'Conc. grave (≥20%)', value: fd.DIVERG_GRAVE, tone: 'bad' });
         if((fd.SEM_PREVISTO || 0) > 0) kpis.push({ label: 'Sem previsto', value: fd.SEM_PREVISTO, tone: 'warn' });
+      }
+      // Sub-fatia 7.5: backfill de PONTOS via extrato (resolve SEM_PREVISTO legacy)
+      if(res.backfill75 && res.backfill75.vendas > 0){
+        kpis.push({ label: 'Pontos backfilled (7.5)', value: res.backfill75.vendas, tone: 'ok' });
       }
       // Sub-fatia 7.4: refinamento STATUS_CHURN via BD_CHURN
       if(res.bdChurn && res.bdChurn.matched != null){

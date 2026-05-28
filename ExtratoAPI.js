@@ -116,6 +116,12 @@ function aplicarExtratoMensal(payload, opts) {
     var matched = 0, semMatchNoCRM = [], divergencias = [];
     var plano = []; // { linha, idCRM, fator, receitaReal, mes }
     var contratosVistosNoCRM = {};
+    // Sub-fatia 7.5 — backfill de PONTOS via extrato (Path A direto).
+    // Quando a venda matched tem PONTOS_VENDA/PONTOS_MOVEL vazios E o extrato
+    // traz pontosBL/pontosMovelCombo, carimba retroativamente. Resolve
+    // SEM_PREVISTO legacy (39/53 em abril) — previsto bate com realizado por
+    // construção pra essas vendas (flag vira OK).
+    var backfill75 = { vendas: 0, somaPV: 0, somaPM: 0 };
 
     for (var i = 0; i < n; i++) {
       var idCRM = _cruzNormIdServer_(crmContratos[i][0]);
@@ -127,13 +133,36 @@ function aplicarExtratoMensal(payload, opts) {
       var fator = info.fator;
       var receitaReal = info.totalPago;
 
+      // 7.5 — pontos efetivos: prioriza o que já está em 1-Vendas; se vazio
+      // e o extrato trouxe pontos > 0, usa o do extrato (e marca pra escrita
+      // no batch). Idempotente: nunca sobrescreve valor existente.
+      var pvAtual = Number(crmPontosVenda[i][0] || 0);
+      var pmAtual = Number(crmPontosMovel[i][0] || 0);
+      var pvEfetivo = pvAtual;
+      var pmEfetivo = pmAtual;
+      var stampedPV = false, stampedPM = false;
+      if (pvAtual <= 0 && Number(info.pontosBL || 0) > 0) {
+        pvEfetivo = Number(info.pontosBL);
+        stampedPV = true;
+      }
+      if (pmAtual <= 0 && Number(info.pontosMovel || 0) > 0) {
+        pmEfetivo = Number(info.pontosMovel);
+        stampedPM = true;
+      }
+      if (stampedPV || stampedPM) {
+        backfill75.vendas++;
+        if (stampedPV) backfill75.somaPV += pvEfetivo;
+        if (stampedPM) backfill75.somaPM += pmEfetivo;
+      }
+
       // RECEITA_PREVISTA: usa o que está em 1-Vendas (BA=52). Se vazio (caso
       // default hoje — não há job que popule), calcula retroativamente como
-      // (PONTOS_VENDA + PONTOS_MOVEL) × FATOR_APLICADO (§11.9). Garante que
-      // preview e aba materializada conciliem o mesmo número.
+      // (PONTOS_VENDA + PONTOS_MOVEL) × FATOR_APLICADO (§11.9). Usa pontos
+      // EFETIVOS (com o backfill 7.5 aplicado) — garante que SEM_PREVISTO
+      // resolvido pelo 7.5 vire OK na conciliação.
       var previsto = Number(crmPrevistas[i][0] || 0);
       if (previsto <= 0 && fator != null) {
-        var pontosTotal = Number(crmPontosVenda[i][0] || 0) + Number(crmPontosMovel[i][0] || 0);
+        var pontosTotal = pvEfetivo + pmEfetivo;
         if (pontosTotal > 0) previsto = pontosTotal * Number(fator);
       }
 
@@ -156,9 +185,14 @@ function aplicarExtratoMensal(payload, opts) {
         produto: String(crmProduto[i][0] || ''),
         segmentacao: String(crmSegmentacao[i][0] || ''),
         codPlano: String(crmCodPlano[i][0] || ''),
-        pontosVenda: Number(crmPontosVenda[i][0] || 0),
-        pontosMovel: Number(crmPontosMovel[i][0] || 0)
+        pontosVenda: pvEfetivo,
+        pontosMovel: pmEfetivo,
+        stampedPV: stampedPV,
+        stampedPM: stampedPM
       });
+      // Atualiza arrays in-place pra escrita em batch da sub-fatia 7.5
+      if (stampedPV) crmPontosVenda[i][0] = pvEfetivo;
+      if (stampedPM) crmPontosMovel[i][0] = pmEfetivo;
       matched++;
     }
 
@@ -183,6 +217,7 @@ function aplicarExtratoMensal(payload, opts) {
         semMatchNoCRMAmostra: semMatchNoCRM.slice(0, 20),
         divergencias: divergencias.length,
         divergenciasAmostra: divergencias.slice(0, 20),
+        backfill75: backfill75,
         agregados: {
           totalPagoSomado: contratos.reduce(function(s, k){ return s + (porContrato[k].totalPago || 0); }, 0),
           contratosComFator: contratos.filter(function(k){ return porContrato[k].fator != null; }).length
@@ -204,6 +239,13 @@ function aplicarExtratoMensal(payload, opts) {
     sheet.getRange(3, c.FATOR_APLICADO + 1, n, 1).setValues(fatorOut);
     sheet.getRange(3, c.RECEITA_REALIZADA + 1, n, 1).setValues(receitaOut);
     sheet.getRange(3, c.MES_REF_VENDA + 1, n, 1).setValues(mesOut);
+    // Sub-fatia 7.5 — escreve PONTOS_VENDA/PONTOS_MOVEL backfilled pelo extrato.
+    // Arrays já têm os valores novos in-place (loop de match); só grava se algo
+    // foi carimbado pra evitar setValues desnecessário.
+    if (backfill75.vendas > 0) {
+      sheet.getRange(3, c.PONTOS_VENDA + 1, n, 1).setValues(crmPontosVenda);
+      sheet.getRange(3, c.PONTOS_MOVEL + 1, n, 1).setValues(crmPontosMovel);
+    }
 
     // ── 6.b. Materializa aba `Conciliacao Mensal` (sub-fatia 7.2, §8.3) ──
     var quandoStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
@@ -231,6 +273,7 @@ function aplicarExtratoMensal(payload, opts) {
       contratosNoExtrato: contratos.length,
       semMatchNoCRM: semMatchNoCRM.length,
       divergencias: divergencias.length,
+      backfill75: backfill75,
       conciliacao: resConciliacao,
       bdChurn: resBdChurn,
       agregados: resAgregados
@@ -249,6 +292,7 @@ function aplicarExtratoMensal(payload, opts) {
       semMatchNoCRMAmostra: semMatchNoCRM.slice(0, 20),
       divergencias: divergencias.length,
       divergenciasAmostra: divergencias.slice(0, 20),
+      backfill75: backfill75,
       conciliacao: resConciliacao,
       bdChurn: resBdChurn,
       agregados: resAgregados,
