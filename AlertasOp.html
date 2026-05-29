@@ -1,0 +1,196 @@
+<style>
+  #alertasOpContainer { width: 100%; min-height: 100%; padding: 24px 28px; box-sizing: border-box; color: var(--text); }
+  #alertasOpContainer .aop-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:12px; }
+  #alertasOpContainer .aop-title { font-size: 22px; font-weight: 600; }
+  #alertasOpContainer .aop-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+  #alertasOpContainer .aop-refresh { padding: 6px 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 6px; cursor: pointer; font-size: 12px; }
+  #alertasOpContainer .aop-refresh:hover { background: var(--surface2); }
+  #alertasOpContainer .aop-loading { padding: 60px; text-align:center; color: var(--text2); }
+
+  #alertasOpContainer .aop-section-title { font-size: 12px; font-weight:600; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+
+  #alertasOpContainer .aop-card { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
+  #alertasOpContainer .aop-card.ativo { border-left-color: #22d98a; }
+  #alertasOpContainer .aop-card.inativo { border-left-color: #6c757d; opacity: 0.72; }
+  #alertasOpContainer .aop-card.indisp { border-left-color: #f7a23b; }
+
+  #alertasOpContainer .aop-card-head { display:flex; align-items:flex-start; gap:10px; justify-content:space-between; }
+  #alertasOpContainer .aop-card-titulo { flex:1; }
+  #alertasOpContainer .aop-card-nome { font-size: 15px; font-weight: 600; }
+  #alertasOpContainer .aop-card-numero { font-size: 11px; color: var(--text2); margin-right: 4px; }
+  #alertasOpContainer .aop-card-obs { font-size: 11px; color: #f7a23b; margin-top: 4px; font-style: italic; }
+
+  #alertasOpContainer .aop-badge { font-size: 11px; padding: 3px 9px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+  #alertasOpContainer .aop-badge.ativo { background: rgba(34,217,138,.15); color: #22d98a; }
+  #alertasOpContainer .aop-badge.inativo { background: rgba(108,117,125,.2); color: #adb5bd; }
+  #alertasOpContainer .aop-badge.indisp { background: rgba(247,162,59,.15); color: #f7a23b; }
+
+  #alertasOpContainer .aop-meta { margin-top: 10px; display:grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 12px; }
+  #alertasOpContainer .aop-meta-lbl { color: var(--text2); }
+  #alertasOpContainer .aop-meta-val { color: var(--text); font-family: 'SF Mono', 'Menlo', monospace; font-size: 11.5px; }
+  #alertasOpContainer .aop-meta-val.dim { color: var(--text2); }
+
+  #alertasOpContainer .aop-actions { margin-top: 12px; }
+  #alertasOpContainer .aop-btn-amostra { padding: 5px 10px; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 5px; cursor: pointer; font-size: 11px; }
+  #alertasOpContainer .aop-btn-amostra:hover { background: var(--surface2); }
+  #alertasOpContainer .aop-btn-amostra:disabled { opacity: 0.5; cursor: wait; }
+
+  #alertasOpContainer .aop-amostra-box { display:none; margin-top: 10px; background: #0a0d12; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 12px; line-height: 1.5; color: #c4c8d0; white-space: pre-wrap; font-family: 'SF Mono', 'Menlo', 'Menlo', monospace; max-height: 320px; overflow-y: auto; }
+  #alertasOpContainer .aop-amostra-box.ativo { display:block; }
+  #alertasOpContainer .aop-amostra-box.placeholder { color: var(--text2); font-style: italic; }
+  #alertasOpContainer .aop-amostra-meta { font-size: 10px; color: var(--text2); margin-top: 6px; font-style: italic; }
+
+  #alertasOpContainer .aop-legenda { background: var(--surface2); border-radius: 6px; padding: 12px 16px; margin-top: 24px; font-size: 11.5px; color: var(--text2); line-height: 1.6; }
+  #alertasOpContainer .aop-legenda b { color: var(--text); }
+  #alertasOpContainer .aop-legenda code { background: rgba(0,0,0,.3); padding: 1px 5px; border-radius: 3px; font-size: 11px; color: #c4c8d0; }
+</style>
+
+<div id="alertasOpContainer">
+  <div class="aop-head">
+    <div>
+      <div class="aop-title">⊙ Alertas Operacionais</div>
+      <div class="aop-sub">Alertas do canal <code>disparo-grupo</code> (WhatsApp via chip 4154 + Evolution). Status ATIVO/INATIVO consultado ao vivo no n8n.</div>
+    </div>
+    <button class="aop-refresh" onclick="alertasOpCarregar()">↻ Atualizar</button>
+  </div>
+
+  <div id="aopListaWrap">
+    <div class="aop-loading">⏳ Carregando catálogo + status n8n…</div>
+  </div>
+
+  <div class="aop-legenda">
+    <b>Como ler:</b><br>
+    • <b>Event-driven</b> dispara em runtime do DharmaPro (transição de status, lead recebido). Sempre ativo no código — pra desligar, seria refator do GAS.<br>
+    • <b>Cron-agendado</b> roda no n8n nos horários indicados. Status ATIVO/INATIVO vem da API do n8n (cache 60s).<br>
+    • <b>Manual</b> é botão na UI — dispara só quando o admin clica.<br>
+    • <b>Amostra real</b> chama as funções de produção com dados atuais — útil pra ver exatamente o que vai no WhatsApp.<br>
+    <br>
+    <b>Pra mudar destino, texto ou frequência:</b> me chama com o ID do alerta e a mudança. Mostro o que vai mudar antes de aplicar.
+  </div>
+</div>
+
+<script>
+(function () {
+  var TIPO_LABELS = { event: 'Event-driven', cron: 'Cron-agendado', manual: 'Manual' };
+
+  window.alertasOpCarregar = function () {
+    var wrap = document.getElementById('aopListaWrap');
+    wrap.innerHTML = '<div class="aop-loading">⏳ Carregando catálogo + status n8n…</div>';
+    google.script.run
+      .withSuccessHandler(function (lista) { alertasOpRender(lista); })
+      .withFailureHandler(function (e) {
+        wrap.innerHTML = '<div class="aop-loading" style="color:#e63e6d;">Erro: ' + (e && e.message || 'desconhecido') + '</div>';
+      })
+      .getAlertasOperacionais();
+  };
+
+  function badge(a) {
+    if (a.ativo === true) return '<span class="aop-badge ativo">ATIVO</span>';
+    if (a.ativo === false) return '<span class="aop-badge inativo">INATIVO</span>';
+    return '<span class="aop-badge indisp">n8n indisp.</span>';
+  }
+
+  function cardClass(a) {
+    if (a.ativo === true) return 'aop-card ativo';
+    if (a.ativo === false) return 'aop-card inativo';
+    return 'aop-card indisp';
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function alertasOpRender(lista) {
+    var wrap = document.getElementById('aopListaWrap');
+    if (!lista || !lista.length) {
+      wrap.innerHTML = '<div class="aop-loading">Nenhum alerta no catálogo.</div>';
+      return;
+    }
+    var por = { event: [], cron: [], manual: [] };
+    lista.forEach(function (a) { (por[a.tipo] || (por[a.tipo] = [])).push(a); });
+
+    var html = '';
+    [
+      { tipo: 'event',  label: 'Event-driven (DharmaPro dispara em transições)' },
+      { tipo: 'cron',   label: 'Cron-agendado (n8n dispara nos horários)' },
+      { tipo: 'manual', label: 'Manual (botões na UI do CRM)' }
+    ].forEach(function (sec) {
+      if (!por[sec.tipo] || !por[sec.tipo].length) return;
+      html += '<div class="aop-section-title">' + esc(sec.label) + '</div>';
+      por[sec.tipo].forEach(function (a) {
+        html += renderCard(a);
+      });
+    });
+    wrap.innerHTML = html;
+  }
+
+  function renderCard(a) {
+    var numero = a.numero ? ('#' + a.numero + ' · ') : '';
+    var html = '<div class="' + cardClass(a) + '" id="aop-card-' + esc(a.id) + '">';
+    html += '<div class="aop-card-head">';
+    html +=   '<div class="aop-card-titulo">';
+    html +=     '<div class="aop-card-nome">' + esc(a.icone || '•') + ' <span class="aop-card-numero">' + esc(numero) + '</span>' + esc(a.nome) + '</div>';
+    if (a.observacao) html += '<div class="aop-card-obs">⚠️ ' + esc(a.observacao) + '</div>';
+    html +=   '</div>';
+    html += badge(a);
+    html += '</div>';
+
+    html += '<div class="aop-meta">';
+    html += metaRow('Gatilho', a.gatilhoHumano || a.gatilho);
+    if (a.gatilho && a.gatilho !== (a.gatilhoHumano || a.gatilho)) html += metaRow('Cron', a.gatilho, true);
+    html += metaRow('Destino', a.destinoHumano);
+    html += metaRow('Apelido', a.destinoApelido || '—', true);
+    html += metaRow('Origem', a.origem, true);
+    if (a.idempotencia && a.idempotencia !== '—') html += metaRow('Idempotência', a.idempotencia, true);
+    if (a.n8nWorkflowId) html += metaRow('n8n ID', a.n8nWorkflowId, true);
+    html += metaRow('Status', a.statusOrigem, true);
+    html += '</div>';
+
+    html += '<div class="aop-actions">';
+    html += '<button class="aop-btn-amostra" onclick="alertasOpGerar(\'' + esc(a.id) + '\', this)">Gerar amostra real</button>';
+    html += '<div class="aop-amostra-box" id="aop-amostra-' + esc(a.id) + '"></div>';
+    html += '</div>';
+
+    html += '</div>';
+    return html;
+  }
+
+  function metaRow(label, val, dim) {
+    return '<div class="aop-meta-lbl">' + esc(label) + '</div><div class="aop-meta-val' + (dim ? ' dim' : '') + '">' + esc(val) + '</div>';
+  }
+
+  window.alertasOpGerar = function (id, btn) {
+    var box = document.getElementById('aop-amostra-' + id);
+    btn.disabled = true;
+    btn.textContent = '⏳ Gerando…';
+    google.script.run
+      .withSuccessHandler(function (res) {
+        btn.disabled = false;
+        btn.textContent = 'Gerar amostra real';
+        if (res && res.ok) {
+          box.className = 'aop-amostra-box ativo' + (res.isPlaceholder ? ' placeholder' : '');
+          box.textContent = res.texto;
+        } else {
+          box.className = 'aop-amostra-box ativo';
+          box.style.color = '#e63e6d';
+          box.textContent = (res && res.mensagem) || 'Erro desconhecido.';
+        }
+      })
+      .withFailureHandler(function (e) {
+        btn.disabled = false;
+        btn.textContent = 'Gerar amostra real';
+        box.className = 'aop-amostra-box ativo';
+        box.style.color = '#e63e6d';
+        box.textContent = 'Falha: ' + (e && e.message || 'desconhecido');
+      })
+      .gerarAmostraAlertaOp(id);
+  };
+
+  // Função chamada pelo branch navegar('alertasOp') em JS.html
+  window.alertasOpInit = function () {
+    alertasOpCarregar();
+  };
+})();
+</script>
