@@ -1,0 +1,970 @@
+<!--
+  Inadimplencia.html — Módulo Financeiro Fase 8 (sub-fatia 8.1b)
+  Tela admin `◇ Inadimplência`. Upload do relatório especial "Mobile safra"
+  da Vero (xlsx mono-aba, 28 cols, 1 linha por contrato), preview, apply,
+  visualização do snapshot e painel de reconciliação.
+
+  Backend: InadimplenciaAPI.js (getInadimplenciaHtml, aplicarInadimplencia,
+  getInadimplenciaStatusUltimoRefresh).
+
+  Convenção de namespace: `ind*` (padrão `ep*` do Extrato.html).
+  Modais escapam pra document.body via indEscaparOverlay (mesmo bug fix).
+-->
+
+<style>
+/* ──────────────────────────────────────────────────────────────────────── */
+/*  Layout geral                                                            */
+/* ──────────────────────────────────────────────────────────────────────── */
+#pageInadimplencia {
+  background: var(--bg, #0d1117);
+  color: var(--text, #e4e8f5);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.ind-wrap {
+  padding: 20px 24px 60px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.ind-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-bottom: 20px; flex-wrap: wrap;
+}
+.ind-header h2 {
+  margin: 0; font-size: 20px; font-weight: 600;
+  display: flex; align-items: center; gap: 10px;
+}
+.ind-header h2 .ind-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 6px;
+  background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 100%);
+  font-size: 14px;
+}
+.ind-header-actions { display: flex; gap: 10px; align-items: center; }
+.ind-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 6px; border: 1px solid var(--border, #2a2e3a);
+  background: var(--surface, #1a1e2a); color: var(--text, #e4e8f5);
+  font-size: 13px; cursor: pointer; transition: all .15s;
+}
+.ind-btn:hover { background: #232838; border-color: #3a4050; }
+.ind-btn.primary {
+  background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%);
+  border-color: #7c3aed; font-weight: 500;
+}
+.ind-btn.primary:hover { filter: brightness(1.15); }
+.ind-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.ind-status-bar {
+  background: var(--surface, #1a1e2a); border: 1px solid var(--border, #2a2e3a);
+  border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
+  display: flex; align-items: center; gap: 14px; font-size: 13px;
+  color: #9ba3b8;
+}
+.ind-status-bar .ind-status-pill {
+  padding: 3px 9px; border-radius: 12px; font-size: 11px; font-weight: 600;
+  background: #1f3a2d; color: #5dd599; border: 1px solid #2b5a44;
+}
+.ind-status-bar .ind-status-pill.empty {
+  background: #2a2e3a; color: #9ba3b8; border-color: #3a4050;
+}
+
+/* ──────────────────────────────────────────────────────────────────────── */
+/*  Upload zone                                                             */
+/* ──────────────────────────────────────────────────────────────────────── */
+.ind-upload-zone {
+  background: var(--surface, #1a1e2a); border: 2px dashed #3a4050;
+  border-radius: 10px; padding: 36px 20px; text-align: center;
+  cursor: pointer; transition: all .2s; margin-bottom: 20px;
+}
+.ind-upload-zone:hover { border-color: #7c3aed; background: #1f1a2d; }
+.ind-upload-zone.dragging { border-color: #7c3aed; background: #2a1f3d; }
+.ind-upload-zone .ind-up-icon { font-size: 32px; margin-bottom: 10px; }
+.ind-upload-zone .ind-up-title { font-size: 15px; margin-bottom: 4px; font-weight: 500; }
+.ind-upload-zone .ind-up-sub { font-size: 12px; color: #9ba3b8; }
+
+/* ──────────────────────────────────────────────────────────────────────── */
+/*  Snapshot table                                                          */
+/* ──────────────────────────────────────────────────────────────────────── */
+.ind-section { margin-top: 28px; }
+.ind-section-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 600; margin-bottom: 12px;
+  color: var(--text, #e4e8f5); text-transform: uppercase; letter-spacing: .04em;
+}
+.ind-section-title .ind-count {
+  background: #2a2e3a; color: #9ba3b8; padding: 2px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: 0;
+}
+
+.ind-filters {
+  display: flex; gap: 8px; align-items: center; margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.ind-filter-input, .ind-filter-select {
+  background: var(--surface, #1a1e2a); border: 1px solid var(--border, #2a2e3a);
+  color: var(--text, #e4e8f5); padding: 6px 10px; border-radius: 6px;
+  font-size: 12px; min-width: 140px;
+}
+.ind-filter-input { min-width: 200px; }
+
+.ind-table-wrap {
+  background: var(--surface, #1a1e2a); border: 1px solid var(--border, #2a2e3a);
+  border-radius: 8px; overflow: auto; max-height: 560px;
+}
+.ind-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ind-table th {
+  background: #14181f; color: #9ba3b8; padding: 8px 10px; text-align: left;
+  position: sticky; top: 0; z-index: 1; font-weight: 500;
+  border-bottom: 1px solid #2a2e3a; white-space: nowrap;
+}
+.ind-table td {
+  padding: 6px 10px; border-bottom: 1px solid #1f2330;
+  vertical-align: middle;
+}
+.ind-table tr:hover td { background: #1d212d; }
+.ind-table .ind-mono {
+  font-family: 'Courier New', monospace; font-size: 11px;
+}
+
+.ind-risco-1, .ind-risco-2 { color: #5dd599; font-weight: 600; }
+.ind-risco-3 { color: #fbbf24; font-weight: 600; }
+.ind-risco-4 { color: #fb923c; font-weight: 600; }
+.ind-risco-5 { color: #ef4444; font-weight: 600; }
+.ind-risco-6 { color: #9ba3b8; font-weight: 600; }
+
+.ind-np-NEVER_PAID { color: #ef4444; font-weight: 500; }
+.ind-np-COM_ATRASO { color: #fbbf24; font-weight: 500; }
+.ind-np-EM_DIA { color: #5dd599; font-weight: 500; }
+
+.ind-status-CANCELADO { color: #9ba3b8; }
+.ind-status-HABILITADO { color: #5dd599; }
+.ind-status-SUSPENSO { color: #fb923c; }
+
+.ind-empty {
+  padding: 40px; text-align: center; color: #6b7280; font-size: 13px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────── */
+/*  Reconciliação                                                           */
+/* ──────────────────────────────────────────────────────────────────────── */
+.ind-recon-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+.ind-recon-tab {
+  padding: 8px 14px; border-radius: 6px 6px 0 0;
+  background: #14181f; color: #9ba3b8; cursor: pointer;
+  border: 1px solid #1f2330; border-bottom: none;
+  font-size: 12px; font-weight: 500; transition: all .15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.ind-recon-tab.active {
+  background: var(--surface, #1a1e2a); color: var(--text, #e4e8f5);
+  border-color: #2a2e3a;
+}
+.ind-recon-tab .ind-recon-badge {
+  background: #2a2e3a; padding: 2px 6px; border-radius: 8px;
+  font-size: 10px; font-weight: 600;
+}
+.ind-recon-tab.active .ind-recon-badge { background: #3a4050; }
+
+/* ──────────────────────────────────────────────────────────────────────── */
+/*  Modal genérico (padrão ep-modal-overlay do Extrato.html)               */
+/* ──────────────────────────────────────────────────────────────────────── */
+.ind-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.7);
+  z-index: 99999; align-items: center; justify-content: center; padding: 20px;
+  backdrop-filter: blur(2px);
+}
+.ind-modal-box {
+  background: var(--surface, #1a1e2a); border: 1px solid var(--border, #2a2e3a);
+  border-radius: 10px; max-width: 900px; width: 100%; max-height: 88vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+.ind-modal-header {
+  padding: 16px 20px; border-bottom: 1px solid var(--border, #2a2e3a);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.ind-modal-header h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.ind-modal-close {
+  background: none; border: none; color: #9ba3b8; cursor: pointer;
+  font-size: 18px; padding: 4px 8px;
+}
+.ind-modal-body {
+  padding: 20px; overflow-y: auto; flex: 1;
+}
+.ind-modal-footer {
+  padding: 14px 20px; border-top: 1px solid var(--border, #2a2e3a);
+  display: flex; justify-content: flex-end; gap: 10px;
+}
+
+.ind-kpis-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px; margin-bottom: 18px;
+}
+.ind-kpi-card {
+  background: #14181f; border: 1px solid #2a2e3a; border-radius: 8px;
+  padding: 12px 14px;
+}
+.ind-kpi-card .ind-kpi-label {
+  font-size: 11px; color: #9ba3b8; margin-bottom: 4px;
+  text-transform: uppercase; letter-spacing: .04em;
+}
+.ind-kpi-card .ind-kpi-value {
+  font-size: 22px; font-weight: 600; color: var(--text, #e4e8f5);
+}
+.ind-kpi-card .ind-kpi-sub { font-size: 11px; color: #6b7280; margin-top: 2px; }
+.ind-kpi-card.warn { border-color: #b45309; }
+.ind-kpi-card.warn .ind-kpi-value { color: #fbbf24; }
+.ind-kpi-card.danger { border-color: #b91c1c; }
+.ind-kpi-card.danger .ind-kpi-value { color: #ef4444; }
+
+.ind-dist-block {
+  margin: 14px 0; padding: 12px; background: #14181f;
+  border-radius: 6px; border: 1px solid #1f2330;
+}
+.ind-dist-block h4 {
+  margin: 0 0 8px; font-size: 12px; color: #9ba3b8;
+  text-transform: uppercase; letter-spacing: .04em; font-weight: 500;
+}
+.ind-dist-row {
+  display: flex; justify-content: space-between; font-size: 12px;
+  padding: 3px 0; border-bottom: 1px dotted #2a2e3a;
+}
+.ind-dist-row:last-child { border-bottom: none; }
+.ind-dist-row strong { font-weight: 600; }
+
+.ind-amostra {
+  margin-top: 14px; padding: 12px; background: #14181f;
+  border-radius: 6px; border: 1px solid #1f2330;
+}
+.ind-amostra h4 {
+  margin: 0 0 8px; font-size: 12px; color: #9ba3b8;
+  text-transform: uppercase; letter-spacing: .04em; font-weight: 500;
+}
+.ind-amostra-item {
+  font-size: 11px; padding: 4px 0; border-bottom: 1px dotted #2a2e3a;
+  font-family: 'Courier New', monospace;
+}
+.ind-amostra-item:last-child { border-bottom: none; }
+
+.ind-alerta {
+  padding: 10px 14px; border-radius: 6px; margin-bottom: 14px;
+  font-size: 12px; display: flex; align-items: flex-start; gap: 10px;
+}
+.ind-alerta.warn { background: #2c2306; border: 1px solid #92580d; color: #fbbf24; }
+.ind-alerta.info { background: #1a2233; border: 1px solid #3a4050; color: #9ba3b8; }
+
+.ind-loading-spin {
+  display: inline-block; width: 36px; height: 36px;
+  border: 3px solid #2a2e3a; border-top-color: #7c3aed;
+  border-radius: 50%; animation: ind-spin 1s linear infinite;
+}
+@keyframes ind-spin { to { transform: rotate(360deg); } }
+.ind-loading-wrap { text-align: center; padding: 40px 0; }
+.ind-loading-wrap p { margin: 14px 0 0; color: #9ba3b8; font-size: 13px; }
+</style>
+
+<div class="ind-wrap">
+  <div class="ind-header">
+    <h2><span class="ind-icon">◇</span> Inadimplência</h2>
+    <div class="ind-header-actions">
+      <button class="ind-btn" onclick="indReload()" title="Recarregar snapshot">↻ Atualizar</button>
+      <button class="ind-btn primary" onclick="indAbrirUpload()">📤 Importar Relatório</button>
+      <input type="file" id="ind-file-input" accept=".xlsx" style="display:none"
+             onchange="indProcessarArquivo(event)">
+    </div>
+  </div>
+
+  <div class="ind-status-bar" id="ind-status-bar">
+    <span>Último refresh:</span>
+    <span id="ind-status-info" class="ind-status-pill empty">nunca aplicado</span>
+    <span id="ind-status-stats" style="margin-left:auto"></span>
+  </div>
+
+  <!-- Upload zone (visível quando snapshot vazio) -->
+  <div class="ind-upload-zone" id="ind-upload-zone" onclick="indAbrirUpload()" style="display:none">
+    <div class="ind-up-icon">📤</div>
+    <div class="ind-up-title">Carregar relatório de inadimplência</div>
+    <div class="ind-up-sub">Arquivo .xlsx enviado pela Vero (mono-aba, 28 colunas).</div>
+  </div>
+
+  <!-- Snapshot -->
+  <div class="ind-section">
+    <div class="ind-section-title">
+      📊 Snapshot atual
+      <span class="ind-count" id="ind-snap-count">0 contratos</span>
+    </div>
+    <div class="ind-filters">
+      <input type="text" class="ind-filter-input" id="ind-f-busca"
+             placeholder="🔍 Contrato ou cliente…" oninput="indFiltrar()">
+      <select class="ind-filter-select" id="ind-f-risco" onchange="indFiltrar()">
+        <option value="">Faixa de risco (todas)</option>
+        <option value="5">5 - Altíssimo</option>
+        <option value="4">4 - Alto</option>
+        <option value="3">3 - Médio</option>
+        <option value="2">2 - Baixo</option>
+        <option value="1">1 - Baixíssimo</option>
+        <option value="6">6 - Sem info</option>
+      </select>
+      <select class="ind-filter-select" id="ind-f-np" onchange="indFiltrar()">
+        <option value="">Never Paid (todos)</option>
+        <option value="NEVER_PAID">Never Paid</option>
+        <option value="COM_ATRASO">Com Atraso</option>
+        <option value="EM_DIA">Em Dia</option>
+      </select>
+      <select class="ind-filter-select" id="ind-f-status" onchange="indFiltrar()">
+        <option value="">Status (todos)</option>
+        <option value="HABILITADO">Habilitado</option>
+        <option value="SUSPENSO">Suspenso</option>
+        <option value="CANCELADO">Cancelado</option>
+      </select>
+      <select class="ind-filter-select" id="ind-f-aging" onchange="indFiltrar()">
+        <option value="">Aging (qualquer)</option>
+        <option value="0-30">0-30d</option>
+        <option value="31-90">31-90d</option>
+        <option value="91-180">91-180d</option>
+        <option value="180+">&gt;180d</option>
+      </select>
+    </div>
+    <div class="ind-table-wrap">
+      <table class="ind-table">
+        <thead>
+          <tr>
+            <th>Contrato</th><th>Status</th><th>Cidade</th><th>Plano</th>
+            <th>Valor</th><th>Aging</th><th>Inadimpl.</th>
+            <th>Never Paid</th><th>Faixa Risco</th><th>Data Canc.</th>
+          </tr>
+        </thead>
+        <tbody id="ind-snap-tbody">
+          <tr><td colspan="10" class="ind-empty">Sem snapshot. Importe um relatório.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Reconciliação -->
+  <div class="ind-section">
+    <div class="ind-section-title">
+      🔗 Reconciliação (cruzamento com CRM)
+      <span class="ind-count" id="ind-recon-total">0 divergências</span>
+    </div>
+    <div class="ind-recon-tabs">
+      <div class="ind-recon-tab active" data-cat="ORFAO" onclick="indRecTab('ORFAO')">
+        Órfãos <span class="ind-recon-badge" id="ind-rec-badge-ORFAO">0</span>
+      </div>
+      <div class="ind-recon-tab" data-cat="DIVERG_RISCO_VS_SAFRA" onclick="indRecTab('DIVERG_RISCO_VS_SAFRA')">
+        Divergência risco × SAFRA <span class="ind-recon-badge" id="ind-rec-badge-DIVERG_RISCO_VS_SAFRA">0</span>
+      </div>
+      <div class="ind-recon-tab" data-cat="DIVERG_CANCELAMENTO" onclick="indRecTab('DIVERG_CANCELAMENTO')">
+        Divergência cancelamento <span class="ind-recon-badge" id="ind-rec-badge-DIVERG_CANCELAMENTO">0</span>
+      </div>
+    </div>
+    <div class="ind-table-wrap">
+      <table class="ind-table">
+        <thead id="ind-rec-thead"><tr></tr></thead>
+        <tbody id="ind-rec-tbody">
+          <tr><td colspan="10" class="ind-empty">Sem divergências.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal preview / loading / resultado (overlay único reaproveitado) -->
+<div class="ind-modal-overlay" id="ind-modal-overlay" style="display:none"
+     onclick="if(event.target===this && !indModalBloqueado) indFecharModal()">
+  <div class="ind-modal-box" onclick="event.stopPropagation()">
+    <div class="ind-modal-header">
+      <h3 id="ind-modal-title">Preview</h3>
+      <button class="ind-modal-close" onclick="indFecharModal()">✕</button>
+    </div>
+    <div class="ind-modal-body" id="ind-modal-body"></div>
+    <div class="ind-modal-footer" id="ind-modal-footer"></div>
+  </div>
+</div>
+
+<!-- Modal confirm (idem padrão epConfirm) -->
+<div class="ind-modal-overlay" id="ind-confirm-overlay" style="display:none"
+     onclick="if(event.target===this) _indConfirmFechar(false)">
+  <div class="ind-modal-box" style="max-width:480px" onclick="event.stopPropagation()">
+    <div class="ind-modal-header">
+      <h3 id="ind-confirm-title">Confirmar?</h3>
+      <button class="ind-modal-close" onclick="_indConfirmFechar(false)">✕</button>
+    </div>
+    <div class="ind-modal-body" id="ind-confirm-body"></div>
+    <div class="ind-modal-footer" id="ind-confirm-footer"></div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════════
+// Estado global da página
+// ════════════════════════════════════════════════════════════════════════════
+var indPayloadAtual = null;          // payload do último xlsx carregado
+var indPreviewAtual = null;          // resposta de aplicarInadimplencia (modo:preview)
+var indSnapshot = [];                // linhas do snapshot Inadimplencia Vero (carregado on-demand)
+var indReconciliacao = [];           // linhas de Reconciliacao Inadimplencia
+var indRecCatAtiva = 'ORFAO';
+var indModalBloqueado = false;
+var _indConfirmHandlers = { ok: null, cancel: null };
+
+// ════════════════════════════════════════════════════════════════════════════
+// Toast simples (escapa pra body, padrão do CRM)
+// ════════════════════════════════════════════════════════════════════════════
+function indToast(msg, tipo) {
+  tipo = tipo || 'info';
+  var cores = { success: '#5dd599', error: '#ef4444', warn: '#fbbf24', info: '#7c3aed' };
+  var t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1a1e2a;border-left:3px solid '+
+    cores[tipo]+';color:#e4e8f5;padding:12px 18px;border-radius:6px;z-index:999999;'+
+    'box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:13px;max-width:400px;';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(function(){ t.style.opacity = '0'; t.style.transition = 'opacity .3s'; }, 3500);
+  setTimeout(function(){ t.remove(); }, 3900);
+}
+
+function indEscapaHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function indFmtR$(n) {
+  if (n == null || n === '') return '—';
+  var v = Number(n);
+  if (!isFinite(v)) return String(n);
+  return 'R$ ' + v.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+// Move overlays pra <body> pra escapar do stacking context (bug fix Extrato.html)
+function indEscaparOverlay(id, display) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (el.parentElement !== document.body) document.body.appendChild(el);
+  el.style.display = display || 'flex';
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Lazy load SheetJS
+// ════════════════════════════════════════════════════════════════════════════
+function indLoadScript(url, cb) {
+  if (window._indScripts && window._indScripts[url]) { cb(); return; }
+  var s = document.createElement('script');
+  s.src = url; s.async = true;
+  s.onload = function() {
+    window._indScripts = window._indScripts || {};
+    window._indScripts[url] = true;
+    cb();
+  };
+  s.onerror = function() { indToast('Falha ao carregar SheetJS', 'error'); };
+  document.head.appendChild(s);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Inicialização
+// ════════════════════════════════════════════════════════════════════════════
+function inadimplenciaInit() {
+  indCarregarStatus();
+  // Snapshot só carrega sob demanda quando o usuário clicar "Atualizar" ou
+  // após uma aplicação bem-sucedida — evita leitura cara da planilha no boot.
+  // Ricardo verá o status do último refresh + zona de upload imediatamente.
+  indMostrarUploadSeVazio();
+}
+function indMostrarUploadSeVazio() {
+  // Mostra o drag zone sempre — funciona como CTA visível mesmo com snapshot.
+  // Esconde só se preferir UI mais limpa pós-load (deixa visível por padrão).
+  document.getElementById('ind-upload-zone').style.display = 'block';
+}
+
+function indCarregarStatus() {
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (!r || !r.ok) return;
+      var pill = document.getElementById('ind-status-info');
+      var stats = document.getElementById('ind-status-stats');
+      if (!r.jaAplicado || !r.info) {
+        pill.className = 'ind-status-pill empty';
+        pill.textContent = 'nunca aplicado';
+        stats.innerHTML = '';
+        return;
+      }
+      pill.className = 'ind-status-pill';
+      pill.textContent = r.info.quandoStr || '—';
+      var d = r.info;
+      stats.innerHTML =
+        '<span>' + (d.contratosNoRelatorio || 0) + ' contratos no relatório · ' +
+        (d.matched || 0) + ' refrescados em 1-Vendas · ' +
+        (d.orfaos || 0) + ' órfãos · ' +
+        ((d.divergRisco || 0) + (d.divergCancelamento || 0)) + ' divergências</span>';
+      // Carrega snapshot automaticamente se já houve aplicação
+      indReload();
+    })
+    .withFailureHandler(function(e) {
+      console.error('indCarregarStatus', e);
+    })
+    .getInadimplenciaStatusUltimoRefresh();
+}
+
+function indReload() {
+  // 8.1b mínimo: snapshot/reconciliação são lidos via uma chamada que retorna
+  // as 2 abas. Backend pode evoluir depois pra paginar se ficar pesado.
+  // Por ora, status info inclui contadores; snapshot vem do backend já no apply.
+  // Carregamento sob demanda real virá no próximo deploy se necessário.
+  // Aqui só re-renderiza o que já temos em memória.
+  indRenderSnapshot();
+  indRenderReconciliacao();
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Upload: lê o xlsx, extrai 28 cols + periodoTexto, pede preview
+// ════════════════════════════════════════════════════════════════════════════
+function indAbrirUpload() { document.getElementById('ind-file-input').click(); }
+
+function indProcessarArquivo(ev) {
+  var file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  if (!/\.xlsx$/i.test(file.name)) {
+    indToast('Apenas arquivos .xlsx', 'warn');
+    return;
+  }
+  ev.target.value = ''; // permite re-upload do mesmo arquivo
+  indMostrarLoading('Lendo arquivo…');
+  var reader = new FileReader();
+  reader.onload = function(e) { indProcessarBuffer(e.target.result, file.name); };
+  reader.onerror = function() { indFecharModal(); indToast('Erro ao ler arquivo', 'error'); };
+  reader.readAsArrayBuffer(file);
+}
+
+function indProcessarBuffer(buf, fileName) {
+  if (typeof XLSX === 'undefined') {
+    indLoadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+      function() { indProcessarBuffer(buf, fileName); });
+    return;
+  }
+  try {
+    var wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    var ws = wb.Sheets[wb.SheetNames[0]];
+    if (!ws || !ws['!ref']) throw new Error('Planilha vazia.');
+    var range = XLSX.utils.decode_range(ws['!ref']);
+
+    // Linha 0 = filtros aplicados (livre, texto). Linha 2 = headers. Linhas 3+ = dados.
+    // (Pode haver variação — varrer pra achar a linha de headers)
+    var periodoTexto = '';
+    var headerRow = -1;
+    for (var r = range.s.r; r <= Math.min(range.s.r + 5, range.e.r); r++) {
+      var c0 = ws[XLSX.utils.encode_cell({ r: r, c: 0 })];
+      var v0 = c0 ? String(c0.v || '').trim() : '';
+      if (!periodoTexto && /filtro|inclu[íi]d|parcela/i.test(v0)) periodoTexto = v0;
+      if (/^contrato$/i.test(v0)) { headerRow = r; break; }
+    }
+    if (headerRow < 0) throw new Error('Cabeçalho "Contrato" não encontrado.');
+
+    var headers = [];
+    for (var c = range.s.c; c <= range.e.c; c++) {
+      var hc = ws[XLSX.utils.encode_cell({ r: headerRow, c: c })];
+      headers.push(hc ? String(hc.v || '') : '');
+    }
+    var rows = [];
+    for (var r2 = headerRow + 1; r2 <= range.e.r; r2++) {
+      var row = [];
+      var hasAny = false;
+      for (var c2 = range.s.c; c2 <= range.e.c; c2++) {
+        var cell = ws[XLSX.utils.encode_cell({ r: r2, c: c2 })];
+        var v = cell ? cell.v : null;
+        if (v != null && v !== '') hasAny = true;
+        row.push(v);
+      }
+      if (hasAny) rows.push(row);
+    }
+    if (!rows.length) throw new Error('Sem linhas de dados.');
+
+    indPayloadAtual = {
+      relatorioVero: { headers: headers, rows: rows, periodoTexto: periodoTexto }
+    };
+
+    // Pede preview ao backend
+    indMostrarLoading('Analisando ' + rows.length + ' linhas…');
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (!r || !r.ok) {
+          indFecharModal();
+          indToast('Erro no preview: ' + (r && r.erro || 'desconhecido'), 'error');
+          return;
+        }
+        indPreviewAtual = r;
+        indMostrarPreview(r);
+      })
+      .withFailureHandler(function(err) {
+        indFecharModal();
+        indToast('Erro: ' + err.message, 'error');
+      })
+      .aplicarInadimplencia(indPayloadAtual, { confirmar: false });
+  } catch (err) {
+    indFecharModal();
+    indToast('Erro ao parsear: ' + (err.message || err), 'error');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Modal: preview (KPIs + distribuições + amostras + botão Aplicar)
+// ════════════════════════════════════════════════════════════════════════════
+function indMostrarLoading(msg) {
+  indModalBloqueado = true;
+  document.getElementById('ind-modal-title').textContent = 'Processando';
+  document.getElementById('ind-modal-body').innerHTML =
+    '<div class="ind-loading-wrap"><div class="ind-loading-spin"></div><p>' +
+    indEscapaHtml(msg || 'Aguarde…') + '</p></div>';
+  document.getElementById('ind-modal-footer').innerHTML = '';
+  indEscaparOverlay('ind-modal-overlay', 'flex');
+}
+
+function indMostrarPreview(p) {
+  indModalBloqueado = false;
+  document.getElementById('ind-modal-title').textContent = '📤 Preview — antes de aplicar';
+
+  var dist = p.distribuicoes || {};
+  var risco = dist.faixaRisco || {};
+  var np = dist.neverPaid || {};
+  var inadimp = dist.inadimplencia || {};
+
+  var html = '';
+
+  if (p.jaAplicado && p.infoUltimo) {
+    html += '<div class="ind-alerta warn">⚠️ Já houve uma aplicação anterior em ' +
+      indEscapaHtml(p.infoUltimo.quandoStr || '—') +
+      '. Confirmar SUBSTITUI o snapshot e refaz o refresh em 1-Vendas para os ' +
+      'contratos do novo relatório.</div>';
+  }
+
+  if (p.periodoTexto) {
+    html += '<div class="ind-alerta info">📅 <div><strong>Período do relatório:</strong><br>' +
+      indEscapaHtml(p.periodoTexto.slice(0, 300)) + '</div></div>';
+  }
+
+  // KPIs principais
+  html += '<div class="ind-kpis-grid">';
+  html += indKpiCard('Contratos', p.contratosNoRelatorio, '', '');
+  html += indKpiCard('Refresh em 1-Vendas', p.matched, p.contratosNoRelatorio + ' total', '');
+  html += indKpiCard('Órfãos no CRM', p.orfaos, p.orfaos > 0 ? 'venda perdida?' : '', p.orfaos > 0 ? 'warn' : '');
+  html += indKpiCard('Diverg. risco × SAFRA', p.divergRisco, '', p.divergRisco > 0 ? 'warn' : '');
+  html += indKpiCard('Diverg. cancelamento', p.divergCancelamento, '', p.divergCancelamento > 0 ? 'warn' : '');
+  html += '</div>';
+
+  // Distribuição risco
+  html += '<div class="ind-dist-block"><h4>Faixa de Risco</h4>';
+  for (var k = 5; k >= 1; k--) {
+    if (risco[k]) html += '<div class="ind-dist-row"><span class="ind-risco-' + k +
+      '">Risco ' + k + '</span><strong>' + risco[k] + '</strong></div>';
+  }
+  if (risco['6']) html += '<div class="ind-dist-row"><span class="ind-risco-6">6 - Sem info</span><strong>' + risco['6'] + '</strong></div>';
+  html += '</div>';
+
+  // Distribuição never paid
+  html += '<div class="ind-dist-block"><h4>Never Paid</h4>';
+  ['NEVER_PAID', 'COM_ATRASO', 'EM_DIA'].forEach(function(kk) {
+    if (np[kk]) html += '<div class="ind-dist-row"><span class="ind-np-' + kk + '">' +
+      kk.replace('_', ' ') + '</span><strong>' + np[kk] + '</strong></div>';
+  });
+  html += '</div>';
+
+  // Distribuição inadimplência
+  if (Object.keys(inadimp).length) {
+    html += '<div class="ind-dist-block"><h4>Inadimplência (categoria)</h4>';
+    Object.keys(inadimp).forEach(function(kk) {
+      if (inadimp[kk]) html += '<div class="ind-dist-row"><span>' + indEscapaHtml(kk) +
+        '</span><strong>' + inadimp[kk] + '</strong></div>';
+    });
+    html += '</div>';
+  }
+
+  // Amostras
+  if (p.orfaosAmostra && p.orfaosAmostra.length) {
+    html += '<div class="ind-amostra"><h4>Amostra de órfãos (top ' + p.orfaosAmostra.length + ' de ' + p.orfaos + ')</h4>';
+    p.orfaosAmostra.forEach(function(o) {
+      html += '<div class="ind-amostra-item">' + indEscapaHtml(o.contrato) +
+        ' · Risco ' + (o.anexoFaixaRisco || '—') +
+        ' · ' + indEscapaHtml(o.anexoStatusContrato || '—') + '</div>';
+    });
+    html += '</div>';
+  }
+  if (p.divergRiscoAmostra && p.divergRiscoAmostra.length) {
+    html += '<div class="ind-amostra"><h4>Amostra divergência risco × SAFRA (top ' + p.divergRiscoAmostra.length + ' de ' + p.divergRisco + ')</h4>';
+    p.divergRiscoAmostra.forEach(function(d) {
+      html += '<div class="ind-amostra-item">CT.' + indEscapaHtml(d.contrato) +
+        ' · ' + indEscapaHtml(d.cliente || '—') +
+        ' · Risco ' + (d.anexoFaixaRisco || '—') + ' / NP ' + (d.anexoNeverPaid || '—') +
+        ' · CRM ' + indEscapaHtml(d.crmStatusAdimpl || '—') + '</div>';
+    });
+    html += '</div>';
+  }
+  if (p.divergCancelamentoAmostra && p.divergCancelamentoAmostra.length) {
+    html += '<div class="ind-amostra"><h4>Amostra divergência cancelamento (top ' + p.divergCancelamentoAmostra.length + ' de ' + p.divergCancelamento + ')</h4>';
+    p.divergCancelamentoAmostra.forEach(function(d) {
+      html += '<div class="ind-amostra-item">CT.' + indEscapaHtml(d.contrato) +
+        ' · ' + indEscapaHtml(d.cliente || '—') +
+        ' · Anexo: ' + indEscapaHtml(d.anexoDataCancelamento || '—') +
+        ' · CRM: ' + indEscapaHtml(d.crmStatus || '—') + '</div>';
+    });
+    html += '</div>';
+  }
+
+  document.getElementById('ind-modal-body').innerHTML = html;
+  document.getElementById('ind-modal-footer').innerHTML =
+    '<button class="ind-btn" onclick="indFecharModal()">Cancelar</button>' +
+    '<button class="ind-btn primary" onclick="indConfirmarAplicar()">✓ Aplicar ao CRM</button>';
+}
+
+function indKpiCard(label, value, sub, tone) {
+  var cls = 'ind-kpi-card' + (tone ? ' ' + tone : '');
+  return '<div class="' + cls + '">' +
+    '<div class="ind-kpi-label">' + indEscapaHtml(label) + '</div>' +
+    '<div class="ind-kpi-value">' + indEscapaHtml(value == null ? '—' : value) + '</div>' +
+    (sub ? '<div class="ind-kpi-sub">' + indEscapaHtml(sub) + '</div>' : '') +
+    '</div>';
+}
+
+function indConfirmarAplicar() {
+  if (!indPayloadAtual) { indToast('Sem payload', 'error'); return; }
+  var p = indPreviewAtual || {};
+  var msg = 'Vai escrever <strong>FAIXA_RISCO</strong>, <strong>NEVER_PAID</strong> e ' +
+    '<strong>ULTIMO_REFRESH_RISCO</strong> em ' + (p.matched || 0) + ' linhas de <code>1-Vendas</code>, ' +
+    'materializar o snapshot completo (' + (p.contratosNoRelatorio || 0) + ' contratos) ' +
+    'e regenerar a reconciliação.<br><br>Continuar?';
+  indConfirm({
+    titulo: 'Aplicar inadimplência?',
+    htmlBody: msg,
+    btnConfirmarText: '✓ Aplicar',
+    btnConfirmarTone: 'primary'
+  }, function() { indExecutarAplicar(); }, null);
+}
+
+function indExecutarAplicar() {
+  indMostrarLoading('Aplicando em 1-Vendas + materializando 3 abas…');
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (!r || !r.ok) {
+        indFecharModal();
+        indToast('Erro: ' + (r && r.erro || 'desconhecido'), 'error');
+        return;
+      }
+      indMostrarResultado(r);
+      indCarregarStatus(); // refresh do status bar
+    })
+    .withFailureHandler(function(err) {
+      indFecharModal();
+      indToast('Erro: ' + err.message, 'error');
+    })
+    .aplicarInadimplencia(indPayloadAtual, { confirmar: true });
+}
+
+function indMostrarResultado(r) {
+  indModalBloqueado = false;
+  document.getElementById('ind-modal-title').textContent = '✅ Aplicado em ' + (r.quandoStr || '—');
+  var html =
+    '<div class="ind-alerta info">📋 Registro persistido. Re-aplicar é seguro (sobrescreve snapshot).</div>' +
+    '<div class="ind-kpis-grid">' +
+    indKpiCard('Contratos no relatório', r.contratosNoRelatorio, '', '') +
+    indKpiCard('Vendas atualizadas', r.escrito, 'FAIXA_RISCO + NEVER_PAID', '') +
+    indKpiCard('Órfãos', r.orfaos, '', r.orfaos > 0 ? 'warn' : '') +
+    indKpiCard('Diverg. risco', r.divergRisco, '', r.divergRisco > 0 ? 'warn' : '') +
+    indKpiCard('Diverg. cancelamento', r.divergCancelamento, '', r.divergCancelamento > 0 ? 'warn' : '') +
+    '</div>';
+  if (r.snapshot) {
+    html += '<div class="ind-dist-block"><h4>Snapshot</h4>' +
+      '<div class="ind-dist-row"><span>Aba <code>Inadimplencia Vero</code></span>' +
+      '<strong>' + r.snapshot.inseridas + ' linhas</strong></div></div>';
+  }
+  if (r.historico) {
+    html += '<div class="ind-dist-block"><h4>Histórico</h4>' +
+      '<div class="ind-dist-row"><span>Aba <code>Inadimplencia Historico</code></span>' +
+      '<strong>+' + r.historico.appendadas + ' linhas appendadas</strong></div></div>';
+  }
+  if (r.reconciliacao) {
+    html += '<div class="ind-dist-block"><h4>Reconciliação</h4>' +
+      '<div class="ind-dist-row"><span>Aba <code>Reconciliacao Inadimplencia</code></span>' +
+      '<strong>' + r.reconciliacao.total + ' divergências</strong></div></div>';
+  }
+  document.getElementById('ind-modal-body').innerHTML = html;
+  document.getElementById('ind-modal-footer').innerHTML =
+    '<button class="ind-btn primary" onclick="indFecharModal()">Fechar</button>';
+}
+
+function indFecharModal() {
+  if (indModalBloqueado) return;
+  document.getElementById('ind-modal-overlay').style.display = 'none';
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Snapshot/Reconciliação — render (dados em memória; backend page reload futuro)
+// ════════════════════════════════════════════════════════════════════════════
+function indRenderSnapshot() {
+  var f = {
+    busca: (document.getElementById('ind-f-busca').value || '').toLowerCase(),
+    risco: document.getElementById('ind-f-risco').value,
+    np: document.getElementById('ind-f-np').value,
+    status: document.getElementById('ind-f-status').value,
+    aging: document.getElementById('ind-f-aging').value
+  };
+  var visiveis = indSnapshot.filter(function(r) {
+    if (f.busca && !((r.contrato || '').toLowerCase().indexOf(f.busca) > -1 ||
+                     (r.cliente || '').toLowerCase().indexOf(f.busca) > -1)) return false;
+    if (f.risco && String(r.faixaRisco) !== f.risco) return false;
+    if (f.np && r.neverPaid !== f.np) return false;
+    if (f.status && (r.statusContrato || '').indexOf(f.status) < 0) return false;
+    if (f.aging) {
+      var ag = Number(r.aging || 0);
+      if (f.aging === '0-30' && (ag < 0 || ag > 30)) return false;
+      if (f.aging === '31-90' && (ag < 31 || ag > 90)) return false;
+      if (f.aging === '91-180' && (ag < 91 || ag > 180)) return false;
+      if (f.aging === '180+' && ag <= 180) return false;
+    }
+    return true;
+  });
+  document.getElementById('ind-snap-count').textContent =
+    visiveis.length + (visiveis.length === indSnapshot.length ? '' : ' / ' + indSnapshot.length) + ' contratos';
+
+  var tbody = document.getElementById('ind-snap-tbody');
+  if (!visiveis.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="ind-empty">' +
+      (indSnapshot.length ? 'Sem resultados pros filtros.' : 'Sem snapshot. Importe um relatório.') +
+      '</td></tr>';
+    return;
+  }
+  // Limite de 500 linhas exibidas (defensivo)
+  var rows = visiveis.slice(0, 500);
+  tbody.innerHTML = rows.map(function(r) {
+    var stTxt = (r.statusContrato || '').toUpperCase();
+    var stCls = stTxt.indexOf('CANCEL') > -1 ? 'CANCELADO' :
+                stTxt.indexOf('SUSPENS') > -1 ? 'SUSPENSO' : 'HABILITADO';
+    return '<tr>' +
+      '<td class="ind-mono">' + indEscapaHtml(r.contrato) + '</td>' +
+      '<td class="ind-status-' + stCls + '">' + indEscapaHtml(stTxt) + '</td>' +
+      '<td>' + indEscapaHtml(r.cidade || '—') + '</td>' +
+      '<td>' + indEscapaHtml(r.plano || '—') + '</td>' +
+      '<td>' + indFmtR$(r.valor) + '</td>' +
+      '<td>' + (r.aging != null ? r.aging + 'd' : '—') + '</td>' +
+      '<td>' + indEscapaHtml(r.inadimplencia || '—') + '</td>' +
+      '<td class="ind-np-' + (r.neverPaid || '') + '">' + indEscapaHtml(r.neverPaid || '—') + '</td>' +
+      '<td class="ind-risco-' + (r.faixaRisco || '6') + '">' + (r.faixaRisco || '—') + '</td>' +
+      '<td>' + indEscapaHtml(r.dataCancelamento || '—') + '</td>' +
+      '</tr>';
+  }).join('');
+  if (visiveis.length > 500) {
+    tbody.innerHTML += '<tr><td colspan="10" class="ind-empty">' +
+      'Mostrando 500 de ' + visiveis.length + '. Refinar filtros.</td></tr>';
+  }
+}
+
+function indRecTab(cat) {
+  indRecCatAtiva = cat;
+  document.querySelectorAll('.ind-recon-tab').forEach(function(el) {
+    el.classList.toggle('active', el.dataset.cat === cat);
+  });
+  indRenderReconciliacao();
+}
+
+function indRenderReconciliacao() {
+  var thead = document.getElementById('ind-rec-thead').querySelector('tr');
+  var tbody = document.getElementById('ind-rec-tbody');
+
+  // Conta cada categoria
+  var counts = { ORFAO: 0, DIVERG_RISCO_VS_SAFRA: 0, DIVERG_CANCELAMENTO: 0 };
+  indReconciliacao.forEach(function(r) { if (counts[r.categoria] != null) counts[r.categoria]++; });
+  Object.keys(counts).forEach(function(k) {
+    var b = document.getElementById('ind-rec-badge-' + k);
+    if (b) b.textContent = counts[k];
+  });
+  document.getElementById('ind-recon-total').textContent =
+    (counts.ORFAO + counts.DIVERG_RISCO_VS_SAFRA + counts.DIVERG_CANCELAMENTO) + ' divergências';
+
+  var rows = indReconciliacao.filter(function(r) { return r.categoria === indRecCatAtiva; });
+
+  // Headers diferentes por categoria
+  if (indRecCatAtiva === 'ORFAO') {
+    thead.innerHTML = '<th>Contrato</th><th>Anexo: Faixa Risco</th>' +
+      '<th>Anexo: Status</th><th>Anexo: Data Entrada</th><th>Anexo: Data Cancelamento</th><th>Observação</th>';
+  } else if (indRecCatAtiva === 'DIVERG_RISCO_VS_SAFRA') {
+    thead.innerHTML = '<th>Contrato</th><th>Cliente</th><th>Anexo: Risco</th>' +
+      '<th>Anexo: NP</th><th>Anexo: Aging</th><th>CRM: STATUS_ADIMPL</th>' +
+      '<th>CRM: Aging</th><th>Observação</th>';
+  } else {
+    thead.innerHTML = '<th>Contrato</th><th>Cliente</th>' +
+      '<th>Anexo: Status</th><th>Anexo: Data Cancel.</th>' +
+      '<th>CRM: STATUS</th><th>Observação</th>';
+  }
+
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="ind-empty">Sem divergências nesta categoria.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.slice(0, 200).map(function(r) {
+    if (indRecCatAtiva === 'ORFAO') {
+      return '<tr>' +
+        '<td class="ind-mono">' + indEscapaHtml(r.contrato) + '</td>' +
+        '<td class="ind-risco-' + (r.anexoFaixaRisco || '6') + '">' + (r.anexoFaixaRisco || '—') + '</td>' +
+        '<td>' + indEscapaHtml(r.anexoStatus || '—') + '</td>' +
+        '<td>' + indEscapaHtml(r.anexoDataEntrada || '—') + '</td>' +
+        '<td>' + indEscapaHtml(r.anexoDataCancelamento || '—') + '</td>' +
+        '<td style="font-size:11px;color:#9ba3b8">' + indEscapaHtml(r.observacao || '') + '</td>' +
+        '</tr>';
+    } else if (indRecCatAtiva === 'DIVERG_RISCO_VS_SAFRA') {
+      return '<tr>' +
+        '<td class="ind-mono">' + indEscapaHtml(r.contrato) + '</td>' +
+        '<td>' + indEscapaHtml(r.cliente || '—') + '</td>' +
+        '<td class="ind-risco-' + (r.anexoFaixaRisco || '6') + '">' + (r.anexoFaixaRisco || '—') + '</td>' +
+        '<td class="ind-np-' + (r.anexoNeverPaid || '') + '">' + indEscapaHtml(r.anexoNeverPaid || '—') + '</td>' +
+        '<td>' + (r.anexoAging != null ? r.anexoAging + 'd' : '—') + '</td>' +
+        '<td>' + indEscapaHtml(r.crmStatusAdimpl || '—') + '</td>' +
+        '<td>' + (r.crmAgingDias != null ? r.crmAgingDias + 'd' : '—') + '</td>' +
+        '<td style="font-size:11px;color:#9ba3b8">' + indEscapaHtml(r.observacao || '') + '</td>' +
+        '</tr>';
+    } else {
+      return '<tr>' +
+        '<td class="ind-mono">' + indEscapaHtml(r.contrato) + '</td>' +
+        '<td>' + indEscapaHtml(r.cliente || '—') + '</td>' +
+        '<td>' + indEscapaHtml(r.anexoStatus || '—') + '</td>' +
+        '<td>' + indEscapaHtml(r.anexoDataCancelamento || '—') + '</td>' +
+        '<td>' + indEscapaHtml(r.crmStatus || '—') + '</td>' +
+        '<td style="font-size:11px;color:#9ba3b8">' + indEscapaHtml(r.observacao || '') + '</td>' +
+        '</tr>';
+    }
+  }).join('');
+  if (rows.length > 200) {
+    tbody.innerHTML += '<tr><td colspan="8" class="ind-empty">' +
+      'Mostrando 200 de ' + rows.length + '. Refinar via aba do Sheets.</td></tr>';
+  }
+}
+
+function indFiltrar() { indRenderSnapshot(); }
+
+// ════════════════════════════════════════════════════════════════════════════
+// Confirm modal genérico (padrão epConfirm do Extrato.html)
+// ════════════════════════════════════════════════════════════════════════════
+function indConfirm(opts, onConfirm, onCancel) {
+  _indConfirmHandlers.ok = onConfirm || null;
+  _indConfirmHandlers.cancel = onCancel || null;
+  document.getElementById('ind-confirm-title').textContent = opts.titulo || 'Confirmar?';
+  document.getElementById('ind-confirm-body').innerHTML = opts.htmlBody || indEscapaHtml(opts.mensagem || '');
+  var tone = opts.btnConfirmarTone || 'primary';
+  document.getElementById('ind-confirm-footer').innerHTML =
+    '<button class="ind-btn" onclick="_indConfirmFechar(false)">' +
+    indEscapaHtml(opts.btnCancelarText || 'Cancelar') + '</button>' +
+    '<button class="ind-btn ' + tone + '" onclick="_indConfirmFechar(true)">' +
+    indEscapaHtml(opts.btnConfirmarText || 'Confirmar') + '</button>';
+  indEscaparOverlay('ind-confirm-overlay', 'flex');
+}
+function _indConfirmFechar(confirmou) {
+  document.getElementById('ind-confirm-overlay').style.display = 'none';
+  var h = _indConfirmHandlers;
+  _indConfirmHandlers = { ok: null, cancel: null };
+  try {
+    if (confirmou && h.ok) h.ok();
+    else if (!confirmou && h.cancel) h.cancel();
+  } catch (e) { console.error('indConfirm handler erro:', e); }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Boot
+// ════════════════════════════════════════════════════════════════════════════
+if (typeof inadimplenciaInit === 'function') {
+  try { inadimplenciaInit(); } catch (e) { console.error(e); }
+}
+</script>
