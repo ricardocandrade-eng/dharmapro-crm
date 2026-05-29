@@ -2330,18 +2330,21 @@ function marcarPagoENotificarPAP(payload) {
 // foram migrados pra _papEnviarMensagemDireta (Evolution) ou
 // enviarParaGrupoWhatsApp (Flow 1).
 
-// Envia resumo consolidado dos pagamentos PAP para o DM do Ricardo via
-// Flow 1 do disparo-grupo (apelido 'ricardo' = +55 32 98801-5161). Antes ia
-// pelo BotConversa para o próprio chip (5532991534154); como esse chip agora
-// É o emissor (instância Ricardo_Andrade na Evolution), não é possível mandar
-// pra si mesmo — roteado pra DM Ricardo via chip da Evolution → 988015161.
-// payload: { resumoTexto } — texto montado no frontend
+// Envia resumo consolidado dos pagamentos PAP direto pro DM do Ricardo
+// (32988015161) via Evolution (instância Ricardo_Andrade do chip 5532991534154).
+// Histórico:
+//   - até 27/05 ia pelo BotConversa pro próprio chip 4154 (descontinuado).
+//   - 27/05 migrou pra Flow 1 via apelido 'ricardo' (que apontava pro DM 988015161).
+//   - 28/05 o apelido 'ricardo' foi repurposed pro grupo de Tráfego — então
+//     este endpoint passou a usar Evolution diretamente, bypassando o apelido,
+//     pra continuar entregando o resumo de pagamentos em DM (uso financeiro,
+//     não deve aparecer no grupo de Tráfego).
 function enviarResumoPAPAdmin(resumoTexto) {
   try {
-    var ok = enviarParaGrupoWhatsApp(resumoTexto, 'ricardo');
-    return ok
+    var res = _papEnviarMensagemDireta('32988015161', resumoTexto);
+    return res && res.sucesso
       ? { sucesso: true }
-      : { sucesso: false, mensagem: 'Falha ao enviar via Flow 1 (ver logs do n8n / Apps Script).' };
+      : { sucesso: false, mensagem: (res && res.mensagem) || 'Falha ao enviar via Evolution.' };
   } catch(e) {
     Logger.log('enviarResumoPAPAdmin erro: ' + e.message);
     return { sucesso: false, mensagem: e.message };
