@@ -1,0 +1,643 @@
+<!-- dharmapro-crm | ReengajamentoWABA.html | 28/05/2026
+     UI do módulo "Reengajamento WABA" (aba sob menu Tráfego).
+     Servido por getReengajamentoWabaHtml() em ReengajamentoWABAAPI.js
+     e injetado em #reengajamentoWabaContainer via navegar('reengajamentoWaba').
+-->
+<style>
+  #rwbContainer { font-family:Inter, system-ui, sans-serif; color:#e8ecf3; padding:20px 24px; }
+  #rwbContainer h2 { margin:0 0 4px 0; font-size:22px; font-weight:600; }
+  #rwbContainer .rwb-sub { color:#8a93a6; font-size:13px; margin-bottom:18px; }
+
+  #rwbContainer .rwb-toolbar {
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    background:#1a1d24; border:1px solid #2a2f3a; border-radius:10px;
+    padding:12px 16px; position:sticky; top:0; z-index:10; margin-bottom:14px;
+  }
+  #rwbContainer .rwb-toolbar select,
+  #rwbContainer .rwb-toolbar input[type="text"] {
+    background:#0f1116; color:#e8ecf3; border:1px solid #2a2f3a;
+    border-radius:6px; padding:6px 10px; font-size:13px; min-width:140px;
+  }
+  #rwbContainer .rwb-toolbar select[multiple] { min-height:32px; max-height:120px; }
+  #rwbContainer .rwb-toolbar label { font-size:12px; color:#8a93a6; display:flex; flex-direction:column; gap:3px; }
+  #rwbContainer .rwb-chips { display:inline-flex; gap:6px; }
+  #rwbContainer .rwb-chip {
+    background:#0f1116; border:1px solid #2a2f3a; color:#cfd6e4;
+    padding:5px 10px; border-radius:14px; cursor:pointer; font-size:12px;
+    user-select:none;
+  }
+  #rwbContainer .rwb-chip.ativo { background:#3b82f6; border-color:#3b82f6; color:#fff; }
+  #rwbContainer .rwb-btn {
+    background:#3b82f6; color:#fff; border:none; border-radius:6px;
+    padding:7px 14px; cursor:pointer; font-size:13px; font-weight:500;
+  }
+  #rwbContainer .rwb-btn:hover { background:#2563eb; }
+  #rwbContainer .rwb-btn.secondary { background:#2a2f3a; color:#cfd6e4; }
+  #rwbContainer .rwb-btn.secondary:hover { background:#363c4a; }
+  #rwbContainer .rwb-btn.warn { background:#f59e0b; }
+  #rwbContainer .rwb-btn.warn:hover { background:#d97706; }
+  #rwbContainer .rwb-btn:disabled { opacity:0.5; cursor:not-allowed; }
+  #rwbContainer .rwb-counter { color:#8a93a6; font-size:12px; margin-left:auto; }
+
+  #rwbContainer .rwb-bulk {
+    background:#1a1d24; border:1px solid #2a2f3a; border-radius:8px;
+    padding:10px 14px; margin-bottom:10px; display:none;
+    align-items:center; gap:10px; font-size:13px;
+  }
+  #rwbContainer .rwb-bulk.ativo { display:flex; }
+
+  #rwbContainer table.rwb-tbl {
+    width:100%; border-collapse:collapse; background:#1a1d24;
+    border:1px solid #2a2f3a; border-radius:10px; overflow:hidden;
+  }
+  #rwbContainer table.rwb-tbl th {
+    background:#0f1116; color:#8a93a6; font-weight:500; font-size:12px;
+    text-transform:uppercase; letter-spacing:0.5px; text-align:left;
+    padding:10px 12px; border-bottom:1px solid #2a2f3a;
+  }
+  #rwbContainer table.rwb-tbl td {
+    padding:12px; border-bottom:1px solid #22262f; font-size:13px;
+    vertical-align:top;
+  }
+  #rwbContainer table.rwb-tbl tr:hover td { background:#21252e; }
+  #rwbContainer .rwb-msg-preview {
+    color:#8a93a6; font-style:italic; max-width:340px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer;
+  }
+  #rwbContainer .rwb-msg-preview.expandido { white-space:normal; }
+  #rwbContainer .rwb-badge {
+    display:inline-block; padding:2px 8px; border-radius:10px;
+    font-size:11px; font-weight:500; margin-right:4px;
+  }
+  #rwbContainer .rwb-badge-tentado { background:#f59e0b22; color:#fbbf24; border:1px solid #f59e0b66; }
+  #rwbContainer .rwb-badge-sem-via { background:#ef444422; color:#fca5a5; border:1px solid #ef444466; }
+  #rwbContainer .rwb-badge-label   { background:#3b82f622; color:#93c5fd; border:1px solid #3b82f666; }
+  #rwbContainer .rwb-badge-sem-crm { background:#6b728022; color:#9ca3af; border:1px solid #6b728066; }
+
+  #rwbContainer .rwb-row-acoes { display:flex; gap:6px; }
+  #rwbContainer .rwb-row-acoes button {
+    background:#2a2f3a; color:#e8ecf3; border:none; border-radius:6px;
+    padding:5px 10px; cursor:pointer; font-size:12px;
+  }
+  #rwbContainer .rwb-row-acoes button:hover { background:#363c4a; }
+
+  #rwbContainer .rwb-pagin { display:flex; gap:8px; justify-content:center; margin:16px 0; align-items:center; }
+  #rwbContainer .rwb-pagin button { background:#2a2f3a; color:#e8ecf3; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; }
+  #rwbContainer .rwb-pagin button:disabled { opacity:0.4; cursor:not-allowed; }
+
+  /* Modais */
+  #rwbContainer .rwb-modal-bg {
+    position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000;
+    display:none; align-items:center; justify-content:center;
+  }
+  #rwbContainer .rwb-modal-bg.ativo { display:flex; }
+  #rwbContainer .rwb-modal {
+    background:#1a1d24; border:1px solid #2a2f3a; border-radius:12px;
+    width:min(560px, 92vw); max-height:88vh; overflow-y:auto;
+    padding:24px; box-shadow:0 12px 48px rgba(0,0,0,0.5);
+  }
+  #rwbContainer .rwb-modal h3 { margin:0 0 14px 0; font-size:18px; }
+  #rwbContainer .rwb-modal label { display:block; font-size:12px; color:#8a93a6; margin:12px 0 4px 0; }
+  #rwbContainer .rwb-modal select, #rwbContainer .rwb-modal textarea, #rwbContainer .rwb-modal input {
+    width:100%; background:#0f1116; color:#e8ecf3; border:1px solid #2a2f3a;
+    border-radius:6px; padding:8px 10px; font-size:13px; font-family:inherit; box-sizing:border-box;
+  }
+  #rwbContainer .rwb-modal textarea { min-height:90px; resize:vertical; }
+  #rwbContainer .rwb-modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+  #rwbContainer .rwb-modal .rwb-preview {
+    background:#0f1116; border:1px solid #2a2f3a; border-radius:6px;
+    padding:10px; font-size:12px; color:#cfd6e4; white-space:pre-wrap; margin-top:6px;
+  }
+  #rwbContainer .rwb-empty { text-align:center; color:#8a93a6; padding:40px; font-style:italic; }
+  #rwbContainer .rwb-loading { text-align:center; padding:40px; color:#8a93a6; }
+</style>
+
+<div id="rwbContainer">
+  <h2>Reengajamento WABA</h2>
+  <div class="rwb-sub">
+    Contatos com janela WhatsApp Business fechada (último inbound &gt; 24h).
+    Use template aprovado ou outro número pra reabrir a conversa.
+    <span id="rwbAtualizadoEm" style="margin-left:8px;"></span>
+    <button id="rwbBtnRecarregar" class="rwb-btn secondary" style="margin-left:8px;padding:4px 10px;font-size:12px;">↻ Recarregar</button>
+  </div>
+
+  <!-- Toolbar de filtros -->
+  <div class="rwb-toolbar">
+    <label>
+      Labels Chatwoot
+      <select id="rwbFltLabels" multiple size="3" style="min-width:200px;"></select>
+    </label>
+    <label>
+      Tentado?
+      <select id="rwbFltTentado">
+        <option value="nao" selected>Só não tentados</option>
+        <option value="sim">Só tentados</option>
+        <option value="qualquer">Qualquer</option>
+      </select>
+    </label>
+    <label>
+      Faixa de horas
+      <div class="rwb-chips" id="rwbChipsHoras">
+        <span class="rwb-chip" data-min="24" data-max="48">24-48h</span>
+        <span class="rwb-chip" data-min="48" data-max="168">2-7d</span>
+        <span class="rwb-chip" data-min="168" data-max="720">7-30d</span>
+        <span class="rwb-chip" data-min="720" data-max="">&gt;30d</span>
+      </div>
+    </label>
+    <label>
+      <input type="checkbox" id="rwbFltIncluirSemViab" style="vertical-align:middle;margin-right:4px;">
+      Incluir <span class="rwb-badge rwb-badge-sem-via">sem-viabilidade</span>
+    </label>
+    <label style="flex:1;min-width:200px;">
+      Busca
+      <input type="text" id="rwbFltBusca" placeholder="Nome, telefone, conteúdo da última msg…">
+    </label>
+    <button id="rwbBtnAplicar" class="rwb-btn">Aplicar</button>
+    <button id="rwbBtnLimpar" class="rwb-btn secondary">Limpar</button>
+    <span class="rwb-counter" id="rwbCounter">—</span>
+  </div>
+
+  <!-- Bulk action bar -->
+  <div class="rwb-bulk" id="rwbBulkBar">
+    <span id="rwbBulkCount" style="font-weight:500;">0 selecionados</span>
+    <button class="rwb-btn" id="rwbBtnBulkTemplate">📤 Template WABA (selecionados)</button>
+    <button class="rwb-btn warn" id="rwbBtnBulkPessoal">📱 Outro número (selecionados)</button>
+    <button class="rwb-btn secondary" id="rwbBtnBulkClear" style="margin-left:auto;">Limpar seleção</button>
+  </div>
+
+  <!-- Tabela -->
+  <div id="rwbTableWrap">
+    <div class="rwb-loading">Carregando…</div>
+  </div>
+
+  <!-- Paginação -->
+  <div class="rwb-pagin" id="rwbPagin"></div>
+
+  <!-- Modal: Template WABA -->
+  <div class="rwb-modal-bg" id="rwbModalTplBg">
+    <div class="rwb-modal">
+      <h3>Reengajar via Template WABA</h3>
+      <div id="rwbModalTplTargetInfo" style="font-size:13px;color:#8a93a6;margin-bottom:12px;"></div>
+      <label>Nome da campanha</label>
+      <input type="text" id="rwbTplNome" placeholder="Ex: Reengajamento 28/05">
+      <label>Template aprovado</label>
+      <select id="rwbTplSelect"><option value="">Carregando…</option></select>
+      <div id="rwbTplPreviewWrap" style="display:none;">
+        <label>Preview do template</label>
+        <div class="rwb-preview" id="rwbTplPreview">—</div>
+      </div>
+      <div class="rwb-modal-actions">
+        <button class="rwb-btn secondary" id="rwbBtnTplCancelar">Cancelar</button>
+        <button class="rwb-btn" id="rwbBtnTplConfirmar">Despachar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Outro número (wa-pessoal) -->
+  <div class="rwb-modal-bg" id="rwbModalPesBg">
+    <div class="rwb-modal">
+      <h3>Enviar via outro número</h3>
+      <div id="rwbModalPesTargetInfo" style="font-size:13px;color:#8a93a6;margin-bottom:12px;"></div>
+      <label>Nome da campanha</label>
+      <input type="text" id="rwbPesNome" placeholder="Ex: Reengajamento WA 28/05">
+      <label>Operador (instância Evolution)</label>
+      <select id="rwbPesOperador"><option value="">Carregando…</option></select>
+      <label>Mensagem</label>
+      <textarea id="rwbPesMsg" placeholder="Olá {nome}, ainda há interesse?"></textarea>
+      <div style="font-size:11px;color:#8a93a6;margin-top:4px;">
+        <code>{nome}</code> é substituído pelo nome do contato.
+      </div>
+      <div class="rwb-modal-actions">
+        <button class="rwb-btn secondary" id="rwbBtnPesCancelar">Cancelar</button>
+        <button class="rwb-btn warn" id="rwbBtnPesConfirmar">Despachar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  // ── STATE ────────────────────────────────────────────────────────────────
+  var STATE = {
+    rows: [],
+    total: 0,
+    page: 1,
+    perPage: 50,
+    selecionados: {},      // { contactId: row }
+    opcoes: { labels:[], cidades:[], status_lead:[] },
+    templates: [],
+    operadores: [],
+    bulkMode: null,        // null | 'template' | 'pessoal' (após confirmação no modal)
+    targetSingle: null,    // contato selecionado pra modal single-action
+  };
+
+  // localStorage de filtros
+  var LS_KEY = 'rwb_filtros_v1';
+  function lerFiltrosLS() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function gravarFiltrosLS(f) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(f)); } catch (e) {}
+  }
+
+  // ── HELPERS ──────────────────────────────────────────────────────────────
+  function el(id) { return document.getElementById(id); }
+  function fmtHoras(h) {
+    if (h < 48) return Math.round(h) + 'h';
+    if (h < 168) return Math.round(h/24) + 'd';
+    return Math.round(h/24) + 'd';
+  }
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function fmtPhone(p) {
+    var d = String(p || '').replace(/\D/g,'');
+    if (d.length === 13) return '+' + d.substr(0,2) + ' (' + d.substr(2,2) + ') ' + d.substr(4,5) + '-' + d.substr(9);
+    if (d.length === 11) return '(' + d.substr(0,2) + ') ' + d.substr(2,5) + '-' + d.substr(7);
+    return p;
+  }
+  function toast(msg, tipo) {
+    if (typeof mostrarToast === 'function') return mostrarToast(msg, tipo || 'info');
+    alert(msg);
+  }
+
+  // ── FILTROS — leitura/escrita da toolbar ─────────────────────────────────
+  function colherFiltros() {
+    function multi(id) {
+      return Array.prototype.slice.call(el(id).selectedOptions).map(function(o){return o.value;});
+    }
+    var chip = document.querySelector('#rwbChipsHoras .rwb-chip.ativo');
+    return {
+      labels:      multi('rwbFltLabels'),
+      tentado:     el('rwbFltTentado').value,
+      horas_min:   chip ? (chip.dataset.min ? Number(chip.dataset.min) : null) : null,
+      horas_max:   chip ? (chip.dataset.max ? Number(chip.dataset.max) : null) : null,
+      incluir_sem_viabilidade: el('rwbFltIncluirSemViab').checked,
+      busca:       el('rwbFltBusca').value.trim(),
+      page:        STATE.page,
+      per_page:    STATE.perPage,
+    };
+  }
+  function aplicarFiltrosUI(f) {
+    function setMulti(id, arr) {
+      var opts = el(id).options;
+      for (var i=0; i<opts.length; i++) opts[i].selected = (arr || []).indexOf(opts[i].value) !== -1;
+    }
+    setMulti('rwbFltLabels', f.labels);
+    if (f.tentado) el('rwbFltTentado').value = f.tentado;
+    if (f.incluir_sem_viabilidade) el('rwbFltIncluirSemViab').checked = true;
+    if (f.busca) el('rwbFltBusca').value = f.busca;
+    document.querySelectorAll('#rwbChipsHoras .rwb-chip').forEach(function(c) {
+      var min = c.dataset.min ? Number(c.dataset.min) : null;
+      if (f.horas_min === min) c.classList.add('ativo');
+    });
+  }
+
+  // ── CARGA DE OPÇÕES ──────────────────────────────────────────────────────
+  function carregarOpcoes(cb) {
+    google.script.run
+      .withSuccessHandler(function(r) {
+        STATE.opcoes = r || { labels:[], cidades:[], status_lead:[] };
+        function preencherSel(id, arr) {
+          var sel = el(id); sel.innerHTML = '';
+          arr.forEach(function(v) {
+            var o = document.createElement('option');
+            o.value = v; o.textContent = v; sel.appendChild(o);
+          });
+        }
+        preencherSel('rwbFltLabels', STATE.opcoes.labels || []);
+        if (cb) cb();
+      })
+      .withFailureHandler(function(e) { toast('Erro ao carregar filtros: ' + e.message, 'error'); if (cb) cb(); })
+      .getOpcoesFiltrosReengajamento();
+  }
+
+  // ── LISTAGEM ─────────────────────────────────────────────────────────────
+  function carregar() {
+    var filtros = colherFiltros();
+    gravarFiltrosLS(filtros);
+    el('rwbTableWrap').innerHTML = '<div class="rwb-loading">Carregando…</div>';
+    google.script.run
+      .withSuccessHandler(function(resp) {
+        STATE.rows  = resp.rows || [];
+        STATE.total = resp.total || 0;
+        el('rwbCounter').textContent = STATE.total + ' contato(s) · atualizado ' + new Date(resp.atualizado_em).toLocaleTimeString('pt-BR').substr(0,5);
+        renderTabela();
+        renderPaginacao();
+      })
+      .withFailureHandler(function(e) {
+        el('rwbTableWrap').innerHTML = '<div class="rwb-empty" style="color:#fca5a5;">Erro: ' + escapeHtml(e.message) + '</div>';
+      })
+      .listarReengajamentoWaba(filtros);
+  }
+
+  function renderTabela() {
+    if (!STATE.rows.length) {
+      el('rwbTableWrap').innerHTML = '<div class="rwb-empty">Nenhum contato com janela fechada no filtro atual.</div>';
+      return;
+    }
+    var html = '<table class="rwb-tbl"><thead><tr>'
+      + '<th style="width:32px;"><input type="checkbox" id="rwbChkAll"></th>'
+      + '<th>Contato</th>'
+      + '<th>Cidade/Plano</th>'
+      + '<th>Status lead</th>'
+      + '<th>Labels CW</th>'
+      + '<th>Última msg</th>'
+      + '<th>Janela</th>'
+      + '<th>Status</th>'
+      + '<th style="width:170px;">Ações</th>'
+      + '</tr></thead><tbody>';
+
+    STATE.rows.forEach(function(r) {
+      var ult = (r.last_messages && r.last_messages.length) ? r.last_messages[r.last_messages.length-1] : null;
+      var ultText = ult ? (ult.direction === 'in' ? '◀ ' : '▶ ') + escapeHtml(ult.text || '') : '—';
+
+      var labels = (r.labels_chatwoot || []).map(function(l) {
+        var cls = (l === 'sem-viabilidade') ? 'rwb-badge rwb-badge-sem-via' : 'rwb-badge rwb-badge-label';
+        return '<span class="' + cls + '">' + escapeHtml(l) + '</span>';
+      }).join('');
+
+      var badges = '';
+      if (r.already_attempted) badges += '<span class="rwb-badge rwb-badge-tentado">JÁ TENTADO</span>';
+      if (!r.tem_venda_crm)    badges += '<span class="rwb-badge rwb-badge-sem-crm">SEM VENDA CRM</span>';
+
+      var chk = STATE.selecionados[r.chatwoot_contact_id] ? 'checked' : '';
+
+      html += '<tr data-cid="' + r.chatwoot_contact_id + '">'
+        + '<td><input type="checkbox" class="rwb-chk-row" data-cid="' + r.chatwoot_contact_id + '" ' + chk + '></td>'
+        + '<td><div style="font-weight:500;">' + escapeHtml(r.name || '—') + '</div>'
+        +   '<div style="color:#8a93a6;font-size:12px;">' + escapeHtml(fmtPhone(r.phone)) + '</div></td>'
+        + '<td>' + escapeHtml(r.cidade || '—') + '<div style="color:#8a93a6;font-size:12px;">' + escapeHtml(r.produto || '') + ' ' + escapeHtml(r.plano || '') + '</div></td>'
+        + '<td style="font-size:12px;">' + escapeHtml(r.status_lead || '—') + '</td>'
+        + '<td>' + labels + '</td>'
+        + '<td><div class="rwb-msg-preview" onclick="this.classList.toggle(\'expandido\')" title="' + escapeHtml(ultText) + '">' + escapeHtml(ultText) + '</div></td>'
+        + '<td>' + fmtHoras(r.hours_since_inbound) + '</td>'
+        + '<td>' + (badges || '—') + '</td>'
+        + '<td><div class="rwb-row-acoes">'
+        +   '<button onclick="window.rwbAcaoTemplate(' + r.chatwoot_contact_id + ')">📤 Template</button>'
+        +   '<button onclick="window.rwbAcaoPessoal(' + r.chatwoot_contact_id + ')">📱 Outro</button>'
+        + '</div></td>'
+        + '</tr>';
+    });
+
+    html += '</tbody></table>';
+    el('rwbTableWrap').innerHTML = html;
+
+    // wire checkboxes
+    document.querySelectorAll('.rwb-chk-row').forEach(function(c) {
+      c.addEventListener('change', function() {
+        var cid = Number(this.dataset.cid);
+        var row = STATE.rows.filter(function(r) { return r.chatwoot_contact_id === cid; })[0];
+        if (this.checked) STATE.selecionados[cid] = row;
+        else delete STATE.selecionados[cid];
+        atualizarBulkBar();
+      });
+    });
+    el('rwbChkAll').addEventListener('change', function() {
+      var on = this.checked;
+      document.querySelectorAll('.rwb-chk-row').forEach(function(c) {
+        c.checked = on;
+        var cid = Number(c.dataset.cid);
+        var row = STATE.rows.filter(function(r) { return r.chatwoot_contact_id === cid; })[0];
+        if (on) STATE.selecionados[cid] = row;
+        else delete STATE.selecionados[cid];
+      });
+      atualizarBulkBar();
+    });
+  }
+
+  function renderPaginacao() {
+    var totalPages = Math.ceil(STATE.total / STATE.perPage);
+    if (totalPages <= 1) { el('rwbPagin').innerHTML = ''; return; }
+    var html = '';
+    html += '<button ' + (STATE.page<=1 ? 'disabled' : '') + ' onclick="window.rwbIrPagina(' + (STATE.page-1) + ')">‹ Anterior</button>';
+    html += '<span>Página ' + STATE.page + ' de ' + totalPages + '</span>';
+    html += '<button ' + (STATE.page>=totalPages ? 'disabled' : '') + ' onclick="window.rwbIrPagina(' + (STATE.page+1) + ')">Próxima ›</button>';
+    el('rwbPagin').innerHTML = html;
+  }
+  window.rwbIrPagina = function(p) { STATE.page = p; carregar(); };
+
+  function atualizarBulkBar() {
+    var ids = Object.keys(STATE.selecionados);
+    el('rwbBulkCount').textContent = ids.length + ' selecionado(s)';
+    el('rwbBulkBar').classList.toggle('ativo', ids.length > 0);
+  }
+
+  // ── MODAL: TEMPLATE WABA ─────────────────────────────────────────────────
+  function carregarTemplates(cb) {
+    if (STATE.templates.length) return cb();
+    google.script.run
+      .withSuccessHandler(function(tpls) { STATE.templates = tpls || []; cb(); })
+      .withFailureHandler(function(e) { toast('Erro ao carregar templates: ' + e.message, 'error'); cb(); })
+      .listarTemplatesDisparo();
+  }
+
+  function abrirModalTemplate(targets) {
+    STATE.bulkMode = (targets.length > 1) ? 'template' : null;
+    STATE.targetSingle = (targets.length === 1) ? targets[0] : null;
+    var info = (targets.length === 1)
+      ? 'Para: <strong>' + escapeHtml(targets[0].name || targets[0].phone) + '</strong>'
+      : 'Para: <strong>' + targets.length + ' contatos</strong>';
+    el('rwbModalTplTargetInfo').innerHTML = info;
+    el('rwbTplNome').value = 'Reengajamento ' + new Date().toLocaleDateString('pt-BR');
+    el('rwbModalTplBg').classList.add('ativo');
+
+    carregarTemplates(function() {
+      var sel = el('rwbTplSelect'); sel.innerHTML = '<option value="">— escolha —</option>';
+      STATE.templates.forEach(function(t) {
+        var o = document.createElement('option');
+        o.value = t.meta_template_name;
+        o.textContent = t.meta_template_name + ' (' + t.category + ' · ' + t.quality + ')';
+        sel.appendChild(o);
+      });
+    });
+  }
+  el('rwbBtnTplCancelar').onclick = function() { el('rwbModalTplBg').classList.remove('ativo'); };
+  el('rwbBtnTplConfirmar').onclick = function() {
+    var tplName = el('rwbTplSelect').value;
+    var nome    = el('rwbTplNome').value.trim();
+    if (!tplName) return toast('Escolha um template.', 'warn');
+    if (!nome)    return toast('Dê um nome à campanha.', 'warn');
+
+    var tpl = STATE.templates.filter(function(t) { return t.meta_template_name === tplName; })[0];
+    var targets = STATE.targetSingle ? [STATE.targetSingle] : Object.keys(STATE.selecionados).map(function(k) { return STATE.selecionados[k]; });
+    var recipients = targets.map(function(t) { return { nome: t.name || 'Cliente', phone: t.phone }; });
+    var cids = targets.map(function(t) { return t.chatwoot_contact_id; });
+
+    el('rwbBtnTplConfirmar').disabled = true;
+    google.script.run
+      .withSuccessHandler(function(res) {
+        // Marca tentativa em bulk
+        google.script.run
+          .withSuccessHandler(function() {
+            toast('Campanha despachada e tentativa marcada (' + cids.length + ').', 'success');
+            el('rwbModalTplBg').classList.remove('ativo');
+            el('rwbBtnTplConfirmar').disabled = false;
+            STATE.selecionados = {};
+            carregar();
+          })
+          .withFailureHandler(function(e) {
+            toast('Campanha OK, mas mark_attempt falhou: ' + e.message, 'warn');
+            el('rwbBtnTplConfirmar').disabled = false;
+          })
+          .marcarTentativaReengajamentoBulk(cids, 'template_waba');
+      })
+      .withFailureHandler(function(e) {
+        toast('Erro ao despachar: ' + e.message, 'error');
+        el('rwbBtnTplConfirmar').disabled = false;
+      })
+      .criarCampanhaDisparo({
+        nome: nome,
+        templateName: tpl.meta_template_name,
+        templateCategory: tpl.category,
+        templateQuality: tpl.quality,
+        templateLanguage: tpl.language,
+        recipients: recipients,
+      });
+  };
+
+  // ── MODAL: WA-PESSOAL ────────────────────────────────────────────────────
+  function carregarOperadores(cb) {
+    if (STATE.operadores.length) return cb();
+    var usr = (typeof AppState !== 'undefined' && AppState.get) ? AppState.get('usuario') : null;
+    google.script.run
+      .withSuccessHandler(function(arr) { STATE.operadores = arr || []; cb(); })
+      .withFailureHandler(function(e) { toast('Erro ao carregar operadores: ' + e.message, 'error'); cb(); })
+      .listarUsuariosWaPessoal(usr);
+  }
+
+  function abrirModalPessoal(targets) {
+    STATE.bulkMode = (targets.length > 1) ? 'pessoal' : null;
+    STATE.targetSingle = (targets.length === 1) ? targets[0] : null;
+    var info = (targets.length === 1)
+      ? 'Para: <strong>' + escapeHtml(targets[0].name || targets[0].phone) + '</strong>'
+      : 'Para: <strong>' + targets.length + ' contatos</strong>';
+    el('rwbModalPesTargetInfo').innerHTML = info;
+    el('rwbPesNome').value = 'Reengajamento WA ' + new Date().toLocaleDateString('pt-BR');
+    el('rwbPesMsg').value = '';
+    el('rwbModalPesBg').classList.add('ativo');
+
+    carregarOperadores(function() {
+      var sel = el('rwbPesOperador'); sel.innerHTML = '<option value="">— escolha —</option>';
+      (STATE.operadores || []).forEach(function(u) {
+        var o = document.createElement('option');
+        o.value = u.usuario || u; o.textContent = (u.nome || u.usuario || u);
+        sel.appendChild(o);
+      });
+    });
+  }
+  el('rwbBtnPesCancelar').onclick = function() { el('rwbModalPesBg').classList.remove('ativo'); };
+  el('rwbBtnPesConfirmar').onclick = function() {
+    var operador = el('rwbPesOperador').value;
+    var nome     = el('rwbPesNome').value.trim();
+    var msg      = el('rwbPesMsg').value.trim();
+    if (!operador) return toast('Escolha um operador.', 'warn');
+    if (!nome)     return toast('Dê um nome à campanha.', 'warn');
+    if (!msg)      return toast('Escreva a mensagem.', 'warn');
+
+    var targets = STATE.targetSingle ? [STATE.targetSingle] : Object.keys(STATE.selecionados).map(function(k) { return STATE.selecionados[k]; });
+    var contatos = targets.map(function(t) { return { nome: t.name || 'Cliente', telefone: t.phone }; });
+    var cids = targets.map(function(t) { return t.chatwoot_contact_id; });
+
+    el('rwbBtnPesConfirmar').disabled = true;
+    google.script.run
+      .withSuccessHandler(function() {
+        google.script.run
+          .withSuccessHandler(function() {
+            toast('Campanha despachada e tentativa marcada (' + cids.length + ').', 'success');
+            el('rwbModalPesBg').classList.remove('ativo');
+            el('rwbBtnPesConfirmar').disabled = false;
+            STATE.selecionados = {};
+            carregar();
+          })
+          .withFailureHandler(function(e) {
+            toast('Campanha OK, mas mark_attempt falhou: ' + e.message, 'warn');
+            el('rwbBtnPesConfirmar').disabled = false;
+          })
+          .marcarTentativaReengajamentoBulk(cids, 'wa_pessoal');
+      })
+      .withFailureHandler(function(e) {
+        toast('Erro ao despachar: ' + e.message, 'error');
+        el('rwbBtnPesConfirmar').disabled = false;
+      })
+      .criarCampanha(operador, {
+        nome: nome,
+        template_msg: msg,
+        contatos: contatos,
+        fonte: 'reengajamento_waba',
+      });
+  };
+
+  // ── AÇÕES POR LINHA / BULK ───────────────────────────────────────────────
+  window.rwbAcaoTemplate = function(cid) {
+    var row = STATE.rows.filter(function(r) { return r.chatwoot_contact_id === cid; })[0];
+    if (!row) return;
+    abrirModalTemplate([row]);
+  };
+  window.rwbAcaoPessoal = function(cid) {
+    var row = STATE.rows.filter(function(r) { return r.chatwoot_contact_id === cid; })[0];
+    if (!row) return;
+    abrirModalPessoal([row]);
+  };
+  el('rwbBtnBulkTemplate').onclick = function() {
+    var arr = Object.keys(STATE.selecionados).map(function(k) { return STATE.selecionados[k]; });
+    if (!arr.length) return toast('Selecione ao menos 1 contato.', 'warn');
+    abrirModalTemplate(arr);
+  };
+  el('rwbBtnBulkPessoal').onclick = function() {
+    var arr = Object.keys(STATE.selecionados).map(function(k) { return STATE.selecionados[k]; });
+    if (!arr.length) return toast('Selecione ao menos 1 contato.', 'warn');
+    abrirModalPessoal(arr);
+  };
+  el('rwbBtnBulkClear').onclick = function() {
+    STATE.selecionados = {};
+    document.querySelectorAll('.rwb-chk-row').forEach(function(c) { c.checked = false; });
+    var all = el('rwbChkAll'); if (all) all.checked = false;
+    atualizarBulkBar();
+  };
+
+  // ── EVENTOS DA TOOLBAR ───────────────────────────────────────────────────
+  el('rwbBtnAplicar').onclick = function() { STATE.page = 1; carregar(); };
+  el('rwbBtnRecarregar').onclick = function() { carregar(); };
+  el('rwbBtnLimpar').onclick = function() {
+    el('rwbFltLabels').selectedIndex = -1;
+    el('rwbFltTentado').value = 'nao';
+    el('rwbFltIncluirSemViab').checked = false;
+    el('rwbFltBusca').value = '';
+    document.querySelectorAll('#rwbChipsHoras .rwb-chip').forEach(function(c) { c.classList.remove('ativo'); });
+    STATE.page = 1;
+    carregar();
+  };
+  // chips de horas (single-select)
+  document.querySelectorAll('#rwbChipsHoras .rwb-chip').forEach(function(c) {
+    c.addEventListener('click', function() {
+      var jaAtivo = this.classList.contains('ativo');
+      document.querySelectorAll('#rwbChipsHoras .rwb-chip').forEach(function(x) { x.classList.remove('ativo'); });
+      if (!jaAtivo) this.classList.add('ativo');
+    });
+  });
+  // busca livre — debounce 300ms
+  var debTimer;
+  el('rwbFltBusca').addEventListener('input', function() {
+    clearTimeout(debTimer);
+    debTimer = setTimeout(function() { STATE.page = 1; carregar(); }, 300);
+  });
+
+  // ── INIT ─────────────────────────────────────────────────────────────────
+  window.reengajamentoWabaInit = function() {
+    var fLS = lerFiltrosLS();
+    carregarOpcoes(function() {
+      aplicarFiltrosUI(fLS);
+      carregar();
+    });
+  };
+
+  // Auto-init quando a página é injetada
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(window.reengajamentoWabaInit, 0);
+  } else {
+    document.addEventListener('DOMContentLoaded', window.reengajamentoWabaInit);
+  }
+})();
+</script>
