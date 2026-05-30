@@ -467,6 +467,29 @@
   }
   .cruz-corr-aplicar:hover { filter: brightness(1.1); }
   .cruz-corr-aplicar:disabled { opacity: 0.5; cursor: default; }
+
+  /* Rodapé com botões de lote (29/05) */
+  .cruz-corr-rodape {
+    margin-top: 14px; padding-top: 14px; border-top: 2px solid var(--border2);
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .cruz-corr-rodape-info { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .cruz-corr-rodape-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cruz-corr-lote {
+    padding: 9px 16px; border-radius: 8px; font-size: 12px; font-weight: 800;
+    font-family: "Sora", sans-serif; cursor: pointer; transition: all 0.2s; border: 1.5px solid;
+  }
+  .cruz-corr-lote-seguros {
+    background: rgba(43, 191, 123, 0.15); color: var(--green); border-color: rgba(43, 191, 123, 0.5);
+  }
+  .cruz-corr-lote-seguros:hover { background: rgba(43, 191, 123, 0.25); }
+  .cruz-corr-lote-todos {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .cruz-corr-lote-todos:hover { filter: brightness(1.1); }
+  .cruz-corr-lote:disabled { opacity: 0.5; cursor: default; }
+
   .cruz-corr-ok {
     margin: 16px 24px 0; border: 1px solid rgba(43, 191, 123, 0.4);
     background: rgba(43, 191, 123, 0.08); border-radius: 12px;
@@ -1940,9 +1963,20 @@ function _cruzPainelCorrecoesHtml() {
   return '<div class="cruz-corr">' +
       '<div class="cruz-corr-top">' +
         '<div class="cruz-corr-titulo">📝 Correções detectadas pelo relatório Vero ' +
-          '<span class="cruz-corr-sub">(' + nLinhas + ' contrato(s) · ' + nCampos + ' campo(s) · revise e aplique um por um · status preservado)</span></div>' +
+          '<span class="cruz-corr-sub">(' + nLinhas + ' contrato(s) · ' + nCampos + ' campo(s) · aplique individual, em lote, ou só os campos seguros · status preservado)</span></div>' +
       '</div>' +
       '<div class="cruz-corr-lista">' + cards + '</div>' +
+      '<div class="cruz-corr-rodape">' +
+        '<div class="cruz-corr-rodape-info">' +
+          '<strong>Aplicar em lote:</strong> ' +
+          '<em>Campos seguros</em> = só Código Vero (preencher FAT) + Observação cancelamento (append idempotente) — não destroem nada. ' +
+          '<em>Marcados</em> = todos os campos com checkbox marcado nos cards (você desmarca antes o que não quer).' +
+        '</div>' +
+        '<div class="cruz-corr-rodape-acoes">' +
+          '<button class="cruz-corr-lote cruz-corr-lote-seguros" onclick="_cruzAplicarSegurosLote()">✓ Aplicar só campos seguros</button>' +
+          '<button class="cruz-corr-lote cruz-corr-lote-todos" onclick="_cruzAplicarTodosMarcados()">⚡ Aplicar todos os marcados</button>' +
+        '</div>' +
+      '</div>' +
     '</div>';
 }
 
@@ -2074,6 +2108,97 @@ function _cruzAplicarContrato(linha) {
       if (btn) { btn.disabled = false; _cruzAtualizarBotaoCard(linha); }
     })
     .aplicarCorrecaoVero([{ linha: linha, campos: campos }]);
+}
+
+// ── Aplicação em LOTE (29/05) ────────────────────────────────────────────
+// 2 atalhos no rodapé do painel pra acelerar quando o volume é grande:
+//   - _cruzAplicarTodosMarcados: aplica tudo que está com checkbox marcado em
+//     todos os cards (usuário desmarca antes o que não quer).
+//   - _cruzAplicarSegurosLote: aplica APENAS os campos seguros-irreversíveis
+//     (CODIGO_VERO + OBSERVACAO_APPEND) em todos os cards. Não toca em
+//     PLANO/VALOR/DATA/CIDADE/STATUS — esses ficam pra revisão individual.
+var _CRUZ_CAMPOS_SEGUROS = ['CODIGO_VERO', 'OBSERVACAO_APPEND'];
+
+function _cruzAplicarEmLote(filtroCampo, rotulo) {
+  if (!_cruzCorrecoes || !_cruzCorrecoes.length) return;
+
+  // Coleta o que o usuário marcou em CADA card (e que passa pelo filtro).
+  var porLinha = {};
+  document.querySelectorAll('.cruz-corr-lista input[type=checkbox]:checked').forEach(function(ch) {
+    var linha = parseInt(ch.getAttribute('data-linha'), 10);
+    var campo = ch.getAttribute('data-campo');
+    if (!linha || !campo) return;
+    if (filtroCampo && !filtroCampo(campo)) return;
+    if (!porLinha[linha]) porLinha[linha] = {};
+    porLinha[linha][campo] = true;
+  });
+
+  var mapaCorr = {};
+  _cruzCorrecoes.forEach(function(c) { mapaCorr[c.linha] = c; });
+
+  var payload = [];
+  Object.keys(porLinha).forEach(function(linhaStr) {
+    var linha = parseInt(linhaStr, 10);
+    var corr = mapaCorr[linha];
+    if (!corr) return;
+    var campos = {};
+    Object.keys(corr.campos).forEach(function(k) {
+      if (porLinha[linha][k]) campos[k] = corr.campos[k];
+    });
+    if (Object.keys(campos).length) payload.push({ linha: linha, campos: campos });
+  });
+
+  if (!payload.length) {
+    _cruzSetStatus('Nenhum campo elegível pra ' + rotulo + '.', 'err');
+    return;
+  }
+
+  var nContratos = payload.length;
+  var nCampos = payload.reduce(function(acc, p) { return acc + Object.keys(p.campos).length; }, 0);
+  var msg = rotulo + ': aplicar ' + nCampos + ' campo(s) em ' + nContratos + ' contrato(s)?';
+  if (typeof confirm === 'function' && !confirm(msg)) return;
+
+  _cruzSetStatus('Aplicando ' + rotulo + ' (' + nContratos + ' contratos · ' + nCampos + ' campos)...', '');
+
+  if (typeof google === 'undefined' || !google.script || !google.script.run) {
+    _cruzSetStatus('Ambiente sem backend — não aplicado.', 'err');
+    return;
+  }
+
+  // Desabilita botões de lote enquanto roda
+  var btnsLote = document.querySelectorAll('.cruz-corr-lote');
+  btnsLote.forEach(function(b) { b.disabled = true; });
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      btnsLote.forEach(function(b) { b.disabled = false; });
+      if (!res || !res.sucesso) {
+        _cruzSetStatus('Erro no lote: ' + ((res && res.mensagem) || 'falha'), 'err');
+        return;
+      }
+      _cruzRemoverCorrecoesAplicadas(porLinha);
+      var aplicouTudo = !_cruzCorrecoes.length;
+      _cruzCorrecoesAplicadas = aplicouTudo;
+      _cruzSetStatus('✓ ' + rotulo + ': ' + (res.atualizados || nContratos) + ' contrato(s) · ' + (res.celulas || nCampos) + ' campo(s) aplicado(s).' +
+        (aplicouTudo ? ' Todas as correções concluídas.' : ' Restam ' + _cruzCorrecoes.length + ' contrato(s) no painel.'), 'ok');
+      _cruzPersistir(_cruzOrigemAtual);
+      _cruzRenderizar();
+    })
+    .withFailureHandler(function(err) {
+      btnsLote.forEach(function(b) { b.disabled = false; });
+      _cruzSetStatus('Falha no lote: ' + ((err && err.message) || 'tente novamente'), 'err');
+    })
+    .aplicarCorrecaoVero(payload);
+}
+
+function _cruzAplicarTodosMarcados() {
+  _cruzAplicarEmLote(null, 'Aplicar marcados');
+}
+
+function _cruzAplicarSegurosLote() {
+  _cruzAplicarEmLote(function(campo) {
+    return _CRUZ_CAMPOS_SEGUROS.indexOf(campo) !== -1;
+  }, 'Aplicar campos seguros');
 }
 
 // ── Persistencia (localStorage) ───────────────────────────────────────────
