@@ -1,6 +1,7 @@
 <style>
   #pageCruzamento.ativa {
-    display: block !important;
+    display: flex !important;
+    flex-direction: column;
     position: fixed;
     top: 49px;
     left: 230px;
@@ -10,15 +11,14 @@
     z-index: 10;
   }
 
+  /* Toolbar e tabs têm altura auto (crescem se a `.cruz-lastsync` quebrar linha).
+     Body toma o resto do espaço (flex:1). Antes era margin-top:108px fixo, o que
+     escondia as tabs quando o aviso de sincronização adicionava uma 2ª linha. */
   #pageCruzamento.ativa .cruz-body {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    flex: 1 1 auto;
     overflow-y: auto;
-    margin-top: 108px;
     background: var(--bg);
+    min-height: 0;
   }
 
   #pageCruzamento.ativa .cruz-body::-webkit-scrollbar {
