@@ -45,7 +45,9 @@ function _alertasCatalogoEstatico_() {
       ativoCodigo: true,
       n8nWorkflowId: null,
       cron: null,
-      amostraFn: '_amostraAlertaParcial'
+      amostraFn: '_amostraAlertaParcial',
+      podeDisparar: false,
+      disparoMotivo: 'Event-driven — só dispara em transição real de venda → 2.'
     },
     {
       id: 'alerta2_instalacao',
@@ -62,7 +64,9 @@ function _alertasCatalogoEstatico_() {
       ativoCodigo: true,
       n8nWorkflowId: null,
       cron: null,
-      amostraFn: '_amostraAlertaInstalacao'
+      amostraFn: '_amostraAlertaInstalacao',
+      podeDisparar: false,
+      disparoMotivo: 'Event-driven — só dispara em transição real de venda → 3.'
     },
     {
       id: 'alerta5_lead_meta',
@@ -79,7 +83,9 @@ function _alertasCatalogoEstatico_() {
       ativoCodigo: true,
       n8nWorkflowId: null,
       cron: null,
-      amostraFn: '_amostraAlertaLeadMeta'
+      amostraFn: '_amostraAlertaLeadMeta',
+      podeDisparar: false,
+      disparoMotivo: 'Event-driven — só dispara quando lead novo entra no CRM.'
     },
 
     // ── CRON-AGENDADO (n8n dispara) ────────────────────────────────────────
@@ -97,7 +103,9 @@ function _alertasCatalogoEstatico_() {
       idempotencia: '—',
       n8nWorkflowId: 'ca602SNvhEsFxU4n',
       amostraFn: null,
-      amostraMsg: 'Texto gerado dentro do workflow n8n (sem GAS). Pra ver, executar manualmente no editor n8n.'
+      amostraMsg: 'Texto gerado dentro do workflow n8n (sem GAS). Pra ver, executar manualmente no editor n8n.',
+      podeDisparar: false,
+      disparoMotivo: 'Workflow puro do n8n — n8n public API não tem "execute now". Executar via n8n editor: workflow ca602SNvhEsFxU4n.'
     },
     {
       id: 'alerta4_sino_digest',
@@ -112,7 +120,10 @@ function _alertasCatalogoEstatico_() {
       destinoHumano: 'Grupo principal (Mobile Fibra | Alta Performance)',
       idempotencia: '—',
       n8nWorkflowId: 'nDwft1P0rXYz3Bq1',
-      amostraFn: '_amostraAlertaSinoDigest'
+      amostraFn: '_amostraAlertaSinoDigest',
+      podeDisparar: true,
+      disparoFn: '_disparoAlerta4SinoDigestAgora',
+      disparoConfirma: 'Vai mandar o digest do sino AGORA no grupo principal. Confirma?'
     },
     {
       id: 'alerta7_trafego',
@@ -127,7 +138,10 @@ function _alertasCatalogoEstatico_() {
       destinoHumano: 'Grupo "Tráfego Pago | Vero Fibra Ricardo" (repurposed 28/05/2026)',
       idempotencia: '—',
       n8nWorkflowId: 'rZi4ZpL1Sj8tvcMz',
-      amostraFn: '_amostraAlertaTrafego'
+      amostraFn: '_amostraAlertaTrafego',
+      podeDisparar: true,
+      disparoFn: '_disparoAlerta7TrafegoAgora',
+      disparoConfirma: 'Vai mandar o resumo de Tráfego AGORA no grupo "Tráfego Pago | Vero Fibra Ricardo". Confirma?'
     },
     {
       id: 'alerta8_leads_meta_digest',
@@ -143,7 +157,9 @@ function _alertasCatalogoEstatico_() {
       idempotencia: '—',
       n8nWorkflowId: 'Hma953tRXhpmKbEq',
       amostraFn: '_amostraAlertaLeadsMetaDigest',
-      observacao: 'Desativado pelo Ricardo em 28/05/2026 (workflow segue existindo, `active=false`).'
+      observacao: 'Desativado pelo Ricardo em 28/05/2026 (workflow segue existindo, `active=false`).',
+      podeDisparar: false,
+      disparoMotivo: 'Workflow desativado intencionalmente. Pra reativar: n8n editor → workflow Hma953tRXhpmKbEq → toggle Active.'
     },
 
     // ── MANUAIS (botões no CRM) ────────────────────────────────────────────
@@ -162,15 +178,17 @@ function _alertasCatalogoEstatico_() {
       ativoCodigo: true,
       n8nWorkflowId: null,
       cron: null,
-      amostraFn: '_amostraResumoPAP'
+      amostraFn: '_amostraResumoPAP',
+      podeDisparar: false,
+      disparoMotivo: 'Disparo exige seleção de pagamentos pelo admin. Ir pra: Pagamentos PAP → marcar pagos → clicar 📩 Enviar Resumo.'
     },
     {
       id: 'manual_resumo_trafego',
       numero: null,
-      nome: 'Botão "Resumo Tráfego" — Painel Ads',
+      nome: '`enviarResumoTrafegoAgora` — Resumo Tráfego sob demanda',
       icone: '📊',
       tipo: 'manual',
-      gatilho: 'Função `enviarResumoTrafegoAgora` (Painel Ads / executor manual)',
+      gatilho: 'Função `enviarResumoTrafegoAgora` (sem botão UI hoje — só via editor ou pela própria página Alertas Op)',
       gatilhoHumano: 'Sob demanda — mesmo conteúdo do alerta 7 em qualquer hora',
       origem: 'DharmaPro — `enviarResumoTrafegoAgora` em MetaAdsAPI.js',
       destinoApelido: 'ricardo',
@@ -179,7 +197,10 @@ function _alertasCatalogoEstatico_() {
       ativoCodigo: true,
       n8nWorkflowId: null,
       cron: null,
-      amostraFn: '_amostraAlertaTrafego'
+      amostraFn: '_amostraAlertaTrafego',
+      podeDisparar: true,
+      disparoFn: '_disparoAlerta7TrafegoAgora',
+      disparoConfirma: 'Vai mandar o resumo de Tráfego AGORA no grupo "Tráfego Pago | Vero Fibra Ricardo". Confirma?'
     }
   ];
 }
@@ -205,7 +226,10 @@ function getAlertasOperacionais() {
       destinoHumano: a.destinoHumano,
       idempotencia: a.idempotencia,
       n8nWorkflowId: a.n8nWorkflowId,
-      observacao: a.observacao || null
+      observacao: a.observacao || null,
+      podeDisparar: !!a.podeDisparar,
+      disparoConfirma: a.disparoConfirma || null,
+      disparoMotivo: a.disparoMotivo || null
     };
     // Status: cron → n8n; event/manual → ativo no código
     if (a.tipo === 'cron') {
@@ -451,6 +475,79 @@ function _amostraResumoPAP() {
   } catch (e) {
     return '[ Erro ao gerar amostra: ' + e.message + ' ]';
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// DISPARO MANUAL — endpoint público + funções por alerta
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Endpoint público — dispara o alerta on demand.
+ * Chamado pelo botão "🚀 Disparar agora" do frontend.
+ * Retorna { ok, mensagem }.
+ */
+function dispararAlertaOpAgora(alertaId) {
+  var catalogo = _alertasCatalogoEstatico_();
+  var alvo = null;
+  for (var i = 0; i < catalogo.length; i++) {
+    if (catalogo[i].id === alertaId) { alvo = catalogo[i]; break; }
+  }
+  if (!alvo) return { ok: false, mensagem: 'Alerta não encontrado: ' + alertaId };
+  if (!alvo.podeDisparar) {
+    return { ok: false, mensagem: alvo.disparoMotivo || 'Esse alerta não pode ser disparado manualmente.' };
+  }
+  if (!alvo.disparoFn) {
+    return { ok: false, mensagem: 'Função de disparo não configurada no catálogo.' };
+  }
+  var fn = (typeof globalThis !== 'undefined') ? globalThis[alvo.disparoFn] : null;
+  if (typeof fn !== 'function') {
+    return { ok: false, mensagem: 'Função de disparo não encontrada: ' + alvo.disparoFn };
+  }
+  try {
+    var res = fn();
+    return res || { ok: false, mensagem: 'Função retornou vazio.' };
+  } catch (e) {
+    Logger.log('dispararAlertaOpAgora erro [' + alertaId + ']: ' + e.message);
+    return { ok: false, mensagem: e.message };
+  }
+}
+
+/**
+ * Alerta 7 / Manual Tráfego — reusa enviarResumoTrafegoAgora.
+ * Vai pro grupo "Tráfego Pago | Vero Fibra Ricardo" via apelido `ricardo`.
+ */
+function _disparoAlerta7TrafegoAgora() {
+  if (typeof enviarResumoTrafegoAgora !== 'function') {
+    return { ok: false, mensagem: 'enviarResumoTrafegoAgora indisponível em MetaAdsAPI.js' };
+  }
+  var res = enviarResumoTrafegoAgora();
+  return {
+    ok: !!(res && res.ok),
+    mensagem: (res && res.ok)
+      ? 'Resumo de Tráfego enviado pro grupo. ✅'
+      : ('Falha no envio: ' + ((res && res.mensagem) || 'sem detalhes'))
+  };
+}
+
+/**
+ * Alerta 4 (Sino digest 8h) — replica o que o workflow nDwft1P0rXYz3Bq1 faz,
+ * só que disparado on demand no horário atual.
+ */
+function _disparoAlerta4SinoDigestAgora() {
+  var txt = _amostraAlertaSinoDigest();
+  if (!txt) return { ok: false, mensagem: 'Não foi possível gerar o texto.' };
+  // Se a função de amostra retornou um placeholder de erro [ ... ], aborta.
+  if (txt.charAt(0) === '[') return { ok: false, mensagem: 'Texto inválido: ' + txt };
+  if (typeof enviarParaGrupoWhatsApp !== 'function') {
+    return { ok: false, mensagem: 'enviarParaGrupoWhatsApp indisponível.' };
+  }
+  var ok = enviarParaGrupoWhatsApp(txt);
+  return {
+    ok: !!ok,
+    mensagem: ok
+      ? 'Sino digest enviado pro grupo principal. ✅'
+      : 'Falha no envio pro Flow 1 (ver logs do n8n / Apps Script).'
+  };
 }
 
 // ══════════════════════════════════════════════════════════════════════════

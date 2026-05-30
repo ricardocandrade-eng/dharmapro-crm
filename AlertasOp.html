@@ -30,10 +30,14 @@
   #alertasOpContainer .aop-meta-val { color: var(--text); font-family: 'SF Mono', 'Menlo', monospace; font-size: 11.5px; }
   #alertasOpContainer .aop-meta-val.dim { color: var(--text2); }
 
-  #alertasOpContainer .aop-actions { margin-top: 12px; }
+  #alertasOpContainer .aop-actions { margin-top: 12px; display:flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   #alertasOpContainer .aop-btn-amostra { padding: 5px 10px; border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 5px; cursor: pointer; font-size: 11px; }
   #alertasOpContainer .aop-btn-amostra:hover { background: var(--surface2); }
   #alertasOpContainer .aop-btn-amostra:disabled { opacity: 0.5; cursor: wait; }
+  #alertasOpContainer .aop-btn-disparar { padding: 5px 12px; border: 1px solid #22d98a; background: rgba(34,217,138,.08); color: #22d98a; border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: 600; }
+  #alertasOpContainer .aop-btn-disparar:hover { background: rgba(34,217,138,.18); }
+  #alertasOpContainer .aop-btn-disparar:disabled { opacity: 0.5; cursor: wait; }
+  #alertasOpContainer .aop-disparar-info { font-size: 10.5px; color: var(--text2); font-style: italic; }
 
   #alertasOpContainer .aop-amostra-box { display:none; margin-top: 10px; background: #0a0d12; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 12px; line-height: 1.5; color: #c4c8d0; white-space: pre-wrap; font-family: 'SF Mono', 'Menlo', 'Menlo', monospace; max-height: 320px; overflow-y: auto; }
   #alertasOpContainer .aop-amostra-box.ativo { display:block; }
@@ -109,7 +113,11 @@
       return;
     }
     var por = { event: [], cron: [], manual: [] };
-    lista.forEach(function (a) { (por[a.tipo] || (por[a.tipo] = [])).push(a); });
+    _alertasMap = {};
+    lista.forEach(function (a) {
+      _alertasMap[a.id] = a;
+      (por[a.tipo] || (por[a.tipo] = [])).push(a);
+    });
 
     var html = '';
     [
@@ -150,6 +158,11 @@
 
     html += '<div class="aop-actions">';
     html += '<button class="aop-btn-amostra" onclick="alertasOpGerar(\'' + esc(a.id) + '\', this)">Gerar amostra real</button>';
+    if (a.podeDisparar) {
+      html += '<button class="aop-btn-disparar" onclick="alertasOpDisparar(\'' + esc(a.id) + '\', this)">🚀 Disparar agora</button>';
+    } else if (a.disparoMotivo) {
+      html += '<span class="aop-disparar-info" title="' + esc(a.disparoMotivo) + '">ⓘ por que não dá pra disparar daqui</span>';
+    }
     html += '<div class="aop-amostra-box" id="aop-amostra-' + esc(a.id) + '"></div>';
     html += '</div>';
 
@@ -186,6 +199,38 @@
         box.textContent = 'Falha: ' + (e && e.message || 'desconhecido');
       })
       .gerarAmostraAlertaOp(id);
+  };
+
+  // Mapa em memória dos alertas carregados — preciso pra ler `disparoConfirma`
+  // no clique sem refazer a chamada ao backend.
+  var _alertasMap = {};
+
+  window.alertasOpDisparar = function (id, btn) {
+    var a = _alertasMap[id] || {};
+    var confirmaMsg = a.disparoConfirma || 'Disparar este alerta agora?';
+    if (!confirm(confirmaMsg)) return;
+
+    var box = document.getElementById('aop-amostra-' + id);
+    btn.disabled = true;
+    var textoOriginal = btn.textContent;
+    btn.textContent = '⏳ Enviando…';
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        btn.disabled = false;
+        btn.textContent = textoOriginal;
+        box.className = 'aop-amostra-box ativo';
+        box.style.color = (res && res.ok) ? '#22d98a' : '#e63e6d';
+        box.textContent = (res && res.mensagem) || (res && res.ok ? 'Enviado.' : 'Falha.');
+      })
+      .withFailureHandler(function (e) {
+        btn.disabled = false;
+        btn.textContent = textoOriginal;
+        box.className = 'aop-amostra-box ativo';
+        box.style.color = '#e63e6d';
+        box.textContent = 'Falha: ' + (e && e.message || 'desconhecido');
+      })
+      .dispararAlertaOpAgora(id);
   };
 
   // Função chamada pelo branch navegar('alertasOp') em JS.html
