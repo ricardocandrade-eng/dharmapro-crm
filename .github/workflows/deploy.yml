@@ -38,21 +38,27 @@ jobs:
       - name: Enviar código para o GAS
         run: clasp push --force
 
-      - name: Limpar versões antigas (manter últimas 10)
+      - name: Verificar limite de versões (200 = teto rígido do GAS)
         run: |
-          VERSIONS=$(clasp versions 2>/dev/null | grep -oP '^\d+' | sort -n)
-          TOTAL=$(echo "$VERSIONS" | wc -l)
-          if [ "$TOTAL" -gt 190 ]; then
-            DELETE_COUNT=$((TOTAL - 10))
-            TO_DELETE=$(echo "$VERSIONS" | head -n $DELETE_COUNT)
-            for v in $TO_DELETE; do
-              curl -s -X DELETE \
-                -H "Authorization: Bearer $(cat ~/.clasprc.json | python3 -c "import sys,json;print(json.load(sys.stdin)['token']['access_token'])")" \
-                "https://script.googleapis.com/v1/projects/12PwAZi4xAjS2h_l9f_QFJK_zNdtADy6c5J3qMa9co3VNt5qxUE5PANEI/versions/$v" || true
-            done
-            echo "[OK] Versões antigas removidas"
-          else
-            echo "[OK] Dentro do limite ($TOTAL versões)"
+          # O endpoint `DELETE /v1/projects/{id}/versions/{v}` da Apps Script
+          # API NÃO EXISTE — a versão original deste step ficou meses chamando
+          # esse endpoint fantasma com `|| true` engolindo o 404, dando a
+          # falsa impressão de cleanup. Limite só pode ser administrado
+          # MANUALMENTE via UI do editor.
+          #
+          # Estratégia atual: detectar e alertar. Se >195, FAIL LOUD pra deploy
+          # NÃO ir silenciosamente quebrado (o que aconteceu em 27-29/05).
+          TOTAL=$(clasp versions 2>/dev/null | grep -oP '^\d+' | wc -l)
+          echo "Versões atuais: $TOTAL/200"
+          if [ "$TOTAL" -gt 195 ]; then
+            echo "::error::Limite de 200 versões PRÓXIMO ($TOTAL/200). clasp deploy vai quebrar — abortando o deploy."
+            echo "::error::Pra liberar:"
+            echo "::error::  1. Abrir https://script.google.com/d/12PwAZi4xAjS2h_l9f_QFJK_zNdtADy6c5J3qMa9co3VNt5qxUE5PANEI/edit"
+            echo "::error::  2. Menu ☰ → Implantações → Gerenciar implantações → arquivar versões antigas"
+            echo "::error::  3. Re-rodar esta Action: Actions → último run falho → Re-run all jobs"
+            exit 1
+          elif [ "$TOTAL" -gt 150 ]; then
+            echo "::warning::$TOTAL/200 versões. Planeje limpar via UI nas próximas semanas pra não bater o teto."
           fi
 
       - name: Publicar nova versão
