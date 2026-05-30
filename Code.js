@@ -283,6 +283,14 @@ function arquivarVenda(linha) {
     }
     abaArquivo.appendRow([nome, cpf, whats, plano, valor, dataExclusao]);
 
+    // ── Frente A4 (30/05/2026): reindexar Vinculos Vendas antes do deleteRow ──
+    //  deleteRow renumera todas as linhas abaixo, mas a aba `Vinculos Vendas`
+    //  guarda referências por número absoluto. Sem este passo, vínculos passam
+    //  a apontar pro cliente errado (causa real do combo cruzado WEXLEY 29/05).
+    //  Estratégia: (a) arquiva vínculos cuja mãe OU filha é a linha excluída;
+    //  (b) decrementa em -1 todo mae/filha > linha excluída.
+    _reindexarVinculosAposDelete_(linha);
+
     // Remove a linha da aba principal (sem deixar buraco)
     sheet.deleteRow(linha);
 
@@ -7233,6 +7241,48 @@ function _criarChaveLegadoCombo_(cpf, whats, cliente) {
   if (cpfNorm) return 'CPF:' + cpfNorm;
   if (whatsNorm && clienteNorm) return 'WPP:' + whatsNorm + '|CLI:' + clienteNorm;
   return '';
+}
+
+// ── Frente A4 (30/05/2026): reindexa Vinculos Vendas após deleteRow em 1-Vendas
+//  Chamada exclusivamente por `arquivarVenda` ANTES do `sheet.deleteRow(linha)`.
+//  - Arquiva vínculos ATIVO cuja mãe OU filha é a linha que vai sumir.
+//  - Decrementa em -1 todo vendaMaeLinha/vendaFilhaLinha > linha (reflete a
+//    renumeração que o deleteRow vai causar nas linhas abaixo).
+//  Sem este passo, vínculos passam a apontar pro cliente que herdou a linha,
+//  reproduzindo o combo cruzado L.4025→L.4026 do WEXLEY (29/05/2026).
+function _reindexarVinculosAposDelete_(linhaDeletada) {
+  var sh = _getSheetVinculosVendas_(false);
+  if (!sh || sh.getLastRow() < 2) return;
+  var lastRow = sh.getLastRow();
+  var raw = sh.getRange(2, 1, lastRow - 1, 8).getValues();
+  var arquivados = 0;
+  var decrementados = 0;
+  var motivoArq = 'Reindex pós-arquivamento L.' + linhaDeletada + ' (' +
+                  Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm') + ')';
+  for (var i = 0; i < raw.length; i++) {
+    var status = _normalizarTexto(raw[i][6] || 'ATIVO');
+    if (status !== 'ATIVO') continue;
+    var maeL = parseInt(raw[i][2], 10);
+    var filhaL = parseInt(raw[i][3], 10);
+    var sheetRow = i + 2;
+    if (maeL === linhaDeletada || filhaL === linhaDeletada) {
+      sh.getRange(sheetRow, 7).setValue('ARQUIVADO');
+      var obsAtual = String(raw[i][7] || '').trim();
+      sh.getRange(sheetRow, 8).setValue(obsAtual ? (obsAtual + ' | ' + motivoArq) : motivoArq);
+      arquivados++;
+      continue;
+    }
+    if (maeL > linhaDeletada) {
+      sh.getRange(sheetRow, 3).setValue(maeL - 1);
+      decrementados++;
+    }
+    if (filhaL > linhaDeletada) {
+      sh.getRange(sheetRow, 4).setValue(filhaL - 1);
+      decrementados++;
+    }
+  }
+  _limparCacheVinculosVendas_();
+  Logger.log('_reindexarVinculosAposDelete_(L.' + linhaDeletada + '): arquivados=' + arquivados + ', decrementados=' + decrementados);
 }
 
 function _registrarVinculoVenda_(maeLinha, filhaLinha, tipo) {
