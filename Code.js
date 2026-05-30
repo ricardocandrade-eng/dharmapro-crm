@@ -1058,7 +1058,14 @@ function getContratosParaCruzamento() {
         cidade:     cidade,
         observacao: observacao,
         valor:      valor,
-        plano:      plano
+        plano:      plano,
+        // Bug fix 29/05: faltavam esses 2 — sem `codigoVero`, o frontend nunca
+        // sabe se o código já foi preenchido (codCrm sempre ''), e fica
+        // propondo CODIGO_VERO indefinidamente em cada re-importação.
+        // `formaPagamento` é usado pra escolher entre valorBoleto/valorRecorrente
+        // do canônico planos_vero.json no _cruzComputarCorrecoes.
+        codigoVero:     String(row[c.FAT] || '').trim(),
+        formaPagamento: String(row[c.FORMA_PAGAMENTO] || '').trim()
       });
     }
 
