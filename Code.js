@@ -3363,53 +3363,75 @@ function _getCodigosVero() {
   return parsed;
 }
 
-// Mapa flat para o cruzamento: { "4624": { nome: "<nome_vero>", conf: "alta" }, ... }
-// Fonte da verdade: sweep `verohub_codigos_cidades.json` no Drive (163 códigos ×
-// 359 cidades, deploy 21/05/2026). Antes lia do dicionário Cowork pequeno (4 cidades,
-// flat sem dimensão de cidade) — bug crítico no cruzamento: o mesmo código 4623
-// podia ter sido coletado em outra cidade com plano diferente, e o fallback chutava
-// "550MB MUNDO FIBRA" em casos onde o nome correto é "VERO MAIS 800MB + ...".
-// Mantém o dicionário Cowork como fallback adicional pra preencher gaps eventuais
-// no sweep (caso algum código existir só no Cowork e não no sweep).
+// Mapa flat para o cruzamento: { "4624": { nome: <comercial>, nomeVero: <técnico>, conf, produtoTipo } }
+// Fontes (em ordem de prioridade):
+//   1) Sweep VeroHub × NOME_VERO (col 14 do planos_vero.json, Rev9 — 26/05/2026):
+//      pra cada código no sweep, tenta achar plano comercial cujo NOME_VERO canoniza
+//      (via _vhNucleo_) pro mesmo núcleo do nome do sweep. Quando casa, nome = COMERCIAL
+//      (col 0); senão fica nome = técnico Vero (do sweep) com conf=baixa.
+//   2) Cowork como fallback aditivo pra códigos que o sweep não tem.
+//
+// Esse mapa é a fonte do _cruzCodigosMap no cliente. Ter o nome COMERCIAL aqui evita
+// que o Cruzamento proponha trocar "VERO MAIS 550MB + MÓVEL 20GB" (CRM) por
+// "MAIS CONECTADO 20GB" (técnico) — caso TADEU/JESSE do diagnóstico anterior.
 function _getCodigosVeroMapaFlat_() {
   var out = {};
-  // 1) Sweep VeroHub — fonte primária (163 códigos, todos com nome Vero oficial)
+
+  // (0) Indexa nucleo(NOME_VERO) → nome_comercial via planos_vero.json (Rev9)
+  var nucToComercial = {};
+  try {
+    var tab = _getTabela();
+    if (tab && tab.length > 2) {
+      for (var r = 2; r < tab.length; r++) {
+        var nomeComercial = String(tab[r][0] || '').trim();
+        var nomeVero = tab[r][14]; // col 14 — string ou array (plano-escolha)
+        if (!nomeComercial || !nomeVero) continue;
+        var lista = Array.isArray(nomeVero) ? nomeVero : [nomeVero];
+        lista.forEach(function(nv) {
+          var nuc = _vhNucleo_(String(nv).trim());
+          if (nuc && !nucToComercial[nuc]) nucToComercial[nuc] = nomeComercial;
+        });
+      }
+    }
+  } catch (eTab) {
+    Logger.log('_getCodigosVeroMapaFlat_ ponte NOME_VERO falhou: ' + eTab.message);
+  }
+
+  // (1) Sweep VeroHub — fonte primária (163 códigos)
   try {
     var vh = _getVerohubCodigos();
     if (vh && vh.codigos) {
       Object.keys(vh.codigos).forEach(function(cod) {
         var info = vh.codigos[cod];
-        if (info && info.nome) {
-          out[String(cod).trim()] = {
-            nome: String(info.nome).trim(),
-            conf: 'alta',
-            produtoTipo: info.produto_tipo || ''
-          };
-        }
+        if (!info || !info.nome) return;
+        var nuc = _vhNucleo_(info.nome);
+        var comercial = nucToComercial[nuc] || '';
+        out[String(cod).trim()] = {
+          nome:        comercial || String(info.nome).trim(), // comercial preferred; cai pro técnico
+          nomeVero:    String(info.nome).trim(),
+          conf:        comercial ? 'alta' : 'baixa', // baixa = só nome técnico (sem ponte canônica)
+          produtoTipo: info.produto_tipo || ''
+        };
       });
     }
   } catch (eVh) {
     Logger.log('_getCodigosVeroMapaFlat_ sweep falhou: ' + eVh.message);
   }
 
-  // 2) Cowork como fallback aditivo (só preenche códigos que o sweep não tem)
-  var rank = { alta: 3, media: 2, baixa: 1, '': 0 };
+  // (2) Cowork como fallback aditivo (só preenche códigos que o sweep não tem)
   try {
     var cv = _getCodigosVero();
     (cv.coletas || []).forEach(function(col) {
       (col.planos || []).forEach(function(p) {
         if (!p || !p.codigo || !p.nome_crm_match) return;
         var cod  = String(p.codigo).trim();
+        if (out[cod]) return; // sweep tem prioridade
         var conf = String(p.confianca || '').toLowerCase();
-        // Sweep tem prioridade — só preenche se sweep não cobriu
-        if (out[cod]) return;
-        if (!out[cod] || (rank[conf] || 0) > (rank[out[cod].conf] || 0)) {
-          out[cod] = { nome: String(p.nome_crm_match).trim(), conf: conf };
-        }
+        out[cod] = { nome: String(p.nome_crm_match).trim(), conf: conf };
       });
     });
   } catch (e) {
-    Logger.log('_getCodigosVeroMapaFlat_ erro: ' + e.message);
+    Logger.log('_getCodigosVeroMapaFlat_ Cowork erro: ' + e.message);
   }
   return out;
 }

@@ -1765,17 +1765,23 @@ function _cruzComputarCorrecoes() {
       }
     }
 
-    // ── Fase C: cruzamento CÓDIGO × CÓDIGO (PLANO + VALOR + CODIGO_VERO em conjunto)
+    // ── Fase C (refinada pós-NOME_VERO Rev9, 28/05): cruzamento CÓDIGO × CÓDIGO defensivo.
     // Regras:
-    //  1. Relatório traz código + CRM tem código + iguais → nada a corrigir no
-    //     conjunto plano/código. VALOR do relatório segue regra antiga (pode
-    //     divergir por promoção; é o mesmo plano, então valor vem direto).
-    //  2. Relatório traz código + CRM divergente/vazio → resolve canônico no
-    //     planos_vero.json (mapaVeroPorCidade) e propõe PLANO + VALOR + CODIGO_VERO
-    //     em CONJUNTO (mesma fonte = consistente entre si).
-    //  3. Canônico não encontrado → fallback no dicionário Cowork (só PLANO/CODIGO_VERO,
-    //     VALOR cai no caminho do relatório abaixo).
-    //  4. Relatório sem código → mantém só o caminho antigo (VALOR do relatório).
+    //  1. Códigos iguais → não toca plano/código (alinhado).
+    //  2. Códigos divergem OU CRM vazio:
+    //     a) Resolve nome esperado: prefere canônico `planos_vero.json` por cidade
+    //        (mapaVeroPorCidade — tem valor); senão usa `_cruzCodigosMap` (com nome
+    //        COMERCIAL via NOME_VERO ponte quando conf='alta').
+    //     b) Compara núcleo do nome esperado × núcleo do plano CRM atual.
+    //        - Núcleos batem → SÓ propõe CODIGO_VERO (nome do CRM já correto, decisão
+    //          comum nos casos JESSE/TADEU). Se há canônico com valor, propõe VALOR
+    //          canônico também (consistente com plano).
+    //        - Núcleos divergem → propõe SÓ CODIGO_VERO + marca diff com fonte de
+    //          aviso ('⚠ Nome difere'). NÃO propõe PLANO/VALOR automaticamente —
+    //          divergência de nome pode ser CRM com plano errado OU código do
+    //          relatório aplicado em cidade onde mapeia outro plano (caso real do
+    //          JESSE/4623). Usuário decide manualmente.
+    //  3. Relatório sem código → só caminho antigo (VALOR do relatório).
     var codRel = v.planoCodigo ? String(v.planoCodigo).trim() : '';
     var codCrm = item.codigoVero ? String(item.codigoVero).trim() : '';
     var codigosBatem = codRel && codCrm && codRel === codCrm;
@@ -1783,16 +1789,41 @@ function _cruzComputarCorrecoes() {
 
     if (codRel && !codigosBatem) {
       var mapaPorCid = _cruzPlanosVeroPorCidade[item.cidade] || {};
-      var canonico = mapaPorCid[codRel];
+      var canonico   = mapaPorCid[codRel] || null;      // {nome, valorBoleto, valorRecorrente, ...} ou null
+      var sweepEntry = _cruzCodigosMap[codRel] || null; // {nome, nomeVero, conf, produtoTipo} ou null
 
+      // Nome esperado para o código: prefere canônico planos_vero (cidade) → senão sweep COMERCIAL
+      var nomeEsperado = '';
+      var fonteNomeEsperado = '';
       if (canonico && canonico.nome) {
-        // Caminho preferido (planos_vero.json) — PLANO + VALOR canônicos juntos
-        var atualCore = _cruzPlanoCore(item.plano);
-        var novoCore  = _cruzPlanoCore(canonico.nome);
-        if (novoCore && _cruzNormalizarTexto(novoCore) !== _cruzNormalizarTexto(atualCore)) {
-          campos.PLANO = canonico.nome;
-          diffs.push({ campo: 'PLANO', label: 'Plano', atual: item.plano || '', novo: canonico.nome, fonte: 'planos_vero.json · cód. ' + codRel });
-        }
+        nomeEsperado = canonico.nome;
+        fonteNomeEsperado = 'planos_vero.json';
+      } else if (sweepEntry && sweepEntry.nome && sweepEntry.conf === 'alta') {
+        nomeEsperado = sweepEntry.nome;
+        fonteNomeEsperado = 'VeroHub · NOME_VERO';
+      } else if (sweepEntry && sweepEntry.nome) {
+        // Só nome técnico Vero (sem ponte NOME_VERO) — informativo, não vamos propor mudança
+        nomeEsperado = sweepEntry.nome;
+        fonteNomeEsperado = 'VeroHub (técnico)';
+      }
+
+      var nucEsperado = nomeEsperado ? _cruzNormalizarTexto(_cruzPlanoCore(nomeEsperado)) : '';
+      var nucAtual    = _cruzNormalizarTexto(_cruzPlanoCore(item.plano || ''));
+      var nomesBatem  = !!(nucEsperado && nucAtual && nucEsperado === nucAtual);
+
+      // CODIGO_VERO sempre quando difere — preencher FAT é sempre seguro
+      if (codRel !== codCrm) {
+        campos.CODIGO_VERO = codRel;
+        var fonteCod = nomesBatem
+          ? 'Relatório · código do plano'
+          : (nomeEsperado
+              ? '⚠ Nome difere — esperado: ' + nomeEsperado + ' (' + fonteNomeEsperado + ')'
+              : 'Relatório · código do plano');
+        diffs.push({ campo: 'CODIGO_VERO', label: 'Código Vero', atual: codCrm || '', novo: codRel, fonte: fonteCod });
+      }
+
+      // VALOR canônico só quando há canônico planos_vero E nomes batem (consistência)
+      if (canonico && nomesBatem) {
         var ehRec = String(item.formaPagamento || '').toUpperCase() === 'RECORRENTE';
         var valorCanon = (ehRec && canonico.valorRecorrente != null) ? canonico.valorRecorrente : canonico.valorBoleto;
         if (valorCanon != null) {
@@ -1804,24 +1835,12 @@ function _cruzComputarCorrecoes() {
             valorJaProposto = true;
           }
         }
-      } else if (_cruzCodigosMap[codRel]) {
-        // Fallback: dicionário Cowork (só nome canônico, sem valor)
-        var alvoPl = _cruzCodigosMap[codRel];
-        if (alvoPl.nome && (alvoPl.conf === 'alta' || alvoPl.conf === 'media')) {
-          var atualCoreF = _cruzPlanoCore(item.plano);
-          var novoCoreF  = _cruzPlanoCore(alvoPl.nome);
-          if (novoCoreF && _cruzNormalizarTexto(novoCoreF) !== _cruzNormalizarTexto(atualCoreF)) {
-            campos.PLANO = alvoPl.nome;
-            diffs.push({ campo: 'PLANO', label: 'Plano' + (alvoPl.conf === 'media' ? ' (conf. média)' : ''), atual: item.plano || '', novo: alvoPl.nome, fonte: 'VeroHub · cód. ' + codRel });
-          }
-        }
       }
-
-      // CODIGO_VERO sempre quando difere — grava FAT mesmo se canônico não resolveu
-      if (codRel !== codCrm) {
-        campos.CODIGO_VERO = codRel;
-        diffs.push({ campo: 'CODIGO_VERO', label: 'Código Vero', atual: codCrm || '', novo: codRel, fonte: 'Relatório · código do plano' });
-      }
+      // PLANO: removido. NUNCA propõe mudança automática — risco de trocar nome
+      // comercial certo por técnico errado é maior que o ganho. Decisão pós-fix
+      // 28/05 (casos JESSE/TADEU). Se nome no CRM realmente estiver errado, o
+      // aviso no CODIGO_VERO ("Nome difere — esperado: X") sinaliza pra correção
+      // manual via painel lateral da venda.
     }
 
     // VALOR do relatório — só quando o canônico não propôs (códigos batem, ou
