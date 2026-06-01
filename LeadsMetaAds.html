@@ -346,23 +346,23 @@
       <div class="lma-card-valor" id="kpiNovos">—</div>
       <div class="lma-card-sub">entraram hoje</div>
     </div>
-    <div class="lma-card c-pend" title="Leads sem triagem do time. Atribua um status pra fluir o funil.">
-      <div class="lma-card-label">⏳ Pendentes</div>
+    <div class="lma-card c-pend" title="Leads sem desfecho. Aplique uma etiqueta terminal no Chatwoot pra fechar.">
+      <div class="lma-card-label">⏳ Em aberto</div>
       <div class="lma-card-valor" id="kpiPend">—</div>
-      <div class="lma-card-sub">sem triagem</div>
+      <div class="lma-card-sub">sem desfecho</div>
     </div>
-    <div class="lma-card c-nego" id="kpiNegoCard" title="Leads em negociação. Hover mostra a receita projetada do pipeline.">
-      <div class="lma-card-label">🔥 Em negociação</div>
+    <div class="lma-card c-nego" id="kpiNegoCard" title="Leads em aberto há mais de 24h sem desfecho — risco de esfriar.">
+      <div class="lma-card-label">⏰ Em risco</div>
       <div class="lma-card-valor" id="kpiNego">—</div>
       <div class="lma-card-sub" id="kpiNegoRisco">—</div>
     </div>
-    <div class="lma-card c-conv" title="Leads que viraram venda. Taxa = convertidos ÷ total no filtro atual.">
-      <div class="lma-card-label">🎯 Convertidos</div>
+    <div class="lma-card c-conv" title="Leads com etiqueta venda-fechada no Chatwoot. Taxa = vendas ÷ total no filtro.">
+      <div class="lma-card-label">✅ venda-fechada</div>
       <div class="lma-card-valor" id="kpiConv">—</div>
       <div class="lma-card-sub" id="kpiTaxa">taxa —%</div>
     </div>
-    <div class="lma-card c-desq" title="Leads desqualificados, com o breakdown por motivo (top 4).">
-      <div class="lma-card-label">❌ Desqualificados</div>
+    <div class="lma-card c-desq" title="Leads perdidos com breakdown por etiqueta (venda-perdida, sem-viabilidade, sem-interesse, reprovado-cpf).">
+      <div class="lma-card-label">❌ Perdidos</div>
       <div class="lma-card-valor" id="kpiDesq">—</div>
       <div class="lma-card-sub" id="kpiDesqBreak">—</div>
     </div>
@@ -403,11 +403,12 @@
       </select>
       <select class="lma-select" id="lmaFiltroStatus" onchange="_lmaFiltrar()">
         <option value="">Status: todos</option>
-        <option value="pendente">Sem status</option>
-        <option value="Converteu">Converteu</option>
-        <option value="Em negociação">Em negociação</option>
-        <option value="Sem contato">Sem contato</option>
-        <option value="Desqualificado">Desqualificado</option>
+        <option value="__aberto">Em aberto</option>
+        <option value="venda-fechada">✅ venda-fechada</option>
+        <option value="venda-perdida">❌ venda-perdida</option>
+        <option value="sem-viabilidade">📵 sem-viabilidade</option>
+        <option value="sem-interesse">🙅 sem-interesse</option>
+        <option value="reprovado-cpf">🚫 reprovado-cpf</option>
       </select>
       <select class="lma-select" id="lmaFiltroCampanha" onchange="_lmaFiltrar()"><option value="">Campanha: todas</option></select>
       <select class="lma-select" id="lmaFiltroAnuncio" onchange="_lmaFiltrar()"><option value="">Anúncio: todos</option></select>
@@ -628,8 +629,8 @@ function _lmaMatch(l, opts) {
   var fOrig   = document.getElementById('lmaFiltroOrigem').value;
   var busca   = (document.getElementById('lmaBusca').value || '').toLowerCase();
 
-  if (fStatus === 'pendente' && l.status_final) return false;
-  if (fStatus && fStatus !== 'pendente' && l.status_final !== fStatus) return false;
+  if (fStatus === '__aberto' && l.status_final) return false;
+  if (fStatus && fStatus !== '__aberto' && String(l.status_final || '').toLowerCase() !== fStatus) return false;
   if (fCamp && l.utm_campaign !== fCamp) return false;
   if (fAnun && l.utm_ad !== fAnun) return false;
   if (fMot && l.motivo_desq !== fMot) return false;
@@ -686,6 +687,10 @@ function _lmaFiltrar() {
   else _lmaRenderizarTabela(lista);
 }
 
+// Etiquetas terminais do Chatwoot reconhecidas como desfecho de lead.
+var LMA_STATUS_FECHADA  = 'venda-fechada';
+var LMA_STATUS_PERDIDOS = ['venda-perdida', 'sem-viabilidade', 'sem-interesse', 'reprovado-cpf'];
+
 // ── KPIs client-side (respeitam os filtros) ──
 function _lmaAtualizarKPIs(lista) {
   var total = lista.length;
@@ -695,32 +700,37 @@ function _lmaAtualizarKPIs(lista) {
     var dt = _lmaParseBR(l.data_entrada); return dt && dt >= ini;
   }).length;
 
-  var pend = lista.filter(function(l) { return !l.status_final; }).length;
-  var nego = lista.filter(function(l) { return l.status_final === 'Em negociação'; });
+  var abertos = lista.filter(function(l) { return !l.status_final; });
   var agora = Date.now();
-  var risco = nego.filter(function(l) {
-    var ref = _lmaParseBR(l.data_status) || _lmaParseBR(l.data_entrada);
-    return ref && (agora - ref.getTime()) > 864e5; // >24h
+  var emRisco = abertos.filter(function(l) {
+    var ref = _lmaParseBR(l.data_entrada);
+    return ref && (agora - ref.getTime()) > 864e5; // >24h sem desfecho
   }).length;
-  var conv = lista.filter(function(l) { return l.status_final === 'Converteu'; }).length;
-  var desqList = lista.filter(function(l) { return l.status_final === 'Desqualificado'; });
+  var conv = lista.filter(function(l) {
+    return String(l.status_final || '').toLowerCase() === LMA_STATUS_FECHADA;
+  }).length;
+  var perdidosList = lista.filter(function(l) {
+    return LMA_STATUS_PERDIDOS.indexOf(String(l.status_final || '').toLowerCase()) !== -1;
+  });
   var taxa = total > 0 ? ((conv / total) * 100).toFixed(1) : '0';
 
   document.getElementById('kpiNovos').textContent = novos;
-  document.getElementById('kpiPend').textContent  = pend;
-  document.getElementById('kpiNego').textContent  = nego.length;
-  document.getElementById('kpiNegoRisco').textContent = risco > 0 ? (risco + ' em risco (>24h)') : 'tudo em dia';
+  document.getElementById('kpiPend').textContent  = abertos.length;
+  document.getElementById('kpiNego').textContent  = emRisco;
+  document.getElementById('kpiNegoRisco').textContent = emRisco > 0 ? 'em aberto >24h' : 'tudo em dia';
   document.getElementById('kpiConv').textContent  = conv;
   document.getElementById('kpiTaxa').textContent  = 'taxa ' + taxa + '%';
-  document.getElementById('kpiDesq').textContent  = desqList.length;
+  document.getElementById('kpiDesq').textContent  = perdidosList.length;
 
-  var receita = nego.length * 0.4 * 313;
   var card = document.getElementById('kpiNegoCard');
-  if (card) card.title = 'Em negociação: ' + nego.length + ' leads. Receita projetada ~R$ ' +
-    receita.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ' (40% fechamento × TM R$313).';
+  if (card) card.title = 'Leads em aberto há mais de 24h sem desfecho (' + emRisco + ').';
 
+  // Breakdown dos perdidos pela própria etiqueta (sem coluna de motivo).
   var mc = {};
-  desqList.forEach(function(l) { var m = l.motivo_desq || 'Sem motivo'; mc[m] = (mc[m] || 0) + 1; });
+  perdidosList.forEach(function(l) {
+    var s = String(l.status_final || '').toLowerCase();
+    mc[s] = (mc[s] || 0) + 1;
+  });
   var top = Object.keys(mc).sort(function(a, b) { return mc[b] - mc[a]; }).slice(0, 4)
     .map(function(m) { return _esc(m) + ': ' + mc[m]; });
   document.getElementById('kpiDesqBreak').innerHTML = top.length ? top.join(' · ') : 'nenhum';
@@ -744,9 +754,10 @@ function _lmaRenderizarTabela(lista) {
     var badge = _lmaBadge(l.status_final);
     var dataEntrada = l.data_entrada ? _lmaFmtData(l.data_entrada) : '—';
     var dataStatus  = l.data_status  ? _lmaFmtData(l.data_status)  : '—';
-    var isDesq = l.status_final === 'Desqualificado';
+    var statusLow = String(l.status_final || '').toLowerCase();
+    var isDesq = LMA_STATUS_PERDIDOS.indexOf(statusLow) !== -1;
     var risco = _lmaEmRisco(l);
-    var trClass = l.status_final === 'Converteu' ? ' class="lma-tr-conv"' : (risco ? ' class="lma-tr-risco"' : '');
+    var trClass = statusLow === LMA_STATUS_FECHADA ? ' class="lma-tr-conv"' : (risco ? ' class="lma-tr-risco"' : '');
     var tel = _esc(l.telefone || '');
     var telNorm = _lmaNormTel(l.telefone);
     var telCell = telNorm
@@ -762,20 +773,22 @@ function _lmaRenderizarTabela(lista) {
       ? '<span class="lma-chip-motivo">' + _esc(l.motivo_desq) + '</span>'
       : '<span class="lma-sub">—</span>';
 
+    var statusAtualLow = String(l.status_final || '').toLowerCase();
     var acaoHtml = '<div class="lma-acao-wrap">' +
       '<div class="lma-acao-row">' +
         '<select class="lma-acao-sel" id="lmaAcaoSel_' + l.linha + '" onchange="_lmaOnStatusChange(' + l.linha + ')">' +
           '<option value="">— status —</option>' +
-          '<option value="Converteu"' +      (l.status_final === 'Converteu'      ? ' selected' : '') + '>✅ Converteu</option>' +
-          '<option value="Em negociação"' +  (l.status_final === 'Em negociação'  ? ' selected' : '') + '>🔄 Em negociação</option>' +
-          '<option value="Sem contato"' +    (l.status_final === 'Sem contato'    ? ' selected' : '') + '>📵 Sem contato</option>' +
-          '<option value="Desqualificado"' + (isDesq ? ' selected' : '') + '>❌ Desqualificado</option>' +
+          '<option value="venda-fechada"'   + (statusAtualLow === 'venda-fechada'   ? ' selected' : '') + '>✅ venda-fechada</option>' +
+          '<option value="venda-perdida"'   + (statusAtualLow === 'venda-perdida'   ? ' selected' : '') + '>❌ venda-perdida</option>' +
+          '<option value="sem-viabilidade"' + (statusAtualLow === 'sem-viabilidade' ? ' selected' : '') + '>📵 sem-viabilidade</option>' +
+          '<option value="sem-interesse"'   + (statusAtualLow === 'sem-interesse'   ? ' selected' : '') + '>🙅 sem-interesse</option>' +
+          '<option value="reprovado-cpf"'   + (statusAtualLow === 'reprovado-cpf'   ? ' selected' : '') + '>🚫 reprovado-cpf</option>' +
         '</select>' +
         '<button class="lma-acao-btn" id="lmaAcaoBtn_' + l.linha + '" title="Salvar status" onclick="_lmaSalvarAcao(' + l.linha + ')">✓</button>' +
         '<button class="lma-acao-btn lma-acao-btn-copy" title="Copiar telefone" onclick="_lmaCopiarTelefone(\'' + telNorm + '\')">📋</button>' +
         '<button class="lma-acao-btn lma-acao-btn-del" title="Excluir lead" onclick="_lmaExcluir(' + l.linha + ')">🗑</button>' +
       '</div>' +
-      '<div class="lma-acao-row" id="lmaAcaoMotivoRow_' + l.linha + '"' + (isDesq ? '' : ' style="display:none"') + '>' +
+      '<div class="lma-acao-row" id="lmaAcaoMotivoRow_' + l.linha + '" style="display:none">' +
         _lmaMotivoSelect(l.linha, l.motivo_desq) +
       '</div>' +
     '</div>';
@@ -798,10 +811,10 @@ function _lmaRenderizarTabela(lista) {
   document.getElementById('lmaTbody').innerHTML = html;
 }
 
-// Lead "Em negociação" há mais de 24h sem atualização (sinal de risco).
+// Lead em aberto há mais de 24h sem desfecho (sinal de risco).
 function _lmaEmRisco(l) {
-  if (l.status_final !== 'Em negociação') return false;
-  var ref = _lmaParseBR(l.data_status) || _lmaParseBR(l.data_entrada);
+  if (l.status_final) return false;
+  var ref = _lmaParseBR(l.data_entrada);
   return !!ref && (Date.now() - ref.getTime()) > 864e5;
 }
 
@@ -830,14 +843,16 @@ function _lmaCopiarFallback(tel) {
 }
 
 function _lmaBadge(status) {
-  if (!status) return '<span class="lma-badge pendente">Pendente</span>';
+  if (!status) return '<span class="lma-badge pendente">Em aberto</span>';
+  var s = String(status).toLowerCase();
   var cls = {
-    'Converteu':      'converteu',
-    'Desqualificado': 'desqualificado',
-    'Em negociação':  'negociacao',
-    'Sem contato':    'sem-contato',
-  }[status] || 'pendente';
-  return '<span class="lma-badge ' + cls + '">' + _esc(status) + '</span>';
+    'venda-fechada':   'converteu',
+    'venda-perdida':   'desqualificado',
+    'sem-viabilidade': 'desqualificado',
+    'sem-interesse':   'desqualificado',
+    'reprovado-cpf':   'desqualificado'
+  }[s] || 'pendente';
+  return '<span class="lma-badge ' + cls + '">' + _esc(s) + '</span>';
 }
 
 function _lmaFmtData(val) {
@@ -854,10 +869,9 @@ function _lmaFmtData(val) {
 }
 
 function _lmaOnStatusChange(linha) {
-  var sel = document.getElementById('lmaAcaoSel_' + linha);
+  // Taxonomia Chatwoot: a própria etiqueta descreve o motivo, sem campo extra.
   var row = document.getElementById('lmaAcaoMotivoRow_' + linha);
-  if (!sel || !row) return;
-  row.style.display = sel.value === 'Desqualificado' ? '' : 'none';
+  if (row) row.style.display = 'none';
 }
 
 function _lmaExcluir(linha) {
@@ -892,7 +906,8 @@ function _lmaSalvarAcao(linha) {
   var novoStatus = sel.value;
   if (!novoStatus) { mostrarToast('Selecione um status antes de salvar.', 'warning'); return; }
 
-  var motivo = (mInput && novoStatus === 'Desqualificado') ? (mInput.value || '') : '';
+  // Motivo legado (col J) — não preenchido pela nova taxonomia Chatwoot.
+  var motivo = '';
 
   btn.disabled = true;
   btn.textContent = '⏳';
@@ -1344,11 +1359,15 @@ function _lmaExportarCSV() {
 }
 
 // ─── Kanban ─────────────────────────────────────────────────────────────────
+function _lmaStatusLow(l) { return String(l && l.status_final || '').toLowerCase(); }
+
 var _LMA_COLUNAS = [
-  { id: 'pendente',      titulo: 'Pendente',      classe: 'k-pend', match: function(l) { return !l.status_final || l.status_final === 'Sem contato'; } },
-  { id: 'Em negociação', titulo: 'Em negociação', classe: 'k-nego', match: function(l) { return l.status_final === 'Em negociação'; } },
-  { id: 'Converteu',     titulo: 'Convertido',    classe: 'k-conv', match: function(l) { return l.status_final === 'Converteu'; } },
-  { id: 'Desqualificado',titulo: 'Desqualificado',classe: 'k-desq', match: function(l) { return l.status_final === 'Desqualificado'; } }
+  { id: '__aberto',        titulo: 'Em aberto',        classe: 'k-pend', match: function(l) { return !l.status_final; } },
+  { id: 'venda-fechada',   titulo: '✅ venda-fechada', classe: 'k-conv', match: function(l) { return _lmaStatusLow(l) === 'venda-fechada'; } },
+  { id: 'venda-perdida',   titulo: '❌ venda-perdida', classe: 'k-desq', match: function(l) { return _lmaStatusLow(l) === 'venda-perdida'; } },
+  { id: 'sem-viabilidade', titulo: '📵 sem-viabilidade', classe: 'k-desq', match: function(l) { return _lmaStatusLow(l) === 'sem-viabilidade'; } },
+  { id: 'sem-interesse',   titulo: '🙅 sem-interesse', classe: 'k-desq', match: function(l) { return _lmaStatusLow(l) === 'sem-interesse'; } },
+  { id: 'reprovado-cpf',   titulo: '🚫 reprovado-cpf', classe: 'k-desq', match: function(l) { return _lmaStatusLow(l) === 'reprovado-cpf'; } }
 ];
 
 function _lmaRenderKanban(lista) {
@@ -1374,7 +1393,7 @@ function _lmaRenderKanban(lista) {
 
 function _lmaKanbanCard(l) {
   var risco = _lmaEmRisco(l);
-  var conv = l.status_final === 'Converteu';
+  var conv = _lmaStatusLow(l) === 'venda-fechada';
   var cls = 'lma-kcard' + (conv ? ' kc-conv' : (risco ? ' kc-risco' : ''));
   var telNorm = _lmaNormTel(l.telefone);
   var cidade = _lmaCidadeReal(l) || inferirCidadePorDDD(l.telefone);
@@ -1383,7 +1402,7 @@ function _lmaKanbanCard(l) {
     ? '<a class="lma-tel-link" href="https://wa.me/55' + telNorm + '" target="_blank" rel="noopener">' + _esc(l.telefone || '') + '</a>'
     : _esc(l.telefone || '');
   var camp = l.utm_campaign ? '<span class="lma-chip-camp" style="background:' + _lmaCampanhaCor(l.utm_campaign) + '">' + _esc(l.utm_campaign) + '</span>' : '';
-  var motivo = (l.status_final === 'Desqualificado' && l.motivo_desq) ? '<span class="lma-chip-motivo">' + _esc(l.motivo_desq) + '</span>' : '';
+  var motivo = (LMA_STATUS_PERDIDOS.indexOf(_lmaStatusLow(l)) !== -1 && l.motivo_desq) ? '<span class="lma-chip-motivo">' + _esc(l.motivo_desq) + '</span>' : '';
   return '<div class="' + cls + '" draggable="true" data-linha="' + l.linha + '" ondragstart="_lmaDragStart(event,' + l.linha + ')">' +
     '<div class="lma-kcard-nome">' + _esc(l.nome || '—') + '</div>' +
     '<div class="lma-kcard-tel">' + telHtml + '</div>' +
@@ -1403,9 +1422,9 @@ function _lmaDrop(ev, colId) {
   if (!linha) return;
   var lead = _lmaDados.find(function(l) { return l.linha === linha; });
   if (!lead) return;
-  var novoStatus = (colId === 'pendente') ? '' : colId;
-  if ((lead.status_final || '') === novoStatus) return; // sem mudança
-  var motivo = (lead.status_final === 'Desqualificado') ? (lead.motivo_desq || '') : '';
+  var novoStatus = (colId === '__aberto') ? '' : colId;
+  if (String(lead.status_final || '').toLowerCase() === novoStatus) return; // sem mudança
+  var motivo = '';
 
   // Atualização otimista local + persiste.
   var anterior = lead.status_final;

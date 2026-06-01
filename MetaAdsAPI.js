@@ -189,8 +189,14 @@ function exportarLeadsMetaAds() {
   }
 
   var total       = leads.length;
-  var convertidos = leads.filter(function(l) { return l.status_final === 'Converteu'; }).length;
-  var desq        = leads.filter(function(l) { return l.status_final === 'Desqualificado'; }).length;
+  var convertidos = leads.filter(function(l) {
+    var s = String(l.status_final || '').toLowerCase();
+    return s === 'venda-fechada' || s === 'converteu';
+  }).length;
+  var desq = leads.filter(function(l) {
+    var s = String(l.status_final || '').toLowerCase();
+    return s === 'venda-perdida' || s === 'sem-viabilidade' || s === 'sem-interesse' || s === 'reprovado-cpf' || s === 'desqualificado';
+  }).length;
   var pendentes   = leads.filter(function(l) { return !l.status_final; }).length;
   var taxa_conv   = total > 0 ? ((convertidos / total) * 100).toFixed(1) : 0;
 
@@ -331,10 +337,10 @@ function vincularVendaLeadMetaAds(telefone, idContrato, dataVenda) {
     }
 
     var linha = i + 2;
-    aba.getRange(linha, 9).setValue('Converteu');  // col I: status_final
-    aba.getRange(linha, 11).setValue(new Date());  // col K: data_status
+    aba.getRange(linha, 9).setValue('venda-fechada'); // col I: status_final (taxonomia Chatwoot)
+    aba.getRange(linha, 11).setValue(new Date());     // col K: data_status
     _registrarRastreabilidadeVenda_(aba, linha, idContrato, dataVenda); // cols M/N
-    Logger.log('vincularVendaLeadMetaAds: tel ' + tel + ' → linha ' + linha + ' = Converteu (contrato ' + (idContrato || '-') + ', ' + diasDesdeEntrada.toFixed(0) + ' dias)');
+    Logger.log('vincularVendaLeadMetaAds: tel ' + tel + ' → linha ' + linha + ' = venda-fechada (contrato ' + (idContrato || '-') + ', ' + diasDesdeEntrada.toFixed(0) + ' dias)');
     return linha;
   }
   return matched ? 0 : null;
@@ -435,6 +441,72 @@ function atualizarStatusLeadMetaAds(linha, status, motivo) {
 
   Logger.log('atualizarStatusLeadMetaAds: linha ' + linha + ' → ' + (status || 'limpo'));
   return { ok: true, linha: linha, status: status };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SINCRONIZAÇÃO COM CHATWOOT — labels manuais viram Status do lead
+// Chamado pelo doPost via n8n quando uma label terminal é aplicada no Chatwoot.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Labels do Chatwoot que viram Status do lead. Match exato com o slug Chatwoot.
+var STATUS_TERMINAIS_CHATWOOT = [
+  'venda-fechada',
+  'venda-perdida',
+  'sem-viabilidade',
+  'sem-interesse',
+  'reprovado-cpf'
+];
+
+function _statusTerminalChatwoot_(s) {
+  return STATUS_TERMINAIS_CHATWOOT.indexOf(String(s || '').trim().toLowerCase()) !== -1;
+}
+
+/**
+ * Atualiza o Status do lead Meta Ads identificando-o por telefone.
+ * Chamado pelo n8n quando uma label terminal é aplicada manualmente no Chatwoot.
+ *
+ * @param {{telefone:string, status:string}} payload
+ * @returns {object} { ok, linha?, alterado?, motivo? }
+ */
+function atualizarStatusLeadMetaAdsPorTelefone(payload) {
+  payload = payload || {};
+  var tel = String(payload.telefone || '').replace(/\D/g, '');
+  if (tel.length > 11) tel = tel.slice(-11); // remove DDI 55
+  if (!tel || tel.length < 8) return { ok: false, motivo: 'telefone_invalido' };
+
+  var status = String(payload.status || '').trim().toLowerCase();
+  if (!_statusTerminalChatwoot_(status)) return { ok: false, motivo: 'label_nao_terminal' };
+
+  var ss  = _getSpreadsheet_();
+  var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+  if (!aba) return { ok: false, motivo: 'aba_nao_encontrada' };
+
+  var ult = aba.getLastRow();
+  if (ult < 2) return { ok: false, motivo: 'lead_nao_encontrado' };
+
+  // Lê col C (telefone) + col I (status_final). Busca da última linha pra cima
+  // — lead mais recente do telefone vence.
+  var rng = aba.getRange(2, 3, ult - 1, 7).getValues(); // C..I
+  var linhaAlvo = -1;
+  for (var i = rng.length - 1; i >= 0; i--) {
+    var celTel = String(rng[i][0] || '').replace(/\D/g, '');
+    if (celTel.length > 11) celTel = celTel.slice(-11);
+    if (celTel && celTel.slice(-8) === tel.slice(-8)) { linhaAlvo = i + 2; break; }
+  }
+  if (linhaAlvo < 0) return { ok: false, motivo: 'lead_nao_encontrado' };
+
+  var statusAtual = String(aba.getRange(linhaAlvo, 9).getValue() || '').trim().toLowerCase();
+  if (statusAtual === status) {
+    return { ok: true, linha: linhaAlvo, alterado: false };
+  }
+
+  aba.getRange(linhaAlvo, 9, 1, 3).clearDataValidations();
+  aba.getRange(linhaAlvo, 9).setValue(status);    // col I: status_final
+  aba.getRange(linhaAlvo, 11).setValue(new Date()); // col K: data_status
+
+  Logger.log('atualizarStatusLeadMetaAdsPorTelefone: tel=' + tel + ' linha=' + linhaAlvo + ' → ' + status);
+  return { ok: true, linha: linhaAlvo, alterado: true, status: status };
 }
 
 
@@ -1987,12 +2059,14 @@ function reconciliarMetaAdsNoturno() {
       }
     }
 
-    // Leads "Converteu", indexados por telefone normalizado.
+    // Leads "venda-fechada" (compat: também aceita "Converteu" legado pré-migração),
+    // indexados por telefone normalizado.
     var leadsConvTel = {};
     if (abaLeads && abaLeads.getLastRow() >= 2) {
       var lrows = abaLeads.getRange(2, 1, abaLeads.getLastRow() - 1, 12).getValues();
       for (var j = 0; j < lrows.length; j++) {
-        if (String(lrows[j][8] || '').trim() !== 'Converteu') continue;
+        var st = String(lrows[j][8] || '').trim().toLowerCase();
+        if (st !== 'venda-fechada' && st !== 'converteu') continue;
         var ltel = _normTel11_(String(lrows[j][2] || ''));
         if (ltel) leadsConvTel[ltel] = j + 2;
       }
@@ -2000,7 +2074,7 @@ function reconciliarMetaAdsNoturno() {
 
     var inconsist = [];
 
-    // (1) Venda META 2/3 sem lead Converteu → tenta vincular (catch-up); senão registra.
+    // (1) Venda META 2/3 sem lead venda-fechada → tenta vincular (catch-up); senão registra.
     Object.keys(vendasMetaTel).forEach(function(tel) {
       if (leadsConvTel[tel]) return;
       var v = vendasMetaTel[tel];
@@ -2012,11 +2086,11 @@ function reconciliarMetaAdsNoturno() {
       }
     });
 
-    // (2) Lead "Converteu" sem venda META ADS em status 2/3.
+    // (2) Lead "venda-fechada" sem venda META ADS em status 2/3.
     Object.keys(leadsConvTel).forEach(function(tel) {
       if (!vendasMetaTel[tel]) {
         inconsist.push(['lead_sem_venda',
-          'Lead "Converteu" (linha ' + leadsConvTel[tel] + ', tel ' + tel +
+          'Lead "venda-fechada" (linha ' + leadsConvTel[tel] + ', tel ' + tel +
           ') sem venda META ADS em status 2/3.']);
       }
     });

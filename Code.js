@@ -1610,6 +1610,22 @@ function doPost(e) {
       return _routePAP(payload);
     }
 
+    // ── Sync Chatwoot → Status Lead Meta Ads (n8n dispara em label terminal manual) ──
+    if (payload.action === 'atualizar_status_lead_meta') {
+      if (SECRET && payload.secret !== SECRET) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ erro: 'Não autorizado.' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var resStatus = atualizarStatusLeadMetaAdsPorTelefone({
+        telefone: payload.telefone,
+        status:   payload.status
+      });
+      return ContentService
+        .createTextOutput(JSON.stringify(resStatus))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // ── Roteador Meta Ads: leads do Botconversa (com secret) ou Renata/n8n (sem secret) ──
     // Identificados por utm_source ou utm_campaign. Botconversa envia secret + utm_campaign.
     if (payload.utm_source || payload.utm_campaign) {
