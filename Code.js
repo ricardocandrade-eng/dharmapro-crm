@@ -7330,6 +7330,80 @@ function _reindexarVinculosAposDelete_(linhaDeletada) {
   Logger.log('_reindexarVinculosAposDelete_(L.' + linhaDeletada + '): arquivados=' + arquivados + ', decrementados=' + decrementados);
 }
 
+// ── VALIDADOR DE VÍNCULOS (só-leitura) — detecta drift de ponteiro ──────────
+//  EXCEÇÃO PERMANENTE (como repararVinculosCombosOrfaos): fica no Code.js pra
+//  estar sempre no dropdown do editor. Percorre todo vínculo ATIVO de
+//  "Vinculos Vendas" e confere a consistência com 1-Vendas:
+//    - mãe ainda é produto Fibra;
+//    - filha ainda é produto Móvel;
+//    - CPF da mãe == CPF da filha.
+//  Qualquer falha = ponteiro apontando pro cliente errado — sintoma clássico
+//  de delete manual de linha no Sheets (que NÃO passa pelo reindex do A4).
+//  NÃO grava nada. Roda manual no editor; loga e retorna o relatório.
+// ─────────────────────────────────────────────────────────────────────────
+function diagValidarVinculosVendas() {
+  var shVinc = _getSheetVinculosVendas_(false);
+  if (!shVinc || shVinc.getLastRow() < 2) { Logger.log('Sem vínculos.'); return 'Sem vínculos.'; }
+  var sheet = _getSheet();
+  var c = CONFIG.COLUNAS;
+  var lastRow = sheet.getLastRow();
+  var lastV = shVinc.getLastRow();
+  var vincs = shVinc.getRange(2, 1, lastV - 1, 10).getValues();
+
+  var ativos = 0, ok = 0;
+  var problemas = [];
+
+  for (var i = 0; i < vincs.length; i++) {
+    if (_normalizarTexto(vincs[i][6] || 'ATIVO') !== 'ATIVO') continue;
+    ativos++;
+    var vincRow = i + 2;
+    var maeL    = parseInt(vincs[i][2], 10);
+    var filhaL  = parseInt(vincs[i][3], 10);
+    var probs   = [];
+
+    if (isNaN(maeL) || maeL < 3 || maeL > lastRow)     probs.push('mãe L.' + vincs[i][2] + ' fora de faixa');
+    if (isNaN(filhaL) || filhaL < 3 || filhaL > lastRow) probs.push('filha L.' + vincs[i][3] + ' fora de faixa');
+    if (probs.length) { problemas.push('🔴 Vínc.L.' + vincRow + ': ' + probs.join(' | ')); continue; }
+
+    var rowMae   = sheet.getRange(maeL,   1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+    var rowFilha = sheet.getRange(filhaL, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+    var prodMae   = _normalizarTexto(rowMae[c.PRODUTO]   || '');
+    var prodFilha = _normalizarTexto(rowFilha[c.PRODUTO] || '');
+    var cpfMae    = String(rowMae[c.CPF]   || '').replace(/[^0-9]/g, '');
+    var cpfFilha  = String(rowFilha[c.CPF] || '').replace(/[^0-9]/g, '');
+    var cliMae    = String(rowMae[c.CLIENTE]   || '').trim();
+    var cliFilha  = String(rowFilha[c.CLIENTE] || '').trim();
+
+    if (prodMae.indexOf('FIBRA') === -1)   probs.push('mãe L.' + maeL + ' não é Fibra (' + cliMae + ' / "' + prodMae + '")');
+    if (prodFilha.indexOf('MOVEL') === -1) probs.push('filha L.' + filhaL + ' não é Móvel (' + cliFilha + ' / "' + prodFilha + '")');
+    if (cpfMae && cpfFilha && cpfMae !== cpfFilha)
+      probs.push('CPF divergente: mãe ' + cliMae + ' (' + cpfMae + ') ↔ filha ' + cliFilha + ' (' + cpfFilha + ')');
+
+    if (probs.length) problemas.push('🔴 Vínc.L.' + vincRow + ' [' + cliMae + ' → ' + cliFilha + ']: ' + probs.join(' | '));
+    else ok++;
+  }
+
+  var out = [];
+  out.push('════════════════════════════════');
+  out.push('  diagValidarVinculosVendas (só-leitura)');
+  out.push('════════════════════════════════');
+  out.push('Vínculos ATIVO     : ' + ativos);
+  out.push('Consistentes (OK)  : ' + ok);
+  out.push('🔴 Com problema     : ' + problemas.length);
+  out.push('────────────────────────────────');
+  if (problemas.length === 0) {
+    out.push('VEREDITO: nenhum drift. Nenhum ponteiro apontando pro cliente errado.');
+  } else {
+    out = out.concat(problemas);
+    out.push('────────────────────────────────');
+    out.push('VEREDITO: ' + problemas.length + ' vínculo(s) com drift — provável delete');
+    out.push('manual de linha. Arquivar os 🔴 e re-rodar repararVinculosCombosOrfaos.');
+  }
+  var txt = out.join('\n');
+  Logger.log(txt);
+  return txt;
+}
+
 function _registrarVinculoVenda_(maeLinha, filhaLinha, tipo) {
   var sheetVendas = _getSheet();
   var rowMae = sheetVendas.getRange(maeLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
@@ -7503,6 +7577,11 @@ function repararVinculosCombosOrfaos() {
     var candidatos = [];
     for (var mj = 0; mj < moveisLivres.length; mj++) {
       var movel = moveisLivres[mj];
+      // Já reivindicado por outra Fibra nesta mesma passagem → não reutilizar.
+      // O update de `vinculosMap.maePorFilha` ao vincular (abaixo) marca o Móvel;
+      // sem este guard, 2 Fibras do mesmo CPF pegavam o mesmo Móvel (double-claim
+      // GESLEY 4003/4004→4011, 02/06/2026). O leftover vira "sem par" → triagem manual.
+      if (vinculosMap.maePorFilha[movel.linha]) continue;
       var matchCpf   = fibra.cpf.length   >= 11 && fibra.cpf   === movel.cpf;
       var matchWhats = fibra.whats.length >=  8 && fibra.whats === movel.whats;
       if (!matchCpf && !matchWhats) continue;
