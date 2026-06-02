@@ -106,7 +106,10 @@ async function consultarAdapter(cpf, user, pass) {
       for (var k = 0; k < agendados.length; k++) {
         var a = agendados[k];
         var dtAg = a.dataAgendamento || '';
-        if (dtAg) { r.dataAgendamento = dtAg; break; }
+        if (dtAg) {
+          r.dataAgendamento = (typeof dtAg === 'string' && dtAg.indexOf(' ') > -1) ? dtAg.split(' ')[0] : dtAg;
+          break;
+        }
       }
     }
 

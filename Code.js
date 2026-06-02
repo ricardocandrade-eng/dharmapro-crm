@@ -7792,10 +7792,10 @@ function _formatarDataNascimento(valor, formato) {
     return pIso[2] + '/' + pIso[1] + '/' + pIso[0];
   }
 
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(txt)) {
-    if (out === 'dd/MM/yyyy') return txt;
-    var pBr = txt.split('/');
-    return pBr[2] + '-' + pBr[1] + '-' + pBr[0];
+  var mBr = txt.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/);
+  if (mBr) {
+    if (out === 'dd/MM/yyyy') return mBr[1] + '/' + mBr[2] + '/' + mBr[3];
+    return mBr[3] + '-' + mBr[2] + '-' + mBr[1];
   }
 
   var dt = new Date(txt);
