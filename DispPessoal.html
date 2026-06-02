@@ -122,23 +122,24 @@
   <!-- ════════════════════════════════════ TAB 1: MEU WHATSAPP ════════════════════════════════════ -->
   <div id="wpPanelWhatsapp" class="wp-panel ativa">
     <div class="wp-card">
-      <div class="wp-status">
+      <div class="wp-status" style="display:none">
         <span class="wp-status-dot desconectado" id="wpStatusDot"></span>
         <div>
           <div style="font-weight:600;font-size:16px" id="wpStatusTexto">Carregando…</div>
           <div style="color:var(--text-muted,#8a93a3);font-size:13px" id="wpStatusDetalhe"></div>
         </div>
       </div>
+      <div id="wpInstanciasLista">Carregando...</div>
       <div id="wpQrArea" style="display:none">
         <div class="wp-info">Abra o WhatsApp no celular → Menu → Aparelhos conectados → Conectar aparelho.</div>
         <div class="wp-qr"><img id="wpQrImg" alt="QR Code"></div>
       </div>
       <div class="wp-actions">
-        <button class="btn btn-primary" id="wpBtnConectar" onclick="wpConectar()">Conectar</button>
+        <button class="btn btn-primary" id="wpBtnConectar" onclick="wpConectar()">Conectar novo chip</button>
         <button class="btn btn-ghost"   id="wpBtnDesconectar" onclick="wpDesconectar()" style="display:none">Desconectar</button>
         <button class="btn btn-ghost btn-sm" onclick="wpAtualizarStatus()">↻ Atualizar</button>
       </div>
-      <div style="margin-top:14px;font-size:13px;color:var(--text-muted,#8a93a3)">
+      <div style="display:none;margin-top:14px;font-size:13px;color:var(--text-muted,#8a93a3)">
         Limite diário: <strong id="wpDailyLimit">200</strong> · Enviadas hoje: <strong id="wpDailyCount">0</strong>
       </div>
     </div>
@@ -149,6 +150,11 @@
     <div class="wp-card">
       <div class="wp-row">
         <div class="wp-col">
+          <div class="wp-field" id="wpEnviarDeWrap" style="display:none">
+            <label>Enviar de</label>
+            <select id="wpEnviarDe"></select>
+          </div>
+
           <div class="wp-field">
             <label>Nome da campanha</label>
             <input type="text" id="wpNome" placeholder="Ex: Reativação base maio">
@@ -449,6 +455,8 @@
   var _wpContatosCache = [];
   var _wpPollTimer = null;
   var _wpHistTimer = null;
+  var _wpInstancias = [];
+  var _wpInstanciaSelecionada = '';
 
   function _esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function _toast(m, t) { if (typeof mostrarToast === 'function') mostrarToast(m, t || 'info'); else console.log(m); }
@@ -672,6 +680,17 @@
     google.script.run
       .withSuccessHandler(function(r) {
         if (!r || !r.ok) { _toast(r && r.mensagem || 'Erro ao consultar status', 'error'); return; }
+        if (Array.isArray(r.data)) {
+          _wpInstancias = r.data || [];
+          wpRenderInstancias();
+          wpRenderEnviarDe();
+          if (_wpPollTimer && _wpInstancias.some(function(i) { return i.status === 'conectado'; })) {
+            clearInterval(_wpPollTimer);
+            _wpPollTimer = null;
+            document.getElementById('wpQrArea').style.display = 'none';
+          }
+          return;
+        }
         var dot = document.getElementById('wpStatusDot');
         dot.className = 'wp-status-dot ' + r.status;
         var labels = { conectado: 'Conectado', conectando: 'Aguardando QR Code…', desconectado: 'Desconectado', erro: 'Erro' };
@@ -684,17 +703,96 @@
         if (r.status === 'conectado' && _wpPollTimer) { clearInterval(_wpPollTimer); _wpPollTimer = null; document.getElementById('wpQrArea').style.display = 'none'; }
       })
       .withFailureHandler(function(e) { _toast('Erro: ' + e.message, 'error'); })
-      .getMinhaInstancia(_wpUser, _alvoArg());
+      .getMinhasInstancias(_wpUser, _alvoArg());
   };
 
-  window.wpConectar = function() {
+  function wpRenderInstancias() {
+    var alvoOutro = _wpAlvo !== _wpUser;
+    var labels = { conectado: 'Conectado', conectando: 'Aguardando QR', desconectado: 'Desconectado', erro: 'Erro' };
+    var html = '';
+    (_wpInstancias || []).forEach(function(inst) {
+      var status = inst.status || 'desconectado';
+      var nome = inst.alias || inst.instance_name || inst.instance_id || 'Principal';
+      var instance = inst.instance_name || inst.instance_id || '';
+      var selector = inst.alias || instance;
+      html += '<div class="wp-card" style="margin:0 0 10px;padding:14px;background:rgba(255,255,255,.02)">'
+        + '<div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">'
+        + '<div class="wp-status" style="margin:0"><span class="wp-status-dot ' + _esc(status) + '"></span><div>'
+        + '<div style="font-weight:700">' + _esc(nome) + '</div>'
+        + '<div style="font-size:12px;color:var(--text-muted,#8a93a3)">' + _esc(instance) + '</div>'
+        + '<div style="font-size:13px;color:var(--text-muted,#8a93a3);margin-top:4px">' + _esc(labels[status] || status) + (inst.phone ? ' - ' + _esc(inst.phone) : '') + '</div>'
+        + '<div style="font-size:12px;color:var(--text-muted,#8a93a3);margin-top:4px">Limite diario: <strong>' + Number(inst.daily_limit || 0) + '</strong> - Enviadas hoje: <strong>' + Number(inst.daily_count || 0) + '</strong></div>'
+        + '</div></div><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">';
+      if (!alvoOutro && status !== 'conectado') html += '<button class="btn btn-ghost btn-sm" onclick="wpReconectarInstancia(\'' + _esc(selector) + '\')">Reconectar</button>';
+      if (!alvoOutro && status === 'conectado') html += '<button class="btn btn-ghost btn-sm" style="color:#e63e6d" onclick="wpDesconectar(\'' + _esc(selector) + '\')">Desconectar</button>';
+      html += '</div></div></div>';
+    });
+    document.getElementById('wpInstanciasLista').innerHTML = html || '<div class="wp-info">Nenhum chip registrado ainda.</div>';
+  }
+
+  function _wpFormatPhone(phone) {
+    if (!phone) return '';
+    var digits = String(phone).replace(/\D+/g, '');
+    if (!digits) return '';
+    // BR: 13 (55 + DDD + 9 + 8) ou 12 (55 + DDD + 8). Mobile sem 55 = 11. Fixo sem 55 = 10.
+    if (digits.length === 13 && digits.indexOf('55') === 0) {
+      var ddd = digits.substr(2, 2), p1 = digits.substr(4, 5), p2 = digits.substr(9, 4);
+      return '+55 (' + ddd + ') ' + p1 + '-' + p2;
+    }
+    if (digits.length === 12 && digits.indexOf('55') === 0) {
+      var ddd2 = digits.substr(2, 2), q1 = digits.substr(4, 4), q2 = digits.substr(8, 4);
+      return '+55 (' + ddd2 + ') ' + q1 + '-' + q2;
+    }
+    if (digits.length === 11) {
+      return '+55 (' + digits.substr(0, 2) + ') ' + digits.substr(2, 5) + '-' + digits.substr(7, 4);
+    }
+    if (digits.length === 10) {
+      return '+55 (' + digits.substr(0, 2) + ') ' + digits.substr(2, 4) + '-' + digits.substr(6, 4);
+    }
+    return '+' + digits;
+  }
+
+  function wpRenderEnviarDe() {
+    var wrap = document.getElementById('wpEnviarDeWrap');
+    var sel = document.getElementById('wpEnviarDe');
+    if (!wrap || !sel) return;
+    var insts = (_wpInstancias || []).filter(function(i) { return i.instance_name || i.instance_id; });
+    if (insts.length <= 1) {
+      wrap.style.display = 'none';
+      _wpInstanciaSelecionada = insts.length ? (insts[0].instance_name || insts[0].instance_id) : '';
+      return;
+    }
+    wrap.style.display = '';
+    var atual = sel.value || _wpInstanciaSelecionada || (insts[0].instance_name || insts[0].instance_id);
+    sel.innerHTML = insts.map(function(i) {
+      var val = i.instance_name || i.instance_id;
+      var phoneFmt = _wpFormatPhone(i.phone);
+      var base = phoneFmt || ('(sem chip) ' + (i.alias || val));
+      var label = base
+        + (phoneFmt && i.alias ? ' (' + i.alias + ')' : '')
+        + (i.status && i.status !== 'conectado' ? ' - ' + i.status : '');
+      return '<option value="' + _esc(val) + '">' + _esc(label) + '</option>';
+    }).join('');
+    sel.value = atual;
+    _wpInstanciaSelecionada = sel.value;
+    sel.onchange = function() { _wpInstanciaSelecionada = sel.value; };
+  }
+
+  window.wpReconectarInstancia = function(alias) {
+    window.wpConectar(alias);
+  };
+
+  window.wpConectar = function(aliasExistente) {
     if (_wpAlvo !== _wpUser) { _toast('Você está visualizando como ' + _wpAlvo + '. Conexão só funciona pra "você mesmo".', 'error'); return; }
+    var alias = aliasExistente || window.prompt('Alias do chip (ex: Pessoal, PAP)', 'Principal');
+    alias = String(alias || '').trim();
+    if (!alias) return;
     document.getElementById('wpBtnConectar').disabled = true;
     document.getElementById('wpBtnConectar').textContent = 'Gerando QR…';
     google.script.run
       .withSuccessHandler(function(r) {
         document.getElementById('wpBtnConectar').disabled = false;
-        document.getElementById('wpBtnConectar').textContent = 'Reconectar';
+        document.getElementById('wpBtnConectar').textContent = 'Conectar novo chip';
         if (!r || !r.ok) { _toast(r && r.mensagem || 'Erro ao gerar QR', 'error'); return; }
         if (r.qrcode) {
           document.getElementById('wpQrImg').src = r.qrcode;
@@ -705,12 +803,13 @@
       })
       .withFailureHandler(function(e) {
         document.getElementById('wpBtnConectar').disabled = false;
+        document.getElementById('wpBtnConectar').textContent = 'Conectar novo chip';
         _toast('Erro: ' + e.message, 'error');
       })
-      .criarOuReconectarInstancia(_wpUser);
+      .criarOuReconectarInstancia(_wpUser, alias);
   };
 
-  window.wpDesconectar = function() {
+  window.wpDesconectar = function(aliasOuInstancia) {
     if (_wpAlvo !== _wpUser) { _toast('Você está visualizando como ' + _wpAlvo + '. Desconexão só funciona pra "você mesmo".', 'error'); return; }
     wpConfirm({
       titulo: 'Desconectar WhatsApp?',
@@ -727,7 +826,7 @@
             wpAtualizarStatus();
           })
           .withFailureHandler(function(e) { wpLoadingClose(); _toast('Erro: ' + e.message, 'error'); })
-          .deletarInstancia(_wpUser);
+          .deletarInstancia(_wpUser, aliasOuInstancia);
       }
     });
   };
@@ -1005,6 +1104,8 @@
     var fonte = document.getElementById('wpFonte').value;
     var contatos = (fonte === 'manual') ? _parseManualLista() : _wpContatosCache;
     if (!contatos.length) { _toast('Nenhum contato selecionado.', 'error'); return; }
+    var enviarDe = (document.getElementById('wpEnviarDe') && document.getElementById('wpEnviarDe').value) || _wpInstanciaSelecionada || '';
+    if ((_wpInstancias || []).length > 1 && !enviarDe) { _toast('Escolha de qual WhatsApp enviar.', 'error'); return; }
 
     var variacoes = _wpVariacoesMarcadas();
     var msgVar = variacoes.length
@@ -1039,7 +1140,8 @@
             nome: nome, template_msg: template,
             delay_min: delay_min, delay_max: delay_max,
             contatos: contatos, variacoes: variacoes,
-            imagem_url: _wpImagemUrl
+            imagem_url: _wpImagemUrl,
+            instanceName: enviarDe
           });
       }
     });
