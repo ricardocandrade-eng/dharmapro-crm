@@ -261,8 +261,12 @@
   color:var(--muted); background:var(--surface2); border:1px solid var(--border); font-family:'DM Mono',monospace; }
 .lma-chip-motivo { display:inline-block; padding:2px 8px; border-radius:6px; font-size:10px;
   color:#c04040; background:rgba(230,62,62,.12); font-family:'DM Mono',monospace; white-space:nowrap; }
-.lma-tel-link { color:var(--accent); text-decoration:none; }
-.lma-tel-link:hover { text-decoration:underline; }
+.lma-tel-plain { color:var(--text); font-family:'DM Mono',monospace; }
+.lma-tel-wrap { display:inline-flex; align-items:center; gap:6px; }
+.lma-tel-copy { background:var(--surface2); color:var(--muted); border:1px solid var(--border);
+  border-radius:4px; padding:1px 6px; font-size:10px; cursor:pointer; line-height:1.4;
+  font-family:inherit; }
+.lma-tel-copy:hover { background:var(--border); color:var(--text); }
 .lma-table tr.lma-tr-conv td:first-child { box-shadow: inset 3px 0 0 #2ea854; }
 .lma-table tr.lma-tr-risco { background: rgba(255,170,0,.05); }
 .lma-acao-btn-copy { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
@@ -761,7 +765,8 @@ function _lmaRenderizarTabela(lista) {
     var tel = _esc(l.telefone || '');
     var telNorm = _lmaNormTel(l.telefone);
     var telCell = telNorm
-      ? '<a class="lma-tel-link" href="https://wa.me/55' + telNorm + '" target="_blank" rel="noopener" title="Abrir no WhatsApp">' + tel + '</a>'
+      ? '<span class="lma-tel-wrap"><span class="lma-tel-plain">' + tel + '</span>' +
+        '<button class="lma-tel-copy" title="Copiar telefone" onclick="_lmaCopiarTelefone(\'' + telNorm + '\')">Copiar</button></span>'
       : '<span class="lma-sub">' + tel + '</span>';
     var campChip = l.utm_campaign
       ? '<span class="lma-chip-camp" style="background:' + _lmaCampanhaCor(l.utm_campaign) + '" title="' + _esc(l.utm_campaign) + '">' + _esc(l.utm_campaign) + '</span>'
@@ -1399,7 +1404,8 @@ function _lmaKanbanCard(l) {
   var cidade = _lmaCidadeReal(l) || inferirCidadePorDDD(l.telefone);
   var cidadeHtml = cidade ? '<div class="lma-kcard-cidade">📍 ' + (_lmaCidadeReal(l) ? '' : '≈ ') + _esc(cidade) + '</div>' : '';
   var telHtml = telNorm
-    ? '<a class="lma-tel-link" href="https://wa.me/55' + telNorm + '" target="_blank" rel="noopener">' + _esc(l.telefone || '') + '</a>'
+    ? '<span class="lma-tel-wrap"><span class="lma-tel-plain">' + _esc(l.telefone || '') + '</span>' +
+      '<button class="lma-tel-copy" title="Copiar telefone" onclick="event.stopPropagation();_lmaCopiarTelefone(\'' + telNorm + '\')">Copiar</button></span>'
     : _esc(l.telefone || '');
   var camp = l.utm_campaign ? '<span class="lma-chip-camp" style="background:' + _lmaCampanhaCor(l.utm_campaign) + '">' + _esc(l.utm_campaign) + '</span>' : '';
   var motivo = (LMA_STATUS_PERDIDOS.indexOf(_lmaStatusLow(l)) !== -1 && l.motivo_desq) ? '<span class="lma-chip-motivo">' + _esc(l.motivo_desq) + '</span>' : '';
