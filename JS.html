@@ -8454,15 +8454,15 @@ function _confirmarExclusao() {
   var v = AppState.get('vendaSelecionada');
   if (!v || !v.linha) return;
   var btnConf = document.getElementById('modalExcluirConfirmar');
-  if (btnConf) { btnConf.disabled = true; btnConf.textContent = '⏳ Excluindo...'; }
+  if (btnConf) { btnConf.disabled = true; btnConf.textContent = '⏳ Arquivando...'; }
   mostrarLoading(true);
   google.script.run
     .withSuccessHandler(function(res) {
       mostrarLoading(false);
-      if (btnConf) { btnConf.disabled = false; btnConf.textContent = '🗑️ Confirmar Exclusão'; }
+      if (btnConf) { btnConf.disabled = false; btnConf.textContent = '🗑️ Arquivar'; }
       _fecharModalExcluir();
       if (res.sucesso) {
-        mostrarToast('✅ Venda excluída com sucesso.', 'success');
+        mostrarToast('✅ Venda arquivada com sucesso.', 'success');
         AppState.set('vendaSelecionada', null);
         fecharPainel();
         carregarVendas(1, '');
@@ -8472,7 +8472,7 @@ function _confirmarExclusao() {
     })
     .withFailureHandler(function(erro) {
       mostrarLoading(false);
-      if (btnConf) { btnConf.disabled = false; btnConf.textContent = '🗑️ Confirmar Exclusão'; }
+      if (btnConf) { btnConf.disabled = false; btnConf.textContent = '🗑️ Arquivar'; }
       _fecharModalExcluir();
       mostrarToast('Erro: ' + erro.message, 'error');
     })

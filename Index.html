@@ -3482,6 +3482,9 @@
               <div class="painel-acoes-row" id="pBtnDuplicarMovelRow" style="display:none">
                 <button class="btn btn-ghost" id="pBtnDuplicarMovel" onclick="_abrirModalMovelDoPainel()" style="background:rgba(79,158,255,0.08);border-color:rgba(79,158,255,0.25);color:var(--blue);">📱 Duplicar para Móvel</button>
               </div>
+              <div class="painel-acoes-row">
+                <button class="btn btn-ghost" id="pBtnArquivar" onclick="excluirVendaPanel()" style="background:rgba(230,62,109,0.08);border-color:rgba(230,62,109,0.25);color:var(--accent);">🗑️ Arquivar venda</button>
+              </div>
             </div>
 
             <!-- Botões inline (edição) -->
@@ -4249,20 +4252,20 @@
   <div class="modal-overlay" id="modalConfirmExcluir">
     <div class="modal-box" style="max-width:420px;">
       <div class="modal-head">
-        <h3>🗑️ Confirmar Exclusão</h3>
+        <h3>🗑️ Arquivar venda</h3>
         <button class="modal-close" onclick="_fecharModalExcluir()">✕</button>
       </div>
       <div class="modal-body">
-        <p style="color:var(--muted);font-size:13px;line-height:1.6">Você está prestes a excluir a venda de:</p>
+        <p style="color:var(--muted);font-size:13px;line-height:1.6">Você está prestes a arquivar a venda de:</p>
         <p id="modalExcluirNome" style="font-size:15px;font-weight:700;color:var(--text);margin:12px 0 6px;"></p>
         <p id="modalExcluirInfo" style="font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;"></p>
         <div style="margin-top:16px;padding:12px;background:rgba(230,62,109,.08);border:1px solid rgba(230,62,109,.25);border-radius:8px;">
-          <p style="font-size:12px;color:var(--accent);line-height:1.5">⚠️ Esta ação limpará os dados da linha na planilha. Não pode ser desfeita.</p>
+          <p style="font-size:12px;color:var(--accent);line-height:1.5">⚠️ A linha sai da lista (uma cópia vai para a aba <strong>Arquivo</strong>). Os vínculos de combo são reindexados automaticamente. Não dá pra desfazer pela tela.</p>
         </div>
       </div>
       <div class="modal-foot">
         <button class="btn btn-ghost" onclick="_fecharModalExcluir()">Cancelar</button>
-        <button class="btn" id="modalExcluirConfirmar" onclick="_confirmarExclusao()" style="background:rgba(230,62,109,.15);border-color:var(--accent);color:var(--accent);">🗑️ Confirmar Exclusão</button>
+        <button class="btn" id="modalExcluirConfirmar" onclick="_confirmarExclusao()" style="background:rgba(230,62,109,.15);border-color:var(--accent);color:var(--accent);">🗑️ Arquivar</button>
       </div>
     </div>
   </div>
