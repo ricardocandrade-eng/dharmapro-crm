@@ -28,12 +28,30 @@ const PAP_SHEET_PRE_VENDAS = 'Pré-Vendas';
 const PAP_SHEET_PAP        = '3 - PAP';
 const PAP_SHEET_VENDAS     = '1 - Vendas';
 
-// Aba "3 - PAP": dados começam na linha 5
-// col S (índice 19, 1-based) = Nome do responsável
-// col W (índice 23, 1-based) = CPF do responsável
+// Aba "3 - PAP": dados começam na linha 5 (linha 4 = cabeçalho).
+//   col S=19 NOME · T=20 IDBOT (legacy) · U=21 WHATSAPP · V=22 DATA_CADASTRO
+//   col W=23 CPF · X=24 CHAVE_PIX · Y=25 · Z=26 · AA=27 FORMA_PGTO
+//   col AB=28 PERIODICIDADE · AC=29 ATIVO (boolean — 03/06/2026)
 const PAP_FIRST_ROW     = 5;
+const PAP_HEADER_ROW    = 4;
 const PAP_COL_NOME      = 19; // S
+const PAP_COL_WHATS     = 21; // U
+const PAP_COL_DATA_CAD  = 22; // V
 const PAP_COL_CPF       = 23; // W
+const PAP_COL_PIX       = 24; // X
+const PAP_COL_FORMA     = 27; // AA
+const PAP_COL_PERIOD    = 28; // AB
+const PAP_COL_ATIVO     = 29; // AC
+
+// Vendedor sem nada gravado em AC (linhas históricas pré-migração) é tratado
+// como ativo. Backfill em `_setupColunaAtivoPAP` (one-shot) deixa tudo `true`.
+function _papEhAtivo_(v) {
+  if (v === false) return false;
+  if (v === true || v === '' || v === null || v === undefined) return true;
+  var s = String(v).trim().toUpperCase();
+  if (s === 'FALSE' || s === 'NAO' || s === 'NÃO' || s === '0' || s === 'INATIVO') return false;
+  return true;
+}
 
 // Cabeçalhos das novas abas (criadas automaticamente se não existirem)
 const HEADERS_CONSULTAS = [
@@ -152,20 +170,23 @@ function autenticarParceiro(cpf) {
   const lastRow = sheet.getLastRow();
   if (lastRow < PAP_FIRST_ROW) return { found: false };
 
-  // Lê só o intervalo necessário: col NOME até col CPF
+  // Lê do nome (S) até o ATIVO (AC), inclusivo.
   const numRows = lastRow - PAP_FIRST_ROW + 1;
-  const numCols = PAP_COL_CPF - PAP_COL_NOME + 1;
+  const numCols = PAP_COL_ATIVO - PAP_COL_NOME + 1;
   const values  = sheet
     .getRange(PAP_FIRST_ROW, PAP_COL_NOME, numRows, numCols)
     .getValues();
 
-  const cpfOffset = PAP_COL_CPF - PAP_COL_NOME; // = 4
+  const cpfOffset   = PAP_COL_CPF   - PAP_COL_NOME; // = 4
+  const ativoOffset = PAP_COL_ATIVO - PAP_COL_NOME; // = 10
 
   for (const row of values) {
     const cpfRow = _papNormCpf(String(row[cpfOffset]));
-    if (cpfRow === cpfLimpo) {
-      return { found: true, nome: String(row[0]).trim() };
+    if (cpfRow !== cpfLimpo) continue;
+    if (!_papEhAtivo_(row[ativoOffset])) {
+      return { found: false, motivo: 'inativo' };
     }
+    return { found: true, nome: String(row[0]).trim() };
   }
   return { found: false };
 }
@@ -809,17 +830,22 @@ var PAP_EVOLUTION_INSTANCE = 'Ricardo_Andrade';
 function _papBuscarSubscriberVendedor(cpf, nome) {
   try {
     const sh = _getSpreadsheet_().getSheetByName('3 - PAP');
-    if (!sh || sh.getLastRow() < 5) return null;
-    const raw      = sh.getRange(5, 19, sh.getLastRow() - 4, 5).getValues();
+    if (!sh || sh.getLastRow() < PAP_FIRST_ROW) return null;
+    // Range cobre S (nome) até AC (ativo) — 11 cols. Vendedor inativo é
+    // tratado como inexistente (suprime notificação Evolution).
+    const numCols = PAP_COL_ATIVO - PAP_COL_NOME + 1;
+    const raw      = sh.getRange(PAP_FIRST_ROW, PAP_COL_NOME, sh.getLastRow() - PAP_FIRST_ROW + 1, numCols).getValues();
     const cpfLimpo = cpf  ? String(cpf).replace(/\D/g, '')           : '';
     const nomeBusc = nome ? String(nome).trim().toLowerCase()         : '';
     for (let i = 0; i < raw.length; i++) {
       const rowNome  = String(raw[i][0] || '').trim();
-      const rowWhats = String(raw[i][2] || '').trim();
-      const rowCpf   = String(raw[i][4] || '').replace(/\D/g, '');
+      const rowWhats = String(raw[i][PAP_COL_WHATS - PAP_COL_NOME] || '').trim();
+      const rowCpf   = String(raw[i][PAP_COL_CPF   - PAP_COL_NOME] || '').replace(/\D/g, '');
+      const rowAtivo = _papEhAtivo_(raw[i][PAP_COL_ATIVO - PAP_COL_NOME]);
       const match    = (cpfLimpo && rowCpf   && rowCpf === cpfLimpo) ||
                        (nomeBusc && rowNome  && rowNome.toLowerCase() === nomeBusc);
       if (!match) continue;
+      if (!rowAtivo) return null;
       if (!rowWhats) return null;
       return { whatsapp: rowWhats, nome: rowNome };
     }
@@ -1349,4 +1375,216 @@ function getMeusPagamentosPAP(cpf) {
 
   return { ok: true, totalComissao, qtd: itens.length,
            formaPgto, periodicidade, chavePix, itens };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 12. CADASTRO DE VENDEDORES PAP (admin/backoffice)
+//     CRUD direto na aba "3 - PAP" cols S-AC. Substitui a edição manual da
+//     planilha. Toggle ATIVO (col AC) gateia (a) login no portal PAP, (b)
+//     listagem em getPagamentosPAP, (c) notificações Evolution.
+//     Adicionado em 03/06/2026.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Aceita admin OU backoffice. Lança erro se nenhum dos dois.
+function _assertAdminOuBackofficePAP_(usuario) {
+  var u = String(usuario || '').trim().toLowerCase();
+  var lista = (typeof _getUsuariosSheet_ === 'function') ? _getUsuariosSheet_() : [];
+  if (!lista || lista.length === 0) lista = (typeof USUARIOS !== 'undefined') ? USUARIOS : [];
+  for (var i = 0; i < lista.length; i++) {
+    var r = lista[i];
+    if (String(r.usuario).trim().toLowerCase() === u && r.ativo !== false) {
+      if (r.perfil === 'admin' || r.perfil === 'backoffice') return;
+    }
+  }
+  throw new Error('Acesso negado: apenas admin ou backoffice podem gerir vendedores PAP.');
+}
+
+// Enums fechados para os selects do form de cadastro.
+var PAP_VENDEDOR_FORMAS = ['Valor do Plano', 'Valor Fixo'];
+var PAP_VENDEDOR_PERIODOS = ['Diário', 'Mensal (20)'];
+
+function _papNormalizarData_(v) {
+  if (!v) return '';
+  if (v instanceof Date && !isNaN(v)) {
+    return Utilities.formatDate(v, 'America/Sao_Paulo', 'dd/MM/yyyy');
+  }
+  return String(v).trim();
+}
+
+// Lista todos os vendedores PAP (S–AC) para a tela de gestão.
+function listarVendedoresPAP(usuario) {
+  try {
+    _assertAdminOuBackofficePAP_(usuario);
+    var sh = _getSpreadsheet_().getSheetByName(PAP_SHEET_PAP);
+    if (!sh) return { ok: false, mensagem: 'Aba "3 - PAP" não encontrada.' };
+    var lastRow = sh.getLastRow();
+    if (lastRow < PAP_FIRST_ROW) return { ok: true, vendedores: [] };
+
+    var numRows = lastRow - PAP_FIRST_ROW + 1;
+    var numCols = PAP_COL_ATIVO - PAP_COL_NOME + 1;
+    var raw = sh.getRange(PAP_FIRST_ROW, PAP_COL_NOME, numRows, numCols).getValues();
+
+    var off = function(col) { return col - PAP_COL_NOME; };
+    var vendedores = [];
+    for (var i = 0; i < raw.length; i++) {
+      var r = raw[i];
+      var nome  = String(r[off(PAP_COL_NOME)]  || '').trim();
+      var cpf   = String(r[off(PAP_COL_CPF)]   || '').replace(/\D/g, '');
+      // Linha completamente vazia = fim útil dos dados.
+      if (!nome && !cpf) continue;
+      vendedores.push({
+        linha:        PAP_FIRST_ROW + i,
+        nome:         nome,
+        whatsapp:     String(r[off(PAP_COL_WHATS)]    || '').trim(),
+        cpf:          cpf,
+        chavePix:     String(r[off(PAP_COL_PIX)]      || '').trim(),
+        formaPgto:    String(r[off(PAP_COL_FORMA)]    || '').trim(),
+        periodicidade: String(r[off(PAP_COL_PERIOD)]  || '').trim(),
+        dataCadastro: _papNormalizarData_(r[off(PAP_COL_DATA_CAD)]),
+        ativo:        _papEhAtivo_(r[off(PAP_COL_ATIVO)])
+      });
+    }
+    return { ok: true, vendedores: vendedores };
+  } catch (e) {
+    Logger.log('listarVendedoresPAP erro: ' + e.message);
+    return { ok: false, mensagem: e.message };
+  }
+}
+
+// Cria (dados.linha falsy) ou atualiza (dados.linha = nº da linha) vendedor PAP.
+// dados = { linha?, nome, cpf, whatsapp, chavePix?, formaPgto, periodicidade, ativo? }
+function salvarVendedorPAP(usuario, dados) {
+  var lock = LockService.getScriptLock();
+  try {
+    _assertAdminOuBackofficePAP_(usuario);
+    if (!dados) return { ok: false, mensagem: 'Dados ausentes.' };
+
+    var nome = String(dados.nome || '').trim();
+    var cpf  = _papNormCpf(dados.cpf);
+    if (!nome)            return { ok: false, mensagem: 'Nome é obrigatório.' };
+    if (cpf.length !== 11) return { ok: false, mensagem: 'CPF inválido (11 dígitos).' };
+    if (PAP_VENDEDOR_FORMAS.indexOf(dados.formaPgto) === -1) {
+      return { ok: false, mensagem: 'Forma de pagamento inválida.' };
+    }
+    if (PAP_VENDEDOR_PERIODOS.indexOf(dados.periodicidade) === -1) {
+      return { ok: false, mensagem: 'Periodicidade inválida.' };
+    }
+
+    // WhatsApp: normaliza via helper compartilhado (10 dígitos canônicos).
+    // Em DM com privacy ON o vendedor pode não ter whatsapp ainda — opcional.
+    var whatsRaw = String(dados.whatsapp || '').trim();
+    var whats = '';
+    if (whatsRaw) {
+      var norm = (typeof _normalizePhoneBR_ === 'function') ? _normalizePhoneBR_(whatsRaw) : whatsRaw.replace(/\D/g, '');
+      if (!norm || norm.length < 10) return { ok: false, mensagem: 'WhatsApp inválido.' };
+      whats = whatsRaw; // preserva o que o backoffice digitou (Evolution normaliza no envio)
+    }
+
+    lock.waitLock(10000);
+
+    var sh = _getSpreadsheet_().getSheetByName(PAP_SHEET_PAP);
+    if (!sh) return { ok: false, mensagem: 'Aba "3 - PAP" não encontrada.' };
+
+    var linha = parseInt(dados.linha, 10) || 0;
+    var ehUpdate = linha >= PAP_FIRST_ROW;
+
+    // Unicidade do CPF (exclui a própria linha em update).
+    var lastRow = sh.getLastRow();
+    if (lastRow >= PAP_FIRST_ROW) {
+      var rawCpf = sh.getRange(PAP_FIRST_ROW, PAP_COL_CPF, lastRow - PAP_FIRST_ROW + 1, 1).getValues();
+      for (var i = 0; i < rawCpf.length; i++) {
+        var rowNum = PAP_FIRST_ROW + i;
+        if (ehUpdate && rowNum === linha) continue;
+        var cpfExistente = String(rawCpf[i][0] || '').replace(/\D/g, '');
+        if (cpfExistente === cpf) {
+          return { ok: false, mensagem: 'Já existe vendedor com este CPF (linha ' + rowNum + ').' };
+        }
+      }
+    }
+
+    // Em cadastro novo: acha primeira linha vazia ≥ PAP_FIRST_ROW (varre col S).
+    if (!ehUpdate) {
+      linha = PAP_FIRST_ROW;
+      if (lastRow >= PAP_FIRST_ROW) {
+        var rawNome = sh.getRange(PAP_FIRST_ROW, PAP_COL_NOME, lastRow - PAP_FIRST_ROW + 1, 1).getValues();
+        var encontrouVazia = false;
+        for (var j = 0; j < rawNome.length; j++) {
+          if (!String(rawNome[j][0] || '').trim()) {
+            linha = PAP_FIRST_ROW + j;
+            encontrouVazia = true;
+            break;
+          }
+        }
+        if (!encontrouVazia) linha = lastRow + 1;
+      }
+    }
+
+    // Grava cada coluna individualmente (range S–AC tem células reservadas Y/Z não-usadas).
+    var ativoFinal = dados.ativo === false ? false : true;
+    sh.getRange(linha, PAP_COL_NOME).setValue(nome);
+    sh.getRange(linha, PAP_COL_WHATS).setValue(whats);
+    sh.getRange(linha, PAP_COL_CPF).setValue(cpf);
+    sh.getRange(linha, PAP_COL_PIX).setValue(String(dados.chavePix || '').trim());
+    sh.getRange(linha, PAP_COL_FORMA).setValue(dados.formaPgto);
+    sh.getRange(linha, PAP_COL_PERIOD).setValue(dados.periodicidade);
+    sh.getRange(linha, PAP_COL_ATIVO).setValue(ativoFinal);
+
+    // Data de cadastro: preenche só se vazia (preserva histórico em updates).
+    var dataAtual = sh.getRange(linha, PAP_COL_DATA_CAD).getValue();
+    if (!dataAtual) {
+      sh.getRange(linha, PAP_COL_DATA_CAD).setValue(_papNow());
+    }
+
+    SpreadsheetApp.flush();
+    return {
+      ok: true,
+      mensagem: ehUpdate ? 'Vendedor atualizado.' : 'Vendedor cadastrado.',
+      linha: linha
+    };
+  } catch (e) {
+    Logger.log('salvarVendedorPAP erro: ' + e.message);
+    return { ok: false, mensagem: e.message };
+  } finally {
+    try { lock.releaseLock(); } catch (_) {}
+  }
+}
+
+// Ativa/desativa vendedor (col AC).
+function toggleAtivoVendedorPAP(usuario, linha, ativo) {
+  try {
+    _assertAdminOuBackofficePAP_(usuario);
+    linha = parseInt(linha, 10);
+    if (!(linha >= PAP_FIRST_ROW)) return { ok: false, mensagem: 'Linha inválida.' };
+    var sh = _getSpreadsheet_().getSheetByName(PAP_SHEET_PAP);
+    if (!sh) return { ok: false, mensagem: 'Aba "3 - PAP" não encontrada.' };
+    sh.getRange(linha, PAP_COL_ATIVO).setValue(ativo === true);
+    SpreadsheetApp.flush();
+    return { ok: true, mensagem: ativo ? 'Vendedor ativado.' : 'Vendedor desativado.' };
+  } catch (e) {
+    Logger.log('toggleAtivoVendedorPAP erro: ' + e.message);
+    return { ok: false, mensagem: e.message };
+  }
+}
+
+// Soft-delete: marca ativo=false em vez de remover linha (preserva
+// vendas históricas que referenciam o nome do vendedor no campo RESP).
+function excluirVendedorPAP(usuario, linha) {
+  try {
+    _assertAdminOuBackofficePAP_(usuario);
+    linha = parseInt(linha, 10);
+    if (!(linha >= PAP_FIRST_ROW)) return { ok: false, mensagem: 'Linha inválida.' };
+    var sh = _getSpreadsheet_().getSheetByName(PAP_SHEET_PAP);
+    if (!sh) return { ok: false, mensagem: 'Aba "3 - PAP" não encontrada.' };
+    sh.getRange(linha, PAP_COL_ATIVO).setValue(false);
+    SpreadsheetApp.flush();
+    return { ok: true, mensagem: 'Vendedor desativado (histórico preservado).' };
+  } catch (e) {
+    Logger.log('excluirVendedorPAP erro: ' + e.message);
+    return { ok: false, mensagem: e.message };
+  }
+}
+
+// Injeta a página VendedoresPAP.html no CRM.
+function getVendedoresPAPHtml() {
+  return HtmlService.createHtmlOutputFromFile('VendedoresPAP').getContent();
 }

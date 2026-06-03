@@ -100,20 +100,61 @@ function _waColIdx_(header, nome) {
   return -1;
 }
 
-function _waUpsertInstanciaLinha_(usuario, patch) {
+function _waObjLinha_(header, linha, row) {
+  var obj = {};
+  header.forEach(function(h, j) { obj[h] = linha[j]; });
+  if (row) obj._row = row;
+  return obj;
+}
+
+function _waAliasDefault_(alias) {
+  var a = String(alias || '').trim();
+  return a || 'Principal';
+}
+
+function _waSanitizeInstancePart_(v) {
+  return String(v || '').trim().replace(/[^A-Za-z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function _waInstanceNameFromAlias_(usuario, alias) {
+  var a = _waAliasDefault_(alias);
+  if (a.toLowerCase() === 'principal') return _instanceNameFromUser_(usuario);
+  var base = _instanceNameFromUser_(usuario);
+  var part = _waSanitizeInstancePart_(a) || 'chip';
+  return base + '_' + part;
+}
+
+function _waInstanciaMatches_(row, idxUsr, idxAlias, idxInst, usuario, selector) {
+  if (String(row[idxUsr]) !== String(usuario)) return false;
+  if (!selector) return true;
+  var sel = String(selector).trim().toLowerCase();
+  var alias = idxAlias >= 0 ? String(row[idxAlias] || '').trim().toLowerCase() : '';
+  var inst = idxInst >= 0 ? String(row[idxInst] || '').trim().toLowerCase() : '';
+  return alias === sel || inst === sel;
+}
+
+function _waUpsertInstanciaLinha_(usuario, patch, selector) {
   var sh = _waSheet_(CFG_WA_PESSOAL.ABA_INSTANCIAS);
   var data = _waLerLinhas_(sh);
   var idxUsr = _waColIdx_(data.header, 'usuario');
+  var idxAlias = _waColIdx_(data.header, 'alias');
+  var idxInst = _waColIdx_(data.header, 'instance_id');
+  var lookup = selector || (patch && (patch.instance_id || patch.alias));
   var rowIdx = -1;
   for (var i = 0; i < data.linhas.length; i++) {
-    if (String(data.linhas[i][idxUsr]) === usuario) { rowIdx = i; break; }
+    if (_waInstanciaMatches_(data.linhas[i], idxUsr, idxAlias, idxInst, usuario, lookup)) { rowIdx = i; break; }
   }
   if (rowIdx < 0) {
     var novaLinha = data.header.map(function() { return ''; });
     novaLinha[idxUsr] = usuario;
-    novaLinha[_waColIdx_(data.header, 'daily_count')] = 0;
-    novaLinha[_waColIdx_(data.header, 'daily_date')] = '';
-    novaLinha[_waColIdx_(data.header, 'daily_limit')] = _getCfgWaPessoal_().daily_limit;
+    var idxDailyCount = _waColIdx_(data.header, 'daily_count');
+    var idxDailyDate = _waColIdx_(data.header, 'daily_date');
+    var idxDailyLimit = _waColIdx_(data.header, 'daily_limit');
+    if (idxDailyCount >= 0) novaLinha[idxDailyCount] = 0;
+    if (idxDailyDate >= 0) novaLinha[idxDailyDate] = '';
+    if (idxDailyLimit >= 0) novaLinha[idxDailyLimit] = _getCfgWaPessoal_().daily_limit;
+    if (idxAlias >= 0) novaLinha[idxAlias] = _waAliasDefault_(patch && patch.alias);
+    if (idxInst >= 0) novaLinha[idxInst] = (patch && patch.instance_id) || _waInstanceNameFromAlias_(usuario, patch && patch.alias);
     Object.keys(patch || {}).forEach(function(k) {
       var ci = _waColIdx_(data.header, k);
       if (ci >= 0) novaLinha[ci] = patch[k];
@@ -130,19 +171,68 @@ function _waUpsertInstanciaLinha_(usuario, patch) {
   return linha;
 }
 
-function _waInstanciaPorUsuario_(usuario) {
+function _waInstanciasPorUsuario_(usuario) {
   var sh = _waSheet_(CFG_WA_PESSOAL.ABA_INSTANCIAS);
   var data = _waLerLinhas_(sh);
   var idxUsr = _waColIdx_(data.header, 'usuario');
+  var out = [];
   for (var i = 0; i < data.linhas.length; i++) {
     if (String(data.linhas[i][idxUsr]) === usuario) {
-      var obj = {};
-      data.header.forEach(function(h, j) { obj[h] = data.linhas[i][j]; });
-      obj._row = i + 2;
-      return obj;
+      var obj = _waObjLinha_(data.header, data.linhas[i], i + 2);
+      obj.alias = _waAliasDefault_(obj.alias);
+      obj.instance_id = obj.instance_id || _waInstanceNameFromAlias_(usuario, obj.alias);
+      out.push(obj);
+    }
+  }
+  return out;
+}
+
+function _waInstanciaPorUsuario_(usuario, selector) {
+  var lista = _waInstanciasPorUsuario_(usuario);
+  if (!lista.length && !selector) {
+    return {
+      usuario: usuario,
+      alias: 'Principal',
+      instance_id: _instanceNameFromUser_(usuario),
+      status: 'desconectado',
+      daily_count: 0,
+      daily_date: '',
+      daily_limit: _getCfgWaPessoal_().daily_limit
+    };
+  }
+  if (!selector) return lista[0] || null;
+  var sel = String(selector).trim().toLowerCase();
+  for (var i = 0; i < lista.length; i++) {
+    if (String(lista[i].alias || '').trim().toLowerCase() === sel ||
+        String(lista[i].instance_id || '').trim().toLowerCase() === sel) {
+      return lista[i];
     }
   }
   return null;
+}
+
+function _waResolverInstanciaCampanha_(usuario, dados) {
+  dados = dados || {};
+  var selector = dados.instanceName || dados.instance_name || dados.instanceAlias || dados.instance_alias || dados.alias;
+  var lista = _waInstanciasPorUsuario_(usuario);
+  if (!lista.length) {
+    return {
+      usuario: usuario,
+      alias: 'Principal',
+      instance_id: _instanceNameFromUser_(usuario),
+      status: 'desconectado',
+      daily_count: 0,
+      daily_date: '',
+      daily_limit: _getCfgWaPessoal_().daily_limit
+    };
+  }
+  if (!selector) {
+    if (lista.length === 1) return lista[0];
+    throw new Error('Escolha de qual WhatsApp enviar.');
+  }
+  var inst = _waInstanciaPorUsuario_(usuario, selector);
+  if (!inst) throw new Error('InstÃ¢ncia "' + selector + '" nÃ£o encontrada para este usuÃ¡rio.');
+  return inst;
 }
 
 // ── AUTENTICAÇÃO ───────────────────────────────────────────────────────────────
@@ -211,7 +301,107 @@ function getDispPessoalHtml() {
   return HtmlService.createHtmlOutputFromFile('DispPessoal').getContent();
 }
 
-// ── INSTÂNCIAS ─────────────────────────────────────────────────────────────────
+function migrarWaCampanhaMultiInstancia() {
+  var ss = _getSpreadsheet_();
+  if (!ss) throw new Error('Planilha principal nao encontrada (_getSpreadsheet_).');
+
+  function ensureCol(sh, nome) {
+    var lastCol = Math.max(1, sh.getLastColumn());
+    var header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    for (var i = 0; i < header.length; i++) {
+      if (String(header[i]).trim() === nome) return i + 1;
+    }
+    sh.getRange(1, lastCol + 1).setValue(nome).setFontWeight('bold').setBackground('#f1f3f4');
+    return lastCol + 1;
+  }
+
+  function colIdx(header, nome) {
+    for (var i = 0; i < header.length; i++) {
+      if (String(header[i]).trim() === nome) return i;
+    }
+    return -1;
+  }
+
+  var out = {};
+  var shInst = ss.getSheetByName(CFG_WA_PESSOAL.ABA_INSTANCIAS);
+  if (!shInst) throw new Error('Aba WA Instancias nao encontrada.');
+  out.alias_col = ensureCol(shInst, 'alias');
+  var instRows = Math.max(0, shInst.getLastRow() - 1);
+  if (instRows) {
+    var instHeader = shInst.getRange(1, 1, 1, shInst.getLastColumn()).getValues()[0];
+    var idxUsuario = colIdx(instHeader, 'usuario');
+    var idxInst = colIdx(instHeader, 'instance_id');
+    var idxAlias = colIdx(instHeader, 'alias');
+    var instData = shInst.getRange(2, 1, instRows, shInst.getLastColumn()).getValues();
+    out.instancias_alias_preenchidos = 0;
+    for (var r = 0; r < instData.length; r++) {
+      if (!instData[r][idxAlias]) { instData[r][idxAlias] = 'Principal'; out.instancias_alias_preenchidos++; }
+      if (!instData[r][idxInst]) instData[r][idxInst] = _instanceNameFromUser_(instData[r][idxUsuario]);
+    }
+    shInst.getRange(2, 1, instData.length, instHeader.length).setValues(instData);
+  }
+
+  var shCamp = ss.getSheetByName(CFG_WA_PESSOAL.ABA_CAMPANHAS);
+  if (!shCamp) throw new Error('Aba WA Campanhas nao encontrada.');
+  out.instance_name_col = ensureCol(shCamp, 'instance_name');
+  var campRows = Math.max(0, shCamp.getLastRow() - 1);
+  if (campRows) {
+    var campHeader = shCamp.getRange(1, 1, 1, shCamp.getLastColumn()).getValues()[0];
+    var idxUsrCamp = colIdx(campHeader, 'usuario');
+    var idxInstCamp = colIdx(campHeader, 'instance_name');
+    var campData = shCamp.getRange(2, 1, campRows, shCamp.getLastColumn()).getValues();
+    out.campanhas_instance_name_preenchidos = 0;
+    for (var c = 0; c < campData.length; c++) {
+      if (!campData[c][idxInstCamp]) {
+        campData[c][idxInstCamp] = _instanceNameFromUser_(campData[c][idxUsrCamp]);
+        out.campanhas_instance_name_preenchidos++;
+      }
+    }
+    shCamp.getRange(2, 1, campData.length, campHeader.length).setValues(campData);
+  }
+
+  Logger.log(JSON.stringify(out));
+  return out;
+}
+
+function registrarInstanciaWaCampanha(usuario, alias, instanceName, phoneDisplay, dailyLimit) {
+  _assertWaUser_(usuario);
+  alias = _waAliasDefault_(alias);
+  instanceName = String(instanceName || '').trim();
+  if (!instanceName) throw new Error('instanceName obrigatorio.');
+  var atual = _waInstanciaPorUsuario_(usuario, instanceName) || _waInstanciaPorUsuario_(usuario, alias);
+  var patch = {
+    alias: alias,
+    instance_id: instanceName,
+    phone_display: String(phoneDisplay || ''),
+    status: 'conectado',
+    daily_limit: dailyLimit || _getCfgWaPessoal_().daily_limit
+  };
+  if (!atual) {
+    patch.daily_count = 0;
+    patch.daily_date = '';
+  }
+  var linha = _waUpsertInstanciaLinha_(usuario, patch, instanceName);
+  return _waNormalizarParaCliente_({
+    ok: true,
+    usuario: usuario,
+    alias: alias,
+    instance_name: instanceName,
+    instance_id: instanceName,
+    phone_display: phoneDisplay || '',
+    linha: linha
+  });
+}
+
+function registrarInstanciaPapRicardoWaCampanha() {
+  return registrarInstanciaWaCampanha(
+    'Ricardo.Andrade',
+    'PAP',
+    'mobile-vendedores',
+    '+55 32 2888-0150',
+    30
+  );
+}// ── INSTÂNCIAS ─────────────────────────────────────────────────────────────────
 
 /**
  * Estado da instância do usuário.
@@ -219,10 +409,12 @@ function getDispPessoalHtml() {
  *   status: 'desconectado' | 'conectando' | 'conectado' | 'erro'
  *   qrcode: data URL base64 (apenas se status=conectando)
  */
-function getMinhaInstancia(usuario, usuarioAlvo) {
+function getMinhaInstancia(usuario, usuarioAlvo, instanceAliasOrName) {
   try {
     var alvo = _resolveUsuarioAlvo_(usuario, usuarioAlvo);
-    var instance = _instanceNameFromUser_(alvo);
+    var local = _waInstanciaPorUsuario_(alvo, instanceAliasOrName);
+    if (!local) throw new Error('Instancia nao encontrada para ' + alvo + '.');
+    var instance = local.instance_id || _waInstanceNameFromAlias_(alvo, local.alias);
     var info;
     try {
       info = _evolutionFetch_('GET', '/instance/connectionState/' + encodeURIComponent(instance));
@@ -230,10 +422,11 @@ function getMinhaInstancia(usuario, usuarioAlvo) {
       info = null;
     }
 
-    var local = _waInstanciaPorUsuario_(alvo) || {};
     var resp = {
       ok: true,
       usuario: alvo,
+      alias: _waAliasDefault_(local.alias),
+      instance_name: instance,
       instance_id: instance,
       status: 'desconectado',
       phone: local.phone_display || '',
@@ -253,12 +446,53 @@ function getMinhaInstancia(usuario, usuarioAlvo) {
     else if (state === 'close') resp.status = 'desconectado';
     else resp.status = state || 'desconectado';
 
-    // Atualiza phone_display se a Evolution já tem owner identificado
-    if (info.instance && info.instance.profileName) {
-      resp.phone = info.instance.owner || resp.phone;
+    // Quando conectada, /connectionState nao traz owner — busca via /fetchInstances
+    // pra carimbar phone_display no sheet e popular o dropdown "Enviar de".
+    if (resp.status === 'conectado' && !resp.phone) {
+      try {
+        var all = _evolutionFetch_('GET', '/instance/fetchInstances?instanceName=' + encodeURIComponent(instance));
+        var item = Array.isArray(all) ? all[0] : null;
+        var owner = item && item.instance && item.instance.owner;
+        if (owner) {
+          var ownerPhone = String(owner).replace(/@.*$/, '');
+          if (ownerPhone) {
+            resp.phone = ownerPhone;
+            try { _waUpsertInstanciaLinha_(alvo, { phone_display: ownerPhone }, instance); } catch (eU) {}
+          }
+        }
+      } catch (eF) { /* silent — phone fica vazio mesmo */ }
     }
 
     return _waNormalizarParaCliente_(resp);
+  } catch (e) {
+    return { ok: false, mensagem: e.message };
+  }
+}
+
+/** Lista todas as instancias/chips registrados para o usuario-alvo. */
+function getMinhasInstancias(usuario, usuarioAlvo) {
+  try {
+    var alvo = _resolveUsuarioAlvo_(usuario, usuarioAlvo);
+    var lista = _waInstanciasPorUsuario_(alvo);
+    if (!lista.length) lista = [_waInstanciaPorUsuario_(alvo)];
+    var out = lista.map(function(inst) {
+      var r = getMinhaInstancia(usuario, alvo, inst.instance_id || inst.alias);
+      if (r && r.ok) return r;
+      var instance = inst.instance_id || _waInstanceNameFromAlias_(alvo, inst.alias);
+      return {
+        ok: true,
+        usuario: alvo,
+        alias: _waAliasDefault_(inst.alias),
+        instance_name: instance,
+        instance_id: instance,
+        status: inst.status || 'desconectado',
+        phone: inst.phone_display || '',
+        daily_count: Number(inst.daily_count || 0),
+        daily_limit: Number(inst.daily_limit || _getCfgWaPessoal_().daily_limit),
+        daily_date: inst.daily_date || ''
+      };
+    });
+    return _waNormalizarParaCliente_({ ok: true, usuario: alvo, data: out });
   } catch (e) {
     return { ok: false, mensagem: e.message };
   }
@@ -268,10 +502,12 @@ function getMinhaInstancia(usuario, usuarioAlvo) {
  * Cria a instância na Evolution API (se não existe) e retorna o QR Code base64.
  * Se já existe e não está conectada, força reconectar.
  */
-function criarOuReconectarInstancia(usuario) {
+function criarOuReconectarInstancia(usuario, alias) {
   try {
     _assertWaUser_(usuario);
-    var instance = _instanceNameFromUser_(usuario);
+    var aliasFinal = _waAliasDefault_(alias);
+    var existente = _waInstanciaPorUsuario_(usuario, aliasFinal);
+    var instance = (existente && existente.instance_id) || _waInstanceNameFromAlias_(usuario, aliasFinal);
 
     // 1. Verifica se já existe
     var estado = null;
@@ -300,21 +536,24 @@ function criarOuReconectarInstancia(usuario) {
     }
 
     _waUpsertInstanciaLinha_(usuario, {
+      alias: aliasFinal,
       instance_id: instance,
       status: 'conectando'
-    });
+    }, aliasFinal);
 
-    return { ok: true, qrcode: qrBase64, instance_id: instance };
+    return { ok: true, qrcode: qrBase64, alias: aliasFinal, instance_id: instance, instance_name: instance };
   } catch (e) {
     return { ok: false, mensagem: e.message };
   }
 }
 
 /** Desconecta e remove a instância da Evolution API. */
-function deletarInstancia(usuario) {
+function deletarInstancia(usuario, instanceAliasOrName) {
   try {
     _assertWaUser_(usuario);
-    var instance = _instanceNameFromUser_(usuario);
+    var local = _waInstanciaPorUsuario_(usuario, instanceAliasOrName);
+    if (!local) throw new Error('Instancia nao encontrada.');
+    var instance = local.instance_id || _waInstanceNameFromAlias_(usuario, local.alias);
     try { _evolutionFetch_('DELETE', '/instance/logout/' + encodeURIComponent(instance), null); } catch (e) {}
     try {
       _evolutionFetch_('DELETE', '/instance/delete/' + encodeURIComponent(instance), null);
@@ -322,7 +561,7 @@ function deletarInstancia(usuario) {
       // HTTP 404 = instância já não existe → o objetivo (remover) já está cumprido
       if (String(e.message || '').indexOf('HTTP 404') < 0) throw e;
     }
-    _waUpsertInstanciaLinha_(usuario, { status: 'desconectado', phone_display: '' });
+    _waUpsertInstanciaLinha_(usuario, { status: 'desconectado', phone_display: '' }, instance);
     return { ok: true };
   } catch (e) {
     return { ok: false, mensagem: e.message };
@@ -666,11 +905,18 @@ function getCampanhasUsuario(usuario, usuarioAlvo) {
     var sh = _waSheet_(CFG_WA_PESSOAL.ABA_CAMPANHAS);
     var data = _waLerLinhas_(sh);
     var idxUsr = _waColIdx_(data.header, 'usuario');
+    var instancias = _waInstanciasPorUsuario_(alvo);
+    var instPorNome = {};
+    instancias.forEach(function(inst) {
+      if (inst.instance_id) instPorNome[String(inst.instance_id)] = inst;
+    });
     var camps = [];
     for (var i = 0; i < data.linhas.length; i++) {
       if (String(data.linhas[i][idxUsr]) !== alvo) continue;
       var obj = {};
       data.header.forEach(function(h, j) { obj[h] = data.linhas[i][j]; });
+      obj.instance_name = obj.instance_name || _instanceNameFromUser_(alvo);
+      obj.instance_alias = (instPorNome[String(obj.instance_name)] && instPorNome[String(obj.instance_name)].alias) || '';
       obj._row = i + 2;
       camps.push(obj);
     }
@@ -718,6 +964,9 @@ function criarCampanha(usuario, dados) {
       if (variacoesLimpa.length) variacoesJson = JSON.stringify(variacoesLimpa);
     }
 
+    var instSelecionada = _waResolverInstanciaCampanha_(usuario, dados);
+    var instance = instSelecionada.instance_id || _waInstanceNameFromAlias_(usuario, instSelecionada.alias);
+
     var shCamps = _waSheet_(CFG_WA_PESSOAL.ABA_CAMPANHAS);
     var shDisp  = _waSheet_(CFG_WA_PESSOAL.ABA_DISPAROS);
     var imagemUrl = String(dados.imagem_url || '').trim();
@@ -726,7 +975,6 @@ function criarCampanha(usuario, dados) {
     //    Telefone repetido no mailing vira UMA linha só. Sem dedup, cada duplicata
     //    é um disparo real e os updates de status por (campanha,phone) se espalham
     //    entre as linhas irmãs — inflando total_enviado/total_respondeu.
-    var instance = _instanceNameFromUser_(usuario);
     var vistosFone = {};
     var rowsDisp = [];
     (dados.contatos || []).forEach(function(c) {
@@ -744,11 +992,28 @@ function criarCampanha(usuario, dados) {
     // 2. Linha em WA Campanhas (total_contatos = nº já deduplicado)
     //    col M = variacoes_json (via _addColunaVariacoes)
     //    col N = imagem_url (via _addColunaImagemUrl)
-    shCamps.appendRow([
-      camp_id, usuario, dados.nome, new Date(), 'ativa',
-      rowsDisp.length, 0, 0, 0, dados.template_msg, delay_min, delay_max,
-      variacoesJson, imagemUrl
-    ]);
+    var headerCamp = shCamps.getRange(1, 1, 1, Math.max(1, shCamps.getLastColumn())).getValues()[0];
+    var rowCamp = headerCamp.map(function() { return ''; });
+    function setCamp(col, val) {
+      var idx = _waColIdx_(headerCamp, col);
+      if (idx >= 0) rowCamp[idx] = val;
+    }
+    setCamp('id', camp_id);
+    setCamp('usuario', usuario);
+    setCamp('nome', dados.nome);
+    setCamp('criado_em', new Date());
+    setCamp('status', 'ativa');
+    setCamp('total_contatos', rowsDisp.length);
+    setCamp('total_enviado', 0);
+    setCamp('total_respondeu', 0);
+    setCamp('total_erro', 0);
+    setCamp('template_msg', dados.template_msg);
+    setCamp('delay_min', delay_min);
+    setCamp('delay_max', delay_max);
+    setCamp('variacoes_json', variacoesJson);
+    setCamp('imagem_url', imagemUrl);
+    setCamp('instance_name', instance);
+    shCamps.appendRow(rowCamp);
 
     // 3. Linhas em WA Disparos (lote)
     shDisp.getRange(shDisp.getLastRow() + 1, 1, rowsDisp.length, rowsDisp[0].length).setValues(rowsDisp);
@@ -761,13 +1026,13 @@ function criarCampanha(usuario, dados) {
         UrlFetchApp.fetch(n8nUrl, {
           method: 'post',
           contentType: 'application/json',
-          payload: JSON.stringify({ campanha_id: camp_id, usuario: usuario }),
+          payload: JSON.stringify({ campanha_id: camp_id, usuario: usuario, instance_name: instance }),
           muteHttpExceptions: true
         });
       } catch (e) { Logger.log('Webhook n8n falhou: ' + e.message); }
     }
 
-    return { ok: true, campanha_id: camp_id, total: rowsDisp.length,
+    return { ok: true, campanha_id: camp_id, total: rowsDisp.length, instance_name: instance,
              recebidos: (dados.contatos || []).length };
   } finally {
     lock.releaseLock();
@@ -1057,7 +1322,7 @@ function getContatosParaCampanha(usuario, fonte) {
  *   instancias: [{ usuario, status, daily_count, daily_limit, ... }]
  * }
  */
-function getSaudeWaPessoal(usuario, usuarioAlvo) {
+function getSaudeWaPessoal(usuario, usuarioAlvo, instanceAliasOrName) {
   try {
     var u = _assertWaUser_(usuario);
     var isAdmin = String(u.perfil || '').toLowerCase() === 'admin';
@@ -1076,9 +1341,20 @@ function getSaudeWaPessoal(usuario, usuarioAlvo) {
     // Filtra disparos do escopo
     var idxIdCamp  = _waColIdx_(dCamps.header, 'id');
     var idxUsrCamp = _waColIdx_(dCamps.header, 'usuario');
+    var filtroInstancia = '';
+    if (instanceAliasOrName && alvo !== '__all__') {
+      var instFiltro = _waInstanciaPorUsuario_(alvo, instanceAliasOrName);
+      if (!instFiltro) throw new Error('Instancia nao encontrada para filtro de saude.');
+      filtroInstancia = String(instFiltro.instance_id || '');
+    }
+
     var campIds = {};
+    var idxInstCamp = _waColIdx_(dCamps.header, 'instance_name');
     dCamps.linhas.forEach(function(r) {
-      if (alvo === '__all__' || String(r[idxUsrCamp]) === alvo) campIds[r[idxIdCamp]] = 1;
+      var inUser = alvo === '__all__' || String(r[idxUsrCamp]) === alvo;
+      var instCamp = idxInstCamp >= 0 ? String(r[idxInstCamp] || '') : '';
+      var inInst = !filtroInstancia || !instCamp || instCamp === filtroInstancia;
+      if (inUser && inInst) campIds[r[idxIdCamp]] = 1;
     });
 
     var idxCampDisp   = _waColIdx_(dDisp.header, 'campanha_id');
@@ -1088,8 +1364,12 @@ function getSaudeWaPessoal(usuario, usuarioAlvo) {
     var idxLido       = _waColIdx_(dDisp.header, 'lido_em');
     var idxResp       = _waColIdx_(dDisp.header, 'respondeu_em');
 
-    var disparos = (alvo === '__all__') ? dDisp.linhas
-      : dDisp.linhas.filter(function(r) { return campIds[r[idxCampDisp]]; });
+    var idxInstDisp = _waColIdx_(dDisp.header, 'instance_id');
+    var disparos = (alvo === '__all__' && !filtroInstancia) ? dDisp.linhas
+      : dDisp.linhas.filter(function(r) {
+          if (!campIds[r[idxCampDisp]]) return false;
+          return !filtroInstancia || idxInstDisp < 0 || String(r[idxInstDisp] || '') === filtroInstancia;
+        });
 
     function asDate(v) {
       if (!v) return null;
@@ -1216,8 +1496,12 @@ function getSaudeWaPessoal(usuario, usuarioAlvo) {
     var idxDailyCount = _waColIdx_(dInst.header, 'daily_count');
     var idxDailyLimit = _waColIdx_(dInst.header, 'daily_limit');
     var idxDailyDate  = _waColIdx_(dInst.header, 'daily_date');
+    var idxInstName = _waColIdx_(dInst.header, 'instance_id');
     var instLinhas = (alvo === '__all__') ? dInst.linhas
-      : dInst.linhas.filter(function(r) { return String(r[idxUsrInst]) === alvo; });
+      : dInst.linhas.filter(function(r) {
+          if (String(r[idxUsrInst]) !== alvo) return false;
+          return !filtroInstancia || idxInstName < 0 || String(r[idxInstName] || '') === filtroInstancia;
+        });
     var instancias = instLinhas.map(function(r) {
       var o = {};
       dInst.header.forEach(function(h, j) { o[h] = r[j]; });
@@ -1532,10 +1816,11 @@ function _handleWaPessoalUpdate_(payload) {
     if (payload.increment_daily) {
       var usuario = payload.usuario;
       if (usuario) {
-        var inst = _waInstanciaPorUsuario_(usuario) || {};
+        var instSelector = payload.instance_name || payload.instance || payload.instance_id;
+        var inst = _waInstanciaPorUsuario_(usuario, instSelector) || {};
         var hoje = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
         var dc = (String(inst.daily_date) === hoje) ? (Number(inst.daily_count) || 0) + 1 : 1;
-        _waUpsertInstanciaLinha_(usuario, { daily_count: dc, daily_date: hoje });
+        _waUpsertInstanciaLinha_(usuario, { daily_count: dc, daily_date: hoje }, instSelector || (inst && inst.instance_id));
       }
     }
 
@@ -1661,6 +1946,7 @@ function _handleWaPessoalMarkRespondeu_(payload) {
  * Retorno: { ok: true, disparo: {...} | null }
  */
 function _handleWaPessoalNextPending_(payload) {
+  var campInfo = payload && payload.campanha_id ? _waCampanhaInfoPorId_(payload.campanha_id) : null;
   if (!payload.campanha_id) return { ok: false, mensagem: 'campanha_id obrigatório.' };
   var sh = _waSheet_(CFG_WA_PESSOAL.ABA_DISPAROS);
   var lastRow = sh.getLastRow();
@@ -1685,12 +1971,25 @@ function _handleWaPessoalNextPending_(payload) {
       header.forEach(function(h, j) { disparo[h] = valores[j]; });
       disparo.status = 'enviando';
       disparo._row = row;
+      disparo.instance_name = (campInfo && campInfo.instance_name) || disparo.instance_id || '';
+      if (!disparo.instance_id && disparo.instance_name) disparo.instance_id = disparo.instance_name;
       return { ok: true, disparo: _waNormalizarParaCliente_(disparo) };
     }
   }
   // Sem pendentes → marca campanha como concluída (se ainda estiver 'ativa')
   var concluiu = _concluirCampanhaSeAtiva_(payload.campanha_id);
   return { ok: true, disparo: null, conclusao: concluiu };
+}
+
+function _waCampanhaInfoPorId_(campanhaId) {
+  var sh = _waSheet_(CFG_WA_PESSOAL.ABA_CAMPANHAS);
+  var data = _waLerLinhas_(sh);
+  var idxId = _waColIdx_(data.header, 'id');
+  for (var i = 0; i < data.linhas.length; i++) {
+    if (String(data.linhas[i][idxId]) !== String(campanhaId)) continue;
+    return _waObjLinha_(data.header, data.linhas[i], i + 2);
+  }
+  return null;
 }
 
 /**

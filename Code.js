@@ -2129,9 +2129,10 @@ function sincronizarTagsBotConversa(forcar) {
 // Filtros: Produto=FIBRA ALONE/COMBO, Canal=PAP, Status=3 - Finalizada/Instalada, PAP=Em Aberto
 //
 // Configuração por vendedor (aba "3 - PAP"):
-//   col AA (idx 8 no range S–AB) = Forma de Pagamento  → "Valor do Plano" | "Valor Fixo"
-//   col AB (idx 9 no range S–AB) = Periodicidade       → "Diário" | "Mensal (20)"
-// Vendedor sem Forma definida ou com valor desconhecido → omitido da lista.
+//   col AA (idx 8 no range S–AC) = Forma de Pagamento  → "Valor do Plano" | "Valor Fixo"
+//   col AB (idx 9 no range S–AC) = Periodicidade       → "Diário" | "Mensal (20)"
+//   col AC (idx 10 no range S–AC) = ATIVO              → boolean (03/06/2026)
+// Vendedor sem Forma definida, valor desconhecido ou ATIVO=false → omitido da lista.
 function getPagamentosPAP() {
   try {
   var ss      = _getSpreadsheet_();
@@ -2152,15 +2153,18 @@ function getPagamentosPAP() {
       var ultimaPAP = shPAP.getLastRow();
       if (ultimaPAP >= 2) {
         // Col S=19(vendedor) T=20(idbot) U=21(whatsapp) V=22(dataCad) W=23(cpf)
-        // X=24(chavePix) Y=25 Z=26 AA=27(formaPgto) AB=28(periodicidade)
-        var rawPAP = shPAP.getRange(2, 19, ultimaPAP - 1, 10).getValues();
+        // X=24(chavePix) Y=25 Z=26 AA=27(formaPgto) AB=28(periodicidade) AC=29(ativo)
+        var rawPAP = shPAP.getRange(2, 19, ultimaPAP - 1, 11).getValues();
         rawPAP.forEach(function(r) {
           var vendedor      = String(r[0] || '').trim();
           var whatsapp      = String(r[2] || '').trim();
           var chavePix      = String(r[5] || '').trim();
           var formaPgto     = String(r[8] || '').trim();
           var periodicidade = String(r[9] || '').trim();
-          if (vendedor) {
+          // Vendedor inativo (col AC = false) é omitido — vendas históricas
+          // do RESP não aparecerão em "Pagamentos PAP".
+          var ehAtivo = (typeof _papEhAtivo_ === 'function') ? _papEhAtivo_(r[10]) : (r[10] !== false);
+          if (vendedor && ehAtivo) {
             mapaPAP[vendedor.toUpperCase()] = {
               chavePix: chavePix,
               whatsapp: whatsapp,

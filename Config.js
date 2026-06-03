@@ -9,7 +9,7 @@
 
 // ── VERSÃO / DEPLOY ────────────────────────────────────────────────────────
 //  Atualizado automaticamente pelo salvar_010426_1930.bat a cada deploy
-var DEPLOY_DATE = '22/05/2026 13:17';
+var DEPLOY_DATE = '03/06/2026 16:11';
 
 // ── USUÁRIOS ───────────────────────────────────────────────────────────────
 // SENHAS: use o campo senhaHash (SHA-256 em hex). Nunca armazene senha em texto puro.
@@ -52,9 +52,9 @@ var USUARIOS = [
 //                     indicacao, docs, cruzamento, tickets, novaVenda, extrato, config
 // ──────────────────────────────────────────────────────────────────────────
 var PERFIS_MENUS = {
-  'admin':      ['dash','relatorios','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','painelads','disparos','usuarios','waPessoal','viabilidade','vinculosPendentes','financeiro','codigosVero','conciliacao','saudeOperacional','inadimplencia','alertasOp'],
-  'supervisor': ['dash','relatorios','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','painelads','disparos','waPessoal'],
-  'backoffice': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','config','filaPAP','metaads','painelads','disparos','viabilidade']
+  'admin':      ['dash','relatorios','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','painelads','disparos','usuarios','waPessoal','reengajamentoWaba','viabilidade','vinculosPendentes','vendedoresPap','financeiro','codigosVero','conciliacao','saudeOperacional','inadimplencia','alertasOp'],
+  'supervisor': ['dash','relatorios','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','painelads','disparos','waPessoal','reengajamentoWaba'],
+  'backoffice': ['dash','formulario','lista','funil','leads','indicacao','docs','cruzamento','tickets','novaVenda','config','filaPAP','metaads','painelads','disparos','viabilidade','vendedoresPap']
 };
 
 var DASHBOARD_CONFIG = {

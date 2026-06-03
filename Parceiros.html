@@ -1088,6 +1088,9 @@ async function fazerLogin() {
       SELLER_CPF  = document.getElementById('login-cpf').value;
       renderSeller();
       document.getElementById('login-screen').classList.add('out');
+    } else if (res.motivo === 'inativo') {
+      btn.disabled = false; btn.textContent = 'Entrar';
+      errEl.textContent = 'Acesso desativado. Fale com o backoffice para reativar seu cadastro.';
     } else {
       btn.disabled = false; btn.textContent = 'Entrar';
       errEl.textContent = 'CPF não encontrado na rede PAP. Verifique com o responsável.';

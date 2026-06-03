@@ -5474,7 +5474,7 @@ function _resetarTimerInatividade() {
 }
 
 // ─── CONTROLE DE MENUS POR PERFIL ──────────────────────────────────────────
-var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal','viabilidade','vinculosPendentes','financeiro','codigosVero','conciliacao','saudeOperacional','inadimplencia','alertasOp']; // default: tudo
+var _menusPermitidos = ['dash','formulario','lista','funil','leads','pap','indicacao','docs','cruzamento','tickets','novaVenda','extrato','config','filaPAP','metaads','disparos','usuarios','waPessoal','reengajamentoWaba','viabilidade','vinculosPendentes','vendedoresPap','financeiro','codigosVero','conciliacao','saudeOperacional','inadimplencia','alertasOp']; // default: tudo
 
 var _menuMap = {
   'dash':        'menuDash',
@@ -5498,8 +5498,10 @@ var _menuMap = {
   'disparos':    'menuDisparos',
   'usuarios':    'menuUsuarios',
   'waPessoal':   'menuWaPessoal',
+  'reengajamentoWaba': 'menuReengajamentoWaba',
   'viabilidade': 'menuViabilidade',
   'vinculosPendentes': 'menuVinculosPendentes',
+  'vendedoresPap': 'menuVendedoresPap',
   'financeiro':  'menuFinanceiro',
   'codigosVero': 'menuCodigosVero',
   'alertasOp':   'menuAlertasOp'
@@ -5905,6 +5907,30 @@ function navegar(pagina) {
         .getUsuariosHtml();
     }
 
+  } else if (pagina === 'vendedoresPap') {
+    document.getElementById('menuVendedoresPap').classList.add('ativo');
+    document.getElementById('pageVendedoresPap').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Vendedores PAP';
+    var vpc = document.getElementById('vendedoresPapContainer');
+    if (!vpc.getAttribute('data-loaded')) {
+      vpc.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          vpc.innerHTML = html;
+          vpc.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+          if (typeof vendedoresPapInit === 'function') vendedoresPapInit();
+        })
+        .withFailureHandler(function(e) {
+          vpc.removeAttribute('data-loaded');
+          vpc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Vendedores PAP: ' + e.message + '</div>';
+        })
+        .getVendedoresPAPHtml();
+    }
+
   } else if (pagina === 'waPessoal') {
     document.getElementById('menuWaPessoal').classList.add('ativo');
     document.getElementById('pageWaPessoal').classList.add('ativa');
@@ -5927,6 +5953,30 @@ function navegar(pagina) {
           wpc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar WhatsApp Pessoal: ' + e.message + '</div>';
         })
         .getDispPessoalHtml();
+    }
+
+  } else if (pagina === 'reengajamentoWaba') {
+    document.getElementById('menuReengajamentoWaba').classList.add('ativo');
+    document.getElementById('pageReengajamentoWaba').classList.add('ativa');
+    document.getElementById('breadcrumbTexto').textContent = 'Reengajamento WABA';
+    var rwc = document.getElementById('reengajamentoWabaContainer');
+    if (!rwc.getAttribute('data-loaded')) {
+      rwc.setAttribute('data-loaded', '1');
+      google.script.run
+        .withSuccessHandler(function(html) {
+          rwc.innerHTML = html;
+          rwc.querySelectorAll('script').forEach(function(s) {
+            var ns = document.createElement('script');
+            ns.textContent = s.textContent;
+            document.body.appendChild(ns);
+          });
+          if (typeof reengajamentoWabaInit === 'function') reengajamentoWabaInit();
+        })
+        .withFailureHandler(function(e) {
+          rwc.removeAttribute('data-loaded');
+          rwc.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Reengajamento WABA: ' + e.message + '</div>';
+        })
+        .getReengajamentoWabaHtml();
     }
 
   } else if (pagina === 'viabilidade') {
