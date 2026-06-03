@@ -39,7 +39,7 @@
     #vpToast.ok  { border-color: var(--green);  color: var(--green);  }
     #vpToast.err { border-color: var(--accent); color: var(--accent); }
 
-    .vp-wrap { padding: 28px 32px; max-width: 1100px; }
+    .vp-wrap { padding: 28px 32px; max-width: 1320px; }
 
     .vp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 16px; flex-wrap: wrap; }
     .vp-title { font-size: 20px; font-weight: 700; }
@@ -81,10 +81,13 @@
       border-bottom: 1px solid var(--border); background: var(--surface2);
       white-space: nowrap;
     }
-    .vp-table td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .vp-table td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
+    .vp-table td.vp-cell-nome { white-space: normal; min-width: 180px; max-width: 240px; }
+    .vp-table td.vp-cell-pix  { white-space: normal; word-break: break-all; max-width: 220px; }
     .vp-table tr:last-child td { border-bottom: none; }
     .vp-table tr:hover td { background: var(--surface2); }
     .vp-mono { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); }
+    .vp-card { overflow-x: auto; }
 
     .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: .03em; }
     .badge-forma  { background: rgba(79,158,255,.12); color: var(--blue); border: 1px solid rgba(79,158,255,.3); }
@@ -278,10 +281,10 @@
     tbody.innerHTML = lista.map(function(v) {
       var rowClass = v.ativo ? '' : ' style="opacity:.6"';
       return '<tr' + rowClass + '>' +
-        '<td><strong>' + _esc(v.nome) + '</strong>' + (v.dataCadastro ? '<div class="vp-mono">desde ' + _esc(v.dataCadastro) + '</div>' : '') + '</td>' +
+        '<td class="vp-cell-nome"><strong>' + _esc(v.nome) + '</strong>' + (v.dataCadastro ? '<div class="vp-mono">desde ' + _esc(v.dataCadastro) + '</div>' : '') + '</td>' +
         '<td class="vp-mono">' + _formatCpf(v.cpf) + '</td>' +
         '<td class="vp-mono">' + _esc(v.whatsapp || '—') + '</td>' +
-        '<td class="vp-mono">' + _esc(v.chavePix || '—') + '</td>' +
+        '<td class="vp-mono vp-cell-pix">' + _esc(v.chavePix || '—') + '</td>' +
         '<td>' + (v.formaPgto ? '<span class="badge badge-forma">' + _esc(v.formaPgto) + '</span>' : '<span class="badge badge-inativo">—</span>') + '</td>' +
         '<td>' + (v.periodicidade ? '<span class="badge badge-period">' + _esc(v.periodicidade) + '</span>' : '<span class="badge badge-inativo">—</span>') + '</td>' +
         '<td><label class="toggle"><input type="checkbox" ' + (v.ativo ? 'checked' : '') + ' onchange="vpToggle(' + v.linha + ',this.checked)"><span class="toggle-slider"></span></label></td>' +
