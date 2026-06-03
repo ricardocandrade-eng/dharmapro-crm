@@ -404,7 +404,7 @@ function backfillOrigemLeadsMeta() {
  * Chamado pelo botão de ação na tela Leads Meta Ads.
  *
  * @param {number} linha    Linha na planilha (começa em 2)
- * @param {string} status   'Converteu' | 'Desqualificado' | 'Em negociação' | 'Sem contato' | ''
+ * @param {string} status   Status da taxonomia Leads Meta Ads, ex: 'venda-fechada', 'Em negociação', 'sem-retorno'
  * @param {string} motivo   Motivo de desqualificação (opcional)
  */
 /**
@@ -453,6 +453,9 @@ function atualizarStatusLeadMetaAds(linha, status, motivo) {
 var STATUS_TERMINAIS_CHATWOOT = [
   'venda-fechada',
   'venda-perdida',
+  'em-negociacao',
+  'em negociação',
+  'sem-retorno',
   'sem-viabilidade',
   'sem-interesse',
   'reprovado-cpf'

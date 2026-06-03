@@ -51,7 +51,7 @@
 .lma-resumo::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
 .lma-card {
-  flex: 1; min-width: 0;                 /* divide a largura igualmente entre os 5 */
+  flex: 1; min-width: 0;                 /* divide a largura igualmente entre os 6 */
   background: var(--surface2); border: 1px solid var(--border);
   border-top-width: 2px;                  /* faixa de cor no topo (identidade) */
   border-radius: 9px; padding: 5px 12px;
@@ -314,6 +314,14 @@
 .lma-origem-chip.og-webhook { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
 .lma-origem-chip.og-manual  { background:rgba(62,130,230,.12); color:#3070c0; }
 .lma-origem-chip.og-renata  { background:rgba(130,130,255,.14); color:#6a6aff; }
+
+/* Relatório filtrado */
+.lma-relatorio-text {
+  width:100%; min-height:260px; resize:vertical; box-sizing:border-box;
+  background:var(--surface2); color:var(--text); border:1px solid var(--border);
+  border-radius:8px; padding:12px; font-size:13px; line-height:1.55;
+  font-family:'DM Mono', Consolas, monospace; white-space:pre-wrap;
+}
 </style>
 
 <!-- ══ PÁGINA ══ -->
@@ -333,6 +341,7 @@
     </label>
     <button class="lma-btn" onclick="carregarLeadsMetaAds()">↺ Atualizar</button>
     <button class="lma-btn" onclick="_lmaExportarCSV()">⬇ Exportar CSV</button>
+    <button class="lma-btn" onclick="_lmaAbrirRelatorio()">📊 Relatório</button>
     <button class="lma-btn lma-btn-primary" onclick="abrirModalManual()">+ Registrar manualmente</button>
   </div>
 
@@ -354,6 +363,11 @@
       <div class="lma-card-label">⏳ Em aberto</div>
       <div class="lma-card-valor" id="kpiPend">—</div>
       <div class="lma-card-sub">sem desfecho</div>
+    </div>
+    <div class="lma-card c-nego" title="Leads com etiqueta em-negociacao no Chatwoot — pipeline ativo.">
+      <div class="lma-card-label">🤝 Em negociação</div>
+      <div class="lma-card-valor" id="kpiNegoAtivo">—</div>
+      <div class="lma-card-sub">pipeline ativo</div>
     </div>
     <div class="lma-card c-nego" id="kpiNegoCard" title="Leads em aberto há mais de 24h sem desfecho — risco de esfriar.">
       <div class="lma-card-label">⏰ Em risco</div>
@@ -408,11 +422,6 @@
       <select class="lma-select" id="lmaFiltroStatus" onchange="_lmaFiltrar()">
         <option value="">Status: todos</option>
         <option value="__aberto">Em aberto</option>
-        <option value="venda-fechada">✅ venda-fechada</option>
-        <option value="venda-perdida">❌ venda-perdida</option>
-        <option value="sem-viabilidade">📵 sem-viabilidade</option>
-        <option value="sem-interesse">🙅 sem-interesse</option>
-        <option value="reprovado-cpf">🚫 reprovado-cpf</option>
       </select>
       <select class="lma-select" id="lmaFiltroCampanha" onchange="_lmaFiltrar()"><option value="">Campanha: todas</option></select>
       <select class="lma-select" id="lmaFiltroAnuncio" onchange="_lmaFiltrar()"><option value="">Anúncio: todos</option></select>
@@ -503,10 +512,29 @@
     </div>
   </div>
 
+  <!-- Modal: Relatório dos filtros atuais -->
+  <div id="modalRelatorioLeads" class="modal-overlay" onclick="_lmaFecharRelatorio()">
+    <div class="modal-box" style="max-width:560px" onclick="event.stopPropagation()">
+      <div class="modal-head">
+        <h3>Relatório dos leads filtrados</h3>
+        <button class="modal-close" onclick="_lmaFecharRelatorio()">✕</button>
+      </div>
+      <div class="modal-body">
+        <textarea id="lmaRelatorioTexto" class="lma-relatorio-text" readonly></textarea>
+      </div>
+      <div class="modal-foot">
+        <button class="lma-btn" onclick="_lmaFecharRelatorio()">Fechar</button>
+        <button class="lma-btn lma-btn-primary" onclick="_lmaCopiarRelatorio()">Copiar</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
 var _lmaDados = [];
+var _lmaListaFiltrada = [];
+var _lmaRelatorioAtual = '';
 var _lmaView    = 'lista';   // 'lista' | 'kanban' (persistido em localStorage)
 var _lmaAutoOn  = false;     // auto-refresh ligado
 var _lmaTimer   = null;      // handle do setInterval
@@ -634,7 +662,7 @@ function _lmaMatch(l, opts) {
   var busca   = (document.getElementById('lmaBusca').value || '').toLowerCase();
 
   if (fStatus === '__aberto' && l.status_final) return false;
-  if (fStatus && fStatus !== '__aberto' && String(l.status_final || '').toLowerCase() !== fStatus) return false;
+  if (fStatus && fStatus !== '__aberto' && !_lmaStatusMesmo(l.status_final, fStatus)) return false;
   if (fCamp && l.utm_campaign !== fCamp) return false;
   if (fAnun && l.utm_ad !== fAnun) return false;
   if (fMot && l.motivo_desq !== fMot) return false;
@@ -679,6 +707,7 @@ function _lmaOrdenar(lista) {
 // ── Pipeline: filtra + ordena + KPIs + render da view atual ──
 function _lmaFiltrar() {
   var lista = _lmaOrdenar(_lmaDados.filter(function(l) { return _lmaMatch(l, {}); }));
+  _lmaListaFiltrada = lista;
 
   var pill = document.getElementById('lmaTotalPill');
   if (pill) pill.textContent = lista.length + ' lead' + (lista.length !== 1 ? 's' : '') + ' no período';
@@ -691,9 +720,144 @@ function _lmaFiltrar() {
   else _lmaRenderizarTabela(lista);
 }
 
+function _lmaPeriodoLabel() {
+  if (_lmaPeriodo === 'hoje') return 'Hoje';
+  if (_lmaPeriodo === 'semana') return 'Esta semana';
+  if (_lmaPeriodo === 'mes') return 'Este mês';
+  if (_lmaPeriodo === '30d') return 'Últimos 30 dias';
+  if (_lmaPeriodo === 'custom') {
+    var de = document.getElementById('lmaDesde').value;
+    var ate = document.getElementById('lmaAte').value;
+    function br(ymd) {
+      if (!ymd) return '';
+      var p = ymd.split('-');
+      return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : ymd;
+    }
+    if (de && ate) return br(de) + ' a ' + br(ate);
+    if (de) return 'Desde ' + br(de);
+    if (ate) return 'Até ' + br(ate);
+    return 'Personalizado';
+  }
+  return 'Período filtrado';
+}
+
+function _lmaContarStatus(lista, status) {
+  return lista.filter(function(l) { return _lmaStatusMesmo(l.status_final, status); }).length;
+}
+
+function _lmaGerarRelatorioTexto() {
+  var lista = _lmaListaFiltrada && _lmaListaFiltrada.length
+    ? _lmaListaFiltrada
+    : _lmaOrdenar(_lmaDados.filter(function(l) { return _lmaMatch(l, {}); }));
+  var cidades = {};
+  lista.forEach(function(l) {
+    var cidade = _lmaCidadeReal(l) || inferirCidadePorDDD(l.telefone) || '';
+    cidade = String(cidade || '').trim();
+    if (!cidade) return;
+    cidades[cidade] = (cidades[cidade] || 0) + 1;
+  });
+  var topCidades = Object.keys(cidades).sort(function(a, b) {
+    return cidades[b] - cidades[a] || a.localeCompare(b);
+  }).slice(0, 5);
+
+  var linhas = [
+    '📊 *Resumo dos Leads - ' + _lmaPeriodoLabel() + '*',
+    '',
+    '📌 *Total de leads:* ' + lista.length,
+    '',
+    '✅ Venda fechada: ' + _lmaContarStatus(lista, 'venda-fechada'),
+    '🤝 Em negociação: ' + _lmaContarStatus(lista, 'em-negociacao'),
+    '❌ Venda perdida: ' + _lmaContarStatus(lista, 'venda-perdida'),
+    '📭 Sem retorno: ' + _lmaContarStatus(lista, 'sem-retorno'),
+    '🙅 Sem interesse: ' + _lmaContarStatus(lista, 'sem-interesse'),
+    '📵 Sem viabilidade: ' + _lmaContarStatus(lista, 'sem-viabilidade'),
+    '🚫 Reprovado CPF: ' + _lmaContarStatus(lista, 'reprovado-cpf'),
+    '',
+    '🏙️ *Principais cidades:*'
+  ];
+  if (topCidades.length) {
+    topCidades.forEach(function(cidade) {
+      linhas.push('• ' + cidade + ': ' + cidades[cidade]);
+    });
+  } else {
+    linhas.push('• Sem cidades informadas');
+  }
+  return linhas.join('\n');
+}
+
+function _lmaAbrirRelatorio() {
+  _lmaRelatorioAtual = _lmaGerarRelatorioTexto();
+  var txt = document.getElementById('lmaRelatorioTexto');
+  if (txt) txt.value = _lmaRelatorioAtual;
+  var modal = document.getElementById('modalRelatorioLeads');
+  if (modal) modal.classList.add('ativo');
+}
+
+function _lmaFecharRelatorio() {
+  var modal = document.getElementById('modalRelatorioLeads');
+  if (modal) modal.classList.remove('ativo');
+}
+
+function _lmaCopiarRelatorio() {
+  var texto = _lmaRelatorioAtual || _lmaGerarRelatorioTexto();
+  var txt = document.getElementById('lmaRelatorioTexto');
+  if (txt && txt.value) texto = txt.value;
+  function ok() { if (typeof mostrarToast === 'function') mostrarToast('Relatório copiado.', 'success'); }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(texto).then(ok, function() { _lmaCopiarFallback(texto); ok(); });
+  } else {
+    _lmaCopiarFallback(texto);
+    ok();
+  }
+}
+
 // Etiquetas terminais do Chatwoot reconhecidas como desfecho de lead.
 var LMA_STATUS_FECHADA  = 'venda-fechada';
-var LMA_STATUS_PERDIDOS = ['venda-perdida', 'sem-viabilidade', 'sem-interesse', 'reprovado-cpf'];
+var LMA_STATUS_PERDIDOS = ['venda-perdida', 'sem-retorno', 'sem-viabilidade', 'sem-interesse', 'reprovado-cpf'];
+
+var LMA_STATUS_OPCOES = [
+  { value: 'venda-fechada',   label: '✅ venda-fechada',   badge: 'converteu',      kanban: 'k-conv' },
+  { value: 'venda-perdida',   label: '❌ venda-perdida',   badge: 'desqualificado', kanban: 'k-desq' },
+  { value: 'em-negociacao',   label: '🤝 Em negociação',   badge: 'negociacao',     kanban: 'k-nego', aliases: ['em negociação'] },
+  { value: 'sem-retorno',     label: '📭 sem-retorno',     badge: 'sem-contato',    kanban: 'k-desq' },
+  { value: 'sem-viabilidade', label: '📵 sem-viabilidade', badge: 'desqualificado', kanban: 'k-desq' },
+  { value: 'sem-interesse',   label: '🙅 sem-interesse',   badge: 'desqualificado', kanban: 'k-desq' },
+  { value: 'reprovado-cpf',   label: '🚫 reprovado-cpf',   badge: 'desqualificado', kanban: 'k-desq' }
+];
+
+function _lmaStatusNorm(status) {
+  return String(status || '').trim().toLowerCase();
+}
+
+function _lmaStatusCfg(status) {
+  var s = _lmaStatusNorm(status);
+  for (var i = 0; i < LMA_STATUS_OPCOES.length; i++) {
+    var cfg = LMA_STATUS_OPCOES[i];
+    if (_lmaStatusNorm(cfg.value) === s) return cfg;
+    if ((cfg.aliases || []).indexOf(s) !== -1) return cfg;
+  }
+  return null;
+}
+
+function _lmaStatusLabel(status) {
+  var cfg = _lmaStatusCfg(status);
+  return cfg ? cfg.label : String(status || '').trim();
+}
+
+function _lmaStatusMesmo(a, b) {
+  var cfgA = _lmaStatusCfg(a);
+  var cfgB = _lmaStatusCfg(b);
+  if (cfgA || cfgB) return cfgA === cfgB;
+  return _lmaStatusNorm(a) === _lmaStatusNorm(b);
+}
+
+function _lmaStatusOptionsHtml(statusAtual) {
+  var atual = _lmaStatusNorm(statusAtual);
+  return LMA_STATUS_OPCOES.map(function(cfg) {
+    var selected = (_lmaStatusNorm(cfg.value) === atual || (cfg.aliases || []).indexOf(atual) !== -1) ? ' selected' : '';
+    return '<option value="' + _esc(cfg.value) + '"' + selected + '>' + _esc(cfg.label) + '</option>';
+  }).join('');
+}
 
 // ── KPIs client-side (respeitam os filtros) ──
 function _lmaAtualizarKPIs(lista) {
@@ -718,8 +882,11 @@ function _lmaAtualizarKPIs(lista) {
   });
   var taxa = total > 0 ? ((conv / total) * 100).toFixed(1) : '0';
 
+  var negoAtivo = _lmaContarStatus(lista, 'em-negociacao');
+
   document.getElementById('kpiNovos').textContent = novos;
   document.getElementById('kpiPend').textContent  = abertos.length;
+  document.getElementById('kpiNegoAtivo').textContent = negoAtivo;
   document.getElementById('kpiNego').textContent  = emRisco;
   document.getElementById('kpiNegoRisco').textContent = emRisco > 0 ? 'em aberto >24h' : 'tudo em dia';
   document.getElementById('kpiConv').textContent  = conv;
@@ -736,7 +903,7 @@ function _lmaAtualizarKPIs(lista) {
     mc[s] = (mc[s] || 0) + 1;
   });
   var top = Object.keys(mc).sort(function(a, b) { return mc[b] - mc[a]; }).slice(0, 4)
-    .map(function(m) { return _esc(m) + ': ' + mc[m]; });
+    .map(function(m) { return _esc(_lmaStatusLabel(m)) + ': ' + mc[m]; });
   document.getElementById('kpiDesqBreak').innerHTML = top.length ? top.join(' · ') : 'nenhum';
 }
 
@@ -783,11 +950,7 @@ function _lmaRenderizarTabela(lista) {
       '<div class="lma-acao-row">' +
         '<select class="lma-acao-sel" id="lmaAcaoSel_' + l.linha + '" onchange="_lmaOnStatusChange(' + l.linha + ')">' +
           '<option value="">— status —</option>' +
-          '<option value="venda-fechada"'   + (statusAtualLow === 'venda-fechada'   ? ' selected' : '') + '>✅ venda-fechada</option>' +
-          '<option value="venda-perdida"'   + (statusAtualLow === 'venda-perdida'   ? ' selected' : '') + '>❌ venda-perdida</option>' +
-          '<option value="sem-viabilidade"' + (statusAtualLow === 'sem-viabilidade' ? ' selected' : '') + '>📵 sem-viabilidade</option>' +
-          '<option value="sem-interesse"'   + (statusAtualLow === 'sem-interesse'   ? ' selected' : '') + '>🙅 sem-interesse</option>' +
-          '<option value="reprovado-cpf"'   + (statusAtualLow === 'reprovado-cpf'   ? ' selected' : '') + '>🚫 reprovado-cpf</option>' +
+          _lmaStatusOptionsHtml(statusAtualLow) +
         '</select>' +
         '<button class="lma-acao-btn" id="lmaAcaoBtn_' + l.linha + '" title="Salvar status" onclick="_lmaSalvarAcao(' + l.linha + ')">✓</button>' +
         '<button class="lma-acao-btn lma-acao-btn-copy" title="Copiar telefone" onclick="_lmaCopiarTelefone(\'' + telNorm + '\')">📋</button>' +
@@ -849,15 +1012,9 @@ function _lmaCopiarFallback(tel) {
 
 function _lmaBadge(status) {
   if (!status) return '<span class="lma-badge pendente">Em aberto</span>';
-  var s = String(status).toLowerCase();
-  var cls = {
-    'venda-fechada':   'converteu',
-    'venda-perdida':   'desqualificado',
-    'sem-viabilidade': 'desqualificado',
-    'sem-interesse':   'desqualificado',
-    'reprovado-cpf':   'desqualificado'
-  }[s] || 'pendente';
-  return '<span class="lma-badge ' + cls + '">' + _esc(s) + '</span>';
+  var cfg = _lmaStatusCfg(status);
+  var cls = cfg ? cfg.badge : 'pendente';
+  return '<span class="lma-badge ' + cls + '">' + _esc(_lmaStatusLabel(status)) + '</span>';
 }
 
 function _lmaFmtData(val) {
@@ -921,7 +1078,7 @@ function _lmaSalvarAcao(linha) {
     .withSuccessHandler(function(res) {
       btn.disabled = false;
       btn.textContent = '✓';
-      mostrarToast('Status atualizado: ' + novoStatus, 'success');
+      mostrarToast('Status atualizado: ' + _lmaStatusLabel(novoStatus), 'success');
       var row = btn.closest('tr');
       if (row) {
         var badgeCell = row.cells[5];
@@ -1367,13 +1524,16 @@ function _lmaExportarCSV() {
 function _lmaStatusLow(l) { return String(l && l.status_final || '').toLowerCase(); }
 
 var _LMA_COLUNAS = [
-  { id: '__aberto',        titulo: 'Em aberto',        classe: 'k-pend', match: function(l) { return !l.status_final; } },
-  { id: 'venda-fechada',   titulo: '✅ venda-fechada', classe: 'k-conv', match: function(l) { return _lmaStatusLow(l) === 'venda-fechada'; } },
-  { id: 'venda-perdida',   titulo: '❌ venda-perdida', classe: 'k-desq', match: function(l) { return _lmaStatusLow(l) === 'venda-perdida'; } },
-  { id: 'sem-viabilidade', titulo: '📵 sem-viabilidade', classe: 'k-desq', match: function(l) { return _lmaStatusLow(l) === 'sem-viabilidade'; } },
-  { id: 'sem-interesse',   titulo: '🙅 sem-interesse', classe: 'k-desq', match: function(l) { return _lmaStatusLow(l) === 'sem-interesse'; } },
-  { id: 'reprovado-cpf',   titulo: '🚫 reprovado-cpf', classe: 'k-desq', match: function(l) { return _lmaStatusLow(l) === 'reprovado-cpf'; } }
+  { id: '__aberto', titulo: 'Em aberto', classe: 'k-pend', match: function(l) { return !l.status_final; } }
 ];
+LMA_STATUS_OPCOES.forEach(function(cfg) {
+  _LMA_COLUNAS.push({
+    id: cfg.value,
+    titulo: cfg.label,
+    classe: cfg.kanban,
+    match: function(l) { return _lmaStatusCfg(l.status_final) === cfg; }
+  });
+});
 
 function _lmaRenderKanban(lista) {
   var wrap = document.getElementById('lmaKanbanWrap');
@@ -1429,7 +1589,7 @@ function _lmaDrop(ev, colId) {
   var lead = _lmaDados.find(function(l) { return l.linha === linha; });
   if (!lead) return;
   var novoStatus = (colId === '__aberto') ? '' : colId;
-  if (String(lead.status_final || '').toLowerCase() === novoStatus) return; // sem mudança
+  if (_lmaStatusMesmo(lead.status_final, novoStatus)) return; // sem mudança
   var motivo = '';
 
   // Atualização otimista local + persiste.
@@ -1440,7 +1600,7 @@ function _lmaDrop(ev, colId) {
 
   google.script.run
     .withSuccessHandler(function() {
-      if (typeof mostrarToast === 'function') mostrarToast('Status atualizado: ' + (novoStatus || 'Pendente'), 'success');
+      if (typeof mostrarToast === 'function') mostrarToast('Status atualizado: ' + (novoStatus ? _lmaStatusLabel(novoStatus) : 'Pendente'), 'success');
     })
     .withFailureHandler(function(e) {
       lead.status_final = anterior; // reverte
@@ -1452,6 +1612,11 @@ function _lmaDrop(ev, colId) {
 
 // ─── Init (uma vez, no load do Index) ───────────────────────────────────────
 (function _lmaInit() {
+  // popula filtro de status a partir de LMA_STATUS_OPCOES (fonte única)
+  try {
+    var selStatus = document.getElementById('lmaFiltroStatus');
+    if (selStatus) selStatus.insertAdjacentHTML('beforeend', _lmaStatusOptionsHtml(''));
+  } catch (e) {}
   try {
     var v = localStorage.getItem('leads_meta_ads_view');
     if (v === 'kanban' || v === 'lista') _lmaView = v;
