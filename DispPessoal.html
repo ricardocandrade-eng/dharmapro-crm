@@ -221,12 +221,18 @@
             <select id="wpFonte" onchange="wpFonteMudou()">
               <option value="manual">Lista manual (Nome | Telefone, um por linha)</option>
               <option value="arquivo">Importar planilha (.xlsx, .csv)</option>
+              <option value="pap_ativos">Vendedores PAP ativos</option>
             </select>
           </div>
 
           <div class="wp-field" id="wpManualWrap">
             <label>Cole a lista (Nome | Telefone, um por linha)</label>
             <textarea id="wpManualLista" placeholder="João da Silva | 32988887777" oninput="wpRecalcManual()"></textarea>
+          </div>
+
+          <div class="wp-field" id="wpPapAtivosWrap" style="display:none">
+            <label>Vendedores PAP ativos</label>
+            <div id="wpPapAtivosInfo" style="font-size:13px;color:var(--text-muted,#8a93a3)">Carregando…</div>
           </div>
 
           <div class="wp-field" id="wpArquivoWrap" style="display:none">
@@ -847,12 +853,47 @@
 
   window.wpFonteMudou = function() {
     var f = document.getElementById('wpFonte').value;
-    document.getElementById('wpManualWrap').style.display  = (f === 'manual')   ? '' : 'none';
-    document.getElementById('wpArquivoWrap').style.display = (f === 'arquivo')  ? '' : 'none';
+    document.getElementById('wpManualWrap').style.display    = (f === 'manual')     ? '' : 'none';
+    document.getElementById('wpArquivoWrap').style.display   = (f === 'arquivo')    ? '' : 'none';
+    document.getElementById('wpPapAtivosWrap').style.display = (f === 'pap_ativos') ? '' : 'none';
     _wpContatosCache = [];
-    document.getElementById('wpContatosInfo').textContent =
-      (f === 'manual')  ? 'Cole sua lista no campo acima (Nome | Telefone, um por linha).'
-                        : 'Selecione um arquivo .xlsx, .xls, .csv ou .tsv.';
+    var info = document.getElementById('wpContatosInfo');
+    if (f === 'manual')      info.textContent = 'Cole sua lista no campo acima (Nome | Telefone, um por linha).';
+    else if (f === 'arquivo') info.textContent = 'Selecione um arquivo .xlsx, .xls, .csv ou .tsv.';
+    else if (f === 'pap_ativos') {
+      info.textContent = 'Carregando vendedores PAP ativos…';
+      document.getElementById('wpPapAtivosInfo').textContent = 'Carregando…';
+      google.script.run
+        .withSuccessHandler(function(r) {
+          if (!r || !r.ok) {
+            var msg = (r && r.mensagem) || 'Erro ao listar vendedores PAP.';
+            document.getElementById('wpPapAtivosInfo').textContent = '⚠ ' + msg;
+            info.textContent = '⚠ ' + msg;
+            return;
+          }
+          var vistos = {};
+          var contatos = [];
+          (r.vendedores || []).forEach(function(v) {
+            if (!v.ativo) return;
+            var fone = String(v.whatsapp || '').replace(/\D/g, '');
+            if (fone.length < 10 || vistos[fone]) return;
+            vistos[fone] = 1;
+            contatos.push({ nome: v.nome || 'Vendedor', phone: fone });
+          });
+          _wpContatosCache = contatos;
+          var txt = contatos.length
+            ? contatos.length + ' vendedores PAP ativos com WhatsApp.'
+            : 'Nenhum vendedor PAP ativo com WhatsApp válido.';
+          document.getElementById('wpPapAtivosInfo').textContent = txt;
+          info.textContent = txt;
+        })
+        .withFailureHandler(function(e) {
+          var msg = (e && e.message) || 'Falha ao buscar vendedores PAP.';
+          document.getElementById('wpPapAtivosInfo').textContent = '⚠ ' + msg;
+          info.textContent = '⚠ ' + msg;
+        })
+        .listarVendedoresPAP(_wpUser);
+    }
   };
 
   window.wpRecalcManual = function() {
