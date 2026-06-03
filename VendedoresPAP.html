@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<!-- VendedoresPAP.html — DharmaPro CRM · Cadastro e gestão de vendedores PAP -->
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Vendedores PAP — DharmaPro</title>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg:       #0d0f14;
+      --surface:  #141720;
+      --surface2: #1c2030;
+      --border:   #252a3a;
+      --border2:  #353d58;
+      --accent:   #e63e6d;
+      --accent-h: #c73260;
+      --green:    #22d98a;
+      --blue:     #4f9eff;
+      --amber:    #f3a73c;
+      --text:     #e4e8f5;
+      --muted:    #7a82a0;
+      --radius:   12px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Sora', sans-serif; overflow-x: hidden; }
+
+    #vpToast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 10px; padding: 11px 20px; font-size: 13px;
+      z-index: 9999; opacity: 0; transition: opacity .3s, transform .3s;
+      pointer-events: none; white-space: nowrap; max-width: 90vw;
+    }
+    #vpToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #vpToast.ok  { border-color: var(--green);  color: var(--green);  }
+    #vpToast.err { border-color: var(--accent); color: var(--accent); }
+
+    .vp-wrap { padding: 28px 32px; max-width: 1100px; }
+
+    .vp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 16px; flex-wrap: wrap; }
+    .vp-title { font-size: 20px; font-weight: 700; }
+    .vp-subtitle { font-size: 13px; color: var(--muted); margin-top: 3px; }
+
+    .vp-toolbar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+    .vp-search {
+      flex: 1; min-width: 220px; padding: 9px 12px; border-radius: 8px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text); font-family: 'Sora', sans-serif; font-size: 13px;
+      outline: none;
+    }
+    .vp-search:focus { border-color: var(--accent); }
+    .vp-filtro {
+      padding: 9px 12px; border-radius: 8px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text); font-family: 'Sora', sans-serif; font-size: 13px;
+      outline: none;
+    }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px; border-radius: 8px; font-size: 13px;
+      font-family: 'Sora', sans-serif; font-weight: 600;
+      cursor: pointer; border: none; transition: background .15s, opacity .15s;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-h); }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border2); }
+    .btn-ghost:hover:not(:disabled) { color: var(--text); background: var(--surface2); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; }
+
+    .vp-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .vp-table { width: 100%; border-collapse: collapse; }
+    .vp-table th {
+      text-align: left; padding: 12px 14px; font-size: 11px; font-weight: 600;
+      letter-spacing: .06em; color: var(--muted); text-transform: uppercase;
+      border-bottom: 1px solid var(--border); background: var(--surface2);
+      white-space: nowrap;
+    }
+    .vp-table td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .vp-table tr:last-child td { border-bottom: none; }
+    .vp-table tr:hover td { background: var(--surface2); }
+    .vp-mono { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); }
+
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: .03em; }
+    .badge-forma  { background: rgba(79,158,255,.12); color: var(--blue); border: 1px solid rgba(79,158,255,.3); }
+    .badge-period { background: rgba(243,167,60,.12); color: var(--amber); border: 1px solid rgba(243,167,60,.3); }
+    .badge-inativo { background: rgba(122,130,160,.12); color: var(--muted); border: 1px solid rgba(122,130,160,.25); }
+
+    .toggle { position: relative; width: 38px; height: 22px; display: inline-block; cursor: pointer; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; border-radius: 22px; background: var(--border2); transition: background .2s; }
+    .toggle-slider::before { content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%; left: 3px; top: 3px; background: var(--muted); transition: transform .2s, background .2s; }
+    .toggle input:checked + .toggle-slider { background: rgba(34,217,138,.2); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(16px); background: var(--green); }
+
+    .vp-actions { display: flex; gap: 6px; }
+
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(3px); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--surface); border: 1px solid var(--border2); border-radius: 16px; padding: 28px 28px 24px; width: 100%; max-width: 480px; box-shadow: 0 24px 60px rgba(0,0,0,.5); }
+    .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; }
+    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; letter-spacing: .04em; }
+    .form-input, .form-select {
+      width: 100%; padding: 10px 13px; border-radius: 8px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text); font-family: 'Sora', sans-serif; font-size: 13px;
+      transition: border-color .2s; outline: none;
+    }
+    .form-input:focus, .form-select:focus { border-color: var(--accent); }
+    .form-select option { background: var(--surface2); }
+
+    .vp-empty { padding: 56px 24px; text-align: center; color: var(--muted); font-family: 'DM Mono', monospace; font-size: 13px; }
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div id="vpToast"></div>
+
+<div class="vp-wrap">
+
+  <div class="vp-header">
+    <div>
+      <div class="vp-title">Vendedores PAP</div>
+      <div class="vp-subtitle">Cadastro, edição e ativação de vendedores Porta a Porta</div>
+    </div>
+    <button class="btn btn-primary" onclick="vpAbrirModalNovo()">+ Novo Vendedor</button>
+  </div>
+
+  <div class="vp-toolbar">
+    <input id="vpSearch" class="vp-search" type="text" placeholder="🔍 Buscar por nome ou CPF…" oninput="vpRender()">
+    <select id="vpFiltroStatus" class="vp-filtro" onchange="vpRender()">
+      <option value="todos">Todos</option>
+      <option value="ativos" selected>Somente ativos</option>
+      <option value="inativos">Somente inativos</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="vpCarregar()">↻ Atualizar</button>
+  </div>
+
+  <div class="vp-card">
+    <table class="vp-table">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>CPF</th>
+          <th>WhatsApp</th>
+          <th>Chave Pix</th>
+          <th>Forma</th>
+          <th>Periodicidade</th>
+          <th>Ativo</th>
+          <th>Ações</th>
+        </tr>
+      </thead>
+      <tbody id="vpTbody">
+        <tr><td colspan="8" class="vp-empty"><span class="spinner"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- MODAL EDITAR / CRIAR -->
+<div class="modal-overlay" id="vpModal">
+  <div class="modal-box">
+    <div class="modal-title" id="vpModalTitulo">Novo Vendedor PAP</div>
+
+    <input type="hidden" id="vpLinha">
+
+    <div class="form-group">
+      <label class="form-label">Nome completo *</label>
+      <input class="form-input" id="vpNome" type="text" placeholder="Ex: João Silva" autocomplete="off">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">CPF *</label>
+        <input class="form-input" id="vpCpf" type="text" placeholder="000.000.000-00" maxlength="14" autocomplete="off" oninput="vpMaskCpf(this)">
+      </div>
+      <div class="form-group">
+        <label class="form-label">WhatsApp</label>
+        <input class="form-input" id="vpWhats" type="text" placeholder="(32) 99999-9999" maxlength="16" autocomplete="off" oninput="vpMaskPhone(this)">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Chave Pix</label>
+      <input class="form-input" id="vpPix" type="text" placeholder="CPF, e-mail, telefone ou aleatória" autocomplete="off">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Forma de Pagamento *</label>
+        <select class="form-select" id="vpForma">
+          <option value="">Selecione…</option>
+          <option value="Valor do Plano">Valor do Plano</option>
+          <option value="Valor Fixo">Valor Fixo</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Periodicidade *</label>
+        <select class="form-select" id="vpPeriodicidade">
+          <option value="">Selecione…</option>
+          <option value="Diário">Diário</option>
+          <option value="Mensal (20)">Mensal (20)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="vpFecharModal()">Cancelar</button>
+      <button class="btn btn-primary" id="vpBtnSalvar" onclick="vpSalvar()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  var _vpUsuario = '';
+  var _vpDados   = [];
+
+  function vendedoresPapInit() {
+    _vpUsuario = sessionStorage.getItem('crm_usuario') || '';
+    vpCarregar();
+  }
+
+  function vpCarregar() {
+    document.getElementById('vpTbody').innerHTML =
+      '<tr><td colspan="8" class="vp-empty"><span class="spinner"></span></td></tr>';
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (!res || !res.ok) {
+          vpToast((res && res.mensagem) || 'Erro ao carregar.', 'err');
+          document.getElementById('vpTbody').innerHTML =
+            '<tr><td colspan="8" class="vp-empty">Falha ao carregar vendedores.</td></tr>';
+          return;
+        }
+        _vpDados = res.vendedores || [];
+        vpRender();
+      })
+      .withFailureHandler(function(e) {
+        vpToast('Erro: ' + e.message, 'err');
+        document.getElementById('vpTbody').innerHTML =
+          '<tr><td colspan="8" class="vp-empty">Falha ao carregar vendedores.</td></tr>';
+      })
+      .listarVendedoresPAP(_vpUsuario);
+  }
+
+  function vpRender() {
+    var tbody = document.getElementById('vpTbody');
+    var termo = (document.getElementById('vpSearch').value || '').trim().toLowerCase();
+    var filtro = document.getElementById('vpFiltroStatus').value;
+
+    var lista = _vpDados.filter(function(v) {
+      if (filtro === 'ativos' && !v.ativo) return false;
+      if (filtro === 'inativos' && v.ativo) return false;
+      if (termo) {
+        var hay = (v.nome + ' ' + v.cpf).toLowerCase();
+        if (hay.indexOf(termo) === -1) return false;
+      }
+      return true;
+    });
+
+    if (!lista.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="vp-empty">Nenhum vendedor encontrado.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = lista.map(function(v) {
+      var rowClass = v.ativo ? '' : ' style="opacity:.6"';
+      return '<tr' + rowClass + '>' +
+        '<td><strong>' + _esc(v.nome) + '</strong>' + (v.dataCadastro ? '<div class="vp-mono">desde ' + _esc(v.dataCadastro) + '</div>' : '') + '</td>' +
+        '<td class="vp-mono">' + _formatCpf(v.cpf) + '</td>' +
+        '<td class="vp-mono">' + _esc(v.whatsapp || '—') + '</td>' +
+        '<td class="vp-mono">' + _esc(v.chavePix || '—') + '</td>' +
+        '<td>' + (v.formaPgto ? '<span class="badge badge-forma">' + _esc(v.formaPgto) + '</span>' : '<span class="badge badge-inativo">—</span>') + '</td>' +
+        '<td>' + (v.periodicidade ? '<span class="badge badge-period">' + _esc(v.periodicidade) + '</span>' : '<span class="badge badge-inativo">—</span>') + '</td>' +
+        '<td><label class="toggle"><input type="checkbox" ' + (v.ativo ? 'checked' : '') + ' onchange="vpToggle(' + v.linha + ',this.checked)"><span class="toggle-slider"></span></label></td>' +
+        '<td><div class="vp-actions">' +
+          '<button class="btn btn-ghost btn-sm" onclick="vpAbrirModalEditar(' + v.linha + ')">Editar</button>' +
+        '</div></td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function vpAbrirModalNovo() {
+    document.getElementById('vpModalTitulo').textContent = 'Novo Vendedor PAP';
+    document.getElementById('vpLinha').value = '';
+    document.getElementById('vpNome').value  = '';
+    document.getElementById('vpCpf').value   = '';
+    document.getElementById('vpWhats').value = '';
+    document.getElementById('vpPix').value   = '';
+    document.getElementById('vpForma').value = '';
+    document.getElementById('vpPeriodicidade').value = '';
+    document.getElementById('vpBtnSalvar').disabled = false;
+    document.getElementById('vpBtnSalvar').textContent = 'Salvar';
+    document.getElementById('vpModal').classList.add('open');
+    document.getElementById('vpNome').focus();
+  }
+
+  function vpAbrirModalEditar(linha) {
+    var v = null;
+    for (var i = 0; i < _vpDados.length; i++) {
+      if (_vpDados[i].linha === linha) { v = _vpDados[i]; break; }
+    }
+    if (!v) return;
+    document.getElementById('vpModalTitulo').textContent = 'Editar Vendedor PAP';
+    document.getElementById('vpLinha').value = String(v.linha);
+    document.getElementById('vpNome').value  = v.nome  || '';
+    document.getElementById('vpCpf').value   = _formatCpf(v.cpf);
+    document.getElementById('vpWhats').value = v.whatsapp || '';
+    document.getElementById('vpPix').value   = v.chavePix || '';
+    document.getElementById('vpForma').value = v.formaPgto || '';
+    document.getElementById('vpPeriodicidade').value = v.periodicidade || '';
+    document.getElementById('vpBtnSalvar').disabled = false;
+    document.getElementById('vpBtnSalvar').textContent = 'Salvar';
+    document.getElementById('vpModal').classList.add('open');
+    document.getElementById('vpNome').focus();
+  }
+
+  function vpFecharModal() { document.getElementById('vpModal').classList.remove('open'); }
+
+  function vpSalvar() {
+    var btn = document.getElementById('vpBtnSalvar');
+    var linhaRaw = document.getElementById('vpLinha').value;
+    var dados = {
+      linha:         linhaRaw ? parseInt(linhaRaw, 10) : 0,
+      nome:          document.getElementById('vpNome').value.trim(),
+      cpf:           document.getElementById('vpCpf').value.replace(/\D/g, ''),
+      whatsapp:      document.getElementById('vpWhats').value.trim(),
+      chavePix:      document.getElementById('vpPix').value.trim(),
+      formaPgto:     document.getElementById('vpForma').value,
+      periodicidade: document.getElementById('vpPeriodicidade').value
+    };
+    if (!dados.nome)                 { vpToast('Nome é obrigatório.', 'err'); return; }
+    if (dados.cpf.length !== 11)     { vpToast('CPF inválido.', 'err'); return; }
+    if (!dados.formaPgto)            { vpToast('Selecione a forma de pagamento.', 'err'); return; }
+    if (!dados.periodicidade)        { vpToast('Selecione a periodicidade.', 'err'); return; }
+
+    btn.disabled = true; btn.textContent = 'Salvando…';
+    google.script.run
+      .withSuccessHandler(function(res) {
+        btn.disabled = false; btn.textContent = 'Salvar';
+        if (res && res.ok) { vpFecharModal(); vpToast(res.mensagem, 'ok'); vpCarregar(); }
+        else vpToast((res && res.mensagem) || 'Erro ao salvar.', 'err');
+      })
+      .withFailureHandler(function(e) {
+        btn.disabled = false; btn.textContent = 'Salvar';
+        vpToast('Erro: ' + e.message, 'err');
+      })
+      .salvarVendedorPAP(_vpUsuario, dados);
+  }
+
+  function vpToggle(linha, ativo) {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (res && res.ok) {
+          vpToast(res.mensagem, 'ok');
+          for (var i = 0; i < _vpDados.length; i++) {
+            if (_vpDados[i].linha === linha) { _vpDados[i].ativo = ativo; break; }
+          }
+          vpRender();
+        } else {
+          vpToast((res && res.mensagem) || 'Erro.', 'err');
+          vpCarregar();
+        }
+      })
+      .withFailureHandler(function(e) { vpToast('Erro: ' + e.message, 'err'); vpCarregar(); })
+      .toggleAtivoVendedorPAP(_vpUsuario, linha, ativo);
+  }
+
+  /* ── Máscaras e helpers ── */
+  function vpMaskCpf(input) {
+    var v = input.value.replace(/\D/g, '').slice(0, 11);
+    if (v.length > 9)      v = v.replace(/^(\d{3})(\d{3})(\d{3})(\d{0,2})$/, '$1.$2.$3-$4');
+    else if (v.length > 6) v = v.replace(/^(\d{3})(\d{3})(\d{0,3})$/, '$1.$2.$3');
+    else if (v.length > 3) v = v.replace(/^(\d{3})(\d{0,3})$/, '$1.$2');
+    input.value = v;
+  }
+  function vpMaskPhone(input) {
+    var v = input.value.replace(/\D/g, '').slice(0, 11);
+    if (v.length > 10)      v = v.replace(/^(\d{2})(\d{5})(\d{0,4})$/, '($1) $2-$3');
+    else if (v.length > 6)  v = v.replace(/^(\d{2})(\d{4})(\d{0,4})$/, '($1) $2-$3');
+    else if (v.length > 2)  v = v.replace(/^(\d{2})(\d{0,5})$/, '($1) $2');
+    input.value = v;
+  }
+  function _formatCpf(cpf) {
+    var s = String(cpf || '').replace(/\D/g, '');
+    if (s.length !== 11) return _esc(s);
+    return s.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+  }
+  function _esc(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  var _vpTimer;
+  function vpToast(msg, tipo) {
+    var el = document.getElementById('vpToast');
+    el.textContent = msg;
+    el.className   = 'show ' + (tipo === 'ok' ? 'ok' : 'err');
+    clearTimeout(_vpTimer);
+    _vpTimer = setTimeout(function() { el.className = ''; }, 3500);
+  }
+
+  document.getElementById('vpModal').addEventListener('click', function(e) { if (e.target === this) vpFecharModal(); });
+</script>
+</body>
+</html>
