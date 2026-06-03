@@ -7380,7 +7380,10 @@ function diagValidarVinculosVendas() {
 
     if (prodMae.indexOf('FIBRA') === -1)   probs.push('mãe L.' + maeL + ' não é Fibra (' + cliMae + ' / "' + prodMae + '")');
     if (prodFilha.indexOf('MOVEL') === -1) probs.push('filha L.' + filhaL + ' não é Móvel (' + cliFilha + ' / "' + prodFilha + '")');
-    if (cpfMae && cpfFilha && cpfMae !== cpfFilha)
+    // Núcleo do CPF sem zeros à esquerda — evita falso positivo quando a célula
+    // perdeu o zero inicial por ter sido gravada como número (06108309610 vs 6108309610).
+    var nucMae = cpfMae.replace(/^0+/, ''), nucFilha = cpfFilha.replace(/^0+/, '');
+    if (cpfMae && cpfFilha && nucMae !== nucFilha)
       probs.push('CPF divergente: mãe ' + cliMae + ' (' + cpfMae + ') ↔ filha ' + cliFilha + ' (' + cpfFilha + ')');
 
     if (probs.length) problemas.push('🔴 Vínc.L.' + vincRow + ' [' + cliMae + ' → ' + cliFilha + ']: ' + probs.join(' | '));
@@ -7405,6 +7408,87 @@ function diagValidarVinculosVendas() {
   }
   var txt = out.join('\n');
   Logger.log(txt);
+  return txt;
+}
+
+// ── REPARO DE DRIFT — arquiva vínculos com ponteiro errado + re-religa ──────
+//  EXCEÇÃO PERMANENTE (como repararVinculosCombosOrfaos / diagValidarVinculosVendas):
+//  fica no Code.js pra estar sempre no dropdown do editor. Recuperação do estrago
+//  de delete manual de linha no Sheets (que NÃO passa pelo reindex do A4): cada
+//  delete desloca um bloco e deixa N vínculos apontando pro cliente errado.
+//  Passo 1: arquiva todo vínculo ATIVO inconsistente (mãe não-Fibra, filha
+//           não-Móvel, ou CPF divergente — CPF normalizado sem zero à esquerda,
+//           pra NÃO tocar combos válidos onde a célula perdeu o zero inicial).
+//  Passo 2: chama repararVinculosCombosOrfaos() — re-religa por CPF as Fibras
+//           que ficaram órfãs, agora com os Móveis livres.
+//  NÃO toca 1-Vendas. Roda manual no editor; loga e retorna o relatório.
+// ─────────────────────────────────────────────────────────────────────────
+function repararDriftVinculos() {
+  var shVinc = _getSheetVinculosVendas_(true);
+  if (!shVinc || shVinc.getLastRow() < 2) { Logger.log('Sem vínculos.'); return 'Sem vínculos.'; }
+  var sheet = _getSheet();
+  var c = CONFIG.COLUNAS;
+  var lastRow = sheet.getLastRow();
+  var vendasRaw = (lastRow >= 3) ? sheet.getRange(3, 1, lastRow - 2, CONFIG.TOTAL_COLUNAS).getValues() : [];
+  var lastV = shVinc.getLastRow();
+  var vincs = shVinc.getRange(2, 1, lastV - 1, 10).getValues();
+  var tz = Session.getScriptTimeZone();
+  var stamp = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm');
+
+  var arquivados = 0, mantidos = 0;
+  var log = [];
+
+  for (var i = 0; i < vincs.length; i++) {
+    if (_normalizarTexto(vincs[i][6] || 'ATIVO') !== 'ATIVO') continue;
+    var maeL   = parseInt(vincs[i][2], 10);
+    var filhaL = parseInt(vincs[i][3], 10);
+    var vincRow = i + 2;
+    var motivo = '';
+
+    if (isNaN(maeL) || maeL < 3 || maeL > lastRow || isNaN(filhaL) || filhaL < 3 || filhaL > lastRow) {
+      motivo = 'linha fora de faixa';
+    } else {
+      var rowMae = vendasRaw[maeL - 3], rowFilha = vendasRaw[filhaL - 3];
+      if (!rowMae || !rowFilha) {
+        motivo = 'linha ausente';
+      } else {
+        var prodMae   = _normalizarTexto(rowMae[c.PRODUTO]   || '');
+        var prodFilha = _normalizarTexto(rowFilha[c.PRODUTO] || '');
+        var cpfMae    = String(rowMae[c.CPF]   || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
+        var cpfFilha  = String(rowFilha[c.CPF] || '').replace(/[^0-9]/g, '').replace(/^0+/, '');
+        if (prodMae.indexOf('FIBRA') === -1)        motivo = 'mãe não-Fibra';
+        else if (prodFilha.indexOf('MOVEL') === -1) motivo = 'filha não-Móvel';
+        else if (cpfMae && cpfFilha && cpfMae !== cpfFilha) motivo = 'CPF divergente';
+      }
+    }
+
+    if (motivo) {
+      shVinc.getRange(vincRow, 7).setValue('ARQUIVADO');
+      var obs  = String(vincs[i][7] || '').trim();
+      var nota = 'Drift arquivado ' + stamp + ' (' + motivo + ')';
+      shVinc.getRange(vincRow, 8).setValue(obs ? (obs + ' | ' + nota) : nota);
+      arquivados++;
+      log.push('🗂 Vínc.L.' + vincRow + ' arquivado — ' + motivo);
+    } else {
+      mantidos++;
+    }
+  }
+  _limparCacheVinculosVendas_();
+
+  var cab = [
+    '════════════════════════════════',
+    '  repararDriftVinculos',
+    '════════════════════════════════',
+    'Drift arquivado    : ' + arquivados,
+    'ATIVO mantidos     : ' + mantidos,
+    '────────────────────────────────'
+  ];
+  cab = cab.concat(log);
+  cab.push('────── re-rodando repararVinculosCombosOrfaos ──────');
+  Logger.log(cab.join('\n'));
+
+  var resRepair = repararVinculosCombosOrfaos();
+  var txt = cab.join('\n') + '\n' + resRepair;
   return txt;
 }
 
