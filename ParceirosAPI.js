@@ -1385,6 +1385,15 @@ function getMeusPagamentosPAP(cpf) {
 //     Adicionado em 03/06/2026.
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Invalida o cache do dropdown de Responsável (Nova Venda) pra refletir
+// imediato após cadastro/edição/toggle/exclusão de vendedor PAP.
+function _papInvalidarCacheResponsaveis_() {
+  try {
+    if (typeof CONFIG === 'undefined' || !CONFIG.CACHE_PREFIX) return;
+    CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'responsaveis_v1');
+  } catch (_) {}
+}
+
 // Aceita admin OU backoffice. Lança erro se nenhum dos dois.
 function _assertAdminOuBackofficePAP_(usuario) {
   var u = String(usuario || '').trim().toLowerCase();
@@ -1536,6 +1545,7 @@ function salvarVendedorPAP(usuario, dados) {
     }
 
     SpreadsheetApp.flush();
+    _papInvalidarCacheResponsaveis_();
     return {
       ok: true,
       mensagem: ehUpdate ? 'Vendedor atualizado.' : 'Vendedor cadastrado.',
@@ -1559,6 +1569,7 @@ function toggleAtivoVendedorPAP(usuario, linha, ativo) {
     if (!sh) return { ok: false, mensagem: 'Aba "3 - PAP" não encontrada.' };
     sh.getRange(linha, PAP_COL_ATIVO).setValue(ativo === true);
     SpreadsheetApp.flush();
+    _papInvalidarCacheResponsaveis_();
     return { ok: true, mensagem: ativo ? 'Vendedor ativado.' : 'Vendedor desativado.' };
   } catch (e) {
     Logger.log('toggleAtivoVendedorPAP erro: ' + e.message);
@@ -1577,6 +1588,7 @@ function excluirVendedorPAP(usuario, linha) {
     if (!sh) return { ok: false, mensagem: 'Aba "3 - PAP" não encontrada.' };
     sh.getRange(linha, PAP_COL_ATIVO).setValue(false);
     SpreadsheetApp.flush();
+    _papInvalidarCacheResponsaveis_();
     return { ok: true, mensagem: 'Vendedor desativado (histórico preservado).' };
   } catch (e) {
     Logger.log('excluirVendedorPAP erro: ' + e.message);

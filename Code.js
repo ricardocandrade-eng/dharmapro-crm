@@ -2079,12 +2079,14 @@ function getResponsaveis() {
     var ultimaLinha = sh.getLastRow();
     if (ultimaLinha < 5) return { erro: false, lista: [] };
 
-    // Lê coluna S a partir de S5 (linha 5 = índice 5, quantidade = ultimaLinha - 4)
-    var raw  = sh.getRange(5, 19, ultimaLinha - 4, 1).getValues(); // col S = coluna 19, início linha 5
+    // Lê S (nome) até AC (ativo) — 11 cols. Vendedor com ATIVO=false é
+    // omitido do dropdown de Responsável da Nova Venda (03/06/2026).
+    var raw  = sh.getRange(5, 19, ultimaLinha - 4, 11).getValues();
     var lista = [];
     raw.forEach(function(row) {
       var nome = String(row[0] || '').trim();
-      if (nome && lista.indexOf(nome) === -1) lista.push(nome);
+      var ehAtivo = (typeof _papEhAtivo_ === 'function') ? _papEhAtivo_(row[10]) : (row[10] !== false);
+      if (nome && ehAtivo && lista.indexOf(nome) === -1) lista.push(nome);
     });
     lista.sort(function(a, b) { return a.localeCompare(b, 'pt-BR'); });
 
