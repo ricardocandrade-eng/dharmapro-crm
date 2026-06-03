@@ -7347,6 +7347,9 @@ function diagValidarVinculosVendas() {
   var sheet = _getSheet();
   var c = CONFIG.COLUNAS;
   var lastRow = sheet.getLastRow();
+  // Leitura ÚNICA de 1-Vendas (antes era 2 getRange por vínculo = O(n) round-trips
+  // ao Sheets, ~1-3min com centenas de vínculos). Agora indexa em memória.
+  var vendasRaw = (lastRow >= 3) ? sheet.getRange(3, 1, lastRow - 2, CONFIG.TOTAL_COLUNAS).getValues() : [];
   var lastV = shVinc.getLastRow();
   var vincs = shVinc.getRange(2, 1, lastV - 1, 10).getValues();
 
@@ -7365,8 +7368,9 @@ function diagValidarVinculosVendas() {
     if (isNaN(filhaL) || filhaL < 3 || filhaL > lastRow) probs.push('filha L.' + vincs[i][3] + ' fora de faixa');
     if (probs.length) { problemas.push('🔴 Vínc.L.' + vincRow + ': ' + probs.join(' | ')); continue; }
 
-    var rowMae   = sheet.getRange(maeL,   1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
-    var rowFilha = sheet.getRange(filhaL, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+    var rowMae   = vendasRaw[maeL   - 3];
+    var rowFilha = vendasRaw[filhaL - 3];
+    if (!rowMae || !rowFilha) { problemas.push('🔴 Vínc.L.' + vincRow + ': linha mãe/filha ausente em 1-Vendas'); continue; }
     var prodMae   = _normalizarTexto(rowMae[c.PRODUTO]   || '');
     var prodFilha = _normalizarTexto(rowFilha[c.PRODUTO] || '');
     var cpfMae    = String(rowMae[c.CPF]   || '').replace(/[^0-9]/g, '');
