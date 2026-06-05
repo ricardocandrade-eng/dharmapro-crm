@@ -110,6 +110,65 @@
   }
   #rwbContainer .rwb-empty { text-align:center; color:#8a93a6; padding:40px; font-style:italic; }
   #rwbContainer .rwb-loading { text-align:center; padding:40px; color:#8a93a6; }
+
+  /* A — Audiências predefinidas */
+  #rwbContainer .rwb-audiencias {
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:10px 0 14px 0; border-bottom:1px solid #22262f; margin-bottom:14px;
+  }
+  #rwbContainer .rwb-aud-label { color:#8a93a6; font-size:12px; font-weight:500; }
+  #rwbContainer .rwb-aud {
+    background:#0f1116; color:#cfd6e4; border:1px solid #2a2f3a;
+    padding:6px 12px; border-radius:16px; cursor:pointer; font-size:12px;
+    font-family:inherit; transition:background .12s, border-color .12s;
+  }
+  #rwbContainer .rwb-aud:hover { background:#21252e; border-color:#3b82f6; }
+  #rwbContainer .rwb-aud.ativo { background:#3b82f6; border-color:#3b82f6; color:#fff; }
+  #rwbContainer .rwb-aud-help { color:#5b6473; font-size:11px; margin-left:4px; }
+
+  /* B — Aviso quando re-tentativa */
+  #rwbContainer .rwb-tentado-warn {
+    color:#fbbf24; font-size:11px; margin-top:3px; display:none;
+  }
+  #rwbContainer .rwb-tentado-warn.ativo { display:block; }
+
+  /* C — Banner de resultado + chips de filtros ativos */
+  #rwbContainer .rwb-banner {
+    background:#1a1d24; border:1px solid #2a2f3a; border-radius:8px;
+    padding:10px 14px; margin-bottom:10px; display:flex;
+    align-items:center; gap:14px; flex-wrap:wrap;
+  }
+  #rwbContainer .rwb-banner-counter { font-size:13px; color:#cfd6e4; }
+  #rwbContainer .rwb-banner-counter strong { color:#fff; font-size:15px; }
+  #rwbContainer .rwb-banner-counter .rwb-sub-univ { color:#8a93a6; font-size:12px; margin-left:6px; }
+  #rwbContainer .rwb-banner-chips { display:flex; gap:6px; flex-wrap:wrap; }
+  #rwbContainer .rwb-active-chip {
+    background:#3b82f622; color:#93c5fd; border:1px solid #3b82f666;
+    padding:3px 8px; border-radius:10px; font-size:11px; display:inline-flex; gap:6px; align-items:center;
+  }
+  #rwbContainer .rwb-active-chip button {
+    background:none; border:none; color:inherit; cursor:pointer; font-size:14px;
+    padding:0; line-height:1; opacity:.7;
+  }
+  #rwbContainer .rwb-active-chip button:hover { opacity:1; }
+  #rwbContainer .rwb-active-chip.warn { background:#f59e0b22; color:#fbbf24; border-color:#f59e0b66; }
+
+  /* D — CTA primário */
+  #rwbContainer .rwb-cta-primary {
+    display:none; align-items:center; gap:14px; margin-bottom:14px;
+    padding:14px 16px; background:linear-gradient(90deg,#1e3a8a22,#1a1d24);
+    border:1px solid #3b82f655; border-radius:10px;
+  }
+  #rwbContainer .rwb-cta-primary.ativo { display:flex; }
+  #rwbContainer .rwb-cta-primary-btn {
+    background:#3b82f6; color:#fff; border:none; border-radius:8px;
+    padding:10px 18px; font-size:14px; font-weight:600; cursor:pointer;
+    font-family:inherit; box-shadow:0 2px 8px rgba(59,130,246,0.3);
+  }
+  #rwbContainer .rwb-cta-primary-btn:hover { background:#2563eb; }
+  #rwbContainer .rwb-cta-primary-btn.warn { background:#f59e0b; box-shadow:0 2px 8px rgba(245,158,11,0.3); }
+  #rwbContainer .rwb-cta-primary-btn.warn:hover { background:#d97706; }
+  #rwbContainer .rwb-cta-hint { color:#8a93a6; font-size:12px; }
 </style>
 
 <div id="rwbContainer">
@@ -121,6 +180,16 @@
     <button id="rwbBtnRecarregar" class="rwb-btn secondary" style="margin-left:8px;padding:4px 10px;font-size:12px;">↻ Recarregar</button>
   </div>
 
+  <!-- A — Audiências predefinidas -->
+  <div class="rwb-audiencias">
+    <span class="rwb-aud-label">🎯 Audiências prontas:</span>
+    <button class="rwb-aud" data-preset="frios-semretorno-seminteresse">Sem retorno ou interesse (não tentados)</button>
+    <button class="rwb-aud" data-preset="aging-7-30">Aging 7-30 dias (não tentados)</button>
+    <button class="rwb-aud" data-preset="re-tentar">Re-tentar quem já foi</button>
+    <button class="rwb-aud" data-preset="custom">⚙ Customizar</button>
+    <span class="rwb-aud-help">um clique configura os filtros abaixo</span>
+  </div>
+
   <!-- Toolbar de filtros -->
   <div class="rwb-toolbar">
     <label>
@@ -128,12 +197,13 @@
       <select id="rwbFltLabels" multiple size="3" style="min-width:200px;"></select>
     </label>
     <label>
-      Tentado?
+      Reengajamento anterior
       <select id="rwbFltTentado">
-        <option value="nao" selected>Só não tentados</option>
-        <option value="sim">Só tentados</option>
-        <option value="qualquer">Qualquer</option>
+        <option value="nao" selected>Pular quem já foi (padrão)</option>
+        <option value="qualquer">Incluir todos</option>
+        <option value="sim">Só quem já foi (re-tentativa)</option>
       </select>
+      <span class="rwb-tentado-warn" id="rwbTentadoWarn">⚠ Modo re-tentativa: só verá quem JÁ recebeu disparo antes.</span>
     </label>
     <label>
       Faixa de horas
@@ -155,6 +225,26 @@
     <button id="rwbBtnAplicar" class="rwb-btn">Aplicar</button>
     <button id="rwbBtnLimpar" class="rwb-btn secondary">Limpar</button>
     <span class="rwb-counter" id="rwbCounter">—</span>
+  </div>
+
+  <!-- C — Banner de resultado + filtros ativos -->
+  <div class="rwb-banner" id="rwbBanner" style="display:none;">
+    <div class="rwb-banner-counter">
+      📊 Mostrando <strong id="rwbBannerN">0</strong>
+      <span class="rwb-sub-univ">de <span id="rwbBannerTotalUniv">222</span> na janela WABA</span>
+    </div>
+    <div class="rwb-banner-chips" id="rwbActiveChips"></div>
+  </div>
+
+  <!-- D — CTA primário (com TODOS os filtrados) -->
+  <div class="rwb-cta-primary" id="rwbCtaPrimary">
+    <button class="rwb-cta-primary-btn" id="rwbBtnCtaTemplate">
+      📤 Criar campanha com estes <span id="rwbCtaN">0</span> contatos
+    </button>
+    <button class="rwb-cta-primary-btn warn" id="rwbBtnCtaPessoal" style="padding:10px 14px;font-size:13px;">
+      📱 Via outro número
+    </button>
+    <span class="rwb-cta-hint">ou selecione individualmente na tabela abaixo</span>
   </div>
 
   <!-- Bulk action bar -->
@@ -229,6 +319,7 @@
     operadores: [],
     bulkMode: null,        // null | 'template' | 'pessoal' (após confirmação no modal)
     targetSingle: null,    // contato selecionado pra modal single-action
+    bulkOverride: null,    // lista explícita (usada pelo CTA "todos os filtrados")
   };
 
   // localStorage de filtros
@@ -285,13 +376,78 @@
       for (var i=0; i<opts.length; i++) opts[i].selected = (arr || []).indexOf(opts[i].value) !== -1;
     }
     setMulti('rwbFltLabels', f.labels);
-    if (f.tentado) el('rwbFltTentado').value = f.tentado;
+    // Tentado NÃO restaura do LS por design — default sempre "nao" pra evitar
+    // disparo acidental em re-tentativa (causou o bug de 05/06/2026).
+    el('rwbFltTentado').value = 'nao';
     if (f.incluir_sem_viabilidade) el('rwbFltIncluirSemViab').checked = true;
     if (f.busca) el('rwbFltBusca').value = f.busca;
     document.querySelectorAll('#rwbChipsHoras .rwb-chip').forEach(function(c) {
       var min = c.dataset.min ? Number(c.dataset.min) : null;
       if (f.horas_min === min) c.classList.add('ativo');
     });
+    atualizarTentadoWarn();
+  }
+
+  function atualizarTentadoWarn() {
+    var v = el('rwbFltTentado').value;
+    el('rwbTentadoWarn').classList.toggle('ativo', v === 'sim');
+  }
+
+  // A — Audiências predefinidas
+  var PRESETS = {
+    'frios-semretorno-seminteresse': {
+      labels: ['sem-retorno', 'sem-interesse'],
+      tentado: 'nao',
+      horas_min: null, horas_max: null,
+      incluir_sem_viabilidade: false,
+      busca: '',
+    },
+    'aging-7-30': {
+      labels: [],
+      tentado: 'nao',
+      horas_min: 168, horas_max: 720,
+      incluir_sem_viabilidade: false,
+      busca: '',
+    },
+    're-tentar': {
+      labels: [],
+      tentado: 'sim',
+      horas_min: null, horas_max: null,
+      incluir_sem_viabilidade: false,
+      busca: '',
+    },
+    'custom': null, // limpa
+  };
+
+  function aplicarPreset(nome) {
+    var p = PRESETS[nome];
+    // limpa UI
+    el('rwbFltLabels').selectedIndex = -1;
+    el('rwbFltTentado').value = 'nao';
+    el('rwbFltIncluirSemViab').checked = false;
+    el('rwbFltBusca').value = '';
+    document.querySelectorAll('#rwbChipsHoras .rwb-chip').forEach(function(c) { c.classList.remove('ativo'); });
+
+    if (p) {
+      // labels
+      var opts = el('rwbFltLabels').options;
+      for (var i=0; i<opts.length; i++) opts[i].selected = (p.labels || []).indexOf(opts[i].value) !== -1;
+      el('rwbFltTentado').value = p.tentado || 'nao';
+      el('rwbFltIncluirSemViab').checked = !!p.incluir_sem_viabilidade;
+      // horas chip
+      if (p.horas_min != null) {
+        document.querySelectorAll('#rwbChipsHoras .rwb-chip').forEach(function(c) {
+          if (Number(c.dataset.min) === p.horas_min) c.classList.add('ativo');
+        });
+      }
+    }
+    // visual: marca chip ativo
+    document.querySelectorAll('.rwb-aud').forEach(function(b) {
+      b.classList.toggle('ativo', b.dataset.preset === nome);
+    });
+    atualizarTentadoWarn();
+    STATE.page = 1;
+    carregar();
   }
 
   // ── CARGA DE OPÇÕES ──────────────────────────────────────────────────────
@@ -323,6 +479,7 @@
         STATE.rows  = resp.rows || [];
         STATE.total = resp.total || 0;
         el('rwbCounter').textContent = STATE.total + ' contato(s) · atualizado ' + new Date(resp.atualizado_em).toLocaleTimeString('pt-BR').substr(0,5);
+        renderBannerEcta(filtros);
         renderTabela();
         renderPaginacao();
       })
@@ -418,6 +575,82 @@
   }
   window.rwbIrPagina = function(p) { STATE.page = p; carregar(); };
 
+  // C — Banner + chips de filtros ativos + D — CTA primário
+  function renderBannerEcta(f) {
+    var chips = [];
+    function chip(label, onRemove, opts) {
+      var cls = (opts && opts.warn) ? 'rwb-active-chip warn' : 'rwb-active-chip';
+      var id = 'rwbAcChip_' + Math.random().toString(36).slice(2,8);
+      chips.push('<span class="' + cls + '">' + escapeHtml(label) +
+        ' <button data-rmid="' + id + '" title="Remover">×</button></span>');
+      // postpone wiring after innerHTML
+      setTimeout(function() {
+        var btn = document.querySelector('[data-rmid="' + id + '"]');
+        if (btn) btn.onclick = onRemove;
+      }, 0);
+    }
+
+    (f.labels || []).forEach(function(lab) {
+      chip('label: ' + lab, function() {
+        var sel = el('rwbFltLabels');
+        for (var i=0; i<sel.options.length; i++) {
+          if (sel.options[i].value === lab) sel.options[i].selected = false;
+        }
+        STATE.page = 1; carregar();
+      });
+    });
+
+    if (f.tentado === 'sim') {
+      chip('Só re-tentativa', function() {
+        el('rwbFltTentado').value = 'nao';
+        atualizarTentadoWarn();
+        STATE.page = 1; carregar();
+      }, { warn: true });
+    } else if (f.tentado === 'qualquer') {
+      chip('Incluindo já tentados', function() {
+        el('rwbFltTentado').value = 'nao';
+        atualizarTentadoWarn();
+        STATE.page = 1; carregar();
+      });
+    }
+
+    if (f.horas_min != null || f.horas_max != null) {
+      var lab = 'Aging ';
+      if (f.horas_min != null && f.horas_max) lab += f.horas_min + '-' + f.horas_max + 'h';
+      else if (f.horas_min != null)           lab += '> ' + f.horas_min + 'h';
+      chip(lab, function() {
+        document.querySelectorAll('#rwbChipsHoras .rwb-chip').forEach(function(c) { c.classList.remove('ativo'); });
+        STATE.page = 1; carregar();
+      });
+    }
+
+    if (f.incluir_sem_viabilidade) {
+      chip('Incluindo sem-viabilidade', function() {
+        el('rwbFltIncluirSemViab').checked = false;
+        STATE.page = 1; carregar();
+      });
+    }
+
+    if (f.busca) {
+      chip('busca: "' + f.busca + '"', function() {
+        el('rwbFltBusca').value = '';
+        STATE.page = 1; carregar();
+      });
+    }
+
+    // banner sempre visível
+    el('rwbBanner').style.display = 'flex';
+    el('rwbBannerN').textContent = STATE.total;
+    el('rwbActiveChips').innerHTML = chips.length
+      ? chips.join('')
+      : '<span style="color:#5b6473;font-size:11px;">sem filtros aplicados — mostrando todo o universo elegível</span>';
+
+    // CTA primário só aparece se há contatos
+    var hasContatos = STATE.total > 0;
+    el('rwbCtaPrimary').classList.toggle('ativo', hasContatos);
+    el('rwbCtaN').textContent = STATE.total;
+  }
+
   function atualizarBulkBar() {
     var ids = Object.keys(STATE.selecionados);
     el('rwbBulkCount').textContent = ids.length + ' selecionado(s)';
@@ -436,6 +669,7 @@
   function abrirModalTemplate(targets) {
     STATE.bulkMode = (targets.length > 1) ? 'template' : null;
     STATE.targetSingle = (targets.length === 1) ? targets[0] : null;
+    STATE.bulkOverride = (targets.length > 1) ? targets : null;
     var info = (targets.length === 1)
       ? 'Para: <strong>' + escapeHtml(targets[0].name || targets[0].phone) + '</strong>'
       : 'Para: <strong>' + targets.length + ' contatos</strong>';
@@ -461,7 +695,9 @@
     if (!nome)    return toast('Dê um nome à campanha.', 'warn');
 
     var tpl = STATE.templates.filter(function(t) { return t.meta_template_name === tplName; })[0];
-    var targets = STATE.targetSingle ? [STATE.targetSingle] : Object.keys(STATE.selecionados).map(function(k) { return STATE.selecionados[k]; });
+    var targets = STATE.targetSingle ? [STATE.targetSingle]
+                : (STATE.bulkOverride ? STATE.bulkOverride
+                : Object.keys(STATE.selecionados).map(function(k) { return STATE.selecionados[k]; }));
     var recipients = targets.map(function(t) { return { nome: t.name || 'Cliente', phone: t.phone }; });
     var cids = targets.map(function(t) { return t.chatwoot_contact_id; });
 
@@ -475,6 +711,7 @@
             el('rwbModalTplBg').classList.remove('ativo');
             el('rwbBtnTplConfirmar').disabled = false;
             STATE.selecionados = {};
+            STATE.bulkOverride = null;
             carregar();
           })
           .withFailureHandler(function(e) {
@@ -510,6 +747,7 @@
   function abrirModalPessoal(targets) {
     STATE.bulkMode = (targets.length > 1) ? 'pessoal' : null;
     STATE.targetSingle = (targets.length === 1) ? targets[0] : null;
+    STATE.bulkOverride = (targets.length > 1) ? targets : null;
     var info = (targets.length === 1)
       ? 'Para: <strong>' + escapeHtml(targets[0].name || targets[0].phone) + '</strong>'
       : 'Para: <strong>' + targets.length + ' contatos</strong>';
@@ -536,7 +774,9 @@
     if (!nome)     return toast('Dê um nome à campanha.', 'warn');
     if (!msg)      return toast('Escreva a mensagem.', 'warn');
 
-    var targets = STATE.targetSingle ? [STATE.targetSingle] : Object.keys(STATE.selecionados).map(function(k) { return STATE.selecionados[k]; });
+    var targets = STATE.targetSingle ? [STATE.targetSingle]
+                : (STATE.bulkOverride ? STATE.bulkOverride
+                : Object.keys(STATE.selecionados).map(function(k) { return STATE.selecionados[k]; }));
     var contatos = targets.map(function(t) { return { nome: t.name || 'Cliente', telefone: t.phone }; });
     var cids = targets.map(function(t) { return t.chatwoot_contact_id; });
 
@@ -549,6 +789,7 @@
             el('rwbModalPesBg').classList.remove('ativo');
             el('rwbBtnPesConfirmar').disabled = false;
             STATE.selecionados = {};
+            STATE.bulkOverride = null;
             carregar();
           })
           .withFailureHandler(function(e) {
@@ -598,7 +839,11 @@
   };
 
   // ── EVENTOS DA TOOLBAR ───────────────────────────────────────────────────
-  el('rwbBtnAplicar').onclick = function() { STATE.page = 1; carregar(); };
+  el('rwbBtnAplicar').onclick = function() {
+    STATE.page = 1;
+    document.querySelectorAll('.rwb-aud').forEach(function(b) { b.classList.remove('ativo'); });
+    carregar();
+  };
   el('rwbBtnRecarregar').onclick = function() { carregar(); };
   el('rwbBtnLimpar').onclick = function() {
     el('rwbFltLabels').selectedIndex = -1;
@@ -606,9 +851,43 @@
     el('rwbFltIncluirSemViab').checked = false;
     el('rwbFltBusca').value = '';
     document.querySelectorAll('#rwbChipsHoras .rwb-chip').forEach(function(c) { c.classList.remove('ativo'); });
+    document.querySelectorAll('.rwb-aud').forEach(function(b) { b.classList.remove('ativo'); });
+    atualizarTentadoWarn();
     STATE.page = 1;
     carregar();
   };
+  // A — presets
+  document.querySelectorAll('.rwb-aud').forEach(function(b) {
+    b.addEventListener('click', function() { aplicarPreset(this.dataset.preset); });
+  });
+  // B — warn on tentado change
+  el('rwbFltTentado').addEventListener('change', atualizarTentadoWarn);
+
+  // D — CTA primário: buscar TODOS os filtrados (sem paginação) e abrir modal
+  function ctaBuscarTodosEAbrir(qualModal) {
+    var filtros = colherFiltros();
+    filtros.page = 1;
+    filtros.per_page = Math.max(STATE.total, 1); // backend tem HARD_LIMIT=2000
+    var btn = (qualModal === 'template') ? el('rwbBtnCtaTemplate') : el('rwbBtnCtaPessoal');
+    var labelOrig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Carregando ' + STATE.total + ' contatos…';
+    google.script.run
+      .withSuccessHandler(function(resp) {
+        btn.disabled = false; btn.innerHTML = labelOrig;
+        var rows = resp.rows || [];
+        if (!rows.length) return toast('Nenhum contato no filtro atual.', 'warn');
+        if (qualModal === 'template') abrirModalTemplate(rows);
+        else abrirModalPessoal(rows);
+      })
+      .withFailureHandler(function(e) {
+        btn.disabled = false; btn.innerHTML = labelOrig;
+        toast('Erro ao carregar lista completa: ' + e.message, 'error');
+      })
+      .listarReengajamentoWaba(filtros);
+  }
+  el('rwbBtnCtaTemplate').onclick = function() { ctaBuscarTodosEAbrir('template'); };
+  el('rwbBtnCtaPessoal').onclick  = function() { ctaBuscarTodosEAbrir('pessoal'); };
   // chips de horas (single-select)
   document.querySelectorAll('#rwbChipsHoras .rwb-chip').forEach(function(c) {
     c.addEventListener('click', function() {
