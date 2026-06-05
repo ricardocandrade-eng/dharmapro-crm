@@ -186,7 +186,8 @@
     <button class="rwb-aud" data-preset="frios-semretorno-seminteresse">Sem retorno ou interesse (não tentados)</button>
     <button class="rwb-aud" data-preset="aging-7-30">Aging 7-30 dias (não tentados)</button>
     <button class="rwb-aud" data-preset="re-tentar">Re-tentar quem já foi</button>
-    <button class="rwb-aud" data-preset="custom">⚙ Customizar</button>
+    <button class="rwb-aud" data-preset="todos">Toda a janela WABA</button>
+    <button class="rwb-aud" data-preset="custom">⚙ Limpar filtros</button>
     <span class="rwb-aud-help">um clique configura os filtros abaixo</span>
   </div>
 
@@ -416,7 +417,14 @@
       incluir_sem_viabilidade: false,
       busca: '',
     },
-    'custom': null, // limpa
+    'todos': {
+      labels: [],
+      tentado: 'qualquer',
+      horas_min: null, horas_max: null,
+      incluir_sem_viabilidade: true,
+      busca: '',
+    },
+    'custom': null, // limpa tudo (volta pro default: pular já tentados)
   };
 
   function aplicarPreset(nome) {
