@@ -8109,6 +8109,7 @@ function getDashboard(mes, ano) {
     var fibraHoje = 0, movelHoje = 0;
     var fibraHojeCanal = {};
     var instalacoesMes = 0, vendaBrutaMes = 0, instaladasDaVendaBrutaMes = 0;
+    var instalacoesVendaDoMes = 0, instalacoesVendasAnterioresMes = 0;
     var cancelComercialMes = 0, ticketSoma = 0, ticketQtd = 0;
     var backlog = 0, pendenciaVero = 0;
     var agendadosHoje = 0, instaladosHoje = 0, pendenciadoHoje = 0;
@@ -8208,6 +8209,8 @@ function getDashboard(mes, ano) {
       if (status === '3 - Finalizada/Instalada' && isMesAno(dInstal)) {
         if (isFibra(produto)) {
           instalacoesMes++;
+          if (isMesAno(dAtiv)) instalacoesVendaDoMes++;
+          else instalacoesVendasAnterioresMes++;
           instalacaoCanal[canal] = (instalacaoCanal[canal] || 0) + 1;
           ticketSoma += valor;
           if (valor > 0) ticketQtd++; // só conta denominador quando há preço real
@@ -8335,6 +8338,8 @@ function getDashboard(mes, ano) {
       // Mês
       instalacoesMes:     instalacoesMes,
       instaladasDaVendaBrutaMes: instaladasDaVendaBrutaMes,
+      instalacoesVendaDoMes: instalacoesVendaDoMes,
+      instalacoesVendasAnterioresMes: instalacoesVendasAnterioresMes,
       backlog:            backlog,
       projecaoBacklog:    instalacoesMes + backlog,
       vendaBrutaMes:      vendaBrutaMes,

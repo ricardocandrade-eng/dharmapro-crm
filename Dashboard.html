@@ -344,19 +344,23 @@ function _render(d){
     var rb=document.getElementById('d_rankBar'),rt=document.getElementById('d_rankTrack'),ri=document.getElementById('d_rankInfo');
     if(!rb||!rt||!ri)return;
     var vb=Math.max(0,parseInt(d.vendaBrutaMes,10)||0);
-    var insBase=d.instalacoesMes;
-    var ins=Math.max(0,parseInt(insBase,10)||0);
+    var ins=Math.max(0,parseInt(d.instalacoesMes,10)||0);
+    var ant=Math.max(0,parseInt(d.instalacoesVendasAnterioresMes,10)||0);
+    if(ant>ins) ant=ins;
+    var mes=Math.max(0,parseInt(d.instalacoesVendaDoMes,10)||0);
+    if(mes+ant!==ins) mes=Math.max(0,ins-ant);
     var base=Math.max(vb,ins,1),tks='';
     for(var t=0;t<base;t++){
-      var cor='rgba(255,255,255,.10)';
-      if(t<vb&&t<ins) cor='#ff4570';
-      else if(t<vb) cor='rgba(255,255,255,.22)';
-      else if(t<ins) cor='rgba(255,69,112,.38)';
-      tks+='<div style="flex:1;height:100%;background:'+cor+'"></div>';
+      var cor='rgba(255,255,255,.10)', title='sem instalacao';
+      if(t<mes){ cor='#ff4570'; title='instalada de venda do mes'; }
+      else if(t<ins){ cor='rgba(255,69,112,.42)'; title='instalada de venda anterior'; }
+      else if(t<vb){ cor='rgba(255,255,255,.22)'; title='venda do mes ainda nao instalada'; }
+      tks+='<div title="'+title+'" style="flex:1;height:100%;background:'+cor+'"></div>';
     }
     rt.innerHTML=tks;
-    ri.textContent=ins+' / '+vb;
-    ri.style.color=ins>vb?'var(--g4)':'var(--g3)';
+    ri.textContent=ins+' inst | '+vb+' vendas'+(ant>0?' | +'+ant+' ant.':'');
+    ri.style.color=ant>0?'var(--g4)':(ins>vb?'var(--g4)':'var(--g3)');
+    ri.title=ant>0?(ant+' instalacao(oes) de venda(s) de mes anterior'):'Instalacoes e vendas do mes';
     rb.style.display='flex';
   })();
 
