@@ -1,42 +1,44 @@
 /**
- * _metaPainelSetup.js  (one-shot — rodar UMA VEZ no editor, depois Claude apaga)
+ * _metaPainelSetup.js  (one-shot — rodar no editor quando precisar mudar)
  *
- * Configura as Script Properties do Cockpit Financeiro do Painel Ads:
+ * Script Properties do Cockpit Financeiro do Painel Ads:
  *  - META_AGENCIA_FEE_MENSAL = R$/mês do fee da agência (0 = sem agência)
- *  - META_TM_REAL            = TM franquia real do mês (ticket × fator estrela)
+ *  - META_TM_REAL_OVERRIDE   = override manual do TM em R$ (0 = AUTO/dinâmico)
  *
- * Atualizar mensalmente conforme fechamento do extrato ou mudança de status
- * da agência. Pode ser editado direto na UI de Script Properties também, mas
- * a UI tem bug conhecido (não persiste) — fluxo via função é confiável.
+ * **TM é DINÂMICO por padrão** — `_getMetaConfigFinanceiro_` calcula a partir
+ * das vendas META ADS instaladas do período (Σ valor ÷ qtd com valor>0) × fator
+ * estrela (CFG.FATOR_VERO, hoje 2,6). Só usa override se META_TM_REAL_OVERRIDE>0.
+ * Fallback final (amostra < 3): R$ 267,69.
+ *
+ * Quando override faz sentido: fechamento de mês com fator alterado e a amostra
+ * de instaladas no Painel ainda não reflete (raro). Caso geral: deixar em 0.
  *
  * Como rodar:
- *   1. Editor Apps Script → dropdown "Selecionar função" → metaPainelSetup
- *   2. Clicar ▶ Executar
- *   3. Conferir log: "OK — fee=1500.00 / tm=267.69"
- *   4. Avisar Claude (delete o arquivo no próximo push)
+ *   1. Ajustar FEE_MENSAL / TM_OVERRIDE abaixo conforme estado atual
+ *   2. Editor Apps Script → função `metaPainelSetup` → ▶ Executar
+ *   3. Conferir log
  */
 function metaPainelSetup() {
-  var FEE_MENSAL = 1500;   // ← editar quando mudar (0 quando cortar agência)
-  var TM_REAL    = 267.69; // ← editar a cada fechamento mensal (ticket × fator)
+  var FEE_MENSAL  = 1500; // editar: R$/mês do fee da agência (0 quando cortar)
+  var TM_OVERRIDE = 0;    // 0 = automático (recomendado). Setar só se quiser fixar.
 
   PropertiesService.getScriptProperties().setProperties({
     'META_AGENCIA_FEE_MENSAL': String(FEE_MENSAL),
-    'META_TM_REAL':            String(TM_REAL)
+    'META_TM_REAL_OVERRIDE':   String(TM_OVERRIDE)
   });
 
-  // Self-check — lê de volta e confirma
   var p = PropertiesService.getScriptProperties();
   Logger.log('OK — fee=' + p.getProperty('META_AGENCIA_FEE_MENSAL')
-           + ' / tm=' + p.getProperty('META_TM_REAL'));
-
-  // Invalida cache de qualquer chamador que tenha lido (defensivo — readers
-  // são called fresh per request, mas garante consistência se mudar)
-  try { CacheService.getScriptCache().remove('painel_ads_data'); } catch (e) {}
+           + ' / tm_override=' + p.getProperty('META_TM_REAL_OVERRIDE')
+           + ' (0 = TM dinâmico via vendas Meta instaladas × fator)');
 }
 
 /** Diagnóstico (rodar no editor) — mostra valores atuais sem alterar. */
 function metaPainelStatus() {
   var p = PropertiesService.getScriptProperties();
   Logger.log('META_AGENCIA_FEE_MENSAL: ' + (p.getProperty('META_AGENCIA_FEE_MENSAL') || '(vazio → default 0)'));
-  Logger.log('META_TM_REAL:            ' + (p.getProperty('META_TM_REAL')            || '(vazio → default 267.69)'));
+  Logger.log('META_TM_REAL_OVERRIDE:   ' + (p.getProperty('META_TM_REAL_OVERRIDE')   || '(vazio → TM dinâmico)'));
+  // Limpa Script Property antiga (META_TM_REAL → renomeada pra _OVERRIDE em 08/06)
+  var legacy = p.getProperty('META_TM_REAL');
+  if (legacy) Logger.log('⚠ Property legada META_TM_REAL=' + legacy + ' (pode apagar — ignorada pelo código novo)');
 }

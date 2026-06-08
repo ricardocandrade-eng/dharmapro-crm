@@ -1577,7 +1577,12 @@
       html += '<div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Fee Agência</div><div style="font-size:18px;font-weight:700;color:var(--em);margin-top:4px">'+_paFmtMoney(fin.fee_periodo)+'</div><div style="font-size:9px;color:var(--dim2);margin-top:2px">'+(d.periodo.dias||'?')+' dias · R$'+(fin.fee_mensal||0).toFixed(0)+'/mês</div></div>';
     }
     html += '<div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Custo Total</div><div style="font-size:18px;font-weight:700;color:var(--em);margin-top:4px">'+_paFmtMoney(fin.custo_total)+'</div></div>';
-    html += '<div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Receita Projetada</div><div style="font-size:18px;font-weight:700;color:var(--em);margin-top:4px">'+_paFmtMoney(fin.receita)+'</div><div style="font-size:9px;color:var(--dim2);margin-top:2px">'+(r.instaladas||0)+' instaladas × R$'+(fin.tm_real||0).toFixed(2).replace('.',',')+'</div></div>';
+    var tmFonteLabel = (function(){
+      if (fin.tm_fonte === 'auto')     return '<span style="color:#94d82d">auto</span> · ticket R$'+(fin.tm_ticket||0).toFixed(2).replace('.',',')+' × fator '+(fin.tm_fator||0).toFixed(1).replace('.',',')+' ('+fin.tm_amostra+' inst)';
+      if (fin.tm_fonte === 'manual')   return '<span style="color:#ffd43b">manual</span> · META_TM_REAL_OVERRIDE';
+      return '<span style="color:#ff9f43">fallback</span> · amostra <3 instaladas · R$267,69';
+    })();
+    html += '<div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Receita Projetada</div><div style="font-size:18px;font-weight:700;color:var(--em);margin-top:4px">'+_paFmtMoney(fin.receita)+'</div><div style="font-size:9px;color:var(--dim2);margin-top:2px">'+(r.instaladas||0)+' instaladas × <b>R$'+(fin.tm_real||0).toFixed(2).replace('.',',')+'</b></div><div style="font-size:9px;color:var(--dim2);margin-top:2px">TM '+tmFonteLabel+'</div></div>';
     html += '<div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Resultado</div><div style="font-size:22px;font-weight:700;color:'+corResult+';margin-top:4px">'+(fin.resultado>=0?'+':'')+_paFmtMoney(fin.resultado)+'</div>';
     if (fin.roi !== null) html += '<div style="font-size:9px;color:var(--dim2);margin-top:2px">ROI '+(fin.roi||0).toFixed(2)+'×</div>';
     html += '</div>';

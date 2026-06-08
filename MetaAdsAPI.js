@@ -32,17 +32,46 @@ var CFG_META = {
 };
 
 /**
- * Configuração financeira do Painel Ads (lida via Script Properties — Ricardo edita
- * sem deploy). Defaults seguros pra quando o canal estiver sem agência.
+ * Configuração financeira do Painel Ads. Lê Script Properties:
  *  - META_AGENCIA_FEE_MENSAL: fee em R$/mês (0 = sem agência). Default 0.
- *  - META_TM_REAL: TM franquia real do mês (ticket × fator estrela). Default R$ 267,69
- *    (média maio/26). Atualizar mensalmente conforme fechamento do extrato.
+ *  - META_TM_REAL_OVERRIDE: override manual do TM (em R$). Quando vazio/0, o TM é
+ *    calculado dinamicamente a partir das vendas META ADS instaladas: ticket médio
+ *    (Σ valor das instaladas Meta ÷ qtd com valor > 0) × fator estrela (CFG.FATOR_VERO).
+ *    Fallback final: R$ 267,69.
+ *
+ * Retorna `tm_real`, `tm_fonte` ('auto'|'manual'|'fallback') e detalhamento
+ * (ticket_medio, fator, ticket_qtd) pro Painel exibir a origem.
  */
-function _getMetaConfigFinanceiro_() {
-  var props = PropertiesService.getScriptProperties();
+function _getMetaConfigFinanceiro_(crmStats) {
+  var props    = PropertiesService.getScriptProperties();
+  var fee      = parseFloat(props.getProperty('META_AGENCIA_FEE_MENSAL') || '0') || 0;
+  var override = parseFloat(props.getProperty('META_TM_REAL_OVERRIDE') || '0') || 0;
+  var fator    = (typeof CONFIG !== 'undefined' && CONFIG.FATOR_VERO) || 2.6;
+
+  var tm, fonte, ticketMedio = null, ticketQtd = 0;
+  if (override > 0) {
+    tm    = override;
+    fonte = 'manual';
+  } else if (crmStats && crmStats.ticket_qtd >= 3) {
+    // Amostra mínima de 3 instaladas com valor pra evitar TM enviesado
+    ticketMedio = crmStats.ticket_soma / crmStats.ticket_qtd;
+    ticketQtd   = crmStats.ticket_qtd;
+    tm          = ticketMedio * fator;
+    fonte       = 'auto';
+  } else {
+    tm          = 267.69;
+    fonte       = 'fallback';
+    ticketMedio = crmStats ? (crmStats.ticket_soma / Math.max(crmStats.ticket_qtd, 1)) : null;
+    ticketQtd   = crmStats ? crmStats.ticket_qtd : 0;
+  }
+
   return {
-    fee_mensal: parseFloat(props.getProperty('META_AGENCIA_FEE_MENSAL') || '0') || 0,
-    tm_real:    parseFloat(props.getProperty('META_TM_REAL') || '267.69') || 267.69
+    fee_mensal:   fee,
+    tm_real:      tm,
+    tm_fonte:     fonte,
+    tm_fator:     fator,
+    tm_ticket:    ticketMedio,
+    tm_amostra:   ticketQtd
   };
 }
 
@@ -89,9 +118,10 @@ function _getMetaSalesFromCRM_(since, until) {
     var dUntil = new Date(until + 'T23:59:59-03:00');
     if (isNaN(dSince) || isNaN(dUntil)) return { vendas: 0, instaladas: 0, pendentes: 0, receita_projetada: 0 };
 
-    // Lê A..AQ (43 cols — cobre CANAL=0, STATUS=1, DATA_ATIV=3, INSTAL=9, CRIADO_EM=42)
+    // Lê A..AQ (43 cols — cobre CANAL=0, STATUS=1, DATA_ATIV=3, INSTAL=9, VALOR=14, CRIADO_EM=42)
     var raw = aba.getRange(3, 1, ult - 2, 43).getValues();
     var vendas = 0, instaladas = 0, pendentes = 0;
+    var ticketSoma = 0, ticketQtd = 0;
 
     for (var i = 0; i < raw.length; i++) {
       var r = raw[i];
@@ -112,17 +142,25 @@ function _getMetaSalesFromCRM_(since, until) {
       var instal = _parseDataBR_(r[9]);
       if (instal) {
         instaladas++;
+        // Ticket médio só conta instaladas (que de fato geram receita Vero) com
+        // VALOR > 0 — mesmo critério do Dashboard.
+        var valor = parseFloat(String(r[14] || '0').replace(',','.')) || 0;
+        if (valor > 0) { ticketSoma += valor; ticketQtd++; }
       } else if (status.charAt(0) === '2') {
         pendentes++;
       }
     }
 
-    var fin = _getMetaConfigFinanceiro_();
+    var crmStats = { ticket_soma: ticketSoma, ticket_qtd: ticketQtd };
+    var fin = _getMetaConfigFinanceiro_(crmStats);
     return {
       vendas:            vendas,
       instaladas:        instaladas,
       pendentes:         pendentes,
-      receita_projetada: instaladas * fin.tm_real
+      ticket_soma:       ticketSoma,
+      ticket_qtd:        ticketQtd,
+      receita_projetada: instaladas * fin.tm_real,
+      _fin_snapshot:     fin   // pra getPainelAdsData reusar sem recalcular
     };
   } catch (e) {
     Logger.log('_getMetaSalesFromCRM_ falhou: ' + e.message);
@@ -1224,8 +1262,11 @@ function getPainelAdsData(periodo) {
     var instaladas = crmAtual.instaladas;
     var cpaReal2 = instaladas > 0 ? (totalGasto / instaladas) : null;
 
-    // Financeiro
-    var fin = _getMetaConfigFinanceiro_();
+    // Financeiro — usa snapshot do _getMetaSalesFromCRM_ (TM já dinâmico c/ amostra do período)
+    var fin = crmAtual._fin_snapshot || _getMetaConfigFinanceiro_({
+      ticket_soma: crmAtual.ticket_soma || 0,
+      ticket_qtd:  crmAtual.ticket_qtd  || 0
+    });
     var feePeriodo  = (fin.fee_mensal / 30) * dur;
     var custoTotal  = totalGasto + feePeriodo;
     var receita     = crmAtual.receita_projetada;
