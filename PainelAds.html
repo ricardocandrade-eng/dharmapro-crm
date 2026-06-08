@@ -1752,6 +1752,45 @@
       .diagnosticarAgora();
   };
 
+  // Markdown leve → HTML (headers, bold, listas, código inline). Sanitiza primeiro.
+  function _paMdToHtml(md) {
+    var esc = String(md || '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    var lines = esc.split('\n');
+    var out = [], inList = false;
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i];
+      // Headers
+      var h = l.match(/^(#{1,4})\s+(.+)$/);
+      if (h) {
+        if (inList) { out.push('</ul>'); inList = false; }
+        var lvl = Math.min(h[1].length + 2, 6);
+        var clr = h[1].length === 3 ? '#94d82d' : h[1].length === 4 ? '#cdd5e0' : '#e8ecf3';
+        out.push('<h' + lvl + ' style="color:' + clr + ';margin:18px 0 8px;font-size:' + (h[1].length === 3 ? 16 : 14) + 'px;font-weight:700;">' + _paMdInline(h[2]) + '</h' + lvl + '>');
+        continue;
+      }
+      // Lista
+      if (/^\s*[-*]\s+/.test(l)) {
+        if (!inList) { out.push('<ul style="margin:4px 0 12px 18px;padding:0;color:#cdd5e0;line-height:1.6;">'); inList = true; }
+        out.push('<li style="margin:3px 0;">' + _paMdInline(l.replace(/^\s*[-*]\s+/, '')) + '</li>');
+        continue;
+      }
+      if (inList) { out.push('</ul>'); inList = false; }
+      // HR
+      if (/^---+$/.test(l.trim())) { out.push('<hr style="border:none;border-top:1px solid rgba(255,255,255,.08);margin:14px 0;">'); continue; }
+      // Parágrafo
+      if (l.trim()) out.push('<p style="margin:6px 0;color:#cdd5e0;line-height:1.6;">' + _paMdInline(l) + '</p>');
+    }
+    if (inList) out.push('</ul>');
+    return out.join('');
+  }
+
+  function _paMdInline(s) {
+    return s
+      .replace(/\*\*(.+?)\*\*/g, '<strong style="color:#e8ecf3;">$1</strong>')
+      .replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;font-family:monospace;font-size:11px;">$1</code>');
+  }
+
   window.paDiagRenderizar = function(dados) {
     var btn = document.getElementById('paBtnDiag');
     if (btn) { btn.disabled = false; btn.textContent = '✦ Diagnosticar'; }
@@ -1761,15 +1800,6 @@
       return;
     }
 
-    var camps      = (dados.metricas_raw && dados.metricas_raw.campanhas) || [];
-    var totalGasto = 0, totalLeads = 0, totalImpr = 0;
-    for (var i = 0; i < camps.length; i++) {
-      totalGasto += camps[i].gasto      || 0;
-      totalLeads += camps[i].leads      || 0;
-      totalImpr  += camps[i].impressoes || 0;
-    }
-    var cplMedio = totalLeads > 0 ? (totalGasto / totalLeads) : null;
-
     var ts = '';
     if (dados.gerado_em) {
       try {
@@ -1778,18 +1808,49 @@
       } catch(ex) { ts = dados.gerado_em; }
     }
     var tsEl = document.getElementById('paDiagTs');
-    if (tsEl) tsEl.textContent = ts;
+    if (tsEl) tsEl.textContent = ts + (dados.contexto && dados.contexto.periodo ? ' · ' + dados.contexto.periodo.dias + 'd' : '');
+
+    var ctx = dados.contexto || {};
+    var fin = ctx.financeiro || {};
+    var ins = ctx.insights   || {};
+    var crm = ctx.crm        || {};
+    var brl = function (v) { return 'R$ ' + Number(v || 0).toFixed(2).replace('.', ','); };
 
     var html = '';
+    // Topline KPIs com dado real (não recalculado no client)
     html += '<div class="pa-diag-resumo">';
-    html += '<div class="pa-diag-kpi"><div class="pa-diag-kpi-lbl">Gasto 7d</div><div class="pa-diag-kpi-val">' + _paMoeda(totalGasto) + '</div></div>';
-    html += '<div class="pa-diag-kpi"><div class="pa-diag-kpi-lbl">Leads Meta</div><div class="pa-diag-kpi-val">' + totalLeads + '</div></div>';
-    html += '<div class="pa-diag-kpi"><div class="pa-diag-kpi-lbl">CPL Médio</div><div class="pa-diag-kpi-val">' + (cplMedio !== null ? _paMoeda(cplMedio) : '—') + '</div></div>';
-    html += '<div class="pa-diag-kpi"><div class="pa-diag-kpi-lbl">Impressões</div><div class="pa-diag-kpi-val">' + (totalImpr >= 1000 ? (totalImpr / 1000).toFixed(1) + 'k' : totalImpr) + '</div></div>';
+    html += '<div class="pa-diag-kpi"><div class="pa-diag-kpi-lbl">Gasto</div><div class="pa-diag-kpi-val">' + brl(ins.gasto_total || 0) + '</div></div>';
+    if (fin.fee_mensal > 0) html += '<div class="pa-diag-kpi"><div class="pa-diag-kpi-lbl">Custo total</div><div class="pa-diag-kpi-val">' + brl(fin.custo_total) + '</div></div>';
+    html += '<div class="pa-diag-kpi"><div class="pa-diag-kpi-lbl">Instaladas</div><div class="pa-diag-kpi-val">' + (crm.instaladas || 0) + '</div></div>';
+    html += '<div class="pa-diag-kpi"><div class="pa-diag-kpi-lbl">Receita</div><div class="pa-diag-kpi-val">' + brl(fin.receita || 0) + '</div></div>';
+    var corResult = (fin.resultado || 0) >= 0 ? '#94d82d' : '#ff6b6b';
+    html += '<div class="pa-diag-kpi"><div class="pa-diag-kpi-lbl">Resultado</div><div class="pa-diag-kpi-val" style="color:' + corResult + '">' + ((fin.resultado || 0) >= 0 ? '+' : '') + brl(fin.resultado || 0) + '</div></div>';
     html += '</div>';
-    html += '<div class="pa-diag-texto">' + _paEsc(dados.diagnostico_texto || '') + '</div>';
+
+    // Diagnóstico estruturado em Markdown → HTML
+    html += '<div class="pa-diag-texto" style="line-height:1.6;">' + _paMdToHtml(dados.diagnostico_md || '') + '</div>';
+
+    // Botão copiar (pro WhatsApp da agência ou pra deixar no Slack)
+    html += '<div style="margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);text-align:center">' +
+      '<button onclick="window.paCopiarDiagnostico()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e8ecf3;padding:8px 18px;border-radius:8px;cursor:pointer;font-size:12px;">📋 Copiar diagnóstico (texto puro)</button>' +
+      '</div>';
 
     document.getElementById('paDiagBody').innerHTML = html;
+    // Guarda pro copy
+    window._paDiagMdAtual = dados.diagnostico_md || '';
+  };
+
+  window.paCopiarDiagnostico = function() {
+    var txt = window._paDiagMdAtual || '';
+    if (!txt) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(function() {
+        var btn = event.target;
+        var orig = btn.textContent;
+        btn.textContent = '✓ Copiado!';
+        setTimeout(function() { btn.textContent = orig; }, 1500);
+      });
+    }
   };
 
   window.paDiagErro = function(e) {

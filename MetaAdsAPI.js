@@ -1666,28 +1666,69 @@ function configurarClaudeApiKey() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Busca métricas reais da Meta + leads do CRM, envia à Claude API e
- * retorna um diagnóstico em texto corrido escrito como gestor de tráfego.
- * Exportado para google.script.run.diagnosticarAgora()
+ * Diagnóstico ao vivo do Painel Ads — versão reformada 08/06/2026.
+ *
+ * Roda o mesmo pipeline do e-mail 07h, mas mais profundo: multi-conta Meta +
+ * vendas reais do CRM (1-Vendas filtro Canal=META ADS, fonte da verdade) +
+ * funil engajados vs sem-retorno + cockpit financeiro com fee/TM dinâmico +
+ * feedback recente do operador (anotações salvas via 📝 Anotação).
+ *
+ * Claude API gera diagnóstico estruturado em Markdown (topline, leitura crítica,
+ * por campanha, perguntas pra cobrar agência se houver fee), renderizado no
+ * modal com sections claras em vez de texto solto.
+ *
+ * @param {string=} periodoLabel '3d' | '7d' | '30d' (default 7d)
  */
-function diagnosticarAgora() {
+function diagnosticarAgora(periodoLabel) {
   try {
     var props     = PropertiesService.getScriptProperties();
     var token     = props.getProperty('META_ACCESS_TOKEN');
     var claudeKey = props.getProperty('CLAUDE_API_KEY');
+    if (!claudeKey) return { ok: false, erro: 'CLAUDE_API_KEY não configurada (Extensões → Propriedades do projeto).' };
+    if (!token)     return { ok: false, erro: 'META_ACCESS_TOKEN não configurado.' };
 
-    if (!claudeKey) return { ok: false, erro: 'CLAUDE_API_KEY não configurada. Vá em Extensões → Apps Script → Propriedades do projeto e adicione a chave.' };
-    if (!token)     return { ok: false, erro: 'META_ACCESS_TOKEN não configurado em Propriedades do projeto.' };
+    var tz   = Session.getScriptTimeZone();
+    var hoje = new Date();
+    var dias = (periodoLabel === '3d') ? 3 : (periodoLabel === '30d') ? 30 : 7;
+    var until = Utilities.formatDate(hoje, tz, 'yyyy-MM-dd');
+    var dStart = new Date(hoje); dStart.setDate(dStart.getDate() - (dias - 1));
+    var since = Utilities.formatDate(dStart, tz, 'yyyy-MM-dd');
 
-    var insights  = _fetchMetaInsightsParaDiag_(token);
-    var leadsData = _fetchLeadsCrmParaDiag_();
-    var prompt    = _buildDiagnosisPrompt_(insights, leadsData);
-    var texto     = _callClaudeApiDiag_(claudeKey, prompt);
+    var insights = _fetchMetaInsightsParaDiag_(token, since, until);
+    var crm      = _getMetaSalesFromCRM_(since, until);
+    var fin      = crm._fin_snapshot || _getMetaConfigFinanceiro_({
+      ticket_soma: crm.ticket_soma || 0, ticket_qtd: crm.ticket_qtd || 0
+    });
+    var feePeriodo = (fin.fee_mensal / 30) * dias;
+    var leadsData  = _fetchLeadsCrmParaDiag_(since, until);
+
+    // Lê últimas 3 anotações do operador (contexto adicional pro prompt)
+    var feedback = [];
+    try {
+      var fb = listarFeedbacksPainelAds(3);
+      if (fb && fb.ok) feedback = fb.feedbacks || [];
+    } catch (eFb) { /* não-fatal */ }
+
+    var contexto = {
+      periodo:    { since: since, until: until, dias: dias, label: periodoLabel || '7d' },
+      insights:   insights,
+      crm:        crm,
+      financeiro: { fee_mensal: fin.fee_mensal, fee_periodo: feePeriodo,
+                    tm_real: fin.tm_real, tm_fonte: fin.tm_fonte,
+                    receita: crm.instaladas * fin.tm_real,
+                    custo_total: insights.gasto_total + feePeriodo,
+                    resultado: (crm.instaladas * fin.tm_real) - (insights.gasto_total + feePeriodo) },
+      funil:      leadsData,
+      feedback:   feedback
+    };
+
+    var prompt = _buildDiagnosisPrompt_(contexto);
+    var texto  = _callClaudeApiDiag_(claudeKey, prompt, 2500);
 
     return {
       ok: true,
-      diagnostico_texto: texto,
-      metricas_raw: insights,
+      diagnostico_md: texto,
+      contexto: contexto,
       gerado_em: new Date().toISOString()
     };
   } catch (e) {
@@ -1696,175 +1737,256 @@ function diagnosticarAgora() {
   }
 }
 
-function _fetchMetaInsightsParaDiag_(token) {
-  var tz    = Session.getScriptTimeZone();
-  var hoje  = new Date();
-  var until = Utilities.formatDate(hoje, tz, 'yyyy-MM-dd');
-  var d7    = new Date(hoje); d7.setDate(d7.getDate() - 6);
-  var since = Utilities.formatDate(d7, tz, 'yyyy-MM-dd');
-
-  var base   = 'https://graph.facebook.com/' + CFG_META.API_VERSION + '/' + CFG_META.AD_ACCOUNT_ID + '/insights';
-  var params = {
-    access_token: token,
-    fields: 'campaign_id,campaign_name,impressions,clicks,ctr,cpm,cpc,spend,actions,frequency',
-    time_range: JSON.stringify({ since: since, until: until }),
-    level: 'campaign',
-    limit: '50'
-  };
-
-  var qs = Object.keys(params).map(function(k) {
-    return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
-  }).join('&');
-
-  var resp = UrlFetchApp.fetch(base + '?' + qs, { muteHttpExceptions: true });
-  var json = JSON.parse(resp.getContentText());
-  if (json.error) throw new Error('Meta API: ' + json.error.message);
-
+function _fetchMetaInsightsParaDiag_(token, since, until) {
+  var contas = _getContasMetaAds_();
   var resultado = [];
-  var data = json.data || [];
+  var contasComErro = [];
+  var gastoTotal = 0, conversasTotal = 0, imprTotal = 0, cliquesTotal = 0;
 
-  for (var i = 0; i < data.length; i++) {
-    var row     = data[i];
-    var gasto   = parseFloat(row.spend || 0);
-    var impr    = parseInt(row.impressions || 0, 10);
-    var cliques = parseInt(row.clicks || 0, 10);
-    var ctr     = parseFloat(row.ctr || 0);
-    var cpm     = parseFloat(row.cpm || 0);
-    var freq    = parseFloat(row.frequency || 0);
+  for (var ac = 0; ac < contas.length; ac++) {
+    var conta = contas[ac];
+    var nomeConta = _nomeContaMeta_(conta);
+    var params = {
+      access_token: token,
+      fields: 'campaign_id,campaign_name,impressions,clicks,ctr,cpm,cpc,spend,actions,frequency',
+      time_range: JSON.stringify({ since: since, until: until }),
+      level: 'campaign',
+      limit: '100'
+    };
+    var qs = Object.keys(params).map(function(k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }).join('&');
+    var url = 'https://graph.facebook.com/' + CFG_META.API_VERSION + '/' + conta + '/insights?' + qs;
 
-    var leadsAct = (row.actions || []).filter(function(a) {
-      return a.action_type === 'lead' || a.action_type === 'onsite_conversion.messaging_conversation_started_7d';
-    });
-    var leads = leadsAct.length > 0 ? parseFloat(leadsAct[0].value || 0) : 0;
-    var cpl   = leads > 0 ? gasto / leads : null;
-
-    resultado.push({
-      campaign_id:   row.campaign_id,
-      campaign_name: row.campaign_name,
-      gasto:         gasto,
-      impressoes:    impr,
-      cliques:       cliques,
-      leads:         leads,
-      ctr:           ctr,
-      cpm:           cpm,
-      freq:          freq,
-      cpl:           cpl
-    });
+    try {
+      var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+      var json = JSON.parse(resp.getContentText());
+      if (json.error) { contasComErro.push(nomeConta + ': ' + json.error.message); continue; }
+      var data = json.data || [];
+      for (var i = 0; i < data.length; i++) {
+        var row = data[i];
+        var gasto = parseFloat(row.spend || 0);
+        if (gasto <= 0) continue;  // filtra campanhas pausadas/sem veiculação
+        var impr  = parseInt(row.impressions || 0, 10);
+        var cliques = parseInt(row.clicks || 0, 10);
+        var convAct = (row.actions || []).find(function(a) {
+          return a.action_type === 'onsite_conversion.messaging_conversation_started_7d';
+        });
+        var conversas = convAct ? parseFloat(convAct.value || 0) : 0;
+        gastoTotal += gasto; conversasTotal += conversas; imprTotal += impr; cliquesTotal += cliques;
+        resultado.push({
+          conta:         nomeConta,
+          campaign_id:   row.campaign_id,
+          campaign_name: row.campaign_name,
+          gasto:         gasto,
+          impressoes:    impr,
+          cliques:       cliques,
+          conversas:     conversas,
+          ctr:           parseFloat(row.ctr  || 0),
+          cpm:           parseFloat(row.cpm  || 0),
+          freq:          parseFloat(row.frequency || 0),
+          cpl:           conversas > 0 ? gasto / conversas : null
+        });
+      }
+    } catch (e) {
+      contasComErro.push(nomeConta + ': ' + e.message);
+    }
   }
 
-  return { desde: since, ate: until, campanhas: resultado };
+  resultado.sort(function(a, b) { return b.gasto - a.gasto; });
+  return {
+    desde: since, ate: until,
+    campanhas: resultado,
+    contas: contas.map(function(c) { return _nomeContaMeta_(c); }),
+    contas_com_erro: contasComErro,
+    gasto_total: gastoTotal,
+    conversas_total: conversasTotal,
+    impressoes_total: imprTotal,
+    cliques_total: cliquesTotal,
+    cpl_medio: conversasTotal > 0 ? gastoTotal / conversasTotal : null
+  };
 }
 
-function _fetchLeadsCrmParaDiag_() {
+/**
+ * Lê leads do CRM no período + classifica usando a taxonomia kebab-case real
+ * (memo `reference_leads_meta_status_taxonomia`):
+ *  - venda-fechada: converteu
+ *  - sem-retorno: lead CTWA que sumiu após 1ª resposta (CUSTO INTRÍNSECO, não falha)
+ *  - sem-viabilidade / reprovado-cpf: bloqueio estrutural
+ *  - sem-interesse / venda-perdida / em-negociacao: atendido
+ *
+ * Calcula engajados (todos menos sem-retorno) e elegíveis (engajados menos bloqueios).
+ */
+function _fetchLeadsCrmParaDiag_(since, until) {
   var ss  = _getSpreadsheet_();
   var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
-  if (!aba || aba.getLastRow() < 2) return { por_campanha: {} };
+  if (!aba || aba.getLastRow() < 2) return { total: 0, por_status: {}, por_campanha: {} };
 
   var raw = aba.getRange(2, 1, aba.getLastRow() - 1, 12).getValues();
-  var por_campanha = {};
+  var dSince = new Date(since + 'T00:00:00-03:00');
+  var dUntil = new Date(until + 'T23:59:59-03:00');
+
+  var porStatus = {};
+  var porCampanha = {};
+  var porMotivo = {};
+  var total = 0, semRetorno = 0, semViab = 0, reprovado = 0;
+  var venda = 0, negociacao = 0, perdida = 0, semInteresse = 0;
 
   for (var i = 0; i < raw.length; i++) {
-    var r        = raw[i];
-    if (!r[0]) continue;
-    var campanha = String(r[5] || 'sem_campanha').trim(); // col F: utm_campaign
-    var status   = String(r[8] || '').trim();             // col I: status_final
-    var motivo   = String(r[9] || '').trim();             // col J: motivo_desq
+    var r  = raw[i];
+    var dt = r[0];
+    if (!(dt instanceof Date)) continue;
+    if (dt < dSince || dt > dUntil) continue;
 
-    if (!por_campanha[campanha]) {
-      por_campanha[campanha] = { total: 0, convertidos: 0, desqualificados: 0, pendentes: 0, motivos: {} };
-    }
-    por_campanha[campanha].total++;
-    if (status === 'Converteu') {
-      por_campanha[campanha].convertidos++;
-    } else if (status === 'Desqualificado') {
-      por_campanha[campanha].desqualificados++;
-      if (motivo) {
-        por_campanha[campanha].motivos[motivo] = (por_campanha[campanha].motivos[motivo] || 0) + 1;
-      }
-    } else {
-      por_campanha[campanha].pendentes++;
-    }
+    total++;
+    var camp   = String(r[5] || '(sem campanha)').trim();
+    var status = String(r[8] || '').trim() || '(pendente)';
+    var motivo = String(r[9] || '').trim();
+
+    porStatus[status] = (porStatus[status] || 0) + 1;
+    if (!porCampanha[camp]) porCampanha[camp] = { total: 0, vendas: 0, sem_retorno: 0, sem_viab: 0 };
+    porCampanha[camp].total++;
+
+    if (status === 'venda-fechada')      { venda++; porCampanha[camp].vendas++; }
+    else if (status === 'sem-retorno')   { semRetorno++; porCampanha[camp].sem_retorno++; }
+    else if (status === 'sem-viabilidade'){ semViab++; porCampanha[camp].sem_viab++; }
+    else if (status === 'reprovado-cpf') { reprovado++; }
+    else if (status === 'em-negociacao') { negociacao++; }
+    else if (status === 'venda-perdida') { perdida++; }
+    else if (status === 'sem-interesse') { semInteresse++; if (motivo) porMotivo[motivo] = (porMotivo[motivo]||0)+1; }
   }
 
-  return { por_campanha: por_campanha };
+  var engajados = total - semRetorno;
+  var elegiveis = engajados - semViab - reprovado;
+  var taxaConv  = elegiveis > 0 ? (venda / elegiveis * 100) : 0;
+
+  return {
+    total: total,
+    venda_fechada: venda,
+    sem_retorno: semRetorno,
+    sem_viabilidade: semViab,
+    reprovado_cpf: reprovado,
+    em_negociacao: negociacao,
+    venda_perdida: perdida,
+    sem_interesse: semInteresse,
+    engajados: engajados,
+    elegiveis: elegiveis,
+    taxa_conv_eleg_pct: Math.round(taxaConv * 10) / 10,
+    por_status: porStatus,
+    por_campanha: porCampanha,
+    por_motivo: porMotivo
+  };
 }
 
-function _buildDiagnosisPrompt_(insights, leadsData) {
-  var ctx = [
-    'Você é Claude Ads, um gestor de tráfego pago sênior especializado em provedores de internet/fibra óptica.',
-    'Analise os dados abaixo e escreva um diagnóstico real da operação de Meta Ads da Mobile Digital,',
-    'uma revenda oficial Vero Internet com base em Juiz de Fora (MG).',
-    '',
-    'CONTEXTO DO NEGÓCIO:',
-    '- Ticket médio de venda (franquia): R$313/venda instalada',
-    '- CPA máximo aceitável: R$120. CPA meta de excelência: R$80.',
-    '- CPL máximo: R$30 — pausar se ultrapassar com mais de R$100 gastos',
-    '- CTR mínimo: 0,5% — pausar se abaixo com mais de R$20 gastos',
-    '- Frequência máxima: 4,0× — indica saturação de público',
-    '- Regra de escala: +20% por semana quando CPA < R$80 por 5 dias consecutivos',
-    '- Abril é estruturalmente o mês de menor volume do ano — não é problema, é sazonalidade',
-    '- Analise SOMENTE as campanhas listadas nos DADOS REAIS abaixo. Não cite campanhas que não aparecem nos dados (podem estar pausadas).',
-    '- Plano prioritário: Oferta Verão 800MB + Globoplay + Max + Chip 60GB por R$149,90/mês',
-    '- Benchmarks saudáveis do setor: CPL R$12–18, CTR 1,0–1,5%, CPA R$60–80',
-    ''
-  ].join('\n');
+/**
+ * Prompt estruturado pro diagnóstico (08/06/2026 reform). Saída em Markdown
+ * com seções fixas que o frontend renderiza como cards. Reflete TUDO que
+ * aprendemos sobre o negócio (taxonomia kebab-case real, sem-retorno é custo
+ * de canal, TM dinâmico, fee da agência conta no ROI).
+ */
+function _buildDiagnosisPrompt_(ctx) {
+  var p     = ctx.periodo, ins = ctx.insights, crm = ctx.crm, fin = ctx.financeiro, funil = ctx.funil;
+  var brl   = function (v) { return 'R$ ' + Number(v || 0).toFixed(2).replace('.', ','); };
+  var pct   = function (v) { return Number(v || 0).toFixed(1).replace('.', ',') + '%'; };
+  var L     = CFG_META.LIMITES;
+  var nl    = '\n';
 
-  var metaTxt = 'DADOS REAIS DA META (últimos 7 dias — ' + insights.desde + ' a ' + insights.ate + '):\n';
-  // Só campanhas com gasto no período — pausadas/sem veiculação ficam de fora
-  // pra a IA não narrar campanha parada como se estivesse ativa.
-  var camps   = (insights.campanhas || []).filter(function(c) { return parseFloat(c.gasto || 0) > 0; });
-  if (camps.length === 0) {
-    metaTxt += '(Nenhuma campanha com gasto no período)\n';
+  // ── Bloco de fatos (estruturado) ─────────────────────────────────────────
+  var fatos = [];
+  fatos.push('# DADOS — Período ' + p.since + ' a ' + p.until + ' (' + p.dias + ' dias)');
+  fatos.push('');
+  fatos.push('## Cockpit financeiro');
+  fatos.push('- Gasto Meta (agregado ' + (ins.contas || []).join(' + ') + '): ' + brl(ins.gasto_total));
+  if (fin.fee_mensal > 0) {
+    fatos.push('- Fee agência (' + p.dias + '/30 × R$' + fin.fee_mensal.toFixed(0) + '): ' + brl(fin.fee_periodo));
+    fatos.push('- **Custo total**: ' + brl(fin.custo_total));
   } else {
-    for (var i = 0; i < camps.length; i++) {
-      var c = camps[i];
-      metaTxt += '\n' + c.campaign_name + ':\n';
-      metaTxt += '  Gasto: R$' + c.gasto.toFixed(2);
-      metaTxt += ' | Impressões: ' + c.impressoes;
-      metaTxt += ' | Cliques: ' + c.cliques;
-      metaTxt += ' | CTR: ' + c.ctr.toFixed(2) + '%';
-      metaTxt += ' | CPM: R$' + c.cpm.toFixed(2);
-      metaTxt += ' | Frequência: ' + c.freq.toFixed(1) + 'x\n';
-      metaTxt += '  Leads (Meta): ' + c.leads;
-      metaTxt += ' | CPL: ' + (c.cpl !== null ? 'R$' + c.cpl.toFixed(2) : 'N/A (sem leads)') + '\n';
-    }
+    fatos.push('- Fee agência: R$ 0 (operação sem agência)');
+  }
+  fatos.push('- TM real: ' + brl(fin.tm_real) + ' (fonte: ' + fin.tm_fonte + ')');
+  fatos.push('- Receita projetada (' + crm.instaladas + ' instaladas × TM): ' + brl(fin.receita));
+  fatos.push('- **Resultado**: ' + (fin.resultado >= 0 ? '+' : '') + brl(fin.resultado));
+  fatos.push('');
+  fatos.push('## Meta Ads (agregado das contas ativas)');
+  fatos.push('- Conversas iniciadas: ' + ins.conversas_total);
+  fatos.push('- CPL médio: ' + (ins.cpl_medio !== null ? brl(ins.cpl_medio) : '—'));
+  fatos.push('- Impressões: ' + ins.impressoes_total + ' · Cliques: ' + ins.cliques_total);
+  if (ins.contas_com_erro && ins.contas_com_erro.length) {
+    fatos.push('- ⚠️ Contas com erro: ' + ins.contas_com_erro.join('; '));
+  }
+  fatos.push('');
+  fatos.push('## Campanhas com gasto no período (top por gasto)');
+  if (ins.campanhas.length === 0) {
+    fatos.push('- (Nenhuma campanha rodou no período — todas pausadas)');
+  } else {
+    ins.campanhas.slice(0, 10).forEach(function (c) {
+      fatos.push('- [' + c.conta + '] ' + c.campaign_name + ' — gasto ' + brl(c.gasto)
+        + ' · CTR ' + pct(c.ctr) + ' · freq ' + c.freq.toFixed(1) + 'x · '
+        + c.conversas + ' conversas · CPL ' + (c.cpl !== null ? brl(c.cpl) : '—'));
+    });
+  }
+  fatos.push('');
+  fatos.push('## CRM — Leads no período (taxonomia real)');
+  fatos.push('- Total leads: ' + funil.total);
+  fatos.push('- venda-fechada: **' + funil.venda_fechada + '** ← CONVERSÕES');
+  fatos.push('- em-negociacao: ' + funil.em_negociacao + ' · venda-perdida: ' + funil.venda_perdida);
+  fatos.push('- sem-retorno: ' + funil.sem_retorno + ' (custo INTRÍNSECO de CTWA — lead clicou e sumiu)');
+  fatos.push('- sem-viabilidade: ' + funil.sem_viabilidade + ' · reprovado-cpf: ' + funil.reprovado_cpf);
+  fatos.push('- sem-interesse: ' + funil.sem_interesse);
+  fatos.push('');
+  fatos.push('### Funil reclassificado');
+  fatos.push('- Engajados (total − sem-retorno): ' + funil.engajados + ' (' + (funil.total > 0 ? Math.round(funil.engajados / funil.total * 100) : 0) + '%)');
+  fatos.push('- Elegíveis (engajados − bloqueios estruturais): ' + funil.elegiveis);
+  fatos.push('- **Taxa lead-elegível → venda**: ' + pct(funil.taxa_conv_eleg_pct));
+  fatos.push('');
+  fatos.push('## CRM 1-Vendas (fonte da verdade, canal=META ADS)');
+  fatos.push('- Vendas no período: ' + crm.vendas);
+  fatos.push('- **Instaladas**: ' + crm.instaladas + ' (geram receita Vero)');
+  fatos.push('- Pendentes (em rota de instalação): ' + crm.pendentes);
+
+  // Feedback recente do operador
+  if (ctx.feedback && ctx.feedback.length) {
+    fatos.push('');
+    fatos.push('## Anotações recentes do operador (📝)');
+    ctx.feedback.forEach(function (f) {
+      fatos.push('- ' + f.timestamp_br + ': ' + (f.observacao || '').slice(0, 280));
+    });
   }
 
-  var crmTxt = '\nDADOS DO CRM — Leads Meta Ads (aba "Leads Meta Ads", acumulado):\n';
-  var pCamp  = leadsData.por_campanha || {};
-  var keys   = Object.keys(pCamp);
-  if (keys.length === 0) {
-    crmTxt += '(Nenhum lead registrado no CRM ainda)\n';
-  } else {
-    for (var j = 0; j < keys.length; j++) {
-      var camp  = keys[j];
-      var d     = pCamp[camp];
-      var taxaC = d.total > 0 ? ((d.convertidos / d.total) * 100).toFixed(1) : '0';
-      var taxaD = d.total > 0 ? ((d.desqualificados / d.total) * 100).toFixed(1) : '0';
-      crmTxt += '\nCampanha "' + camp + '":\n';
-      crmTxt += '  Total: ' + d.total;
-      crmTxt += ' | Convertidos: ' + d.convertidos + ' (' + taxaC + '%)';
-      crmTxt += ' | Desqualificados: ' + d.desqualificados + ' (' + taxaD + '%)';
-      crmTxt += ' | Pendentes: ' + d.pendentes + '\n';
-      var mKeys = Object.keys(d.motivos);
-      if (mKeys.length > 0) {
-        mKeys.sort(function(a, b) { return d.motivos[b] - d.motivos[a]; });
-        var top3 = mKeys.slice(0, 3).map(function(m) { return m + ' (' + d.motivos[m] + ')'; });
-        crmTxt += '  Top motivos desq: ' + top3.join(', ') + '\n';
-      }
-    }
-  }
-
+  // ── Instruções ───────────────────────────────────────────────────────────
   var instrucao = [
-    '\n---',
-    'Escreva um diagnóstico direto, sem markdown, sem títulos com hashtag, sem listas com traço.',
-    'Use parágrafos separados por linha em branco. Tom direto de gestor de tráfego sênior que está',
-    'olhando para esses números agora. Inclua: o que está funcionando e por quê; o que está com',
-    'problema e qual a causa provável; o que fazer concretamente nos próximos 7 dias campanha por campanha.',
-    'Se o contexto de abril/sazonalidade for relevante, mencione. Máximo 700 palavras. Em português.'
-  ].join('\n');
+    '',
+    '---',
+    '',
+    'Você é o Claude Ads — gestor de tráfego sênior da Mobile Digital (revenda Vero Internet, Juiz de Fora/MG). Escreva um diagnóstico estruturado em **Markdown** seguindo EXATAMENTE estas seções, nessa ordem:',
+    '',
+    '### 🎯 Veredicto',
+    'Uma frase só. Tipo: "Operação no vermelho de R$X" ou "ROI marginal de 1,2× — paga mídia mas não cobre operação" ou "Tudo pausado há N dias".',
+    '',
+    '### 📊 Leitura crítica',
+    '3 a 5 bullets. Foque no que IMPORTA pra decisão: por que o resultado tá assim, qual o gargalo dominante. Use os números acima literalmente (não invente).',
+    '',
+    '**Regras de interpretação OBRIGATÓRIAS:**',
+    '- `sem-retorno` NÃO é falha de atendimento. É lead que clicou no CTWA, mandou 1ª msg pré-preenchida e sumiu. Custo intrínseco do canal (40-50% típico). Tratar como qualidade de lead, NÃO como atendimento ruim. Reduz com criativo mais filtrante (preço explícito no anúncio), não com mais Renata.',
+    '- `sem-viabilidade` alto = filtro de CEP errado, NÃO falha de operação. Bloqueio estrutural.',
+    '- Taxa de conversão real = vendas / **elegíveis** (não / total). Conversão sobre o total subestima drasticamente.',
+    '- CPL pode estar bom (Meta API) e CPA por instalada estar ruim ao mesmo tempo — não são a mesma métrica.',
+    '- TM dinâmico já vem calculado: é ticket médio das instaladas Meta × fator estrela. Use o valor de "TM real" acima.',
+    '',
+    '### 📈 Por campanha (se houver campanha rodando)',
+    'Lista resumida das 3 mais relevantes com 1 linha cada: nome · CPL · ação sugerida (manter / revisar / pausar). Não invente campanhas que não estão nos dados.',
+    '',
+    '### ✅ Próximas ações',
+    '2 a 4 ações concretas e priorizadas. Cada uma com VERBO no início (Pausar, Trocar, Subir, Negociar). Nada genérico. Se tiver fee de agência, inclua "Cobrar agência: ..." quando o problema for atribuível a eles (CEP errado, recusa de UTM, etc).',
+    '',
+    (fin.fee_mensal > 0 ? '### 💬 Recado pra agência (rascunho)\nSe houver problemas atribuíveis à agência (CEP errado, sem UTM, criativo cansado), monte 1 parágrafo curto e direto que o Ricardo pode copiar+colar no WhatsApp. Tom firme mas não acusatório. Se NÃO houver problema atribuível à agência, omita esta seção.' : ''),
+    '',
+    '---',
+    '',
+    'Regras gerais: pt-BR, sem floreio, sem "vamos analisar", sem "é importante notar". Direto. Use **negrito** só em números críticos e em ações. Máximo 600 palavras.'
+  ].join(nl);
 
-  return ctx + metaTxt + crmTxt + instrucao;
+  return fatos.join(nl) + instrucao;
 }
 
 function _callClaudeApiDiag_(key, prompt, maxTokens) {
