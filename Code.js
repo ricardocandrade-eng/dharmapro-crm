@@ -4141,6 +4141,9 @@ function _serveActionPlanos_(cidade, produto, forma) {
       // PUBLICAR é boolean (Rev2+) ou string 'SIM' em revisões antigas — aceita ambos
       if (publicar !== true && publicar !== 'SIM') continue;
 
+      // TIPO=B2B fica fora do endpoint público (LP/Renata só B2C); CRM continua vendo.
+      if (String(dadosTab[ti][1] || '').toUpperCase().trim() === 'B2B') continue;
+
       if (produtoNorm && colProduto > -1) {
         // Match por prefixo: 'FIBRA' captura FIBRA_ALONE+FIBRA_COMBO; 'FIBRA_ALONE' segue exato.
         var prodTipo = _normalizarTexto(dadosTab[ti][colProduto]);
@@ -4613,6 +4616,136 @@ function _atualizarPlanosVeroJsonRev7() {
 // Read-modify-write: le o JSON atual do Drive e altera apenas a linha alvo,
 // garantindo que TODO o resto fique byte-identico ao que ja esta em producao
 // (sem risco de transcrever errado os 40+ planos). Rodar UMA VEZ no editor.
+// ──────────────────────────────────────────────────────────────────────────────
+// _atualizarPlanosVeroJsonRev10 — 08/06/2026
+// Aplica as mudanças da nova tabela "MAPA OFERTAS B2C 2.0" (08/06/2026):
+//   • REMOVE: linha "OFERTA VERÃO 800MB + GLP PREMIUM + HBO MAX + MÓVEL 60GB"
+//             (Vero descontinuou; já estava PUBLICAR=false desde Rev7).
+//   • GARANTE: nomes "VERO DUO ..." e "VERO FULL ..." (idempotente — no-op se
+//             o Drive já recebeu Rev7).
+//   • ADICIONA: variante com ROKU/TV BOX do plano Esportes Futebol + YouTube
+//             Premium 30GB (R$ 149,90 boleto / R$ 139,90 recorrente).
+//   • ADICIONA: 2 ofertas B2B FIBRA_ALONE — TIPO 'B2B' (ficam fora do endpoint
+//             público; CRM continua vendo). Só boleto (recorrente = '').
+//        - VERO B2B IP FIXO 550MB         → R$ 178,00
+//        - VERO B2B COMBO 750MB + 1 LINHA → R$ 99,00
+//
+// Read-modify-write: lê o JSON atual do Drive e aplica só os deltas. Idempotente.
+// IMPORTANTE: executar no editor após push.
+// ──────────────────────────────────────────────────────────────────────────────
+function _atualizarPlanosVeroJsonRev10() {
+  var fileId = CONFIG.TABELA_JSON_FILE_ID;
+  var atual  = JSON.parse(DriveApp.getFileById(fileId).getBlob().getDataAsString());
+
+  var inicial = atual.length;
+  var removidos = 0, renomeados = 0, adicionados = 0;
+
+  // (1) REMOVE OFERTA VERÃO (varre de trás pra frente).
+  for (var i = atual.length - 1; i >= 2; i--) {
+    var nm = String(atual[i][0] || '').toUpperCase();
+    if (nm.indexOf('OFERTA VERÃO') > -1 || nm.indexOf('OFERTA VERAO') > -1) {
+      Logger.log('Rev10: removendo "' + atual[i][0] + '"');
+      atual.splice(i, 1);
+      removidos++;
+    }
+  }
+
+  // (2) GARANTE renomes Rev7 (VERO DUO / VERO FULL) — idempotente.
+  var renames = [
+    {
+      antigo: 'VERO MAIS 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB',
+      novo:   'VERO FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB'
+    },
+    {
+      antigo: 'VERO MAIS 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB',
+      novo:   'VERO DUO 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB'
+    },
+    {
+      antigo: 'VERO MAIS 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB',
+      novo:   'VERO DUO 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB'
+    }
+  ];
+  for (var r = 0; r < renames.length; r++) {
+    for (var j = 2; j < atual.length; j++) {
+      if (String(atual[j][0] || '').trim() === renames[r].antigo) {
+        Logger.log('Rev10: renomeando "' + renames[r].antigo + '" → "' + renames[r].novo + '"');
+        atual[j][0] = renames[r].novo;
+        // TIPO também muda no caso do FULL (VERO MAIS → VERO FULL) — para o DUO mantém
+        // 'VERO MAIS' como TIPO (categoria operacional), pois o Rev7 só renomeou o nome.
+        renomeados++;
+      }
+    }
+  }
+
+  // (3) ADICIONA novas linhas — só se ainda não existem (idempotente por nome exato).
+  function _existePorNome(nomeAlvo) {
+    for (var k = 2; k < atual.length; k++) {
+      if (String(atual[k][0] || '').trim() === nomeAlvo) return true;
+    }
+    return false;
+  }
+
+  // Schema (14 cols Rev9): [nome, TIPO, ESP, OURO, PRATA, PADRAO, NOME_LP, FEATURES,
+  //                        PUBLICAR, ESP_REC, OURO_REC, PRATA_REC, PADRAO_REC,
+  //                        PRODUTO_TIPO, NOME_VERO]
+  var novosPlanos = [
+    [
+      'VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU/TV BOX + MÓVEL 30GB',
+      'VERO MAIS',
+      149.9, 149.9, 149.9, 149.9,
+      'Vero Mais',
+      'Esportes Futebol | YouTube Premium | ROKU/TV Box | 30GB Celular | Wi-Fi 6 | Instalação Grátis',
+      true,
+      '139.9', '139.9', '139.9', '139.9',
+      'FIBRA_COMBO',
+      ''
+    ],
+    [
+      'VERO B2B IP FIXO 550MB',
+      'B2B',
+      178, 178, 178, 178,
+      'Vero B2B',
+      'IP Fixo | 24 meses | Empresarial | Instalação Grátis',
+      true,
+      '', '', '', '',
+      'FIBRA_ALONE',
+      ''
+    ],
+    [
+      'VERO B2B COMBO 750MB + 1 LINHA',
+      'B2B',
+      99, 99, 99, 99,
+      'Vero B2B',
+      '750MB | 1 Linha Empresarial | 24 meses | Instalação Grátis',
+      true,
+      '', '', '', '',
+      'FIBRA_ALONE',
+      ''
+    ]
+  ];
+  for (var p = 0; p < novosPlanos.length; p++) {
+    if (!_existePorNome(novosPlanos[p][0])) {
+      atual.push(novosPlanos[p]);
+      Logger.log('Rev10: adicionando "' + novosPlanos[p][0] + '"');
+      adicionados++;
+    } else {
+      Logger.log('Rev10: "' + novosPlanos[p][0] + '" já existe — skip');
+    }
+  }
+
+  // (4) Metadata da linha 0.
+  if (atual[0] && atual[0].length) {
+    atual[0][0] = 'Última atualização: 08/06/2026 — Rev10: nova tabela MAPA OFERTAS 2.0 (variante ROKU/TVBOX, remove OFERTA VERÃO, 2 ofertas B2B FIBRA_ALONE, garante nomes VERO DUO/FULL).';
+  }
+
+  var conteudo = JSON.stringify(atual, null, 2);
+  DriveApp.getFileById(fileId).setContent(conteudo);
+  CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'tabela_v1');
+  Logger.log('OK Rev10 — ' + inicial + '→' + atual.length + ' linhas (removidos=' + removidos +
+             ', renomeados=' + renomeados + ', adicionados=' + adicionados + '), ' +
+             conteudo.length + ' bytes. Cache invalidado.');
+}
+
 function _atualizarPlanosVeroJsonRev8() {
   var fileId = CONFIG.TABELA_JSON_FILE_ID;
   var atual = JSON.parse(DriveApp.getFileById(fileId).getBlob().getDataAsString());

@@ -1,6 +1,6 @@
 [
   [
-    "Última atualização: 25/05/2026 — Rev8: plano 800MB YOUTUBE PREMIUM/HBO MAX/TELECINE passa a usar \"ou\" no nome (cliente escolhe 1 streaming, não é combo).",
+    "Última atualização: 08/06/2026 — Rev10: nova tabela MAPA OFERTAS 2.0 (variante ROKU/TVBOX, remove OFERTA VERÃO, 2 ofertas B2B FIBRA_ALONE, garante nomes VERO DUO/FULL).",
     "",
     "NG / ADAPTER",
     "NG / ADAPTER",
@@ -96,19 +96,19 @@
     "FIBRA_COMBO"
   ],
   [
-    "OFERTA VERÃO 800MB + GLP PREMIUM + HBO MAX + MÓVEL 60GB",
+    "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU/TV BOX + MÓVEL 30GB",
     "VERO MAIS",
-    159.9,
-    159.9,
-    159.9,
-    159.9,
+    149.9,
+    149.9,
+    149.9,
+    149.9,
     "Vero Mais",
-    "Globo Play Premium | HBO Max | 60GB Celular | Wi-Fi 6 | Instalação Grátis",
+    "Esportes Futebol | YouTube Premium | ROKU/TV Box | 30GB Celular | Wi-Fi 6 | Instalação Grátis",
     true,
-    "149.9",
-    "149.9",
-    "149.9",
-    "149.9",
+    "139.9",
+    "139.9",
+    "139.9",
+    "139.9",
     "FIBRA_COMBO"
   ],
   [
@@ -192,7 +192,7 @@
     "FIBRA_COMBO"
   ],
   [
-    "VERO MAIS 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB",
+    "VERO DUO 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB",
     "VERO MAIS",
     159.9,
     159.9,
@@ -208,7 +208,7 @@
     "FIBRA_COMBO"
   ],
   [
-    "VERO MAIS 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB",
+    "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB",
     "VERO MAIS",
     159.9,
     159.9,
@@ -224,7 +224,7 @@
     "FIBRA_COMBO"
   ],
   [
-    "VERO MAIS 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB",
+    "VERO FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB",
     "VERO MAIS",
     209.9,
     209.9,
@@ -461,6 +461,38 @@
     "150",
     "150",
     "150",
+    "FIBRA_ALONE"
+  ],
+  [
+    "VERO B2B IP FIXO 550MB",
+    "B2B",
+    178,
+    178,
+    178,
+    178,
+    "Vero B2B",
+    "IP Fixo | 24 meses | Empresarial | Instalação Grátis",
+    true,
+    "",
+    "",
+    "",
+    "",
+    "FIBRA_ALONE"
+  ],
+  [
+    "VERO B2B COMBO 750MB + 1 LINHA",
+    "B2B",
+    99,
+    99,
+    99,
+    99,
+    "Vero B2B",
+    "750MB | 1 Linha Empresarial | 24 meses | Instalação Grátis",
+    true,
+    "",
+    "",
+    "",
+    "",
     "FIBRA_ALONE"
   ],
   [
