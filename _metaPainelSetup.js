@@ -38,7 +38,12 @@ function metaPainelStatus() {
   var p = PropertiesService.getScriptProperties();
   Logger.log('META_AGENCIA_FEE_MENSAL: ' + (p.getProperty('META_AGENCIA_FEE_MENSAL') || '(vazio → default 0)'));
   Logger.log('META_TM_REAL_OVERRIDE:   ' + (p.getProperty('META_TM_REAL_OVERRIDE')   || '(vazio → TM dinâmico)'));
-  // Limpa Script Property antiga (META_TM_REAL → renomeada pra _OVERRIDE em 08/06)
   var legacy = p.getProperty('META_TM_REAL');
-  if (legacy) Logger.log('⚠ Property legada META_TM_REAL=' + legacy + ' (pode apagar — ignorada pelo código novo)');
+  if (legacy) Logger.log('⚠ Property legada META_TM_REAL=' + legacy + ' (rodar metaPainelLimparLegado pra apagar)');
+}
+
+/** One-shot — apaga a property legada META_TM_REAL (renomeada pra _OVERRIDE em 08/06). */
+function metaPainelLimparLegado() {
+  PropertiesService.getScriptProperties().deleteProperty('META_TM_REAL');
+  Logger.log('OK — META_TM_REAL apagada.');
 }
