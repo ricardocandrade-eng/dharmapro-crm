@@ -1302,6 +1302,19 @@ function doGet(e) {
     }
   }
 
+  // ── Painel Ads: feedback do operador (sem secret — só observação livre) ───
+  if (action === 'feedback_painel_ads') {
+    try {
+      return ContentService
+        .createTextOutput(JSON.stringify(_serveActionFeedbackPainelAds_(e.parameter || {})))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, erro: err && err.message || String(err) }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // ── diagnóstico: leads Meta Ads agregados por período (sem secret, sem PII) ─
   if (action === 'leads_meta_periodo') {
     try {

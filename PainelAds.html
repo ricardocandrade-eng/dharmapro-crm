@@ -416,8 +416,32 @@
 
   <span class="pa-sync" id="paSyncLabel"></span>
   <button class="pa-btn-diag" id="paBtnDiag" onclick="paDiagnosticar()">✦ Diagnosticar</button>
+  <button class="pa-refresh" id="paBtnFeedback" onclick="paAbrirFeedback()" title="Deixar anotação pro Claude ler na próxima sessão">📝 Anotação</button>
   <button class="pa-refresh" id="paBtnRefresh" onclick="paRefresh()">↻ Atualizar</button>
 </div>
+</div>
+
+<!-- MODAL ANOTAÇÃO (feedback pro Claude) -->
+<div id="paFbModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;align-items:center;justify-content:center;padding:20px;" onclick="if(event.target===this)paFecharFeedback()">
+  <div style="background:#0f1217;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:22px 26px;max-width:560px;width:100%;color:#e8ecf3;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="font-size:16px;font-weight:700;">📝 Anotação pro Claude</div>
+      <button onclick="paFecharFeedback()" style="background:transparent;border:none;color:#9aa3b2;font-size:22px;cursor:pointer;line-height:1;">×</button>
+    </div>
+    <div style="font-size:12px;color:#9aa3b2;margin-bottom:10px;line-height:1.5;">
+      O que você está observando agora? O Claude lê isso no início da próxima sessão (snapshot atual do painel vai junto automaticamente).
+    </div>
+    <textarea id="paFbObs" placeholder="Ex.: CPL subiu de R$8 pra R$15 desde sexta sem motivo aparente, criativo P2 está com freq 3,2x, etc."
+              style="width:100%;min-height:140px;background:#1a1d24;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e8ecf3;padding:12px;font-family:inherit;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box;"></textarea>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;gap:12px;">
+      <span id="paFbStatus" style="font-size:11px;color:#9aa3b2;"></span>
+      <div style="display:flex;gap:8px;">
+        <button onclick="paFecharFeedback()" style="background:transparent;border:1px solid rgba(255,255,255,.15);color:#e8ecf3;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;">Cancelar</button>
+        <button id="paFbSalvar" onclick="paSalvarFeedback()" style="background:#94d82d;border:none;color:#0f1217;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;">Salvar</button>
+      </div>
+    </div>
+    <div id="paFbRecentes" style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);font-size:12px;color:#9aa3b2;"></div>
+  </div>
 </div>
 
 <!-- CANVAS -->
@@ -455,6 +479,89 @@
   // ── INICIALIZAÇÃO ───────────────────────────────────────────────────────────
   window.paInit = function() {
     paCarregar('7d');
+  };
+
+  // ── Feedback do operador (anotação pro Claude) ─────────────────────────
+  window.paAbrirFeedback = function() {
+    var m = document.getElementById('paFbModal');
+    if (!m) return;
+    m.style.display = 'flex';
+    document.getElementById('paFbObs').value = '';
+    document.getElementById('paFbStatus').textContent = '';
+    document.getElementById('paFbSalvar').disabled = false;
+    // Lista os últimos 5 feedbacks
+    var rec = document.getElementById('paFbRecentes');
+    rec.innerHTML = '<div style="opacity:.6">Carregando últimas anotações…</div>';
+    if (typeof google !== 'undefined' && google.script && google.script.run) {
+      google.script.run
+        .withSuccessHandler(function(resp) {
+          if (!resp || !resp.ok || !resp.feedbacks || resp.feedbacks.length === 0) {
+            rec.innerHTML = '<div style="opacity:.6">Nenhuma anotação anterior.</div>';
+            return;
+          }
+          var h = '<div style="font-weight:600;margin-bottom:6px;color:#cdd5e0">Últimas anotações:</div>';
+          resp.feedbacks.forEach(function(f) {
+            h += '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:11px;line-height:1.5;">' +
+                 '<span style="color:#6b7280;font-family:monospace;font-size:10px">' + (f.timestamp_br || '') + '</span> · ' +
+                 '<span style="color:#e8ecf3">' + (f.observacao || '').replace(/</g,'&lt;').slice(0, 200) + '</span>' +
+                 '</div>';
+          });
+          rec.innerHTML = h;
+        })
+        .withFailureHandler(function() {
+          rec.innerHTML = '<div style="color:#ff6b6b">Erro ao carregar histórico.</div>';
+        })
+        .listarFeedbacksPainelAds(5);
+    }
+    setTimeout(function() { document.getElementById('paFbObs').focus(); }, 80);
+  };
+
+  window.paFecharFeedback = function() {
+    var m = document.getElementById('paFbModal');
+    if (m) m.style.display = 'none';
+  };
+
+  window.paSalvarFeedback = function() {
+    var obs = (document.getElementById('paFbObs').value || '').trim();
+    var status = document.getElementById('paFbStatus');
+    var btn = document.getElementById('paFbSalvar');
+    if (!obs) { status.textContent = 'Digite a observação primeiro.'; status.style.color = '#ff6b6b'; return; }
+    btn.disabled = true;
+    status.style.color = '#9aa3b2';
+    status.textContent = 'Salvando…';
+    // Snapshot do contexto atual (último cache renderizado)
+    var ctx = {};
+    try {
+      var d = paCache[paAtualPeriodo];
+      if (d) {
+        ctx = {
+          periodo:    d.periodo,
+          resumo:     d.resumo,
+          financeiro: d.financeiro,
+          alertas:    (d.alertas || []).map(function(a){ return a.texto; }).slice(0, 10),
+          contas:     d.contas
+        };
+      }
+    } catch (eCtx) { ctx = { erro_snapshot: String(eCtx) }; }
+    var usuario = (window.AppState && AppState.get && AppState.get('usuario')) || 'anônimo';
+    google.script.run
+      .withSuccessHandler(function(resp) {
+        if (resp && resp.ok) {
+          status.style.color = '#94d82d';
+          status.textContent = '✓ Salvo. O Claude lerá na próxima sessão.';
+          setTimeout(window.paFecharFeedback, 1500);
+        } else {
+          status.style.color = '#ff6b6b';
+          status.textContent = 'Erro: ' + ((resp && resp.erro) || 'desconhecido');
+          btn.disabled = false;
+        }
+      })
+      .withFailureHandler(function(e) {
+        status.style.color = '#ff6b6b';
+        status.textContent = 'Falha: ' + (e && e.message || e);
+        btn.disabled = false;
+      })
+      .salvarFeedbackPainelAds(usuario, ctx, obs);
   };
 
   window.paRefresh = function() {
@@ -1381,11 +1488,24 @@
     var cpaNum = r.cpaReal ? parseFloat(r.cpaReal) : null;
     var taxaNum = r.taxaConv ? parseFloat(r.taxaConv) : null;
 
-    var cplClasse = !cplNum ? 'dim' : (cplNum <= 15 ? 'ok' : cplNum <= 30 ? 'aviso' : 'erro');
-    var ctrClasse = !ctrNum ? 'dim' : (ctrNum >= 1.5 ? 'ok' : ctrNum >= 0.5 ? 'aviso' : 'erro');
-    var cpaClasse = !cpaNum ? 'dim' : (cpaNum <= 60 ? 'ok' : cpaNum <= 120 ? 'aviso' : 'erro');
+    // Thresholds calibrados pela realidade da operação (reforma 08/06/2026)
+    var cplClasse  = !cplNum ? 'dim'  : (cplNum <= 12  ? 'ok' : cplNum <= 18  ? 'aviso' : 'erro');
+    var ctrClasse  = !ctrNum ? 'dim'  : (ctrNum >= 1.0 ? 'ok' : ctrNum >= 0.6 ? 'aviso' : 'erro');
+    // CPA real preferindo INSTALADAS do CRM (fonte da verdade)
+    var cpaInstNum = r.cpa_real_instalada ? parseFloat(r.cpa_real_instalada) : null;
+    var cpaClasse  = !cpaInstNum ? 'dim' : (cpaInstNum <= 100 ? 'ok' : cpaInstNum <= 150 ? 'aviso' : 'erro');
     var taxaClasse = !taxaNum ? 'dim' : (taxaNum >= 25 ? 'ok' : taxaNum >= 10 ? 'aviso' : 'erro');
     var classeMap = { ok: 'lime', aviso: 'amber', erro: 'red', dim: 'dim' };
+
+    // ── Cockpit Financeiro (cards de delta vs período anterior) ───────────
+    var fin = d.financeiro || {};
+    function _paFmtMoney(v) { return 'R$ ' + (Number(v||0)).toFixed(2).replace('.',','); }
+    function _paFmtDelta(p) {
+      if (p === null || p === undefined || isNaN(p)) return '';
+      var s = p > 0 ? '+' : '';
+      var cor = Math.abs(p) < 5 ? '#9aa3b2' : (p > 0 ? '#94d82d' : '#ff6b6b');
+      return ' <span style="color:'+cor+';font-size:10px;font-weight:600;margin-left:6px;">'+s+Math.round(p)+'%</span>';
+    }
 
     var html = '';
 
@@ -1446,20 +1566,39 @@
       html += _paExecuteCTA(queue);
     }
 
-    html += '<div class="pa-section"><span>Visao Geral</span></div>';
-    html += '<div style="font-size:12px;color:var(--dim2);margin-bottom:10px;line-height:1.5;">Números do período selecionado. Os indicadores coloridos mostram se o resultado está bom (verde), atenção (amarelo) ou fora do limite (vermelho).</div>';
+    // ─── COCKPIT FINANCEIRO ───────────────────────────────────────────────
+    html += '<div class="pa-section"><span>💰 Cockpit Financeiro</span></div>';
+    var corResult = fin.resultado >= 0 ? '#94d82d' : '#ff6b6b';
+    var corResultUpside = fin.resultado_upside >= 0 ? '#94d82d' : '#ff6b6b';
+    html += '<div class="pa-card" style="margin-bottom:14px;background:linear-gradient(180deg,rgba(255,255,255,.02),transparent);">';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;">';
+    html += '<div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Gasto Meta</div><div style="font-size:18px;font-weight:700;color:var(--em);margin-top:4px">'+_paFmtMoney(fin.gasto)+'</div></div>';
+    if (fin.fee_mensal > 0) {
+      html += '<div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Fee Agência</div><div style="font-size:18px;font-weight:700;color:var(--em);margin-top:4px">'+_paFmtMoney(fin.fee_periodo)+'</div><div style="font-size:9px;color:var(--dim2);margin-top:2px">'+(d.periodo.dias||'?')+' dias · R$'+(fin.fee_mensal||0).toFixed(0)+'/mês</div></div>';
+    }
+    html += '<div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Custo Total</div><div style="font-size:18px;font-weight:700;color:var(--em);margin-top:4px">'+_paFmtMoney(fin.custo_total)+'</div></div>';
+    html += '<div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Receita Projetada</div><div style="font-size:18px;font-weight:700;color:var(--em);margin-top:4px">'+_paFmtMoney(fin.receita)+'</div><div style="font-size:9px;color:var(--dim2);margin-top:2px">'+(r.instaladas||0)+' instaladas × R$'+(fin.tm_real||0).toFixed(2).replace('.',',')+'</div></div>';
+    html += '<div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Resultado</div><div style="font-size:22px;font-weight:700;color:'+corResult+';margin-top:4px">'+(fin.resultado>=0?'+':'')+_paFmtMoney(fin.resultado)+'</div>';
+    if (fin.roi !== null) html += '<div style="font-size:9px;color:var(--dim2);margin-top:2px">ROI '+(fin.roi||0).toFixed(2)+'×</div>';
+    html += '</div>';
+    if (fin.receita_upside > 0) {
+      html += '<div><div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em">Se pendentes instalarem</div><div style="font-size:22px;font-weight:700;color:'+corResultUpside+';margin-top:4px">'+(fin.resultado_upside>=0?'+':'')+_paFmtMoney(fin.resultado_upside)+'</div><div style="font-size:9px;color:var(--dim2);margin-top:2px">+'+(r.pendentes||0)+' pendentes × TM</div></div>';
+    }
+    html += '</div></div>';
+
+    // ─── VISÃO GERAL — 6 KPIs com delta ─────────────────────────────────────
+    html += '<div class="pa-section"><span>Visão Geral</span></div>';
+    html += '<div style="font-size:12px;color:var(--dim2);margin-bottom:10px;line-height:1.5;">Período vs período anterior (delta em %). Vendas/Instaladas vêm direto da aba <code>1 - Vendas</code> filtrada por Canal=META ADS — fonte da verdade do CRM.</div>';
     html += '<div class="pa-kpi-grid">';
-    html += _paKpiCard('GASTO TOTAL', 'c-cyan', _paMoeda(r.gasto, true), 'Meta diaria: R$50,00', classeMap.dim, 'Budget: R$1.500/mes', 'quanto investimos em anúncios no período');
-    html += _paKpiCard('LEADS', 'c-lime', r.leads || '0', null, 'lime', 'Via WhatsApp - Meta Ads', 'pessoas que mandaram mensagem pelo WhatsApp via anúncio');
-    html += _paKpiCard('CPL MEDIO', 'c-amber', r.cpl ? 'R$' + parseFloat(r.cpl).toFixed(2) : '-', null, classeMap[cplClasse], 'Meta: <b>< R$15</b> &nbsp;|&nbsp; Limite: R$30', 'Custo por Lead — quanto custou cada pessoa interessada');
-    html += _paKpiCard('CTR MEDIO', 'c-lime', r.ctr ? parseFloat(r.ctr).toFixed(2) + '%' : '-', null, classeMap[ctrClasse], 'Meta: <b>> 1,5%</b> &nbsp;|&nbsp; Minimo: 0,5%', 'de cada 100 pessoas que viram o anúncio, quantas clicaram');
+    html += _paKpiCard('GASTO', 'c-cyan', _paMoeda(r.gasto, true)+_paFmtDelta(r.delta_gasto), 'em ' + (d.periodo.dias||'?') + ' dias', classeMap.dim, '', 'quanto investimos em mídia no período');
+    html += _paKpiCard('CONVERSAS', 'c-lime', r.leads || '0', null, 'lime', 'WhatsApp · CTWA', 'mensagens iniciadas via anúncio (Meta API)');
+    html += _paKpiCard('CPL MÉDIO', 'c-amber', r.cpl ? 'R$' + parseFloat(r.cpl).toFixed(2) : '—', null, classeMap[cplClasse], 'Meta: <b>≤ R$12</b> &nbsp;|&nbsp; Teto: R$18', 'Custo por Conversa iniciada');
     html += '</div>';
 
     html += '<div class="pa-kpi-grid">';
-    html += _paKpiCard('CPM', 'c-purple', r.cpm ? 'R$' + parseFloat(r.cpm).toFixed(2) : '-', null, classeMap.dim, 'Meta: <b>< R$10</b> &nbsp;|&nbsp; Ref: R$10-14', 'quanto custa alcançar 1.000 pessoas com o anúncio');
-    html += _paKpiCard('CONVERSOES', 'c-lime', r.conversoes || '0', null, 'lime', 'Vendas instaladas - DharmaPro', 'vendas efetivamente instaladas, cruzadas com o CRM');
-    html += _paKpiCard('TAXA LEAD->VENDA', 'c-cyan', r.taxaConv ? parseFloat(r.taxaConv).toFixed(1) + '%' : '-', null, classeMap[taxaClasse], 'Meta: <b>> 25%</b> &nbsp;|&nbsp; Minimo: 10%', 'de cada 100 leads, quantos viraram cliente de fato');
-    html += _paKpiCard('CPA REAL', 'c-amber', r.cpaReal ? 'R$' + parseFloat(r.cpaReal).toFixed(2) : '-', null, classeMap[cpaClasse], 'Maximo: <b>R$120</b> &nbsp;|&nbsp; Meta: < R$60', 'custo total por venda instalada (gasto ÷ conversões)');
+    html += _paKpiCard('VENDAS', 'c-lime', (r.vendas_crm || 0)+_paFmtDelta(r.delta_vendas), 'CRM · canal META ADS', 'lime', '', 'vendas fechadas no período (status ≠ cancelada)');
+    html += _paKpiCard('INSTALADAS', 'c-lime', (r.instaladas || 0)+_paFmtDelta(r.delta_instaladas), (r.pendentes||0)+' pendentes em rota', 'lime', '', 'subset das vendas com INSTAL preenchido — só essas já pagaram');
+    html += _paKpiCard('CPA POR INSTALADA', 'c-amber', r.cpa_real_instalada ? 'R$' + parseFloat(r.cpa_real_instalada).toFixed(2) : '—', null, classeMap[cpaClasse], 'Meta: <b>≤ R$100</b> &nbsp;|&nbsp; Teto: R$150', 'gasto Meta ÷ instaladas — número que decide ROI');
     html += '</div>';
 
     // Alertas operacionais (lado CRM) — leads parados, etc.
@@ -1497,25 +1636,35 @@
     html += '<div class="pa-bottom-grid">';
 
     html += '<div class="pa-card">';
-    html += '<div class="pa-card-head"><span class="pa-card-title">Funil de Conversao</span><span class="pa-badge cyan">Meta Ads</span></div>';
-    html += '<div class="pa-funil-rows">';
+    html += '<div class="pa-card-head"><span class="pa-card-title">Funil de Conversão</span><span class="pa-badge cyan">Meta + CRM</span></div>';
     var impr = parseInt(r.impressoes || 0);
     var cliques = parseInt(r.cliques || 0);
     var leads = parseInt(r.leads || 0);
-    var vendas = parseInt(r.conversoes || 0);
+    var vendasCrm = parseInt(r.vendas_crm || 0);
+    var instaladas = parseInt(r.instaladas || 0);
     var fMax = Math.max(impr, 1);
-    html += _paFunilRow('Impressoes', impr, fMax, 'pa-fv-impr', _paFormatNum(impr), impr > 0 ? '100%' : '-');
-    html += _paFunilRow('Cliques', cliques, fMax, 'pa-fv-click', _paFormatNum(cliques), impr > 0 ? ((cliques / impr) * 100).toFixed(1) + '%' : '-');
-    html += _paFunilRow('Leads', leads, fMax, 'pa-fv-lead', _paFormatNum(leads), cliques > 0 ? ((leads / cliques) * 100).toFixed(1) + '%' : '-');
-    html += _paFunilRow('Vendas', vendas, fMax, 'pa-fv-venda', _paFormatNum(vendas), leads > 0 ? ((vendas / leads) * 100).toFixed(1) + '%' : '-');
+    // Trilha 1 — Meta (impressões → cliques → conversas iniciadas)
+    html += '<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">⟶ Meta Ads (impressões → conversas)</div>';
+    html += '<div class="pa-funil-rows" style="margin-bottom:14px">';
+    html += _paFunilRow('Impressões', impr, fMax, 'pa-fv-impr', _paFormatNum(impr), impr > 0 ? '100%' : '—');
+    html += _paFunilRow('Cliques', cliques, fMax, 'pa-fv-click', _paFormatNum(cliques), impr > 0 ? ((cliques/impr)*100).toFixed(1)+'%' : '—');
+    html += _paFunilRow('Conversas', leads, fMax, 'pa-fv-lead', _paFormatNum(leads), cliques > 0 ? ((leads/cliques)*100).toFixed(1)+'%' : '—');
     html += '</div>';
-    var funilInterp = impr > 0 && leads > 0
-      ? 'A cada 1.000 impressões, ' + Math.round((cliques / impr) * 1000) + ' clicaram e ' + Math.round((leads / impr) * 1000) + ' viraram lead.'
-      : impr > 0
-      ? 'Nenhum lead neste período. Verifique o criativo ou o botão de WhatsApp no anúncio.'
-      : 'Nenhuma impressão no período — as campanhas podem estar pausadas.';
+    // Trilha 2 — CRM (vendas → instaladas)
+    html += '<div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px;">⟶ CRM 1-Vendas (canal META ADS)</div>';
+    var cMax = Math.max(vendasCrm, 1);
+    html += '<div class="pa-funil-rows">';
+    html += _paFunilRow('Vendas', vendasCrm, cMax, 'pa-fv-venda', _paFormatNum(vendasCrm), '100%');
+    html += _paFunilRow('Instaladas', instaladas, cMax, 'pa-fv-venda', _paFormatNum(instaladas), vendasCrm > 0 ? ((instaladas/vendasCrm)*100).toFixed(0)+'%' : '—');
+    html += '</div>';
+    var funilInterp = vendasCrm > 0
+      ? 'De ' + vendasCrm + ' vendas no período, ' + instaladas + ' já instalaram (' + (vendasCrm>0?Math.round((instaladas/vendasCrm)*100):0) + '%) — só essas geram receita Vero.'
+      : leads > 0
+      ? leads + ' conversas iniciadas, mas nenhuma virou venda registrada como META ADS no CRM.'
+      : 'Nenhuma conversa nem venda no período — campanhas pausadas.';
     html += '<div style="font-size:11px;color:var(--dim2);line-height:1.5;margin-top:10px;padding:8px 10px;background:rgba(255,255,255,.025);border-radius:8px;">' + funilInterp + '</div>';
-    html += '<div class="pa-kpi-benchmark" style="margin-top:10px">DharmaPro: <b>' + (r.conversoes || 0) + '</b> conversoes x TM franquia <b>R$313</b> = Receita <b>' + _paMoeda(((r.conversoes || 0) * 313).toFixed(0)) + '</b></div>';
+    var tmReal = (fin.tm_real || 267.69);
+    html += '<div class="pa-kpi-benchmark" style="margin-top:10px">Receita: <b>' + instaladas + '</b> instaladas × TM real <b>' + _paFmtMoney(tmReal) + '</b> = <b>' + _paFmtMoney(instaladas * tmReal) + '</b></div>';
     html += '</div>';
 
     html += '<div style="display:flex;flex-direction:column;gap:12px;">';
@@ -1545,37 +1694,17 @@
       html += '</div>';
     }
 
-    html += '<div class="pa-divider-num"><span>Thresholds automaticos</span></div>';
+    html += '<div class="pa-divider-num"><span>Thresholds (calibrados pela operação)</span></div>';
     html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
-    html += _paThreshRow('CPL max', 'R$30', 'Pausa automatica');
-    html += _paThreshRow('CTR min', '0,5%', 'Pausa automatica');
-    html += _paThreshRow('Freq max', '4,0x', 'Alerta amarelo');
-    html += _paThreshRow('Escala', 'CPL < R$80', '+20%/semana');
+    html += _paThreshRow('CPL', '≤ R$12 verde · R$18 teto', 'por conversa');
+    html += _paThreshRow('CTR', '≥ 1,0% verde · 0,6% min', 'click-through');
+    html += _paThreshRow('Frequência', '≤ 2,5× verde · 3,5× max', 'saturação');
+    html += _paThreshRow('CPA', '≤ R$100 verde · R$150 teto', 'por instalada');
     html += '</div>';
     html += '</div>';
 
-    if (d.modo === 'cockpit_bridge' && d.cockpit) {
-      html += '<div class="pa-card">';
-      html += '<div class="pa-card-head"><span class="pa-card-title">Experimentos Prioritarios</span><span class="pa-badge purple">' + _paEsc(String(((cockpit.experimentos || {}).total) || 0) + ' no radar') + '</span></div>';
-      if (((cockpit.experimentos || {}).prioritarios || []).length === 0) {
-        html += '<div style="text-align:center;padding:16px 0;color:var(--dim2);font-family:var(--mono);font-size:11px;letter-spacing:.1em;">Nenhum experimento prioritario no momento.</div>';
-      } else {
-        html += '<div style="display:flex;flex-direction:column;gap:8px;">';
-        ((cockpit.experimentos || {}).prioritarios || []).slice(0, 3).forEach(function(exp) {
-          html += _paExperimentRow(exp);
-        });
-        html += '</div>';
-      }
-      html += '<div class="pa-divider-num"><span>Readiness</span></div>';
-      html += '<div style="background:var(--s2);border-radius:10px;padding:12px;">';
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;">';
-      html += '<div style="font-size:12px;color:var(--em);font-weight:700;">' + _paEsc((cockpit.readiness || {}).status || 'SEM STATUS') + '</div>';
-      html += '<span class="pa-badge ' + (((cockpit.readiness || {}).ready_for_production) ? 'lime' : 'amber') + '">' + (((cockpit.readiness || {}).ready_for_production) ? 'Pronto' : 'Atencao') + '</span>';
-      html += '</div>';
-      html += '<div style="font-size:11px;color:var(--dim2);line-height:1.5;">' + _paEsc('Checks: ' + (((cockpit.readiness || {}).summary || {}).total_checks || 0) + ' | Criticos: ' + (((cockpit.readiness || {}).summary || {}).critical_failures || 0) + ' | Avisos: ' + (((cockpit.readiness || {}).summary || {}).warning_failures || 0)) + '</div>';
-      html += '</div>';
-      html += '</div>';
-    } else {
+    {
+      // Espaço pro card Google Ads abaixo (placeholder mantido).
       html += '<div class="pa-card" style="border-style:dashed;border-color:rgba(255,255,255,.08);">';
       html += '<div class="pa-card-head"><span class="pa-card-title">Google Ads</span><span class="pa-badge dim">em breve</span></div>';
       html += '<div class="pa-gads-placeholder">';

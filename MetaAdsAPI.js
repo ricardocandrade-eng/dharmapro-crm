@@ -17,15 +17,124 @@ var CFG_META = {
     'act_971543562231015':  'Vero 01'
   },
   // Token: Extensões → Apps Script → Propriedades do projeto → META_ACCESS_TOKEN
+  // Thresholds calibrados pela realidade da operação (CPL típico R$9, CPA real ~R$220)
   LIMITES: {
-    CPL_MAX:         30,
-    CTR_MIN:         0.5,
-    FREQUENCIA_MAX:  4.0,
-    CPA_META:        60,
-    CPA_MAX:         120,
+    CPL_VERDE:        12,    // ≤ verde   (era CPL_MAX=30 — irreal)
+    CPL_MAX:          18,    // ≤ amarelo, > vermelho
+    CTR_VERDE:        1.0,   // ≥ verde
+    CTR_MIN:          0.6,   // ≥ amarelo (< vermelho)
+    FREQ_VERDE:       2.5,   // ≤ verde
+    FREQUENCIA_MAX:   3.5,   // ≤ amarelo (> vermelho)
+    CPA_META:         100,   // ≤ verde (era 60 — meta ambiciosa, calibrada ao realista)
+    CPA_MAX:          150,   // ≤ amarelo, > vermelho
   },
   SCALE_FACTOR: 1.20  // +20% de budget por execução de scale
 };
+
+/**
+ * Configuração financeira do Painel Ads (lida via Script Properties — Ricardo edita
+ * sem deploy). Defaults seguros pra quando o canal estiver sem agência.
+ *  - META_AGENCIA_FEE_MENSAL: fee em R$/mês (0 = sem agência). Default 0.
+ *  - META_TM_REAL: TM franquia real do mês (ticket × fator estrela). Default R$ 267,69
+ *    (média maio/26). Atualizar mensalmente conforme fechamento do extrato.
+ */
+function _getMetaConfigFinanceiro_() {
+  var props = PropertiesService.getScriptProperties();
+  return {
+    fee_mensal: parseFloat(props.getProperty('META_AGENCIA_FEE_MENSAL') || '0') || 0,
+    tm_real:    parseFloat(props.getProperty('META_TM_REAL') || '267.69') || 267.69
+  };
+}
+
+/** Parse defensivo de data BR/Date para Date midnight. */
+function _parseDataBR_(v) {
+  if (v instanceof Date) return v;
+  var s = String(v || '').trim();
+  if (!s) return null;
+  var m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return null;
+}
+
+/**
+ * Conta vendas Meta Ads do CRM (aba "1 - Vendas") num período.
+ * Fonte da verdade pra Painel Ads e e-mail 07h — NÃO usa aba "Leads Meta Ads"
+ * (que subestima quando o vínculo automático por telefone falha).
+ *
+ * Critério da venda dentro do período:
+ *   - CANAL = "META ADS" (case-insensitive)
+ *   - STATUS != cancelada
+ *   - Data da venda (DATA_ATIV preferido, fallback CRIADO_EM) cai no período [since, until]
+ *
+ * Subcategorias retornadas:
+ *   - vendas:     total de vendas no período
+ *   - instaladas: subset com INSTAL preenchido (já gerou receita Vero)
+ *   - pendentes:  subset com status iniciando em "2" (em rota de instalação)
+ *
+ * @param {string} since 'YYYY-MM-DD'
+ * @param {string} until 'YYYY-MM-DD'
+ * @returns {{vendas:number, instaladas:number, pendentes:number, receita_projetada:number}}
+ */
+function _getMetaSalesFromCRM_(since, until) {
+  try {
+    var ss  = _getSpreadsheet_();
+    var aba = ss.getSheetByName('1 - Vendas');
+    if (!aba) return { vendas: 0, instaladas: 0, pendentes: 0, receita_projetada: 0 };
+    var ult = aba.getLastRow();
+    if (ult < 3) return { vendas: 0, instaladas: 0, pendentes: 0, receita_projetada: 0 };
+
+    var dSince = new Date(since + 'T00:00:00-03:00');
+    var dUntil = new Date(until + 'T23:59:59-03:00');
+    if (isNaN(dSince) || isNaN(dUntil)) return { vendas: 0, instaladas: 0, pendentes: 0, receita_projetada: 0 };
+
+    // Lê A..AQ (43 cols — cobre CANAL=0, STATUS=1, DATA_ATIV=3, INSTAL=9, CRIADO_EM=42)
+    var raw = aba.getRange(3, 1, ult - 2, 43).getValues();
+    var vendas = 0, instaladas = 0, pendentes = 0;
+
+    for (var i = 0; i < raw.length; i++) {
+      var r = raw[i];
+      var canal = String(r[0] || '').trim().toUpperCase();
+      if (canal !== 'META ADS') continue;
+
+      var status = String(r[1] || '').trim();
+      if (!status || /cancel/i.test(status)) continue;
+
+      var dataAtiv = _parseDataBR_(r[3]);
+      var criadoEm = r[42] instanceof Date ? r[42] : _parseDataBR_(r[42]);
+      var dataVenda = dataAtiv || (criadoEm
+        ? new Date(criadoEm.getFullYear(), criadoEm.getMonth(), criadoEm.getDate())
+        : null);
+      if (!dataVenda || dataVenda < dSince || dataVenda > dUntil) continue;
+
+      vendas++;
+      var instal = _parseDataBR_(r[9]);
+      if (instal) {
+        instaladas++;
+      } else if (status.charAt(0) === '2') {
+        pendentes++;
+      }
+    }
+
+    var fin = _getMetaConfigFinanceiro_();
+    return {
+      vendas:            vendas,
+      instaladas:        instaladas,
+      pendentes:         pendentes,
+      receita_projetada: instaladas * fin.tm_real
+    };
+  } catch (e) {
+    Logger.log('_getMetaSalesFromCRM_ falhou: ' + e.message);
+    return { vendas: 0, instaladas: 0, pendentes: 0, receita_projetada: 0, erro: e.message };
+  }
+}
+
+/** Delta entre dois valores em %, retorna null quando a base é zero. */
+function _calcDelta_(atual, anterior) {
+  if (!anterior || anterior === 0) return null;
+  return ((atual - anterior) / anterior) * 100;
+}
 
 // Campanhas pausadas/legadas cujo utm_campaign não deve mais receber leads
 // (a operação roda via "AG - Vero Fibra Amplo" na agência desde 17/05/2026).
@@ -1088,23 +1197,93 @@ function getPainelAdsData(periodo) {
       });
     }
 
+    // ── Cruz com CRM (vendas reais) + cockpit financeiro ─────────────────────
+    var crmAtual = _getMetaSalesFromCRM_(since, until);
+    // Período anterior pra delta — mesma duração, deslocado
+    var diaMs = 86400000;
+    var dur = Math.round((new Date(until) - new Date(since)) / diaMs) + 1;
+    var prevUntil = Utilities.formatDate(new Date(new Date(since) - diaMs), tz, 'yyyy-MM-dd');
+    var prevSince = Utilities.formatDate(new Date(new Date(prevUntil) - (dur - 1) * diaMs), tz, 'yyyy-MM-dd');
+    var crmPrev = _getMetaSalesFromCRM_(prevSince, prevUntil);
+
+    // Gasto do período anterior pra delta (mesmo agregador Meta)
+    var prevGasto = 0;
+    try {
+      for (var pi = 0; pi < contas.length; pi++) {
+        var prevJson = _metaApiGet_('/' + contas[pi] + '/insights', {
+          fields: 'spend',
+          level: 'account',
+          time_range: JSON.stringify({ since: prevSince, until: prevUntil })
+        });
+        var prevData = (prevJson && prevJson.data) || [];
+        for (var pj = 0; pj < prevData.length; pj++) prevGasto += parseFloat(prevData[pj].spend || 0);
+      }
+    } catch (ePrev) { /* delta vira null */ }
+
+    // CPA real preferindo INSTALADAS (fonte do CRM) — métrica que decide ROI
+    var instaladas = crmAtual.instaladas;
+    var cpaReal2 = instaladas > 0 ? (totalGasto / instaladas) : null;
+
+    // Financeiro
+    var fin = _getMetaConfigFinanceiro_();
+    var feePeriodo  = (fin.fee_mensal / 30) * dur;
+    var custoTotal  = totalGasto + feePeriodo;
+    var receita     = crmAtual.receita_projetada;
+    var receitaUpside = (crmAtual.pendentes || 0) * fin.tm_real;
+    var resultado   = receita - custoTotal;
+    var resultadoUpside = resultado + receitaUpside;
+    var roi         = custoTotal > 0 ? (receita / custoTotal) : null;
+
+    // CPA alerts (novo benchmark)
+    if (cpaReal2 !== null && cpaReal2 > L.CPA_MAX) {
+      alertas.push({ tipo: 'erro', texto: 'CPA por instalada R$' + cpaReal2.toFixed(2) + ' acima do teto R$' + L.CPA_MAX });
+    } else if (cpaReal2 !== null && cpaReal2 > L.CPA_META) {
+      alertas.push({ tipo: 'aviso', texto: 'CPA por instalada R$' + cpaReal2.toFixed(2) + ' acima da meta R$' + L.CPA_META });
+    }
+
     var temErro = alertas.some(function(a) { return a.tipo === 'erro'; });
     var statusGeral = alertas.length === 0 ? 'OPERAÇÃO NORMAL' : (temErro ? 'ATENÇÃO CRÍTICA' : 'MONITORAMENTO');
 
     return {
       modo: 'cockpit_bridge',
-      periodo: { since: since, until: until, label: periodo },
+      periodo: { since: since, until: until, label: periodo, dias: dur, prev_since: prevSince, prev_until: prevUntil },
       resumo: {
-        gasto: totalGasto.toFixed(2),
-        leads: totalLeads,
+        gasto:      totalGasto.toFixed(2),
+        gasto_prev: prevGasto.toFixed(2),
+        delta_gasto: _calcDelta_(totalGasto, prevGasto),
+        leads:      totalLeads,
+        leads_prev: 0,  // Meta lead action raramente populado — cockpit usa conversas + CRM
         impressoes: totalImpr,
-        cliques: totalCliques,
-        cpl: cplMedio,
-        ctr: ctrMedio,
-        cpm: cpmMedio,
-        conversoes: vendas,
-        taxaConv: taxaConv,
-        cpaReal: cpaReal
+        cliques:    totalCliques,
+        cpl:        cplMedio,
+        ctr:        ctrMedio,
+        cpm:        cpmMedio,
+        conversoes: vendas,              // legado: contagem do CRM Leads (status='Converteu')
+        taxaConv:   taxaConv,
+        cpaReal:    cpaReal,             // legado: por venda-fechada do Leads
+        // ── Novos (CRM 1-Vendas, fonte da verdade) ─────────────────────────
+        vendas_crm:        crmAtual.vendas,
+        vendas_crm_prev:   crmPrev.vendas,
+        delta_vendas:      _calcDelta_(crmAtual.vendas, crmPrev.vendas),
+        instaladas:        instaladas,
+        instaladas_prev:   crmPrev.instaladas,
+        delta_instaladas:  _calcDelta_(instaladas, crmPrev.instaladas),
+        pendentes:         crmAtual.pendentes,
+        cpa_real_instalada: cpaReal2 !== null ? cpaReal2.toFixed(2) : null
+      },
+      financeiro: {
+        gasto:            totalGasto,
+        fee_mensal:       fin.fee_mensal,
+        fee_periodo:      feePeriodo,
+        custo_total:      custoTotal,
+        tm_real:          fin.tm_real,
+        receita:          receita,
+        receita_upside:   receitaUpside,
+        resultado:        resultado,
+        resultado_upside: resultadoUpside,
+        roi:              roi,
+        cpa_max_saudavel: L.CPA_META,
+        cpa_teto:         L.CPA_MAX
       },
       campanhas: campanhasData,
       alertas: alertas,
@@ -1122,8 +1301,8 @@ function getPainelAdsData(periodo) {
           dry_run_default:  true,
           fila_prioritaria: filaPrioritaria,
           approval_summary: _buildClaudeAdsActionDecisionSummary_(filaPrioritaria)
-        },
-        experimentos: { total: 0, prioritarios: [] }
+        }
+        // experimentos removidos (nunca foram populados — seção morta)
       }
     };
   } catch (e) {
