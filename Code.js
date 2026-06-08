@@ -1302,6 +1302,19 @@ function doGet(e) {
     }
   }
 
+  // ── diagnóstico: leads Meta Ads agregados por período (sem secret, sem PII) ─
+  if (action === 'leads_meta_periodo') {
+    try {
+      return ContentService
+        .createTextOutput(JSON.stringify(_serveActionLeadsMetaPeriodo_(e.parameter || {})))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, erro: err && err.message || String(err) }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // ── disparo-grupo: resumo do tráfego pago (Alerta 7, schedule 8/14/20h n8n) ─
   // Sem secret — agregados públicos (gasto + impressões + leads + vendas).
   // Reusa MetaAdsAPI.getResumoTrafegoHoje() pra centralizar lógica Meta API.

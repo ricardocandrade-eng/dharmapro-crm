@@ -411,6 +411,99 @@ function _serveActionLeadsMetaHoje_() {
 }
 
 /**
+ * Endpoint público `?action=leads_meta_periodo&since=YYYY-MM-DD&until=YYYY-MM-DD`.
+ * Sem secret — agregados sem PII (contadores + breakdown por campanha).
+ * Filtro por `data_entrada` (col A). Datas inclusivas, TZ America/Sao_Paulo.
+ * Cap de janela: 92 dias.
+ *
+ * Schema:
+ * {
+ *   ok: true, gerado_em, since, until, dias,
+ *   total: { leads, convertidos, desqualificados, em_negociacao, pendentes, taxa_conv_pct },
+ *   por_campanha: [ { utm_campaign, leads, convertidos, desq, em_nego, pendentes, cpl_proxy_conv } ],
+ *   por_status:   { 'Converteu': N, 'Desqualificado': N, 'Em negociação': N, '(pendente)': N, ... },
+ *   por_motivo_desq: { 'Preço alto': N, ... }
+ * }
+ */
+function _serveActionLeadsMetaPeriodo_(params) {
+  try {
+    var since = String((params && params.since) || '').trim();
+    var until = String((params && params.until) || '').trim();
+    var re = /^\d{4}-\d{2}-\d{2}$/;
+    if (!re.test(since) || !re.test(until)) {
+      return { ok: false, erro: 'parametros_invalidos', detalhe: 'use since=YYYY-MM-DD&until=YYYY-MM-DD' };
+    }
+    var tz = 'America/Sao_Paulo';
+    var dSince = new Date(since + 'T00:00:00-03:00');
+    var dUntil = new Date(until + 'T23:59:59-03:00');
+    if (isNaN(dSince) || isNaN(dUntil) || dSince > dUntil) {
+      return { ok: false, erro: 'periodo_invalido' };
+    }
+    var dias = Math.round((dUntil - dSince) / 86400000) + 1;
+    if (dias > 92) return { ok: false, erro: 'janela_excede_92_dias', dias: dias };
+
+    var aba = _getSpreadsheet_().getSheetByName('Leads Meta Ads');
+    if (!aba) return { ok: false, erro: 'aba_nao_encontrada' };
+    var ult = aba.getLastRow();
+    if (ult < 2) {
+      return { ok: true, gerado_em: _agoraISOBrt_(), since: since, until: until, dias: dias,
+               total: { leads: 0, convertidos: 0, desqualificados: 0, em_negociacao: 0, pendentes: 0, taxa_conv_pct: 0 },
+               por_campanha: [], por_status: {}, por_motivo_desq: {} };
+    }
+    var raw = aba.getRange(2, 1, ult - 1, 12).getValues(); // A–L (sem PII relevante exposta abaixo)
+
+    var camp = {};                   // utm_campaign → { leads, conv, desq, nego, pend }
+    var porStatus = {};
+    var porMotivo = {};
+    var tot = 0, conv = 0, desq = 0, nego = 0, pend = 0;
+
+    for (var i = 0; i < raw.length; i++) {
+      var r = raw[i];
+      var dt = r[0];
+      if (!(dt instanceof Date)) continue;
+      if (dt < dSince || dt > dUntil) continue;
+
+      tot++;
+      var utm    = String(r[5] || '').trim() || '(sem campanha)';
+      var status = String(r[8] || '').trim();
+      var motivo = String(r[9] || '').trim();
+      var key    = status || '(pendente)';
+      porStatus[key] = (porStatus[key] || 0) + 1;
+
+      var c = camp[utm] || (camp[utm] = { utm_campaign: utm, leads: 0, convertidos: 0, desq: 0, em_nego: 0, pendentes: 0 });
+      c.leads++;
+
+      if (status === 'Converteu')           { conv++; c.convertidos++; }
+      else if (status === 'Desqualificado') { desq++; c.desq++; if (motivo) porMotivo[motivo] = (porMotivo[motivo] || 0) + 1; }
+      else if (status === 'Em negociação')  { nego++; c.em_nego++; }
+      else                                  { pend++; c.pendentes++; }
+    }
+
+    var arr = Object.keys(camp).map(function (k) { return camp[k]; })
+                    .sort(function (a, b) { return b.leads - a.leads; });
+
+    return {
+      ok:        true,
+      gerado_em: _agoraISOBrt_(),
+      since:     since, until: until, dias: dias,
+      total: {
+        leads:           tot,
+        convertidos:     conv,
+        desqualificados: desq,
+        em_negociacao:   nego,
+        pendentes:       pend,
+        taxa_conv_pct:   tot ? Math.round((conv / tot) * 1000) / 10 : 0,
+      },
+      por_campanha:    arr,
+      por_status:      porStatus,
+      por_motivo_desq: porMotivo,
+    };
+  } catch (e) {
+    return { ok: false, erro: e && e.message || String(e) };
+  }
+}
+
+/**
  * Endpoint público `?action=notificacoes_pendentes` (com secret).
  * Reusa `detectarAlertasAtivos` — mesma fonte do sino do CRM.
  *
