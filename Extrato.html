@@ -910,7 +910,7 @@ function epExtractSheet(wb, sheetName, colIndices, filterNonEmpty){
     var hv=hc?String(hc.v||''):'';
     allHdrs[c]=hv;
     var hn=epNormHeader(hv);
-    if(contractCol<0&&(hn==='id contrato'||hn==='id_contrato'||hn==='contrato')) contractCol=c;
+    if(contractCol<0&&/^(id[\s_]*contrato|contrato)$/.test(hn)) contractCol=c;
   }
 
   // Determinar colunas a extrair
