@@ -317,7 +317,7 @@ function _extratoResolverIndices_(headers) {
   var idx = { contrato: -1, fator: -1, totalPago: -1, pontosBL: -1, pontosMovelCombo: -1, movelAdicional: -1 };
   for (var i = 0; i < headers.length; i++) {
     var h = _extratoNormHeader_(headers[i]);
-    if (idx.contrato < 0 && (h === 'id contrato' || h === 'id_contrato' || h === 'contrato')) idx.contrato = i;
+    if (idx.contrato < 0 && /^(id[\s_]*contrato|contrato)$/.test(h)) idx.contrato = i;
     if (idx.fator < 0 && /\bfator\b/.test(h)) idx.fator = i;
     if (idx.totalPago < 0 && /total\s*pago/.test(h)) idx.totalPago = i;
     if (idx.pontosBL < 0 && /pontos\s*bl/.test(h)) idx.pontosBL = i;
