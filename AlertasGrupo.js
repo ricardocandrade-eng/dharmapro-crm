@@ -425,6 +425,42 @@ function _serveActionLeadsMetaHoje_() {
  *   por_motivo_desq: { 'Preço alto': N, ... }
  * }
  */
+/**
+ * Infere UF brasileira pelo DDD do telefone (lógica espelhada de
+ * LeadsMetaAds.html#inferirEstadoPorDDD). Normaliza tirando DDI 55, espera 10-11
+ * dígitos. DDDs cobertos: todos os estados do BR. Telefone inválido → '(desconhecido)'.
+ */
+function _inferirUFPorTelefone_(tel) {
+  var dig = String(tel || '').replace(/\D/g, '');
+  if (dig.length === 13 && dig.indexOf('55') === 0) dig = dig.slice(2);
+  if (dig.length === 12 && dig.indexOf('55') === 0) dig = dig.slice(2);
+  if (dig.length !== 10 && dig.length !== 11) return '(desconhecido)';
+  var ddd = parseInt(dig.slice(0, 2), 10);
+  // Mapa DDD → UF (BR completo)
+  var m = {
+    11: 'SP', 12: 'SP', 13: 'SP', 14: 'SP', 15: 'SP', 16: 'SP', 17: 'SP', 18: 'SP', 19: 'SP',
+    21: 'RJ', 22: 'RJ', 24: 'RJ',
+    27: 'ES', 28: 'ES',
+    31: 'MG', 32: 'MG', 33: 'MG', 34: 'MG', 35: 'MG', 37: 'MG', 38: 'MG',
+    41: 'PR', 42: 'PR', 43: 'PR', 44: 'PR', 45: 'PR', 46: 'PR',
+    47: 'SC', 48: 'SC', 49: 'SC',
+    51: 'RS', 53: 'RS', 54: 'RS', 55: 'RS',
+    61: 'DF', 62: 'GO', 64: 'GO',
+    63: 'TO',
+    65: 'MT', 66: 'MT', 67: 'MS',
+    68: 'AC', 69: 'RO',
+    71: 'BA', 73: 'BA', 74: 'BA', 75: 'BA', 77: 'BA',
+    79: 'SE',
+    81: 'PE', 87: 'PE',
+    82: 'AL', 83: 'PB', 84: 'RN', 85: 'CE', 88: 'CE',
+    86: 'PI', 89: 'PI',
+    91: 'PA', 93: 'PA', 94: 'PA',
+    92: 'AM', 97: 'AM',
+    95: 'RR', 96: 'AP', 98: 'MA', 99: 'MA'
+  };
+  return m[ddd] || '(DDD ' + ddd + ')';
+}
+
 function _serveActionLeadsMetaPeriodo_(params) {
   try {
     var since = String((params && params.since) || '').trim();
@@ -448,13 +484,14 @@ function _serveActionLeadsMetaPeriodo_(params) {
     if (ult < 2) {
       return { ok: true, gerado_em: _agoraISOBrt_(), since: since, until: until, dias: dias,
                total: { leads: 0, convertidos: 0, desqualificados: 0, em_negociacao: 0, pendentes: 0, taxa_conv_pct: 0 },
-               por_campanha: [], por_status: {}, por_motivo_desq: {} };
+               por_campanha: [], por_status: {}, por_motivo_desq: {}, por_uf: {} };
     }
-    var raw = aba.getRange(2, 1, ult - 1, 12).getValues(); // A–L (sem PII relevante exposta abaixo)
+    var raw = aba.getRange(2, 1, ult - 1, 12).getValues(); // A–L (col C=telefone p/ inferir UF via DDD)
 
     var camp = {};                   // utm_campaign → { leads, conv, desq, nego, pend }
     var porStatus = {};
     var porMotivo = {};
+    var porUF     = {};              // UF → { leads, venda_fechada, sem_retorno, sem_viab, elegiveis }
     var tot = 0, conv = 0, desq = 0, nego = 0, pend = 0;
 
     for (var i = 0; i < raw.length; i++) {
@@ -467,17 +504,38 @@ function _serveActionLeadsMetaPeriodo_(params) {
       var utm    = String(r[5] || '').trim() || '(sem campanha)';
       var status = String(r[8] || '').trim();
       var motivo = String(r[9] || '').trim();
+      var tel    = String(r[2] || '').trim();
+      var uf     = _inferirUFPorTelefone_(tel);
       var key    = status || '(pendente)';
       porStatus[key] = (porStatus[key] || 0) + 1;
 
       var c = camp[utm] || (camp[utm] = { utm_campaign: utm, leads: 0, convertidos: 0, desq: 0, em_nego: 0, pendentes: 0 });
       c.leads++;
 
+      var u = porUF[uf] || (porUF[uf] = { uf: uf, leads: 0, venda_fechada: 0, sem_retorno: 0, sem_viab: 0, reprovado_cpf: 0, em_negociacao: 0, sem_interesse: 0, venda_perdida: 0 });
+      u.leads++;
+      if (status === 'venda-fechada')        u.venda_fechada++;
+      else if (status === 'sem-retorno')     u.sem_retorno++;
+      else if (status === 'sem-viabilidade') u.sem_viab++;
+      else if (status === 'reprovado-cpf')   u.reprovado_cpf++;
+      else if (status === 'em-negociacao')   u.em_negociacao++;
+      else if (status === 'sem-interesse')   u.sem_interesse++;
+      else if (status === 'venda-perdida')   u.venda_perdida++;
+
       if (status === 'Converteu')           { conv++; c.convertidos++; }
       else if (status === 'Desqualificado') { desq++; c.desq++; if (motivo) porMotivo[motivo] = (porMotivo[motivo] || 0) + 1; }
       else if (status === 'Em negociação')  { nego++; c.em_nego++; }
       else                                  { pend++; c.pendentes++; }
     }
+
+    // Reclassifica por_uf: engajados / elegíveis / taxa_conv_elegiveis
+    Object.keys(porUF).forEach(function (k) {
+      var u = porUF[k];
+      u.engajados = u.leads - u.sem_retorno;
+      u.elegiveis = u.engajados - u.sem_viab - u.reprovado_cpf;
+      u.taxa_conv_elegiveis_pct = u.elegiveis > 0 ? Math.round((u.venda_fechada / u.elegiveis) * 1000) / 10 : 0;
+      u.pct_sem_viab            = u.leads > 0     ? Math.round((u.sem_viab      / u.leads)     * 1000) / 10 : 0;
+    });
 
     var arr = Object.keys(camp).map(function (k) { return camp[k]; })
                     .sort(function (a, b) { return b.leads - a.leads; });
@@ -497,6 +555,7 @@ function _serveActionLeadsMetaPeriodo_(params) {
       por_campanha:    arr,
       por_status:      porStatus,
       por_motivo_desq: porMotivo,
+      por_uf:          porUF
     };
   } catch (e) {
     return { ok: false, erro: e && e.message || String(e) };
