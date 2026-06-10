@@ -324,6 +324,19 @@
 .ep-12m-table tr.ep-12m-current td:first-child { color: var(--accent, #e63e6d); }
 .ep-12m-chart-wrap { position: relative; height: 220px; margin: 0 22px 22px; }
 
+/* ── Toolbar do modal Histórico ── */
+.ep-hist-toolbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 22px; border-bottom: 1px solid var(--border, #252a3a);
+  background: rgba(255,255,255,0.02); flex-wrap: wrap;
+}
+.ep-hist-toolbar-lbl {
+  font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--muted, #7a82a0);
+}
+.ep-hist-toolbar-spacer { flex: 1; }
+.ep-hist-toolbar #ep-hist-filtro { min-width: 200px; }
+
 /* ── Botão Word / Apagar ── */
 .ep-action-row {
   display: flex; justify-content: center; align-items: center;
@@ -402,7 +415,7 @@
     <select class="ep-month-select" id="ep-month-sel" onchange="epSelecionarMes(this.value)"></select>
     <button class="ep-nav-btn" onclick="epNavMes(1)" title="Próximo mês">►</button>
     <span class="ep-month-label" id="ep-month-label">—</span>
-    <button class="ep-12m-btn" onclick="epAbrir12Meses()" title="Ver composição dos últimos 12 meses">📈 Resultado Últimos 12 meses</button>
+    <button class="ep-12m-btn" onclick="epAbrirHistorico()" title="Apuração por ano ou últimos 12 meses, com exportação">📅 Apuração Histórica</button>
     <button class="ep-del-btn" onclick="epApagarMes()" title="Apagar fechamento deste mês">🗑</button>
   </div>
 
@@ -521,15 +534,24 @@
     </div>
   </div>
 
-  <!-- ══ Modal: Resultado Últimos 12 Meses ══ -->
+  <!-- ══ Modal: Apuração Histórica (por ano ou últimos 12 meses) ══ -->
   <div class="ep-modal-overlay" id="ep-12m-overlay" style="display:none" onclick="if(event.target===this)epFechar12Meses()">
     <div class="ep-modal ep-modal-lg">
       <div class="ep-modal-header">
         <div>
           <div class="ep-modal-subt">Análise Histórica</div>
-          <div class="ep-modal-ttl">Resultado dos Últimos 12 Meses</div>
+          <div class="ep-modal-ttl" id="ep-hist-ttl">Resultado dos Últimos 12 Meses</div>
         </div>
         <button class="ep-modal-close" onclick="epFechar12Meses()" title="Fechar">✕</button>
+      </div>
+      <div class="ep-hist-toolbar">
+        <label class="ep-hist-toolbar-lbl">Apurar:</label>
+        <select id="ep-hist-filtro" class="ep-month-select" onchange="epHistAplicarFiltro(this.value)">
+          <option value="12m">Últimos 12 meses</option>
+        </select>
+        <div class="ep-hist-toolbar-spacer"></div>
+        <button class="ep-drive-save-btn" onclick="epHistExportarCSV()" title="Exporta a composição financeira em CSV (Excel)">📊 CSV</button>
+        <button class="ep-drive-save-btn" onclick="epHistExportarPNG()" title="Salva a visão atual (KPIs + gráfico + tabela) como PNG">📸 PNG</button>
       </div>
       <div class="ep-modal-body" id="ep-12m-body">
         <!-- preenchido dinamicamente -->
@@ -1747,18 +1769,138 @@ function epAbrirContrato(idContrato){
 }
 
 // ── Modal 12 Meses ────────────────────────────────────────────────────────────
-function epAbrir12Meses(){
+// Estado atual da apuração histórica (filtro selecionado)
+var epHistFiltroAtual = '12m';
+var epHistRegistros   = [];
+
+function epAbrir12Meses(){ epAbrirHistorico(); }
+
+function epAbrirHistorico(){
   var meses = epGetMeses();
-  // Pegar os últimos 12 meses disponíveis
-  var ultimos = meses.slice(-12);
-  if(!ultimos.length){
+  if(!meses.length){
     epToast('⚠️ Nenhum dado disponível ainda.', 'warning');
     return;
   }
+  // Popular dropdown de anos disponíveis (extraídos dos meses)
+  var anos = {};
+  meses.forEach(function(m){ anos[m.split('-')[0]] = true; });
+  var anosArr = Object.keys(anos).sort().reverse();
+  var sel = document.getElementById('ep-hist-filtro');
+  sel.innerHTML = '<option value="12m">Últimos 12 meses</option>' +
+    anosArr.map(function(a){ return '<option value="ano:'+a+'">Ano '+a+'</option>'; }).join('');
+  // Default: últimos 12 meses
+  epHistFiltroAtual = '12m';
+  sel.value = '12m';
+  epHistRender();
+  epEscaparOverlay('ep-12m-overlay', 'flex');
+}
+
+function epHistAplicarFiltro(valor){
+  epHistFiltroAtual = valor || '12m';
+  epHistRender();
+}
+
+function epHistRender(){
+  var meses = epGetMeses();
+  var alvo;
+  var ttl;
+  if(epHistFiltroAtual && epHistFiltroAtual.indexOf('ano:') === 0){
+    var ano = epHistFiltroAtual.split(':')[1];
+    alvo = meses.filter(function(m){ return m.indexOf(ano + '-') === 0; });
+    ttl = 'Apuração do ano ' + ano + (alvo.length ? ' (' + alvo.length + ' mês' + (alvo.length>1?'es':'') + ')' : '');
+  } else {
+    alvo = meses.slice(-12);
+    ttl = 'Resultado dos Últimos 12 Meses';
+  }
+  document.getElementById('ep-hist-ttl').textContent = ttl;
   var body = document.getElementById('ep-12m-body');
   body.innerHTML = '';
-  epRender12Meses(ultimos, body);
-  epEscaparOverlay('ep-12m-overlay', 'flex');
+  if(!alvo.length){
+    body.innerHTML = '<div class="ep-modal-empty">Nenhum fechamento neste período.</div>';
+    epHistRegistros = [];
+    return;
+  }
+  epRender12Meses(alvo, body);
+}
+
+// ── Exportações da Apuração Histórica ────────────────────────────────────────
+function epHistExportarCSV(){
+  if(!epHistRegistros.length){ epToast('⚠️ Nada para exportar.','warning'); return; }
+  var cols = [
+    {k:'instBL',      l:'Inst. BL'},
+    {k:'adimplencia', l:'Adimplência'},
+    {k:'movel',       l:'Móvel'},
+    {k:'bonusQuin',   l:'Bônus Quin.'},
+    {k:'bonusExtra',  l:'Bônus Extra'},
+    {k:'descInadimp', l:'Inadimp.'},
+    {k:'susp120',     l:'Susp.120d'},
+    {k:'descChurn',   l:'Churn'},
+    {k:'multaCanc',   l:'Canc.'},
+    {k:'descHUB',     l:'HUB'},
+    {k:'pctAtingMeta',l:'% Ating. BL'},
+    {k:'atingMovel',  l:'% Ating. Móvel'},
+    {k:'instTotal',   l:'Inst. Total'},
+    {k:'realizado',   l:'TOTAL Realizado'}
+  ];
+  function fmt(v){
+    if(typeof v !== 'number') v = Number(v||0);
+    return v.toFixed(2).replace('.', ',');
+  }
+  var sep = ';';
+  var linhas = [];
+  linhas.push(['Mês'].concat(cols.map(function(c){ return c.l; })).join(sep));
+  epHistRegistros.forEach(function(d){
+    var row = [epMesLabel(d.mes)];
+    cols.forEach(function(c){ row.push(fmt(d[c.k])); });
+    linhas.push(row.join(sep));
+  });
+  // Linha de totais/médias
+  var totais = ['TOTAL/MÉD'];
+  cols.forEach(function(c){
+    var soma = epHistRegistros.reduce(function(s,d){ return s + (Number(d[c.k])||0); }, 0);
+    if(c.k === 'pctAtingMeta' || c.k === 'atingMovel'){
+      totais.push(fmt(soma / epHistRegistros.length));
+    } else {
+      totais.push(fmt(soma));
+    }
+  });
+  linhas.push(totais.join(sep));
+
+  var csv = '﻿' + linhas.join('\r\n'); // BOM para Excel ler UTF-8
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var nome = 'Apuracao_' + (epHistFiltroAtual === '12m' ? 'ultimos-12m' : epHistFiltroAtual.replace(':','-')) + '.csv';
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = nome;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(function(){ URL.revokeObjectURL(link.href); }, 1000);
+  epToast('📊 CSV exportado.', 'success');
+}
+
+function epHistExportarPNG(){
+  if(!epHistRegistros.length){ epToast('⚠️ Nada para exportar.','warning'); return; }
+  var H2C_URL = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  epLoadScript(H2C_URL, function(){
+    var el = document.getElementById('ep-12m-body');
+    html2canvas(el, {
+      backgroundColor: getComputedStyle(document.body).backgroundColor || '#0d1117',
+      scale: 2, useCORS: true, logging: false
+    }).then(function(canvas){
+      var nome = 'Apuracao_' + (epHistFiltroAtual === '12m' ? 'ultimos-12m' : epHistFiltroAtual.replace(':','-')) + '.png';
+      var link = document.createElement('a');
+      link.download = nome;
+      link.href = canvas.toDataURL('image/png');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      epToast('📸 PNG exportado.', 'success');
+    }).catch(function(err){
+      console.error('[EP Hist PNG]', err);
+      epToast('Erro ao gerar imagem.', 'error');
+    });
+  });
 }
 
 function epFechar12Meses(){
@@ -1775,6 +1917,8 @@ function epRender12Meses(meses, container){
                      estornoMovel:0, descChurn:0, multaCanc:0, descHUB:0,
                      pctAtingMeta:0, atingMovel:0, instTotal:0 };
   });
+  // Expõe para os botões de exportação (CSV/PNG)
+  epHistRegistros = registros;
 
   // ── KPIs agregados ────────────────────────────────────────────────────────
   var n = registros.length;
