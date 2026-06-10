@@ -392,8 +392,8 @@
       <span class="ep-tag">FINANCEIRO</span>
       <h2>Extrato Mensal</h2>
     </div>
-    <button class="btn btn-sm" onclick="epAbrirUpload()">+ Enviar arquivo</button>
-    <input type="file" id="ep-file-input" accept=".xlsx" style="display:none" onchange="epOnFile(event)">
+    <button class="btn btn-sm" onclick="epAbrirUpload()">+ Enviar arquivo(s)</button>
+    <input type="file" id="ep-file-input" accept=".xlsx" multiple style="display:none" onchange="epOnFile(event)">
   </div>
 
   <!-- Filtro de mês -->
@@ -414,6 +414,7 @@
     </div>
     <div class="ep-drive-actions">
       <button class="ep-drive-save-btn" id="ep-drive-save-btn" onclick="epArquivarNoDrive()" title="Salva o fechamento atual no Google Drive">💾 Arquivar</button>
+      <button class="ep-drive-save-btn" id="ep-drive-save-all-btn" onclick="epArquivarTodosNoDrive()" title="Salva TODOS os fechamentos carregados no Google Drive">💾 Arquivar todos</button>
       <button class="ep-drive-save-btn" id="ep-aplicar-crm-btn" onclick="epAplicarAoCRM()" title="Aplica este extrato em 1 - Vendas (FATOR_APLICADO, RECEITA_REALIZADA, MES_REF_VENDA)">📥 Aplicar ao CRM</button>
       <button class="ep-drive-refresh-btn" onclick="epCarregarListaDrive()" title="Atualizar lista do Drive">↺</button>
     </div>
@@ -703,6 +704,22 @@ var EP_HDR = {
   b2bReal:      ['b2b realizado', 'b2b']
 };
 
+// ── Aliases extras APENAS para o layout vertical antigo (2022 → abr/2024) ────
+// Nesses extratos os rótulos ficam espalhados em linhas, com o valor à direita.
+// Termos como 'inadimplentes' sozinho colidiriam com colunas de quantidade no
+// layout horizontal — por isso ficam restritos ao modo vertical.
+var EP_HDR_VERT = {
+  b2b:          ['b2b'],
+  b2c:          ['b2c'],
+  vb:           ['venda bruta b2c+b2b'],
+  instTotal:    ['instalacoes totais', 'instalacao movel'],
+  descChurn:    ['churn valor'],
+  multaCanc:    ['cancelamento de venda valor', 'cancelamento comercial', 'desconto cancelamento comercial'],
+  descInadimp:  ['inadimplentes valor desconto', 'inadimplentes'],
+  adimplencia:  ['adimplencia especiais'],
+  susp120:      ['suspensos 120 dias', 'suspensos']
+};
+
 var EP_MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                 'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
@@ -827,16 +844,153 @@ function epAbrirUpload(){
 }
 
 function epOnFile(e){
-  var file = e.target.files[0];
-  if(!file) return;
-  if(!/\.xlsx$/i.test(file.name)){
+  var files = Array.prototype.slice.call(e.target.files || []);
+  if(!files.length) return;
+  var xlsxFiles  = files.filter(function(f){ return /\.xlsx$/i.test(f.name); });
+  var ignorados  = files.length - xlsxFiles.length;
+  if(!xlsxFiles.length){
     epToast('⚠️ Apenas arquivos .xlsx são aceitos.','warning'); return;
   }
+  if(xlsxFiles.length === 1){
+    if(ignorados) epToast('⚠️ ' + ignorados + ' arquivo(s) ignorado(s) (não .xlsx).','warning');
+    epProcessarSingle(xlsxFiles[0]);
+    return;
+  }
+  epProcessarLote(xlsxFiles, ignorados);
+}
+
+// Fluxo original: 1 arquivo, com confirmação de substituição
+function epProcessarSingle(file){
   epShowLoading();
   var reader = new FileReader();
   reader.onload  = function(ev){ epProcessarBuffer(ev.target.result, file.name); };
   reader.onerror = function(){ epShowEmpty(); if(epMesAtual) epSelecionarMes(epMesAtual); epToast('❌ Erro ao ler o arquivo.','error'); };
   reader.readAsArrayBuffer(file);
+}
+
+// ── Importação em lote ────────────────────────────────────────────────────────
+// Processa N arquivos em sequência. Substitui meses existentes sem perguntar,
+// remove _sheets (dados pesados) para não estourar o localStorage e exibe um
+// resumo ao final.
+function epProcessarLote(files, ignorados){
+  epShowLoading();
+  var loadingP = document.querySelector('#ep-loading p');
+
+  var resultados = [];   // {arquivo, mes, status:'novo'|'substituido'|'erro', layout, uncertain, erro}
+  var idx = 0;
+
+  function processarProximo(){
+    if(idx >= files.length){ finalizar(); return; }
+    var file = files[idx++];
+    if(loadingP) loadingP.textContent = 'Processando ' + idx + '/' + files.length + ': ' + file.name;
+
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      try {
+        var wb = XLSX.read(ev.target.result, {type:'array'});
+        var ws = wb.Sheets['RESUMO COMPLETO'] || wb.Sheets['RESUMO'] || epFindWs(wb,'RESUMO COMPLETO') || epFindWs(wb,'RESUMO');
+        if(!ws) throw new Error('Aba RESUMO não encontrada');
+        var dados = epParsear(wb, ws, file.name);
+        delete dados._sheets; // lote: não guarda dados brutos das abas (quota do localStorage)
+        var existia = !!epGetData(dados.mes);
+        epSaveRec(dados.mes, dados);
+        resultados.push({
+          arquivo: file.name, mes: dados.mes,
+          status: existia ? 'substituido' : 'novo',
+          layout: dados._layout || 'h',
+          uncertain: (dados._uncertain || []).length
+        });
+      } catch(err){
+        resultados.push({ arquivo: file.name, mes: null, status: 'erro', erro: err.message || String(err) });
+      }
+      setTimeout(processarProximo, 0); // libera o event loop entre arquivos
+    };
+    reader.onerror = function(){
+      resultados.push({ arquivo: file.name, mes: null, status: 'erro', erro: 'Falha na leitura do arquivo' });
+      setTimeout(processarProximo, 0);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function finalizar(){
+    if(loadingP) loadingP.textContent = 'Processando arquivo...';
+    var ok = resultados.filter(function(r){ return r.status !== 'erro'; });
+    if(ok.length){
+      var meses = ok.map(function(r){ return r.mes; }).sort();
+      epSelecionarMes(meses[meses.length - 1]); // mais recente importado
+    } else if(epMesAtual){
+      epSelecionarMes(epMesAtual);
+    } else {
+      epShowEmpty();
+    }
+    epRenderResumoLote(resultados, ignorados);
+  }
+
+  // Garante SheetJS carregado antes de começar
+  if(typeof XLSX === 'undefined'){
+    epLoadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', processarProximo);
+  } else {
+    processarProximo();
+  }
+}
+
+// Modal de resumo do lote (reusa a infra do modal "Aplicar ao CRM")
+function epRenderResumoLote(resultados, ignorados){
+  var novos  = resultados.filter(function(r){ return r.status === 'novo'; });
+  var subst  = resultados.filter(function(r){ return r.status === 'substituido'; });
+  var erros  = resultados.filter(function(r){ return r.status === 'erro'; });
+  var revisao = resultados.filter(function(r){ return r.status !== 'erro' && r.uncertain > 0; });
+
+  var html = '<div class="ep-aplicar-kpis">' +
+    _epKpi('Arquivos processados', resultados.length, '') +
+    _epKpi('Novos', novos.length, novos.length ? 'ok' : '') +
+    _epKpi('Substituídos', subst.length, subst.length ? 'warn' : '') +
+    _epKpi('Erros', erros.length, erros.length ? 'bad' : 'ok') +
+  '</div>';
+
+  if(revisao.length){
+    html += '<div class="ep-aplicar-alert" style="margin-top:14px">' +
+      '<b>⚠️ ' + revisao.length + ' mês(es) com campos para revisão manual</b> — extratos de layout antigo ' +
+      'não trazem todos os valores. Navegue até o mês e preencha no painel de revisão: ' +
+      revisao.map(function(r){ return '<b>' + _epHtml(epMesLabel(r.mes)) + '</b>'; }).join(', ') +
+    '</div>';
+  }
+
+  if(erros.length){
+    html += '<div class="ep-aplicar-section-title">Arquivos com erro</div><div class="ep-aplicar-amostra">' +
+      erros.map(function(r){ return '<b>' + _epHtml(r.arquivo) + '</b>: ' + _epHtml(r.erro); }).join('<br>') +
+    '</div>';
+  }
+
+  var okList = resultados.filter(function(r){ return r.status !== 'erro'; })
+    .sort(function(a,b){ return a.mes < b.mes ? -1 : 1; });
+  if(okList.length){
+    html += '<div class="ep-aplicar-section-title">Meses importados</div><div class="ep-aplicar-amostra">' +
+      okList.map(function(r){
+        return _epHtml(epMesLabel(r.mes)) +
+          (r.status === 'substituido' ? ' <span style="opacity:0.6">(substituído)</span>' : '') +
+          (r.layout === 'v' ? ' <span style="opacity:0.6">[layout antigo]</span>' : '');
+      }).join(' · ') +
+    '</div>';
+  }
+
+  if(ignorados){
+    html += '<div style="font-size:12px;color:var(--text-dim,#8089a8);margin-top:10px">' +
+      ignorados + ' arquivo(s) ignorado(s) por não serem .xlsx.</div>';
+  }
+
+  html += '<div style="font-size:12px;color:var(--text-dim,#8089a8);margin-top:14px;line-height:1.5">' +
+    'Os fechamentos foram salvos neste navegador (localStorage). ' +
+    'Use <b>💾 Arquivar todos</b> para persistir o histórico no Google Drive.</div>';
+
+  html += '<div class="ep-aplicar-footer">' +
+    '<button class="ep-aplicar-btn ep-aplicar-btn-primary" onclick="_epFecharModalAplicar()">Fechar</button>' +
+  '</div>';
+
+  _epAbrirModalAplicar(); // abre e reseta o modal (título genérico)
+  document.getElementById('ep-aplicar-subt').textContent = 'Importação em lote';
+  document.getElementById('ep-aplicar-ttl').textContent  = 'Resultado da importação';
+  document.getElementById('ep-aplicar-body').innerHTML = html;
 }
 
 function epProcessarBuffer(buf, fileName){
@@ -1016,7 +1170,51 @@ function epNormMes(val){
   return null;
 }
 
+// Detecta layout do RESUMO: horizontal (header linha 1, valores linha 2 — 2024+)
+// ou vertical (rótulos espalhados, valor à direita — 2022 → abr/2024)
+function epDetectLayout(ws){
+  var a1 = epCell(ws, 0, 0);
+  var n  = epNormHeader(a1);
+  return (n === 'parceiro' || n === 'nome dvo') ? 'h' : 'v';
+}
+
+// Varre a aba inteira procurando rótulos (EP_HDR + EP_HDR_VERT) e devolve
+// { campo: valor } com o primeiro número encontrado até 3 células à direita.
+function epParsearVertical(ws){
+  var out = {};
+  if(!ws['!ref']) return out;
+  var range = XLSX.utils.decode_range(ws['!ref']);
+  var maxR = Math.min(range.e.r, 400), maxC = Math.min(range.e.c, 120);
+
+  // rótulo normalizado → campo (EP_HDR_VERT tem precedência no modo vertical;
+  // EP_HDR complementa — ex.: 'b2c' deve mapear pra quantidade, não b2cReal)
+  var lblMap = {};
+  Object.keys(EP_HDR_VERT).forEach(function(f){
+    (EP_HDR_VERT[f]||[]).forEach(function(a){ if(!(a in lblMap)) lblMap[a] = f; });
+  });
+  Object.keys(EP_HDR).forEach(function(f){
+    (EP_HDR[f]||[]).forEach(function(a){ if(!(a in lblMap)) lblMap[a] = f; });
+  });
+
+  for(var r = range.s.r; r <= maxR; r++){
+    for(var c = range.s.c; c <= maxC; c++){
+      var cell = ws[XLSX.utils.encode_cell({c:c, r:r})];
+      if(!cell || typeof cell.v !== 'string') continue;
+      var campo = lblMap[epNormHeader(cell.v)];
+      if(!campo || (campo in out)) continue;
+      for(var dc = 1; dc <= 3; dc++){
+        var vc = ws[XLSX.utils.encode_cell({c:c+dc, r:r})];
+        if(vc && typeof vc.v === 'number'){ out[campo] = vc.v; break; }
+      }
+    }
+  }
+  return out;
+}
+
 function epParsear(wb, ws, fileName){
+  var layout = epDetectLayout(ws);
+  if(layout === 'v') return epParsearVerticalDados(wb, ws, fileName);
+
   // 1. Constrói mapa de cabeçalhos → índices (linha 1 = row 0)
   var colMap = epBuildColMap(ws);
   console.info('[EP] Mapa de colunas detectado:', colMap);
@@ -1039,16 +1237,10 @@ function epParsear(wb, ws, fileName){
   var n = function(field){ return Number(g(field) || 0); };
 
   // 3. Identificar mês
-  var mes = null;
-  var wsI = wb.Sheets['BD_INSTALAÇÃO'];
-  if(wsI) mes = epNormMes(epCell(wsI, 1, 1));
-  if(!mes){
-    var ym = fileName.match(/(\d{4})[_\-]?(\d{2})/);
-    if(ym) mes = ym[1] + '-' + ym[2];
-    else { var now = new Date(); mes = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0'); }
-  }
+  var mes = epDetectarMes(wb, fileName);
 
   var dados = {
+    _layout:      'h',
     mes:          mes,
     parceiro:     String(g('parceiro') || ''),
     uploadedAt:   new Date().toISOString(),
@@ -1124,6 +1316,88 @@ function epParsear(wb, ws, fileName){
     if(sdChurn && sdChurn.rows.length) _sheets.bdChurn = sdChurn;
   } catch(e){ console.warn('[EP] Não foi possível extrair BD_CHURN completa', e); }
 
+  dados._sheets = _sheets;
+
+  return dados;
+}
+
+// Identifica o mês de referência: BD_INSTALAÇÃO → nome do arquivo → mês atual.
+// Aceita nomes "MM-YYYY.xlsx" (extratos baixados) e "YYYY-MM" / "YYYY_MM".
+function epDetectarMes(wb, fileName){
+  var mes = null;
+  var wsI = wb.Sheets['BD_INSTALAÇÃO'];
+  if(wsI) mes = epNormMes(epCell(wsI, 1, 1));
+  // Sanidade: descarta ano implausível (célula numérica que não era data)
+  if(mes && (Number(mes.slice(0,4)) < 2015 || Number(mes.slice(0,4)) > 2035)) mes = null;
+  if(!mes){
+    var mm = fileName.match(/^(\d{2})[_\-](\d{4})\b/);
+    if(mm && Number(mm[1]) >= 1 && Number(mm[1]) <= 12){
+      mes = mm[2] + '-' + mm[1];
+    }
+  }
+  if(!mes){
+    var ym = fileName.match(/(\d{4})[_\-]?(\d{2})/);
+    if(ym && Number(ym[2]) >= 1 && Number(ym[2]) <= 12) mes = ym[1] + '-' + ym[2];
+  }
+  if(!mes){
+    var now = new Date();
+    mes = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  }
+  return mes;
+}
+
+// Monta o objeto de dados a partir de um RESUMO em layout vertical (extratos
+// antigos: 2022 → abr/2024). Campos ausentes ficam 0 e entram em _uncertain
+// para revisão manual no painel.
+function epParsearVerticalDados(wb, ws, fileName){
+  var v = epParsearVertical(ws);
+  console.info('[EP] Layout vertical detectado. Campos encontrados:', v);
+
+  var num = function(f){ return Number(v[f] || 0); };
+  var dados = {
+    _layout:      'v',
+    mes:          epDetectarMes(wb, fileName),
+    parceiro:     String(v.parceiro || ''),
+    uploadedAt:   new Date().toISOString(),
+    metaBL:       num('metaBL'),     metaMovel:    num('metaMovel'),
+    b2b:          num('b2b'),        b2c:          num('b2c'),
+    vb:           num('vb'),         instTotal:    num('instTotal'),
+    churn:        num('churn'),      cnVendas:     num('cnVendas'),
+    pctCN:        num('pctCN'),      migracoes:    num('migracoes'),
+    movelAcq:     num('movelAcq'),   instMovel:    num('instMovel'),
+    pctAtingMeta: num('pctAtingMeta'),atingMovel:  num('atingMovel'),
+    realizadoTM:  num('realizadoTM'),instBL:       num('instBL'),
+    bonusQuin:    num('bonusQuin'),  bonusExtra:   num('bonusExtra'),
+    adimplencia:  num('adimplencia'),descChurn:    num('descChurn'),
+    multaCanc:    num('multaCanc'),  descInadimp:  num('descInadimp'),
+    susp120:      num('susp120'),    movel:        num('movel'),
+    estornoMovel: num('estornoMovel'),descHUB:     num('descHUB'),
+    realizado:    num('realizado'),  realizadoUN:  num('realizadoUN'),
+    b2cReal:      num('b2cReal'),    b2bReal:      num('b2bReal')
+  };
+
+  // Campos críticos ausentes → painel de revisão manual
+  var CAMPOS_CRITICOS = [
+    {field:'instBL',       label:'Instalações BL (R$)',    tipo:'brl'},
+    {field:'realizado',    label:'Realizado Total (R$)',    tipo:'brl'},
+    {field:'adimplencia',  label:'Adimplência (R$)',        tipo:'brl'},
+    {field:'movel',        label:'Móvel (R$)',              tipo:'brl'},
+    {field:'metaBL',       label:'Meta BL (qtd)',           tipo:'num'},
+    {field:'instTotal',    label:'Instalações Total (qtd)', tipo:'num'}
+  ];
+  dados._uncertain = CAMPOS_CRITICOS.filter(function(c){
+    return !(c.field in v) && !dados[c.field];
+  });
+
+  // Abas de detalhe existem em parte dos arquivos antigos — tenta extrair
+  var _sheets = {};
+  Object.keys(EP_DETAIL_MAP).forEach(function(fk){
+    var def = EP_DETAIL_MAP[fk];
+    try {
+      var sd = epExtractSheet(wb, def.sheet, null, !!def.filterNonEmpty);
+      if(sd && sd.rows.length) _sheets[fk] = sd;
+    } catch(e){ /* aba ausente no layout antigo */ }
+  });
   dados._sheets = _sheets;
 
   return dados;
@@ -2244,6 +2518,39 @@ function epArquivarNoDrive(){
       console.warn('[EP Drive]', err);
     })
     .epSalvarExtrato(jsonStr, nomeArq);
+}
+
+// Arquiva TODOS os fechamentos do localStorage no Drive, em sequência
+function epArquivarTodosNoDrive(){
+  var meses = epGetMeses();
+  if(!meses.length){ epToast('Nenhum fechamento para arquivar.','error'); return; }
+  if(typeof google === 'undefined' || !google.script){
+    epToast('Drive não disponível fora do Apps Script.','error'); return;
+  }
+
+  var btn = document.getElementById('ep-drive-save-all-btn');
+  var idx = 0, okCount = 0, errCount = 0;
+
+  function proximo(){
+    if(idx >= meses.length){
+      if(btn){ btn.disabled = false; btn.textContent = '💾 Arquivar todos'; }
+      epToast('☁️ ' + okCount + ' fechamento(s) arquivado(s) no Drive' +
+        (errCount ? ' — ' + errCount + ' erro(s)' : '') + '.', errCount ? 'warning' : 'success');
+      epCarregarListaDrive();
+      return;
+    }
+    var m = meses[idx++];
+    if(btn){ btn.disabled = true; btn.textContent = '⏳ ' + idx + '/' + meses.length + '…'; }
+    var d = epGetData(m);
+    if(!d){ errCount++; proximo(); return; }
+    var dadosLeves = {};
+    Object.keys(d).forEach(function(k){ if(k!=='_sheets') dadosLeves[k]=d[k]; });
+    google.script.run
+      .withSuccessHandler(function(res){ if(res && res.ok) okCount++; else errCount++; proximo(); })
+      .withFailureHandler(function(){ errCount++; proximo(); })
+      .epSalvarExtrato(JSON.stringify(dadosLeves), epDriveNomeArq(dadosLeves));
+  }
+  proximo();
 }
 
 // Carrega um extrato do Drive e o renderiza no dashboard
