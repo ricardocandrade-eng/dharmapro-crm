@@ -212,7 +212,7 @@ function _formatarCidadeAlerta_(s) {
     return w.charAt(0).toUpperCase() + w.slice(1);
   }).join(' ');
 }
-function _construirTextoParcialDoDia(cidade, cliente) {
+function _construirTextoParcialDoDia(cidade, cliente, canal) {
   try {
     var hoje          = new Date();
     var dataFormatada = Utilities.formatDate(hoje, 'America/Sao_Paulo', 'dd/MM');
@@ -229,11 +229,12 @@ function _construirTextoParcialDoDia(cidade, cliente) {
     var totalFunil = quente + morno + frio;
 
     var linhaCidade  = cidade  ? ('📍 ' + _formatarCidadeAlerta_(cidade) + '\n') : '';
-    var linhaCliente = cliente ? ('👤 ' + String(cliente).trim() + '\n') : '';
+    var linhaCliente = cliente ? ('👤 ' + _formatarCidadeAlerta_(cliente) + '\n') : '';
+    var sufixoCanal  = canal   ? (' (' + String(canal).trim().charAt(0).toUpperCase() + ')') : '';
 
     return (
       '🚀 *Parcial do dia:* ' + dataFormatada + '\n' +
-      '🌐 ' + Math.round(d.fibraHoje || 0) + ' Fibras Ativadas\n' +
+      '🌐 ' + Math.round(d.fibraHoje || 0) + ' Fibras Ativadas' + sufixoCanal + '\n' +
       '📱 ' + Math.round(d.movelHoje || 0) + ' Chips Ativados\n' +
       '👷‍♂️ ' + Math.round(d.emCampo  || 0) + ' Inst. em campo\n' +
       linhaCidade +
@@ -275,10 +276,11 @@ function _disparoAlertaParcial_(linhaNum) {
     var row = sheet.getRange(linhaNum, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
     var cidade = String(row[c.CIDADE] || '').trim();
     var cliente = String(row[c.CLIENTE] || '').trim();
+    var canal = String(row[c.CANAL] || '').trim();
     if (!cidade) {
       Logger.log('_disparoAlertaParcial_: cidade vazia na linha ' + linhaNum + ' (enviando parcial sem 📍)');
     }
-    var texto = _construirTextoParcialDoDia(cidade, cliente);
+    var texto = _construirTextoParcialDoDia(cidade, cliente, canal);
     if (!texto) {
       Logger.log('_disparoAlertaParcial_: texto null — abortando');
       return;
