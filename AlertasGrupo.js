@@ -200,9 +200,19 @@ function _disparoAlertaInstalacao_(linhaNum) {
  * mensagem semivazia pro grupo).
  *
  * @param {string} [cidade]
+ * @param {string} [cliente] - nome do cliente da venda que disparou (linha abaixo da cidade)
  * @returns {string|null}
  */
-function _construirTextoParcialDoDia(cidade) {
+function _formatarCidadeAlerta_(s) {
+  s = String(s || '').trim().toLowerCase();
+  if (!s) return '';
+  var minusc = {'de':1,'da':1,'do':1,'das':1,'dos':1,'e':1};
+  return s.split(/\s+/).map(function(w, i){
+    if (i > 0 && minusc[w]) return w;
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  }).join(' ');
+}
+function _construirTextoParcialDoDia(cidade, cliente) {
   try {
     var hoje          = new Date();
     var dataFormatada = Utilities.formatDate(hoje, 'America/Sao_Paulo', 'dd/MM');
@@ -218,7 +228,8 @@ function _construirTextoParcialDoDia(cidade) {
     var frio   = (funil['EM NEGOCIACAO'] || 0) + (funil['AG QUALIDADE'] || 0);
     var totalFunil = quente + morno + frio;
 
-    var linhaCidade = cidade ? ('📍 ' + String(cidade).trim() + '\n') : '';
+    var linhaCidade  = cidade  ? ('📍 ' + _formatarCidadeAlerta_(cidade) + '\n') : '';
+    var linhaCliente = cliente ? ('👤 ' + String(cliente).trim() + '\n') : '';
 
     return (
       '🚀 *Parcial do dia:* ' + dataFormatada + '\n' +
@@ -226,6 +237,7 @@ function _construirTextoParcialDoDia(cidade) {
       '📱 ' + Math.round(d.movelHoje || 0) + ' Chips Ativados\n' +
       '👷‍♂️ ' + Math.round(d.emCampo  || 0) + ' Inst. em campo\n' +
       linhaCidade +
+      linhaCliente +
       '\n📊 *Funil de Vendas*: ' + totalFunil + '\n' +
       '🔥 ' + quente + ' Quente\n' +
       '🕑 ' + morno  + ' Morno\n' +
@@ -262,10 +274,11 @@ function _disparoAlertaParcial_(linhaNum) {
     var c = CONFIG.COLUNAS;
     var row = sheet.getRange(linhaNum, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
     var cidade = String(row[c.CIDADE] || '').trim();
+    var cliente = String(row[c.CLIENTE] || '').trim();
     if (!cidade) {
       Logger.log('_disparoAlertaParcial_: cidade vazia na linha ' + linhaNum + ' (enviando parcial sem 📍)');
     }
-    var texto = _construirTextoParcialDoDia(cidade);
+    var texto = _construirTextoParcialDoDia(cidade, cliente);
     if (!texto) {
       Logger.log('_disparoAlertaParcial_: texto null — abortando');
       return;
