@@ -147,8 +147,12 @@ function diagnosticarValorComboMaeCorrupto() {
 }
 
 // Aplica correção em batch nas linhas confiança ALTA do diagnóstico anterior.
-// Idempotente: nunca sobrescreve VALOR já correto; sempre re-roda o diagnóstico
-// na hora pra ter o estado fresh.
+// Política de segurança:
+//   - VALOR_mae sempre corrigido (sweep é fonte canônica da Fibra pura).
+//   - VALOR_filha: só preenchido quando atual está VAZIO. Se filha tem valor
+//     divergente (ex: 50 quando deveria ser 40, ou 72,90 = Fibra pura por engano),
+//     é LOGADA pra revisão manual e NÃO sobrescrita — pode indicar filha
+//     vinculada errada ou plano divergente no Móvel.
 function corrigirValorComboMaeBatch() {
   var sheet = _getSheet();
   var ultima = sheet.getLastRow();
@@ -161,7 +165,7 @@ function corrigirValorComboMaeBatch() {
   if (!lock.tryLock(30000)) { Logger.log('Lock timeout — abortando.'); return; }
 
   try {
-    var corrMae = 0, corrFilha = 0, pulados = 0;
+    var corrMae = 0, corrFilhaVazia = 0, filhasDivergentes = [];
     for (var i = 0; i < raw.length; i++) {
       var row = raw[i];
       if (!_decompDiagAlvo_(row, c)) continue;
@@ -169,34 +173,51 @@ function corrigirValorComboMaeBatch() {
       var p = _decompDiagLinhaPropor_(row, numeroLinha, c, vinculosMap);
       if (!p || p.confianca !== 'ALTA') continue;
 
-      // Mãe: troca VALOR para face correto
+      // (1) Mãe: troca VALOR para face correto.
       sheet.getRange(numeroLinha, c.VALOR + 1).setValue(p.faceCorreto);
       corrMae++;
 
-      // Filha: se vazia ou divergente, grava priceMovel
+      // (2) Filha: só preenche se VAZIA.
       if (p.linhaFilha && p.valorFilhaSugerido > 0) {
-        if (!p.valorFilhaAtual || Math.abs(p.valorFilhaAtual - p.valorFilhaSugerido) >= 0.5) {
+        if (!p.valorFilhaAtual) {
           sheet.getRange(p.linhaFilha, c.VALOR + 1).setValue(p.valorFilhaSugerido);
-          corrFilha++;
+          corrFilhaVazia++;
+        } else if (Math.abs(p.valorFilhaAtual - p.valorFilhaSugerido) >= 0.5) {
+          filhasDivergentes.push({
+            linhaMae: numeroLinha, cliente: p.cliente,
+            linhaFilha: p.linhaFilha,
+            atual: p.valorFilhaAtual, sugerido: p.valorFilhaSugerido,
+            plano: p.plano
+          });
         }
       }
 
-      Logger.log('✓ L.' + numeroLinha + ' VALOR_mae ' + p.valorMaeAtual.toFixed(2) +
-                 ' → ' + p.faceCorreto.toFixed(2) +
-                 (p.linhaFilha ? ' | L.' + p.linhaFilha + ' filha ' + (p.valorFilhaAtual || 'vazia') +
-                  ' → ' + p.valorFilhaSugerido.toFixed(2) : ''));
+      Logger.log('✓ L.' + numeroLinha + ' (' + p.cliente + ') VALOR_mae ' +
+                 p.valorMaeAtual.toFixed(2) + ' → ' + p.faceCorreto.toFixed(2));
     }
     SpreadsheetApp.flush();
 
     Logger.log('');
     Logger.log('═══ CORREÇÃO APLICADA ═══');
     Logger.log('Mães corrigidas: ' + corrMae);
-    Logger.log('Filhas preenchidas: ' + corrFilha);
-    Logger.log('Pulados (sem ALTA conf): ' + pulados);
+    Logger.log('Filhas preenchidas (estavam vazias): ' + corrFilhaVazia);
+    Logger.log('Filhas divergentes (PULADAS — revisar manual): ' + filhasDivergentes.length);
+    Logger.log('');
+    if (filhasDivergentes.length) {
+      Logger.log('── FILHAS DIVERGENTES (NÃO sobrescritas) ──');
+      filhasDivergentes.forEach(function(d) {
+        Logger.log('L.' + d.linhaMae + ' (' + d.cliente + ') filha L.' + d.linhaFilha +
+                   ' VALOR_filha=R$ ' + d.atual.toFixed(2) +
+                   ' ≠ esperado pelo plano mãe (R$ ' + d.sugerido.toFixed(2) + '): "' + d.plano + '"');
+      });
+      Logger.log('');
+      Logger.log('Análise: pode ser filha vinculada errada (plano do Móvel ≠ plano mencionado na mãe) ' +
+                 'OU operador editou manualmente. Avaliar caso a caso na UI antes de corrigir.');
+    }
 
     // Invalida caches da Lista pra refletir já no próximo carregamento
     try { _limparCache(); } catch(e) {}
-    return { mae: corrMae, filha: corrFilha };
+    return { mae: corrMae, filhaVazia: corrFilhaVazia, divergentes: filhasDivergentes.length };
   } finally {
     lock.releaseLock();
   }
