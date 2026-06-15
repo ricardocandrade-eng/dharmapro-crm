@@ -10605,24 +10605,58 @@ function _dhpCriarItemVendaAgrupadaV3(v, index) {
   '</div>';
 }
 
-// Quando o backend decompôs o combo (v.valorFibraDecomp definido), devolve um
-// clone raso da mãe com `valor = valorFibraDecomp` (Fibra pura). Senão devolve v.
-// Não muta o objeto original — o caller (PIF, edição etc) continua vendo o face.
+// Resolve a decomposição do combo (Fibra pura, Móvel, Total) com fallback client-side.
+// Primeiro tenta os campos injetados pelo backend (_decorarVendaComVinculos_ em Code.js,
+// que usa subtração ou sweep VeroHub). Se ausentes, tenta derivar do que já está na
+// mão: face (v.valor) − filha (v.vendaMovelResumo.valor). Retorna null se não der.
+function _dhpResolveDecomp(v) {
+  if (!v) return null;
+  // (a) Backend decorou — usa direto.
+  if (typeof v.valorFibraDecomp === 'number' && typeof v.valorTotalDecomp === 'number') {
+    return {
+      fibra: v.valorFibraDecomp,
+      movel: typeof v.valorMovelDecomp === 'number' ? v.valorMovelDecomp : (v.valorTotalDecomp - v.valorFibraDecomp),
+      total: v.valorTotalDecomp,
+      fonte: v.fonteDecomp || 'backend'
+    };
+  }
+  // (b) Fallback client-side: derivar de v.valor + filha.valor.
+  function parseBR(x) {
+    if (typeof x === 'number') return isFinite(x) && x >= 0 ? x : NaN;
+    if (x == null) return NaN;
+    var s = String(x).replace(/R\$\s*/i, '').replace(/\s/g, '').trim();
+    if (!s) return NaN;
+    if (s.indexOf(',') !== -1) s = s.replace(/\./g, '').replace(',', '.');
+    var n = parseFloat(s);
+    return isFinite(n) && n >= 0 ? n : NaN;
+  }
+  var faceMae = parseBR(v.valor);
+  var faceMv  = v.vendaMovelResumo ? parseBR(v.vendaMovelResumo.valor) : NaN;
+  if (isFinite(faceMae) && faceMae > 0 && isFinite(faceMv) && faceMv > 0 && faceMv < faceMae) {
+    return { fibra: faceMae - faceMv, movel: faceMv, total: faceMae, fonte: 'frontend' };
+  }
+  return null;
+}
+
+// Quando há decomposição, devolve clone raso da mãe com `valor = fibra pura` pro
+// _dhpBlocoPlanoV6 renderizar R$ 72,90 em vez do face R$ 112,90.
 function _dhpVendaComValorDecomp(v) {
-  if (!v || typeof v.valorFibraDecomp !== 'number') return v;
+  var d = _dhpResolveDecomp(v);
+  if (!d) return v;
   var clone = {};
   Object.keys(v).forEach(function(k) { clone[k] = v[k]; });
-  clone.valor = v.valorFibraDecomp;
+  clone.valor = d.fibra;
   return clone;
 }
 
-// Linha de total do combo no card agrupado. Só renderiza quando há decomposição
-// (i.e., produto = Fibra Combo + filha Móvel encontrada OU sweep VeroHub OK).
+// Linha de Total do combo no card agrupado. Só renderiza quando há decomposição
+// possível (backend OU fallback client-side).
 function _dhpComboTotalRow(v) {
-  if (!v || typeof v.valorTotalDecomp !== 'number') return '';
+  var d = _dhpResolveDecomp(v);
+  if (!d) return '';
   return '<div class="vi-combo-total">' +
     '<span class="vi-combo-total-lbl">Total combo</span>' +
-    '<span class="vi-combo-total-val">' + esc(_formatarValorBR(v.valorTotalDecomp)) + '</span>' +
+    '<span class="vi-combo-total-val">' + esc(_formatarValorBR(d.total)) + '</span>' +
   '</div>';
 }
 
