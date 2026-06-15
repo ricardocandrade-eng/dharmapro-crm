@@ -490,9 +490,14 @@ function _pifPopularInputsMovel(mv) {
   var elLbl = document.getElementById('pif-mvLinhaLabel');
   if (elLbl) elLbl.textContent = mv.linha ? '(linha ' + mv.linha + ')' : '';
 
-  // Carrega planos Móvel Combo (categoria fixa)
+  // mv.cidade não vem em _resumirVendaVinculada_ (filha herda da mãe). Lê a
+  // cidade da mãe via AppState.vendaSelecionada — a edição da filha sempre
+  // acontece com o painel da mãe aberto.
+  var mae = (typeof AppState !== 'undefined') ? AppState.get('vendaSelecionada') : null;
+  var cidade = mv.cidade || (mae && mae.cidade) || '';
+
   var selPlano = document.getElementById('pif-mv-plano');
-  if (selPlano && mv.cidade) {
+  if (selPlano && cidade) {
     selPlano.innerHTML = '<option value="">⏳ Carregando...</option>';
     google.script.run
       .withSuccessHandler(function(d) {
@@ -508,10 +513,33 @@ function _pifPopularInputsMovel(mv) {
         }
       })
       .withFailureHandler(function() {})
-      .getPlanosPorCidadeProduto(mv.cidade, 'Móvel Combo');
+      .getPlanosPorCidadeProduto(cidade, 'Móvel Combo');
   } else {
     _pifSet('pif-mv-plano', mv.plano || '');
   }
+}
+
+// Handler do select de Plano do Móvel: ao trocar plano, busca o valor canônico
+// no planos_vero.json via getValorPlano(plano, cidade, forma) e auto-preenche
+// `pif-mv-valor`. Cidade e forma vêm da mãe (AppState.vendaSelecionada). Móvel
+// Combo não tem desconto recorrente formal — getValorPlano resolve ambos boleto/
+// recorrente como o mesmo valor pro Móvel (decisão NP 2.0 Rev4, ver CLAUDE.md).
+function pifOnPlanoChangeMovel(planoNovo) {
+  var alvo = document.getElementById('pif-mv-valor');
+  if (!alvo) return;
+  if (!planoNovo) { alvo.value = ''; return; }
+  var mae = (typeof AppState !== 'undefined') ? AppState.get('vendaSelecionada') : null;
+  var cidade = (mae && mae.cidade) || '';
+  var forma  = (mae && mae.formaPagamento) || 'BOLETO';
+  alvo.value = '⏳';
+  google.script.run
+    .withSuccessHandler(function(res) {
+      var v = (res && typeof res === 'object') ? res.valor : res;
+      var n = parseFloat(v);
+      alvo.value = isFinite(n) && n > 0 ? _pifValorParaExibir(n) : '';
+    })
+    .withFailureHandler(function() { alvo.value = ''; })
+    .getValorPlano(planoNovo, cidade, forma);
 }
 
 // Sprint 3.3: helper extraído — carrega lista de responsáveis no select.
