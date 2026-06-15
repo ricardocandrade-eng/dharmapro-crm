@@ -3896,7 +3896,20 @@ function _decompoeValorFibraMovel_(plano, valorTotal, codigo, cidade, valorMovel
     } catch(e) {}
   }
 
-  // (3) Fallback: sem decomposição possível — caller deve ignorar.
+  // (3) Último fallback: inferir o Móvel pelo nome do plano da Fibra (regex
+  //     "MÓVEL XXGB") e cruzar com planos_vero.json (MOVEL_COMBO). Mesma lógica
+  //     usada por _inferirMovelComboFromFibra_ na auto-criação do Móvel filho.
+  //     Cobre combos antigos sem cod_plano gravado E sem filha com valor.
+  if (plano) {
+    try {
+      var inf = _inferirMovelComboFromFibra_(plano);
+      if (inf && !inf.erro && inf.valor > 0 && inf.valor < total) {
+        return { fibra: total - inf.valor, movel: inf.valor, total: total, fonte: 'inferido_nome', codigo: cod };
+      }
+    } catch(e) {}
+  }
+
+  // (4) Nada resolveu — caller deve ignorar.
   return { fibra: total, movel: 0, total: total, fonte: 'sem', codigo: cod };
 }
 

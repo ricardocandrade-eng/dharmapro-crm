@@ -10588,13 +10588,15 @@ function _dhpCriarItemVendaAgrupadaV3(v, index) {
       '<div class="vi-divider"></div>' +
       // ZONA 2 v7 — Fibra + Móvel (cada um com seu status) + bottom row.
       // Decomposição: a Vero paga Fibra e Móvel em rubricas separadas. O CRM grava
-      // o face (R$ 112,90) na mãe Fibra Combo, mas a Vero paga R$ 72,90 Fibra +
-      // R$ 40 Móvel. O backend (_decorarVendaComVinculos_) injeta valorFibraDecomp;
-      // aqui clonamos v com esse valor pro 1º bloco, mantemos o 2º (já é R$ 40)
-      // e fechamos com a linha de Total destacada.
+      // o face (R$ 112,90) na mãe Fibra Combo, podendo ou não ter R$ 40 na filha.
+      // _dhpResolveDecomp(v) consolida 3 caminhos: (a) backend já decorou; (b)
+      // subtração client-side (filha tem valor); (c) backend inferiu via sweep
+      // VeroHub ou nome do plano. _dhpVendaComValorDecomp clona mãe com Fibra pura;
+      // _dhpFilhaComValorDecomp injeta valor do Móvel na filha (cobre filha vazia
+      // no sheet); _dhpComboTotalRow fecha com o total destacado.
       '<div class="vi-bot-v6">' +
         _dhpBlocoPlanoV6(_dhpVendaComValorDecomp(v), index, '') +
-        _dhpBlocoPlanoV6(v.vendaMovelResumo, index, '') +
+        _dhpBlocoPlanoV6(_dhpFilhaComValorDecomp(v), index, '') +
         _dhpComboTotalRow(v) +
         '<div class="vi-bottom-row">' +
           '<div class="vi-row-dates">' + datasHtml + '</div>' +
@@ -10646,6 +10648,20 @@ function _dhpVendaComValorDecomp(v) {
   var clone = {};
   Object.keys(v).forEach(function(k) { clone[k] = v[k]; });
   clone.valor = d.fibra;
+  return clone;
+}
+
+// Espelho do anterior pra filha: clona vendaMovelResumo com `valor = movel decomp`.
+// Cobre o caso de filha sem VALOR gravado no sheet (combos pré-v572 ou vinculados
+// manualmente) — o block do Móvel passa a exibir R$ 40 mesmo com cell vazia.
+// Quando a filha já tem valor próprio no sheet, preserva (decomp.movel = mesmo valor).
+function _dhpFilhaComValorDecomp(v) {
+  if (!v || !v.vendaMovelResumo) return v ? v.vendaMovelResumo : null;
+  var d = _dhpResolveDecomp(v);
+  if (!d || !(typeof d.movel === 'number') || d.movel <= 0) return v.vendaMovelResumo;
+  var clone = {};
+  Object.keys(v.vendaMovelResumo).forEach(function(k) { clone[k] = v.vendaMovelResumo[k]; });
+  clone.valor = d.movel;
   return clone;
 }
 
