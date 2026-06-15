@@ -745,6 +745,24 @@
       white-space: nowrap;
     }
 
+    /* Combo: linha de total destacada (Fibra pura + Móvel = TOTAL) */
+    .vi-combo-total {
+      display: flex; align-items: center; justify-content: flex-end;
+      gap: 8px;
+      margin-top: 4px;
+      padding-top: 6px;
+      border-top: 1px dashed var(--border);
+      font-family: 'DM Mono', monospace;
+    }
+    .vi-combo-total-lbl {
+      font-size: 10px; color: var(--text-muted, #9ba4c2);
+      font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+    }
+    .vi-combo-total-val {
+      font-size: 13.5px; color: var(--accent, #00d4ff);
+      font-weight: 700; white-space: nowrap;
+    }
+
     /* Linha inferior: datas à esquerda, ações à direita */
     .vi-bottom-row {
       display: flex; align-items: center; justify-content: space-between;
