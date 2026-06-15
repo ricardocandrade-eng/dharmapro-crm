@@ -7090,6 +7090,32 @@ function _construirLinhaDados(d) {
   }
   linha[c.COD_PLANO] = codPlanoF;
 
+  // ── Guard: auto-correção do VALOR face em Fibra Combo ────────────────────
+  // Sintoma comum (visto em ~56 vendas no batch de 15/06): operador (ou cache
+  // stale) salva o VALOR da mãe = Fibra pura (sweep). O face do combo deveria
+  // incluir o Móvel. Aqui, se PRODUTO=Fibra Combo + cod resolveu + VALOR atual
+  // ≈ sweepFibra E o nome do plano permite inferir o Móvel → recompõe face
+  // automaticamente. Self-heal: cache stale não consegue mais re-corromper.
+  // Caso patológico legítimo (operador querendo gravar face=Fibra pura) cai
+  // como falso positivo, mas é virtualmente impossível na prática.
+  if (String(linha[c.PRODUTO] || '').trim().toUpperCase() === 'FIBRA COMBO' && codPlanoF) {
+    try {
+      var _vhGuard = _getVerohubCodigos();
+      var _infoGuard = _vhGuard && _vhGuard.codigos && _vhGuard.codigos[codPlanoF];
+      if (_infoGuard && typeof _infoGuard.price === 'number' && _infoGuard.price > 0) {
+        var _vAtual = _normalizarValorParaNumero_(linha[c.VALOR]);
+        if (typeof _vAtual === 'number' && Math.abs(_vAtual - _infoGuard.price) < 0.5) {
+          var _infMv = _inferirMovelComboFromFibra_(String(linha[c.PLANO] || ''));
+          if (_infMv && !_infMv.erro && _infMv.valor > 0) {
+            var _faceCorrigido = _infoGuard.price + _infMv.valor;
+            linha[c.VALOR] = _faceCorrigido;
+            Logger.log('[guard Fibra Combo] VALOR auto-corrigido: ' + _vAtual + ' (Fibra pura) → ' + _faceCorrigido + ' (face)');
+          }
+        }
+      }
+    } catch (eG) { Logger.log('[guard Fibra Combo] erro: ' + eG.message); }
+  }
+
   var pontosBlF = (d.pontosVenda === undefined || d.pontosVenda === '' || d.pontosVenda === null) ? '' : d.pontosVenda;
   var pontosMvF = (d.pontosMovel === undefined || d.pontosMovel === '' || d.pontosMovel === null) ? '' : d.pontosMovel;
   if ((pontosBlF === '' || pontosMvF === '') && codPlanoF) {
