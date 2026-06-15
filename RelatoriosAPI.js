@@ -87,9 +87,29 @@ function getRelatoriosDados(janelaMeses) {
       cutoff = d.getFullYear() + '-' + mm + '-01';
     }
 
+    // Linhas Móvel Combo são FILHAS de Fibra Combo (criadas por
+    // criarVendaMovelVinculada). O valor delas (R$ 40, R$ 50, R$ 80) já está
+    // contido no face da mãe (R$ 112,90). Incluí-las em Σ ingênuo dobra o móvel.
+    // Decisão (15/06/2026, Opção D on-the-fly): pular essas linhas no dataset
+    // que vai pra "Relatórios" — o front continua somando `valor` natural e o
+    // total mensal passa a refletir a soma das mensalidades reais cobradas.
+    // Fibra Alone, Móvel Alone e Fibra Combo (mãe) entram normalmente.
+    var iProduto = (function() {
+      for (var k = 0; k < campos.length; k++) if (campos[k].k === 'produto') return campos[k].i;
+      return -1;
+    })();
+
     var rows = [];
+    var puladoMovelCombo = 0;
     for (var r = 0; r < raw.length; r++) {
       var src = raw[r];
+
+      if (iProduto >= 0) {
+        var prodNorm = String(src[iProduto] || '').trim().toUpperCase()
+                        .normalize('NFD').replace(/[̀-ͯ]/g, '');
+        if (prodNorm === 'MOVEL COMBO') { puladoMovelCombo++; continue; }
+      }
+
       var out = new Array(campos.length);
       var dentro = (janelaMeses === 0); // sem janela = sempre dentro
       for (var k = 0; k < campos.length; k++) {
@@ -117,6 +137,7 @@ function getRelatoriosDados(janelaMeses) {
       rows: rows,
       total: rows.length,
       totalPlanilha: total,
+      puladoMovelCombo: puladoMovelCombo,
       janelaMeses: janelaMeses,
       truncado: (janelaMeses > 0),
       gerado_em: new Date().toISOString(),

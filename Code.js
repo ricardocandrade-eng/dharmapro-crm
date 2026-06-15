@@ -3853,6 +3853,53 @@ function getCodigoVeroPorPlanoCidade(plano, cidade) {
   }
 }
 
+// Decompõe o valor de face de um combo em Fibra pura + Móvel.
+// A Vero paga combos em rubricas separadas (INSTALAÇÕES.VALOR_CONTRATO = Fibra
+// pura; MOVEL.VALOR_CONTRATO = Móvel) — esta função traduz o face do CRM pro
+// mesmo recorte. Fonte primária: verohub_codigos_cidades.json (codigos[cod].price
+// = Fibra pura). Quando o caller já tem o valor do Móvel filho (linha vinculada
+// no CRM), preferir subtrair direto (mais fiel, sem depender do sweep).
+//
+// Caller decide se chama (combo) ou não (Alone). Para Alone, retorna fonte='sem'.
+// Parâmetros:
+//   plano       - nome do plano (ex.: "VERO MAIS 550MB + MÓVEL 20GB | 112,90")
+//   valorTotal  - face em R$ (number ou string)
+//   codigo      - código Vero do plano (opcional; se vazio tenta resolver)
+//   cidade      - cidade da venda (necessária se codigo vazio)
+//   valorMovel  - quando conhecido (linha filha vinculada), pular sweep
+//
+// Retorna { fibra, movel, total, fonte: 'subtracao'|'sweep'|'sem', codigo }.
+function _decompoeValorFibraMovel_(plano, valorTotal, codigo, cidade, valorMovel) {
+  var total = Number(valorTotal) || 0;
+  if (!total) return { fibra: 0, movel: 0, total: 0, fonte: 'sem', codigo: codigo || '' };
+
+  // (1) Caminho preferencial: caller já sabe quanto vale o Móvel (linha filha).
+  //     Fibra pura = face − Móvel real gravado. Não depende do sweep.
+  var mv = Number(valorMovel) || 0;
+  if (mv > 0 && mv < total) {
+    return { fibra: total - mv, movel: mv, total: total, fonte: 'subtracao', codigo: codigo || '' };
+  }
+
+  // (2) Sem valor de Móvel disponível: lookup no sweep VeroHub.
+  var cod = String(codigo || '').trim();
+  if (!cod && plano && cidade) {
+    try { cod = getCodigoVeroPorPlanoCidade(plano, cidade) || ''; } catch(e) {}
+  }
+  if (cod) {
+    try {
+      var vh = _getVerohubCodigos();
+      var info = vh && vh.codigos && vh.codigos[cod];
+      if (info && typeof info.price === 'number' && info.price > 0 && info.price <= total) {
+        var fibra = info.price;
+        return { fibra: fibra, movel: total - fibra, total: total, fonte: 'sweep', codigo: cod };
+      }
+    } catch(e) {}
+  }
+
+  // (3) Fallback: sem decomposição possível — caller deve ignorar.
+  return { fibra: total, movel: 0, total: total, fonte: 'sem', codigo: cod };
+}
+
 // Reverse lookup legado: planos_vero_codigos.json (4 cidades), match por
 // nome_crm_match exato + cidade exata. Mantido como fallback do sweep.
 function _getCodigoVeroLegado_(planoCore, cidNorm) {
@@ -7300,6 +7347,31 @@ function _decorarVendaComVinculos_(venda, vinculosMap, mapaResumoVinculos) {
   v.tipoVinculo = pai ? pai.tipo : (filhos.length ? filhos[filhos.length - 1].tipo : '');
   v.vendaMovelResumo = v.vendaMovelLinha ? (mapaResumoVinculos[v.vendaMovelLinha] || null) : null;
   v.vendaMaeResumo = v.vendaMaeLinha ? (mapaResumoVinculos[v.vendaMaeLinha] || null) : null;
+
+  // ── Decomposição Fibra × Móvel no combo ─────────────────────────────────
+  // Vero paga rubricas separadas (Fibra pura + Móvel). O CRM grava o face
+  // (R$ 112,90) na linha-mãe Fibra Combo + R$ 40 na filha Móvel Combo. O card
+  // precisa exibir Fibra pura (face − móvel) + Móvel + Total destacado.
+  // Caminho preferencial: subtrair valor da filha. Fallback: sweep VeroHub.
+  // Calcular só pra Fibra Combo (mãe). Filha Móvel Combo já tem valor próprio.
+  if (produtoNorm === 'FIBRA COMBO') {
+    var _faceMae = _normalizarValorParaNumero_(v.valor);
+    _faceMae = (typeof _faceMae === 'number') ? _faceMae : 0;
+    var _faceMv = 0;
+    if (v.vendaMovelResumo) {
+      var _tmp = _normalizarValorParaNumero_(v.vendaMovelResumo.valor);
+      _faceMv = (typeof _tmp === 'number') ? _tmp : 0;
+    }
+    if (_faceMae > 0) {
+      var _decomp = _decompoeValorFibraMovel_(v.plano, _faceMae, v.codigoVero || v.fat, v.cidade, _faceMv);
+      if (_decomp.fonte !== 'sem') {
+        v.valorFibraDecomp  = _decomp.fibra;
+        v.valorMovelDecomp  = _decomp.movel;
+        v.valorTotalDecomp  = _decomp.total;
+        v.fonteDecomp       = _decomp.fonte; // 'subtracao' | 'sweep'
+      }
+    }
+  }
   return v;
 }
 

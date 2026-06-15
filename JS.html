@@ -10586,16 +10586,43 @@ function _dhpCriarItemVendaAgrupadaV3(v, index) {
         (respHtml ? '<div class="vi-row-resp" style="justify-content:flex-end;flex-shrink:0">' + respHtml + '</div>' : '') +
       '</div>' +
       '<div class="vi-divider"></div>' +
-      // ZONA 2 v7 — Fibra + Móvel (cada um com seu status) + bottom row
+      // ZONA 2 v7 — Fibra + Móvel (cada um com seu status) + bottom row.
+      // Decomposição: a Vero paga Fibra e Móvel em rubricas separadas. O CRM grava
+      // o face (R$ 112,90) na mãe Fibra Combo, mas a Vero paga R$ 72,90 Fibra +
+      // R$ 40 Móvel. O backend (_decorarVendaComVinculos_) injeta valorFibraDecomp;
+      // aqui clonamos v com esse valor pro 1º bloco, mantemos o 2º (já é R$ 40)
+      // e fechamos com a linha de Total destacada.
       '<div class="vi-bot-v6">' +
-        _dhpBlocoPlanoV6(v, index, '') +
+        _dhpBlocoPlanoV6(_dhpVendaComValorDecomp(v), index, '') +
         _dhpBlocoPlanoV6(v.vendaMovelResumo, index, '') +
+        _dhpComboTotalRow(v) +
         '<div class="vi-bottom-row">' +
           '<div class="vi-row-dates">' + datasHtml + '</div>' +
           _dhpAcoesVendaV3(index, v) +
         '</div>' +
       '</div>' +
     '</div>' +
+  '</div>';
+}
+
+// Quando o backend decompôs o combo (v.valorFibraDecomp definido), devolve um
+// clone raso da mãe com `valor = valorFibraDecomp` (Fibra pura). Senão devolve v.
+// Não muta o objeto original — o caller (PIF, edição etc) continua vendo o face.
+function _dhpVendaComValorDecomp(v) {
+  if (!v || typeof v.valorFibraDecomp !== 'number') return v;
+  var clone = {};
+  Object.keys(v).forEach(function(k) { clone[k] = v[k]; });
+  clone.valor = v.valorFibraDecomp;
+  return clone;
+}
+
+// Linha de total do combo no card agrupado. Só renderiza quando há decomposição
+// (i.e., produto = Fibra Combo + filha Móvel encontrada OU sweep VeroHub OK).
+function _dhpComboTotalRow(v) {
+  if (!v || typeof v.valorTotalDecomp !== 'number') return '';
+  return '<div class="vi-combo-total">' +
+    '<span class="vi-combo-total-lbl">Total combo</span>' +
+    '<span class="vi-combo-total-val">' + esc(_formatarValorBR(v.valorTotalDecomp)) + '</span>' +
   '</div>';
 }
 
