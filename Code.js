@@ -1360,6 +1360,52 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  // ── Reengajamento automático WABA (workflow n8n renata_reengajamento_auto) ─
+  // Lista candidatos pra disparo automático de `followup_24horas` (2 tentativas:
+  // 25h e +3 dias). Exige secret — expõe telefone+nome de leads. Reusa
+  // N8N_GROUP_WEBHOOK_TOKEN (mesmo do alerta 4) — já compartilhado com $env do
+  // container n8n no VPS. Kill switch via Script Property REENGAJAMENTO_AUTO_ATIVO.
+  if (action === 'reengajamento_auto_candidatos') {
+    var secretRecAuto = (e.parameter.secret || '').trim();
+    var secretValAuto = PropertiesService.getScriptProperties().getProperty('N8N_GROUP_WEBHOOK_TOKEN');
+    if (!secretValAuto || secretRecAuto !== secretValAuto) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, erro: 'unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    try {
+      return ContentService
+        .createTextOutput(JSON.stringify(listarCandidatosReengajamentoAuto()))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, erro: err && err.message || String(err) }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Marca a tentativa (chamado pelo workflow após envio bem-sucedido do template).
+  if (action === 'reengajamento_auto_marcar') {
+    var secretMarcAuto = (e.parameter.secret || '').trim();
+    var secretValMarc  = PropertiesService.getScriptProperties().getProperty('N8N_GROUP_WEBHOOK_TOKEN');
+    if (!secretValMarc || secretMarcAuto !== secretValMarc) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, erro: 'unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    try {
+      var contactId = Number(e.parameter.contact_id || 0);
+      var tentativa = Number(e.parameter.tentativa || 0);
+      return ContentService
+        .createTextOutput(JSON.stringify(marcarTentativaReengajamentoAuto(contactId, tentativa)))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ ok: false, erro: err && err.message || String(err) }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   // ── PWA: Manifest (Android/Chrome) ────────────────────────────────────────
   // Acessado automaticamente pelo browser ao carregar Mobile.html.
   // Permite instalar o CRM como app na tela inicial do celular.
@@ -5431,7 +5477,7 @@ function salvarVenda(dados) {
       // Sprint 3 (12/05/2026): Forma de Pagamento e Vencimento obrigatórios em cadastro novo.
       var fpNova = String(dados.formaPagamento || '').toUpperCase().trim();
       if (fpNova !== 'BOLETO' && fpNova !== 'RECORRENTE') {
-        throw new Error('Forma de Pagamento é obrigatória (Boleto ou Recorrente).');
+        throw new Error('Forma de Pagamento é obrigatória (Boleto ou Cartão).');
       }
       if (!String(dados.venc || '').trim()) throw new Error('Vencimento é obrigatório.');
     }

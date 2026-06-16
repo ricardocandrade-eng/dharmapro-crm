@@ -288,6 +288,212 @@ function marcarTentativaReengajamentoBulk(contactIds, kind) {
   return { ok: true, marcados: ids.length };
 }
 
+// ── REENGAJAMENTO AUTOMÁTICO (workflow n8n renata_reengajamento_auto) ─────────
+// Endpoint consumido pelo workflow n8n que dispara `followup_24horas` em 2
+// tentativas (25h e +3 dias) para leads pós-handoff sem venda + leads Meta Ads
+// `sem-retorno`, excluindo `sem-viabilidade`. Histórico em waba_reengagement
+// (PK chatwoot_contact_id) — `last_attempt_kind` é `reengaj_auto_1`/`_2`.
+
+var CFG_REWABA_AUTO = {
+  STATUS_REENGAJAR_META: ['sem-retorno'],   // status_final col I da aba "Leads Meta Ads"
+  HORAS_MIN_1A_TENT:     25,                 // margem >24h da Meta
+  DIAS_ENTRE_TENTATIVAS: 3,
+  HARD_LIMIT:            50,                 // por execução (defesa de tier WABA)
+  KIND_1:                'reengaj_auto_1',
+  KIND_2:                'reengaj_auto_2',
+  CACHE_KEY_META:        'crm_v3_rewaba_indice_meta',
+  CACHE_KEY_PAP:         'crm_v3_rewaba_indice_pap',
+  CACHE_TTL_INDICE:      600,                // 10min
+  USER_TAG:              'n8n_workflow_reengajamento_auto',
+};
+
+// Índice de telefones de vendedores PAP (aba "3 - PAP" col U whatsapp).
+// Usado como exclusão extra — nunca disparar template pra vendedor.
+function _rwBuildIndicePAP_() {
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get(CFG_REWABA_AUTO.CACHE_KEY_PAP);
+  if (hit) {
+    try { return JSON.parse(hit); } catch (e) { /* recomputa */ }
+  }
+  var ss = _getSpreadsheet_();
+  var aba = ss.getSheetByName('3 - PAP');
+  if (!aba) return {};
+  var ult = aba.getLastRow();
+  if (ult < 2) return {};
+  // Col U = whatsapp do vendedor.
+  var rng = aba.getRange(2, 21, ult - 1, 1).getValues();
+  var idx = {};
+  for (var i = 0; i < rng.length; i++) {
+    var tel = _rwNormPhone_(rng[i][0]);
+    if (tel) idx[tel] = true;
+  }
+  try { cache.put(CFG_REWABA_AUTO.CACHE_KEY_PAP, JSON.stringify(idx), CFG_REWABA_AUTO.CACHE_TTL_INDICE); }
+  catch (e) { /* ignore */ }
+  return idx;
+}
+
+// Índice telefone-normalizado → status_final da aba "Leads Meta Ads".
+// Lê só linhas com status_final preenchido (defesa contra cache estourar).
+function _rwBuildIndiceLeadsMeta_() {
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get(CFG_REWABA_AUTO.CACHE_KEY_META);
+  if (hit) {
+    try { return JSON.parse(hit); } catch (e) { /* recomputa */ }
+  }
+
+  var ss = _getSpreadsheet_();
+  var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META); // 'Leads Meta Ads'
+  if (!aba) return {};
+
+  var ult = aba.getLastRow();
+  if (ult < 2) return {};
+  // Cols B (nome), C (telefone), I (status_final).
+  var rng = aba.getRange(2, 2, ult - 1, 8).getValues(); // B..I (8 cols)
+  var idx = {};
+  for (var i = 0; i < rng.length; i++) {
+    var tel = _rwNormPhone_(rng[i][1]);          // C
+    var status = String(rng[i][7] || '').trim(); // I
+    if (!tel || !status) continue;
+    idx[tel] = { status_final: status, nome: String(rng[i][0] || '').trim() };
+  }
+  try { cache.put(CFG_REWABA_AUTO.CACHE_KEY_META, JSON.stringify(idx), CFG_REWABA_AUTO.CACHE_TTL_INDICE); }
+  catch (e) { /* ignore */ }
+  return idx;
+}
+
+/**
+ * Lista candidatos elegíveis ao reengajamento automático.
+ *
+ * UNIVERSO RESTRITIVO (revisado 16/06/2026 após incidente — branch "pós-handoff
+ * sem venda" removido por pegar PAP/colegas/números aleatórios indiscriminadamente):
+ *   ÚNICA fonte de entrada = aba "Leads Meta Ads" com status_final='sem-retorno'.
+ *   Telefone do candidato no Chatwoot precisa CASAR (após normalização) com lead
+ *   nessa aba. Sem casamento → descarta.
+ *
+ * Filtros aplicados em camadas:
+ *   1. exclusão por label Chatwoot `sem-viabilidade`
+ *   2. exclusão por telefone presente em "3 - PAP" (vendedor)
+ *   3. exclusão por telefone presente em "1 - Vendas" (já é cliente/lead em outro fluxo)
+ *   4. cadência:
+ *      - 1ª tentativa: !already_attempted && hours_since_inbound >= 25
+ *      - 2ª tentativa: last_attempt_kind === 'reengaj_auto_1' && last_attempt_at <= now-3d
+ *   5. casamento obrigatório com aba Leads Meta Ads + status_final='sem-retorno'
+ *   6. hard limit 50 por execução
+ *
+ * Kill switch: Script Property `REENGAJAMENTO_AUTO_ATIVO` ('1' liga; ausente/'0' desliga).
+ *
+ * Kill switch: Script Property `REENGAJAMENTO_AUTO_ATIVO` ('1' liga; ausente/'0' desliga).
+ *
+ * @return {{ok, ativo, total, candidatos:[{chatwoot_contact_id, conversation_id,
+ *           phone, name, nivel, plano, cidade, tentativa, contexto_template,
+ *           ultima_msg_lead_at}]}}
+ */
+function listarCandidatosReengajamentoAuto() {
+  var props = PropertiesService.getScriptProperties();
+  var ativo = String(props.getProperty('REENGAJAMENTO_AUTO_ATIVO') || '0') === '1';
+  if (!ativo) return { ok: true, ativo: false, total: 0, candidatos: [] };
+
+  var rows = _sbFetch_(
+    'GET',
+    '/' + CFG_REWABA.VIEW +
+    '?select=*' +
+    '&order=last_inbound_at.desc' +
+    '&limit=' + CFG_REWABA.HARD_LIMIT
+  ) || [];
+
+  var idxVendas = _rwBuildIndiceVendas_();
+  var idxMeta   = _rwBuildIndiceLeadsMeta_();
+  var idxPAP    = _rwBuildIndicePAP_();
+  var nowMs     = Date.now();
+  var limiarTent2Ms = nowMs - CFG_REWABA_AUTO.DIAS_ENTRE_TENTATIVAS * 86400000;
+
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    if (out.length >= CFG_REWABA_AUTO.HARD_LIMIT) break;
+    var r = rows[i];
+
+    // (1) Exclui sem-viabilidade.
+    var labelsArr = Array.isArray(r.labels) ? r.labels : [];
+    if (labelsArr.indexOf(CFG_REWABA.SEM_VIA_LABEL) !== -1) continue;
+
+    var horas = Number(r.hours_since_inbound) || 0;
+    if (horas < CFG_REWABA_AUTO.HORAS_MIN_1A_TENT) continue;
+
+    // (2) Cadência: decide tentativa 1 ou 2 (ou descarta).
+    var kindAtual = String(r.last_attempt_kind || '');
+    var tentativa = 0;
+    if (!r.already_attempted) {
+      tentativa = 1;
+    } else if (kindAtual === CFG_REWABA_AUTO.KIND_1) {
+      var lastMs = r.last_attempt_at ? new Date(r.last_attempt_at).getTime() : 0;
+      if (lastMs && lastMs <= limiarTent2Ms) tentativa = 2;
+    }
+    // Se já tentado por outro kind (template_waba/wa_pessoal/reengaj_auto_2): pula.
+    if (!tentativa) continue;
+
+    var phoneN = _rwNormPhone_(r.phone_e164);
+    if (!phoneN) continue;
+
+    // (3) Exclusões: vendedor PAP ou já cliente em "1 - Vendas".
+    if (idxPAP[phoneN])    continue;
+    if (idxVendas[phoneN]) continue;
+
+    // (4) Universo ÚNICO: precisa ser sem-retorno Meta Ads.
+    var meta = idxMeta[phoneN] || null;
+    if (!meta) continue;
+    if (CFG_REWABA_AUTO.STATUS_REENGAJAR_META.indexOf(meta.status_final) === -1) continue;
+
+    // (5) Monta contexto_template (= {{2}} do followup_24horas).
+    //     Sem venda no CRM por definição (acabou de ser excluído acima) — usa "internet" genérico.
+    var ctxVar = 'internet';
+
+    out.push({
+      chatwoot_contact_id:      r.chatwoot_contact_id,
+      chatwoot_conversation_id: r.chatwoot_conversation_id,
+      phone:                    r.phone_e164,
+      name:                     r.name || meta.nome || '',
+      nivel:                    'lead-meta',
+      plano:                    '',
+      cidade:                   '',
+      tentativa:                tentativa,
+      contexto_template:        ctxVar,
+      ultima_msg_lead_at:       r.last_inbound_at,
+      horas_silencio:           Math.round(horas),
+    });
+  }
+
+  return { ok: true, ativo: true, total: out.length, candidatos: out };
+}
+
+/**
+ * Marca uma tentativa do workflow automático. Wrapper sobre o PATCH direto na
+ * tabela waba_reengagement — kind é convencionado ('reengaj_auto_1' ou '_2'),
+ * last_attempt_by fixo na tag do workflow.
+ *
+ * @param {number} chatwoot_contact_id
+ * @param {1|2} tentativa
+ * @return {{ok:true}}
+ */
+function marcarTentativaReengajamentoAuto(chatwoot_contact_id, tentativa) {
+  if (!chatwoot_contact_id) throw new Error('chatwoot_contact_id obrigatório.');
+  var t = Number(tentativa);
+  if (t !== 1 && t !== 2) throw new Error('tentativa deve ser 1 ou 2.');
+  var kind = (t === 1) ? CFG_REWABA_AUTO.KIND_1 : CFG_REWABA_AUTO.KIND_2;
+
+  _sbFetch_(
+    'PATCH',
+    '/' + CFG_REWABA.TABLE +
+    '?chatwoot_contact_id=eq.' + encodeURIComponent(chatwoot_contact_id),
+    {
+      already_attempted: true,
+      last_attempt_at:   new Date().toISOString(),
+      last_attempt_kind: kind,
+      last_attempt_by:   CFG_REWABA_AUTO.USER_TAG,
+    }
+  );
+  return { ok: true };
+}
+
 /**
  * Opções pros multi-selects da barra de filtros.
  * Labels vêm da própria view; cidades e status_lead vêm do índice de vendas.
