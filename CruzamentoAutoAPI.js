@@ -195,7 +195,12 @@ function _baixarAnexoXlsxDoThread_(thread) {
   var msgs = thread.getMessages();
   for (var i = msgs.length - 1; i >= 0; i--) {
     var msg = msgs[i];
-    var atts = msg.getAttachments({ includeInlineImages: false, includeAttachments: true });
+    // includeInlineImages: true — a Vero passou a enviar o .xlsx com
+    // Content-Disposition: inline (ou Content-Type application/octet-stream
+    // que o Apps Script classifica como inline). O filtro pelo regex
+    // /\.xlsx?$/ logo abaixo já garante que só pegamos o XLSX, então
+    // habilitar inline aqui só amplia a busca sem afrouxar o filtro.
+    var atts = msg.getAttachments({ includeInlineImages: true, includeAttachments: true });
     for (var j = 0; j < atts.length; j++) {
       var att = atts[j];
       var nome = att.getName() || '';
