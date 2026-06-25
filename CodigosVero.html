@@ -104,7 +104,9 @@
         <div class="cv-title">◆ Códigos Vero</div>
         <div class="cv-subtitle">
           Status do mapeamento entre os planos comerciais (<i>planos_vero.json</i>) e os códigos
-          numéricos do VeroHub (<i>planos_vero_codigos.json</i>). Use pra identificar planos novos
+          numéricos do VeroHub (<i>verohub_codigos_cidades.json</i>, sweep de 430+ cidades).
+          Cada plano publicado é resolvido em cidades-amostra via o mesmo caminho usado em
+          produção (<code>getCodigoVeroPorPlanoCidade</code>). Use pra identificar planos novos
           que ainda não têm código mapeado, ou códigos antigos que ficaram órfãos.
         </div>
       </div>
@@ -116,8 +118,9 @@
     <div class="cv-instr">
       <b>Como preencher os pendentes:</b> abra o Cowork (Cowork mode) e peça
       <code>"atualize os códigos Vero pendentes"</code>. O Cowork abre o VeroHub na cidade certa,
-      captura os códigos novos e grava no <i>planos_vero_codigos.json</i>. Esta tela é
-      <b>somente leitura</b> — qualquer escrita manual aqui pode quebrar o cruzamento de relatórios.
+      captura os códigos novos e grava no <i>verohub_codigos_cidades.json</i> (ou ajusta o
+      <code>NOME_VERO</code> col 14 do <i>planos_vero.json</i> quando o nome canônico mudou).
+      Esta tela é <b>somente leitura</b> — qualquer escrita manual aqui pode quebrar o cruzamento.
     </div>
 
     <div id="cvKpis"></div>
@@ -172,7 +175,10 @@
       // ── Meta row ───────────────────────────────────────────────────────
       var metaParts = [];
       if (data.verificado_em) metaParts.push('Verificado em <b>' + cvEsc(data.verificado_em) + '</b>');
-      if (r.meta_status) metaParts.push('JSON: <b>' + cvEsc(r.meta_status.substring(0, 60)) + (r.meta_status.length > 60 ? '…' : '') + '</b>');
+      if (r.meta_status) metaParts.push('Fonte: <b>' + cvEsc(r.meta_status.substring(0, 60)) + (r.meta_status.length > 60 ? '…' : '') + '</b>');
+      if (r.cidades_amostra && r.cidades_amostra.length) {
+        metaParts.push('Cidades-amostra: <b>' + cvEsc(r.cidades_amostra.join(', ')) + '</b>');
+      }
       document.getElementById('cvMeta').innerHTML = metaParts.join(' · ');
 
       // ── KPIs ───────────────────────────────────────────────────────────

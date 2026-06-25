@@ -3993,20 +3993,33 @@ function _getCodigoVeroLegado_(planoCore, cidNorm) {
 // Filtra só planos com PUBLICAR=true (comercialmente ativos) — descontinuados
 // ainda no JSON ficam fora da fila de "sem código" mas geram alerta de órfão se
 // já tinham código mapeado.
+// Cidades-amostra cobrindo as principais redes da Vero (REDE_VERO MG/SP, EPON,
+// NEUTRA MG/SP). Se um plano resolve em pelo menos uma, considera mapeado.
+// Pequeno o bastante pra rodar rápido (37 planos × 8 cidades ≈ 300 lookups,
+// memoizados via _criarResolvedorCodigos_).
+var _CIDADES_AMOSTRA_VALIDACAO_ = [
+  'Juiz de Fora', 'Belo Horizonte', 'Uberlândia', 'Vespasiano',
+  'Barbacena', 'Betim', 'Bauru', 'Goiânia'
+];
+
 function getValidacaoCodigosVero(adminUsuario) {
   _assertAdmin_(adminUsuario);
 
-  var planos, codigos;
+  var planos;
   try { planos = _getTabela(); }
   catch (e) { return { ok: false, mensagem: 'planos_vero.json indisponível: ' + e.message }; }
-  try { codigos = _getCodigosVero(); }
-  catch (e) { return { ok: false, mensagem: 'planos_vero_codigos.json indisponível: ' + e.message }; }
-
   if (!planos || planos.length < 3) {
     return { ok: false, mensagem: 'planos_vero.json com formato inválido.' };
   }
 
-  // 1. Indexar planos do CRM (linha 2+, PUBLICAR=true). Mantém também os descontinuados num set separado.
+  // sweep VeroHub é a fonte real de códigos hoje (Rev9+). Dicionário legado
+  // (planos_vero_codigos.json) só é consultado pra detecção de órfãos.
+  var vh = null;
+  try { vh = _getVerohubCodigos(); } catch(e){}
+  var codigosLegado = null;
+  try { codigosLegado = _getCodigosVero(); } catch(e){}
+
+  // 1. Indexar planos do CRM (linha 2+, PUBLICAR=true).
   var planosCrmPublicados = [];
   var todosNomesCrm = {};
   for (var i = 2; i < planos.length; i++) {
@@ -4020,70 +4033,100 @@ function getValidacaoCodigosVero(adminUsuario) {
         nome_crm:     nome,
         tipo:         String(row[1] || '').trim(),
         produto_tipo: String(row[13] || '').trim(),
-        preco_boleto: row[2]
+        preco_boleto: row[2],
+        nome_vero:    String(row[14] || '').trim()
       });
     }
   }
 
-  // 2. Indexar códigos do JSON de mapeamento por nome_crm_match
-  var codigosPorNome = {};
-  var totalCodigos = 0;
-  (codigos.coletas || []).forEach(function (col) {
-    var ctx = col.contexto || {};
-    var contextoLabel = ctx.cidade
-      ? (ctx.cidade + (ctx.conexao ? '/' + ctx.conexao : '') + (ctx.rede_canonica ? ' [' + ctx.rede_canonica + ']' : ''))
-      : (ctx.produto || 'sem contexto');
-    (col.planos || []).forEach(function (p) {
-      totalCodigos++;
-      if (!p.nome_crm_match) return;
-      var nm = String(p.nome_crm_match).trim();
-      if (!codigosPorNome[nm]) codigosPorNome[nm] = [];
-      codigosPorNome[nm].push({
-        codigo:       p.codigo || null,
-        nome_vero:    p.nome_vero || '',
-        confianca:    p.confianca || '',
-        addon:        p.addon || '',
-        contexto:     contextoLabel
-      });
-    });
-  });
-
-  // 3. Cruzar — publicados que têm código (ok) ou não (sem_codigo)
+  // 2. Pra cada plano publicado, tenta resolver via resolver moderno
+  //    (NOME_VERO + sweep VeroHub + legado) em cidades-amostra.
+  //    OK = resolveu em ≥1 cidade. Sem código = nenhuma resolveu.
   var ok = [];
   var sem_codigo = [];
+
   planosCrmPublicados.forEach(function (p) {
-    var hits = codigosPorNome[p.nome_crm];
-    if (hits && hits.length) {
+    var hitsPorCidade = {};   // codigo → array de cidades que resolveram pra ele
+    _CIDADES_AMOSTRA_VALIDACAO_.forEach(function (cid) {
+      var cod = '';
+      try { cod = getCodigoVeroPorPlanoCidade(p.nome_crm, cid) || ''; } catch (e) {}
+      if (!cod) return;
+      if (!hitsPorCidade[cod]) hitsPorCidade[cod] = [];
+      hitsPorCidade[cod].push(cid);
+    });
+
+    var codigosResolvidos = Object.keys(hitsPorCidade);
+    if (codigosResolvidos.length) {
+      var lista = codigosResolvidos.map(function (cod) {
+        var info = (vh && vh.codigos && vh.codigos[cod]) || {};
+        return {
+          codigo:    cod,
+          nome_vero: info.nome || '',
+          confianca: 'alta',
+          addon:     '',
+          contexto:  hitsPorCidade[cod].sort().join(' · ')
+        };
+      });
+      lista.sort(function (a, b) { return String(a.codigo).localeCompare(String(b.codigo)); });
       ok.push({
         nome_crm:     p.nome_crm,
         tipo:         p.tipo,
         produto_tipo: p.produto_tipo,
-        n_codigos:    hits.length,
-        codigos:      hits
+        nome_vero:    p.nome_vero,
+        n_codigos:    lista.length,
+        codigos:      lista
       });
     } else {
       sem_codigo.push({
         nome_crm:     p.nome_crm,
         tipo:         p.tipo,
         produto_tipo: p.produto_tipo,
-        preco_boleto: p.preco_boleto
+        preco_boleto: p.preco_boleto,
+        nome_vero:    p.nome_vero
       });
     }
   });
 
-  // 4. Órfãos — nome_crm_match nos códigos que não casa com nenhum nome em planos_vero.json
+  // 3. Órfãos — entradas no dicionário legado cujo nome_crm_match não bate mais
+  //    com nenhum nome em planos_vero.json (renomeado/removido pela Rev11+).
+  //    Mantido como sinal informativo: o dicionário legado está congelado, então
+  //    todo plano antigo vai aparecer aqui depois da Rev11 — não é bug.
   var orfaos = [];
-  Object.keys(codigosPorNome).forEach(function (nm) {
-    if (!todosNomesCrm[nm]) {
-      orfaos.push({
-        nome_crm_match: nm,
-        n_codigos:      codigosPorNome[nm].length,
-        codigos:        codigosPorNome[nm],
-        razao:          'Nome não existe mais em planos_vero.json (renomeado ou removido)'
+  var totalCodigosLegado = 0;
+  if (codigosLegado && codigosLegado.coletas) {
+    var codigosPorNomeLegado = {};
+    codigosLegado.coletas.forEach(function (col) {
+      var ctx = col.contexto || {};
+      var contextoLabel = ctx.cidade
+        ? (ctx.cidade + (ctx.conexao ? '/' + ctx.conexao : '') + (ctx.rede_canonica ? ' [' + ctx.rede_canonica + ']' : ''))
+        : (ctx.produto || 'sem contexto');
+      (col.planos || []).forEach(function (pp) {
+        totalCodigosLegado++;
+        if (!pp.nome_crm_match) return;
+        var nm = String(pp.nome_crm_match).trim();
+        if (!codigosPorNomeLegado[nm]) codigosPorNomeLegado[nm] = [];
+        codigosPorNomeLegado[nm].push({
+          codigo:    pp.codigo || null,
+          nome_vero: pp.nome_vero || '',
+          confianca: pp.confianca || '',
+          addon:     pp.addon || '',
+          contexto:  contextoLabel
+        });
       });
-    }
-  });
+    });
+    Object.keys(codigosPorNomeLegado).forEach(function (nm) {
+      if (!todosNomesCrm[nm]) {
+        orfaos.push({
+          nome_crm_match: nm,
+          n_codigos:      codigosPorNomeLegado[nm].length,
+          codigos:        codigosPorNomeLegado[nm],
+          razao:          'Plano renomeado/removido na Rev11 NP 3.0 — dicionário legado congelado'
+        });
+      }
+    });
+  }
 
+  var totalVerohub = (vh && vh.codigos) ? Object.keys(vh.codigos).length : 0;
   var totalCrm = planosCrmPublicados.length;
   var totalOk  = ok.length;
   var cobertura_pct = totalCrm > 0 ? Math.round((totalOk / totalCrm) * 100) : 0;
@@ -4099,10 +4142,12 @@ function getValidacaoCodigosVero(adminUsuario) {
       total_planos_crm:         totalCrm,
       total_planos_ok:          totalOk,
       total_planos_sem_codigo:  sem_codigo.length,
-      total_codigos_vero:       totalCodigos,
+      total_codigos_vero:       totalVerohub,
       total_codigos_orfaos:     orfaos.length,
+      total_codigos_legado:     totalCodigosLegado,
       cobertura_pct:            cobertura_pct,
-      meta_status:              codigos._meta && codigos._meta.status || ''
+      cidades_amostra:          _CIDADES_AMOSTRA_VALIDACAO_,
+      meta_status:              (vh && vh._meta && vh._meta.versao) ? ('verohub_codigos_cidades.json v' + vh._meta.versao) : ''
     },
     ok_list:    ok,
     sem_codigo: sem_codigo,
@@ -5995,7 +6040,9 @@ function _mapearLinhaFunil_(row, linha, tz) {
         if (!cid) return null;
         return getSistemaFallbackPorCidade(String(cid).trim()) || null;
       } catch(e) { return null; }
-    })()
+    })(),
+    fat:       String(row[cf.FAT] || '').trim(),         // legado col Q (código Vero capturado em vendas pré-Fase 3)
+    codPlano:  String(row[cf.COD_PLANO] || row[cf.FAT] || '').trim() // moderno col AU; cai pra FAT se getVendasFunil não ler até 46
   };
 }
 
@@ -6642,6 +6689,22 @@ function limparCacheCompleto() {
   }
 }
 
+// 25/06/2026: invalidação cirúrgica usada pelo ↻ Sincronizar da Lista.
+// Mantém quentes funil / leads / cidades / tabela / dashboards (não relacionados ao
+// que o usuário pediu pra atualizar). Reduz drasticamente o custo do refresh:
+// limparCacheCompleto + getVendasPaginadas chegou a 80s em produção porque toda a
+// re-leitura era cold; agora só lista+vínculos são re-aquecidos.
+function limparCacheListaApenas() {
+  try {
+    _limparCacheListaCompleta();
+    _limparCacheListaV3(); // já invalida vínculos internamente
+    return { sucesso: true };
+  } catch(e) {
+    Logger.log('limparCacheListaApenas erro: ' + e);
+    return { sucesso: false, erro: e.message };
+  }
+}
+
 // Versão otimizada para listagens — recebe timezone explícito (evita Session.getScriptTimeZone() repetido)
 // Normaliza valor monetário para número antes de gravar na col O (VALOR).
 // Aceita number, "R$ 89,90", "89,90", "1.099,90", "89.90". Retorna '' se vazio/inválido.
@@ -6761,7 +6824,8 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     })(row[c.CRIADO_EM]),
     criadoPor:        String(row[c.CRIADO_POR] || '').trim(),
     veroStatus:       String(row[c.VERO_STATUS] || '').trim(),
-    formaPagamento:   String(row[c.FORMA_PAGAMENTO] || '').trim()
+    formaPagamento:   String(row[c.FORMA_PAGAMENTO] || '').trim(),
+    codPlano:         String(row[c.COD_PLANO] || '').trim()
   };
 }
 
@@ -7470,6 +7534,8 @@ function _resumirVendaVinculada_(venda) {
     valor:         venda.valor          || '',
     venc:          venda.venc           || '',
     fat:           venda.fat            || '',  // legado — manter até col Q ser repurposada
+    codPlano:      venda.codPlano       || '',  // moderno — col AU; usado pra carimbar "4624 ·" antes do nome
+    codigoVero:    venda.codigoVero     || '',  // alias retrocompat (= venda.fat)
     formaPagamento:venda.formaPagamento || '',  // Sprint 3
     status:        venda.status         || '',
     preStatus:     venda.preStatus      || '',

@@ -357,12 +357,12 @@ function pifOnFormaPagamentoChange() {
 }
 
 // Sprint 3 (12/05/2026): formata FORMA_PAGAMENTO para exibição.
-// 'BOLETO'/'RECORRENTE' -> '💰 Boleto' / '🔁 Recorrente'. Qualquer outro
+// 'BOLETO'/'RECORRENTE' -> '💰 Boleto' / '💳 Cartão'. Qualquer outro
 // valor (legado, sem dado) -> '' (cai no '—' do _c2).
 function _labelFormaPagamento(forma) {
   var f = String(forma || '').toUpperCase().trim();
   if (f === 'BOLETO')     return '💰 Boleto';
-  if (f === 'RECORRENTE') return '🔁 Recorrente';
+  if (f === 'RECORRENTE') return '💳 Cartão';
   return '';
 }
 
@@ -503,10 +503,18 @@ function _pifPopularInputsMovel(mv) {
       .withSuccessHandler(function(d) {
         if (d && d.planos && d.planos.length) {
           selPlano.innerHTML = '<option value="">— Selecione o plano —</option>';
+          var mapaCodMv = _mapaCodigosPorNomePlano(d.planosDetalhes);
           d.planos.forEach(function(p) {
             var opt = document.createElement('option');
             if (p.indexOf('▶️') === 0) { opt.disabled = true; opt.style.color = 'var(--muted)'; }
-            opt.value = p; opt.textContent = p;
+            opt.value = p;
+            var codigoMv = '';
+            if (p.indexOf('▶️') !== 0) {
+              var nomeMv = p.split(' | ')[0].trim().toUpperCase();
+              codigoMv = mapaCodMv[nomeMv] || '';
+              if (codigoMv) opt.setAttribute('data-codigo', codigoMv);
+            }
+            opt.textContent = _labelOptionPlano(p, codigoMv);
             selPlano.appendChild(opt);
           });
           _pifSetSelect('pif-mv-plano', mv.plano || '');
@@ -3617,7 +3625,7 @@ function _criarFunilCard(v, col) {
         ' data-status="' + esc(v.status) + '">' +
       '<div class="funil-card-nome">' + dotHoje + esc(v.cliente || 'Sem nome') + '</div>' +
       (v.produto || v.plano
-        ? '<div class="funil-card-row">📦 ' + esc((v.produto||'') + (v.plano?' · '+v.plano:'')) + '</div>'
+        ? '<div class="funil-card-row">📦 ' + esc(v.produto || '') + (v.plano ? ' · ' + _prefixoCodigoVero(v) + esc(_limparNomePlano(v.plano)) : '') + '</div>'
         : '') +
       (v.resp
         ? '<div class="funil-card-row">👤 ' + esc(v.resp) + '</div>'
@@ -4170,11 +4178,9 @@ function _renderizarOfertas(res) {
   foot.style.display = 'flex';
 
   // Monta texto WhatsApp para o botão copiar
-  _ofertasWhatsText = '*📍 OFERTAS: ' + res.cidade + '*\n';
-  _ofertasWhatsText += '📱 Móvel: ' + res.telMovel + '\n';
-  _ofertasWhatsText += '🌐 Mesh: '  + res.comboMesh + '\n';
-  _ofertasWhatsText += '🎬 Roku: '  + res.roku + '\n';
-  _ofertasWhatsText += '_Sistema: ' + res.sistema + '_\n\n';
+  _ofertasWhatsText = '*Ofertas Vero - ' + res.cidade + '*\n';
+  _ofertasWhatsText += 'Móvel: ' + res.telMovel + ' | Mesh: ' + res.comboMesh + ' | Roku: ' + res.roku + '\n';
+  _ofertasWhatsText += 'Sistema: ' + res.sistema + '\n\n';
 
   // Header
   var html =
@@ -4204,30 +4210,36 @@ function _renderizarOfertas(res) {
     _ofertasWhatsText += icon + ' *' + grupo.categoria.toUpperCase() + '*\n';
 
     grupo.planos.forEach(function(p) {
-      // Sprint 3 (12/05/2026): exibe os 2 valores (boleto + recorrente).
+      // Sprint 3 (12/05/2026): exibe os 2 valores (boleto + cartão).
       // Backward compat: se vier só p.valor (cache antigo), usa o que tiver.
       var vRec = p.valorRecorrente || p.valor || '';
       var vBol = p.valorBoleto     || '';
       var valoresHtml = vBol
-        ? ('<span class="ofertas-plano-valor"><span style="opacity:.6;font-size:11px;">Boleto </span>R$ ' + esc(vBol) + ' <span style="opacity:.4;">·</span> <span style="opacity:.6;font-size:11px;">Recorrente </span>R$ ' + esc(vRec) + '</span>')
-        : ('<span class="ofertas-plano-valor">R$ ' + esc(vRec) + '</span>');
+        ? ('<span class="ofertas-plano-valor">' +
+             '<span class="ofertas-preco-chip principal"><span class="ofertas-preco-label">Cartão</span><strong>R$ ' + esc(vRec) + '</strong></span>' +
+             '<span class="ofertas-preco-chip"><span class="ofertas-preco-label">Boleto</span><strong>R$ ' + esc(vBol) + '</strong></span>' +
+           '</span>')
+        : ('<span class="ofertas-plano-valor"><span class="ofertas-preco-chip principal"><span class="ofertas-preco-label">Cartão</span><strong>R$ ' + esc(vRec) + '</strong></span></span>');
       html +=
         '<div class="ofertas-plano-row">' +
           '<span class="ofertas-plano-nome">' + esc(p.nome) + '</span>' +
           valoresHtml +
         '</div>';
-      _ofertasWhatsText += '• ' + p.nome + (vBol ? ' — *R$ ' + vBol + ' (boleto) · R$ ' + vRec + ' (recorrente)*' : ' — *R$ ' + vRec + '*') + '\n';
+      _ofertasWhatsText += '• ' + p.nome + '\n';
+      _ofertasWhatsText += vBol
+        ? '  Cartão: *R$ ' + vRec + '* | Boleto: R$ ' + vBol + '\n'
+        : '  Cartão: *R$ ' + vRec + '*\n';
     });
 
     html += '</div>';
     _ofertasWhatsText += '\n';
   });
 
-  _ofertasWhatsText += '_*Valores recorrentes: cartão, pix automático ou débito em conta. Boleto +R$10,00.*_\n';
+  _ofertasWhatsText += '_*Valor no Cartão, Pix automático ou débito em conta. Boleto +R$10,00.*_\n';
   _ofertasWhatsText += '_Sujeito a viabilidade técnica e análise de crédito._';
 
-  html += '<div style="font-size:10px;color:var(--muted);margin-top:8px;font-family:\'DM Mono\',monospace;line-height:1.5;">' +
-    '* Valores para cartão, pix automático e débito em conta. Boleto bancário +R$10,00.' +
+  html += '<div class="ofertas-observacao">' +
+    '* Valor no Cartão, Pix automático ou débito em conta. Boleto bancário +R$10,00.' +
     '</div>';
 
   document.getElementById('modalOfertasBody').innerHTML = html;
@@ -6688,6 +6700,11 @@ function recarregarLista() {
   AppState.set('filtroAtual', '');
   AppState.set('paginaAtual', 1);
 
+  // 25/06/2026: trava o botão ↻ em estado loading até o fresh voltar. Sem isto,
+  // o usuário clica, vê o spinner do badge sumir, e checa o card achando que
+  // já atualizou — quando na verdade o backend ainda está processando 10-30s.
+  _setBotaoRefreshLoading(true);
+
   var tinhaCache = !!(_dadosListaCache && _dadosListaCache.length);
   if (tinhaCache) {
     // Mostra o cache atual AGORA (stale) — não trava a tela. Re-renderiza sem
@@ -6707,9 +6724,9 @@ function recarregarLista() {
       '<p style="margin-top:10px;font-size:12px;">Buscando registros…</p></div>';
   }
 
-  // Limpa cache do servidor e busca dados frescos. Mantém o cache local velho
-  // respondendo a filtros/paginação durante a revalidação (substituído quando
-  // o fresh chega).
+  // 25/06/2026: invalidação cirúrgica (só lista + vínculos) — antes era
+  // limparCacheCompleto, que zerava funil/leads/dashboards/cidades/tabela e
+  // tornava a próxima leitura cold demais (até 80s em produção).
   google.script.run
     .withSuccessHandler(function() {
       if (tinhaCache) {
@@ -6722,11 +6739,19 @@ function recarregarLista() {
       _carregarFunilLista();           // refresca o indicador de funil junto com a sincronização
     })
     .withFailureHandler(function() {
+      _setBotaoRefreshLoading(false);
       _dadosListaCache = null; _dadosListaTotal = 0; _dadosTotalServidor = 0;
       _listaCacheLimparSS();
       carregarVendas(1, '');
     })
-    .limparCacheCompleto();
+    .limparCacheListaApenas();
+}
+
+function _setBotaoRefreshLoading(loading) {
+  var btn = document.getElementById('btnRefreshLista');
+  if (!btn) return;
+  if (loading) { btn.setAttribute('disabled', 'disabled'); }
+  else         { btn.removeAttribute('disabled'); }
 }
 
 // Fase 5b: busca os 500 frescos SEM mostrar spinner (mantém a tela atual).
@@ -6744,12 +6769,14 @@ function _revalidarListaFresh() {
         _listaCacheSalvarSS();
       }
       carregarVendas(1, ''); // cache fresco → render local instantâneo + badge "Agora"
+      _setBotaoRefreshLoading(false);
     })
     .withFailureHandler(function() {
       // Falhou a revalidação — descarta o cache velho e tenta o pipeline normal.
       _dadosListaCache = null; _dadosListaTotal = 0; _dadosTotalServidor = 0;
       _listaCacheLimparSS();
       carregarVendas(1, '');
+      _setBotaoRefreshLoading(false);
     })
     .getVendasPaginadas(1, '', JSON.stringify({ limite: 500, offset: 0 }));
 }
@@ -8026,6 +8053,23 @@ function _badgeCodigoVero(v) {
   if (!c) return '';
   return ' <span class="vi-cod-vero" title="Código Vero do plano">cód. ' + esc(String(c).trim()) + '</span>';
 }
+
+// Extrai o código Vero da venda (snapshot COD_PLANO da Fase 3 — col AU;
+// fallback p/ col Q legacy). Retorna string limpa ou '' quando ausente.
+function _codigoVeroDeVenda(v) {
+  if (!v) return '';
+  var c = v.codPlano || v.codigoVero || v.fat || '';
+  return String(c).trim();
+}
+
+// Prefixo "4624 · " pro nome do plano. Usado em todos os renderizadores
+// (cards, painel, dropdowns) pra carimbar o código Vero antes do nome.
+// Já vem HTML-escaped — não chamar esc() de novo no chamador.
+function _prefixoCodigoVero(v) {
+  var c = _codigoVeroDeVenda(v);
+  if (!c) return '';
+  return '<span class="vi-cod-vero" style="margin-left:0;margin-right:6px" title="Código Vero do plano">' + esc(c) + '</span>';
+}
 function _formatarValorBR(valor) {
   if (valor === null || valor === undefined || valor === '') return '';
   var num;
@@ -8152,8 +8196,8 @@ function _criarItemVenda(v, index) {
           '<div class="vi-plano-meio">' +
             '<div class="vi-plano-nome">' +
               (v.veroStatus ? '<span class="vi-vero-status" title="' + (v.veroStatus.substring(0,2) === '🟢' ? 'Encontrado: aba ' + (v.veroStatus.substring(3) || 'Vero') : 'Não encontrado no relatório Vero') + '">' + v.veroStatus.substring(0,2) + '</span> ' : '') +
+              _prefixoCodigoVero(v) +
               esc(planoNome || '—') +
-              _badgeCodigoVero(v) +
             '</div>' +
           '</div>' +
           (valorFmt ? '<span class="vi-plano-valor">' + esc(valorFmt) + '</span>' : '') +
@@ -8258,11 +8302,18 @@ function _produtoClsPainel(produto) {
   return map[produto] || 'vi-prod-xx';
 }
 
-function _pifSetPlanoRowPainel(qual, badgeText, badgeCls, nomePlano, status, valor) {
+function _pifSetPlanoRowPainel(qual, badgeText, badgeCls, nomePlano, status, valor, vendaRef) {
   var badge = document.getElementById('pifPlano' + qual + 'Badge');
   if (badge) { badge.textContent = badgeText; badge.className = 'vi-produto ' + badgeCls; }
   var nome = document.getElementById('pifPlano' + qual + 'Nome');
-  if (nome) nome.textContent = nomePlano || '—';
+  if (nome) {
+    var prefixo = _prefixoCodigoVero(vendaRef);
+    if (prefixo) {
+      nome.innerHTML = prefixo + esc(nomePlano || '—');
+    } else {
+      nome.textContent = nomePlano || '—';
+    }
+  }
   var coresPlano = STATUS_CORES[status] || { text: '#9ba4c2' };
   var cor = coresPlano.text || coresPlano.border || '#9ba4c2';
   var sub = document.getElementById('pifPlano' + qual + 'Sub');
@@ -8284,12 +8335,12 @@ function _pifPopularPlanoDestaque(v) {
     // Venda principal é Fibra
     temFibra = true;
     _pifSetPlanoRowPainel('Fibra', _produtoComEmoji(v.produto) || 'FIBRA', _produtoClsPainel(v.produto),
-      _limparNomePlano(v.plano), v.status, _formatarValorBR(v.valor));
+      _limparNomePlano(v.plano), v.status, _formatarValorBR(v.valor), v);
     if (v.vendaMovelResumo) {
       temMovel = true;
       var mv = v.vendaMovelResumo;
       _pifSetPlanoRowPainel('Movel', _produtoComEmoji(mv.produto) || 'MÓVEL', _produtoClsPainel(mv.produto),
-        _limparNomePlano(mv.plano), mv.status, _formatarValorBR(mv.valor));
+        _limparNomePlano(mv.plano), mv.status, _formatarValorBR(mv.valor), mv);
     }
   } else {
     // Venda principal é Móvel — pode ter mãe Fibra
@@ -8297,11 +8348,11 @@ function _pifPopularPlanoDestaque(v) {
       temFibra = true;
       var maeF = v.vendaMaeResumo;
       _pifSetPlanoRowPainel('Fibra', _produtoComEmoji(maeF.produto) || 'FIBRA', _produtoClsPainel(maeF.produto),
-        _limparNomePlano(maeF.plano), maeF.status, _formatarValorBR(maeF.valor));
+        _limparNomePlano(maeF.plano), maeF.status, _formatarValorBR(maeF.valor), maeF);
     }
     temMovel = true;
     _pifSetPlanoRowPainel('Movel', _produtoComEmoji(v.produto) || 'MÓVEL', _produtoClsPainel(v.produto),
-      _limparNomePlano(v.plano), v.status, _formatarValorBR(v.valor));
+      _limparNomePlano(v.plano), v.status, _formatarValorBR(v.valor), v);
   }
   document.getElementById('pifPlanoFibraRow').style.display = temFibra ? '' : 'none';
   document.getElementById('pifPlanoMovelRow').style.display = temMovel ? '' : 'none';
@@ -10554,8 +10605,8 @@ function _dhpBlocoPlanoV6(venda, index, extraHtml) {
     '<div class="vi-plano-meio">' +
       '<div class="vi-plano-nome">' +
         (venda.veroStatus ? '<span class="vi-vero-status" title="' + (venda.veroStatus.substring(0,2) === '🟢' ? 'Encontrado: aba ' + (venda.veroStatus.substring(3) || 'Vero') : 'Não encontrado no relatório Vero') + '">' + venda.veroStatus.substring(0,2) + '</span> ' : '') +
+        _prefixoCodigoVero(venda) +
         esc(planoNome || '—') +
-        _badgeCodigoVero(venda) +
       '</div>' +
       '<div class="vi-plano-substatus" style="color:' + corStatus + '">' +
         '<span class="vi-plano-substatus-dot" style="background:' + corStatus + '"></span>' +

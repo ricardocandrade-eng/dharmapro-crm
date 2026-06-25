@@ -523,7 +523,7 @@ function cnRenderTabela() {
     return '<tr>' +
       '<td class="cn-mono">' + cnHtml(l.contrato) + '</td>' +
       '<td>' + cnHtml(l.cliente) + '</td>' +
-      '<td>' + cnHtml(l.plano) + '</td>' +
+      '<td>' + (l.codPlano ? '<span class="vi-cod-vero" style="margin-left:0;margin-right:6px" title="Código Vero do plano">' + cnHtml(l.codPlano) + '</span>' : '') + cnHtml(l.plano) + '</td>' +
       '<td class="cn-num">' + cnBRL(l.previsto) + '</td>' +
       '<td class="cn-num">' + cnBRL(l.realizado) + '</td>' +
       '<td class="cn-num ' + diffCls + '">' + (l.diff >= 0 ? '+' : '') + cnBRL(l.diff) + '</td>' +
