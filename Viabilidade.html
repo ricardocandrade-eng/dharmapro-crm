@@ -420,7 +420,20 @@
   // possível e gravamos o histórico cru. Sprint 3.1 pode adicionar passthrough GAS.
   function normalizarNoBackend(bodyCru, sug, cacheHit) {
     // Por enquanto: derivação simplificada no client espelhando ViabilidadeParser
+    try {
+      console.log('[VIA-DEBUG] tipo bodyCru:', typeof bodyCru, '| ok?', !!bodyCru);
+      console.log('[VIA-DEBUG] body.disponibilidade:', bodyCru && bodyCru.disponibilidade);
+      var disp0 = bodyCru && bodyCru.disponibilidade;
+      console.log('[VIA-DEBUG] disp.disponibilidade =', disp0 && disp0.disponibilidade);
+      console.log('[VIA-DEBUG] qtd CTOs:', disp0 && disp0.ctos_within_range && disp0.ctos_within_range.length);
+      var c0 = disp0 && disp0.ctos_within_range && disp0.ctos_within_range[0];
+      console.log('[VIA-DEBUG] 1a CTO bruta:', c0 && {name: c0.name, av: c0.availability_status, ports: c0.ports, occ: c0.occupied_ports});
+    } catch (eDbg) { console.warn('[VIA-DEBUG] erro log:', eDbg); }
     var consulta = deriveConsulta(bodyCru, sug, cacheHit);
+    try {
+      console.log('[VIA-DEBUG] consulta.resultado =', consulta.resultado, '| motivo:', consulta.motivo);
+      console.log('[VIA-DEBUG] 1a CTO normalizada:', consulta.ctos && consulta.ctos[0]);
+    } catch (eDbg2) { console.warn('[VIA-DEBUG] erro log2:', eDbg2); }
     renderResultado(consulta);
     salvarHistorico(consulta);
   }
