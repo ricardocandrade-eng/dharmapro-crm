@@ -66,7 +66,10 @@
   // tenta mesmo assim — o gateway pode aceitar cookies puros pra algumas rotas.
   function fetchAuth(url, opts) {
     opts = opts || {};
-    opts.credentials = 'include';
+    // 'omit' (não 'include'): gateway responde Access-Control-Allow-Origin:*
+    // que é incompatível com credentials. Auth é via JWT no header
+    // Authorization (capturado do SPA), não via cookie.
+    opts.credentials = 'omit';
     opts.headers = opts.headers || {};
     if (lastSpaAuth && !opts.headers.Authorization && !opts.headers.authorization) {
       opts.headers.Authorization = lastSpaAuth;
@@ -114,7 +117,7 @@
       u.searchParams.set('input', 'a');
       u.searchParams.set('latitude', '0');
       u.searchParams.set('longitude', '0');
-      return done(fetchAuth(u.toString(), { credentials: 'include', signal: ctrl.signal })
+      return done(fetchAuth(u.toString(), { signal: ctrl.signal })
         .then(function (r) {
           return { ok: r.ok, status: r.status, autenticado: r.status !== 401 && r.status !== 403 };
         }, function (e) {
@@ -158,7 +161,7 @@
   }
 
   function fetchJson(url, ctrl) {
-    return fetchAuth(url, { credentials: 'include', signal: ctrl.signal })
+    return fetchAuth(url, { signal: ctrl.signal })
       .then(function (r) {
         var ct = (r.headers && r.headers.get && r.headers.get('content-type')) || '';
         if (r.status === 401 || r.status === 403) {
