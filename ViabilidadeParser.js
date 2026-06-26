@@ -191,7 +191,10 @@
     if (disp === "no coverage") return "SEM_COBERTURA";
     if (disp === "forbidden") return "AREA_PROIBIDA";
     if (disp === "probable") return "PROVAVEL";
-    if (disp === "available") {
+    // 'unknown' (tipo_disponibilidade:'not geocoded') = Vero não geocodificou
+    // o endereço internamente mas retornou CTOs no raio. Tratamos igual
+    // 'available' — as CTOs são fonte de verdade.
+    if (disp === "available" || disp === "unknown") {
       if (!Array.isArray(ctosNormalizadas) || ctosNormalizadas.length === 0) {
         return "INDETERMINADO";
       }
