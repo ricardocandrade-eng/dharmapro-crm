@@ -67,6 +67,12 @@
 .via-motivo { font-size: 13px; opacity: 0.75; margin-bottom: 10px; }
 .via-meta { font-size: 11px; color: var(--via-muted); display: flex; gap: 12px; flex-wrap: wrap; }
 
+.via-mensagem-vendedor { display: flex; align-items: stretch; gap: 8px; background: rgba(0,0,0,0.22); padding: 10px 12px; border-radius: 4px; margin-bottom: 12px; }
+.via-msg-texto { flex: 1; font-size: 13px; font-weight: 500; line-height: 1.4; word-break: break-word; }
+.via-btn-copiar { background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.22); color: inherit; padding: 4px 12px; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight: 600; white-space: nowrap; align-self: center; transition: background .15s; }
+.via-btn-copiar:hover { background: rgba(255,255,255,0.2); }
+.via-btn-copiar.copiado { background: rgba(56,176,84,0.30); border-color: rgba(56,176,84,0.55); }
+
 .via-cto-lista { margin-top: 10px; }
 .via-cto-item { background: rgba(0,0,0,0.18); border-radius: 4px; padding: 8px 12px; margin-bottom: 6px; font-size: 12px; }
 .via-cto-nome { font-weight: 600; }
@@ -318,12 +324,60 @@
   }
 
   // ── Autocomplete
+  // Detecta CEP puro (8 dígitos com ou sem traço): 36035-130, 36035130, "CEP 36035-130".
+  function extrairCepSeFor(s) {
+    if (!s) return null;
+    var limpo = String(s).replace(/[^\d]/g, '');
+    if (limpo.length === 8) return limpo.slice(0, 5) + '-' + limpo.slice(5);
+    return null;
+  }
+
+  // ViaCEP (gratuito, sem auth): { logradouro, bairro, localidade, uf, ... }.
+  // Retorna string "logradouro, bairro, cidade - UF" ou null em CEP inválido.
+  function buscarPorCep(cep, callback) {
+    var limpo = cep.replace(/[^\d]/g, '');
+    fetch('https://viacep.com.br/ws/' + limpo + '/json/')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data || data.erro) return callback(null, 'CEP não encontrado');
+        var partes = [];
+        if (data.logradouro) partes.push(data.logradouro);
+        if (data.bairro) partes.push(data.bairro);
+        if (data.localidade) partes.push(data.localidade + (data.uf ? ' - ' + data.uf : ''));
+        else if (data.uf) partes.push(data.uf);
+        if (!partes.length) return callback(null, 'CEP sem endereço associado');
+        callback(partes.join(', '), null);
+      })
+      .catch(function() { callback(null, 'Erro ao consultar ViaCEP'); });
+  }
+
   $input.addEventListener('input', function() {
     var v = ($input.value || '').trim();
     $btnIA.disabled = v.length < 10;
     state.sugSelecionada = null;
     $numeroRow.style.display = 'none';
     if (state.debounceTimer) clearTimeout(state.debounceTimer);
+
+    // Caso 1: CEP puro → ViaCEP → substitui input → autocomplete normal
+    var cep = extrairCepSeFor(v);
+    if (cep && v.replace(/[^\d]/g, '').length === 8 && !/[a-zA-ZÀ-ÿ]/.test(v)) {
+      state.debounceTimer = setTimeout(function() {
+        $sugs.innerHTML = '<div class="via-sug-vazio">Buscando CEP ' + cep + '…</div>';
+        $sugs.style.display = 'block';
+        buscarPorCep(cep, function(endereco, erro) {
+          if (erro) {
+            $sugs.innerHTML = '<div class="via-sug-vazio">' + escapeHtml(erro) + '</div>';
+            return;
+          }
+          $input.value = endereco;
+          $btnIA.disabled = endereco.length < 10;
+          buscarSugestoes(endereco);
+        });
+      }, DEBOUNCE_AUTOCOMPLETE_MS);
+      return;
+    }
+
+    // Caso 2: texto livre → autocomplete da Vero
     if (v.length < 3) { $sugs.style.display = 'none'; $sugs.innerHTML = ''; return; }
     state.debounceTimer = setTimeout(function() { buscarSugestoes(v); }, DEBOUNCE_AUTOCOMPLETE_MS);
   });
@@ -470,13 +524,17 @@
       }
     }
 
+    var campos = extrairCamposGoogle(raw);
     return {
       resultado: resultado,
       motivo: gerarMotivo(resultado, ctos),
       endereco: {
         completo: (raw && raw.completo) || sug.completo,
-        cidade:   sug.cidade,
-        uf:       extrairUf(raw),
+        rua:      campos.rua,
+        bairro:   campos.bairro,
+        cep:      campos.cep,
+        cidade:   campos.cidade || sug.cidade,
+        uf:       campos.uf,
         lat:      (raw && raw.latitude) || sug.latitude,
         lng:      (raw && raw.longitude) || sug.longitude,
         numero:   (raw && raw.numero) ? parseInt(raw.numero, 10) : null
@@ -487,17 +545,79 @@
     };
   }
 
-  function extrairUf(raw) {
+  // Extrai rua/bairro/cep/cidade/uf do address_components do Google
+  // (resultado_google.address_components na resposta do detalhes-numero).
+  function extrairCamposGoogle(raw) {
+    var out = { rua: '', bairro: '', cep: '', cidade: '', uf: '' };
     try {
       var comps = raw && raw.resultado_google && raw.resultado_google.address_components;
-      if (!Array.isArray(comps)) return '';
+      if (!Array.isArray(comps)) return out;
       for (var i = 0; i < comps.length; i++) {
         var c = comps[i];
-        if (c && c.types && c.types.indexOf('administrative_area_level_1') !== -1) return c.short_name || '';
+        if (!c || !Array.isArray(c.types)) continue;
+        if (c.types.indexOf('route') !== -1)                       out.rua    = c.long_name || '';
+        else if (c.types.indexOf('sublocality_level_1') !== -1)    out.bairro = c.long_name || '';
+        else if (c.types.indexOf('sublocality') !== -1 && !out.bairro) out.bairro = c.long_name || '';
+        else if (c.types.indexOf('postal_code') !== -1)            out.cep    = c.long_name || '';
+        else if (c.types.indexOf('administrative_area_level_2') !== -1) out.cidade = c.long_name || '';
+        else if (c.types.indexOf('administrative_area_level_1') !== -1) out.uf    = c.short_name || '';
       }
     } catch (e) {}
-    return '';
+    return out;
   }
+
+  // Texto pronto pra colar no WhatsApp do vendedor.
+  // Retorna null se resultado é INDETERMINADO (sem decisão).
+  function montarMensagemVendedor(c) {
+    var prefixos = {
+      DISPONIVEL:    'Cobertura Disponível',
+      PROVAVEL:      'Cobertura Provável (sujeita a vistoria)',
+      SEM_COBERTURA: 'Sem Cobertura no endereço',
+      AREA_PROIBIDA: 'Endereço fora da área de atendimento'
+    };
+    var prefixo = prefixos[c.resultado];
+    if (!prefixo) return null;
+    var e = c.endereco || {};
+    var partes = [];
+    if (e.rua) {
+      partes.push(e.numero ? (e.rua + ', ' + e.numero) : e.rua);
+    } else if (e.completo) {
+      // Fallback: usa o completo (Google), mais sujo mas tem tudo.
+      return prefixo + ': ' + e.completo;
+    }
+    if (e.bairro) partes.push(e.bairro);
+    if (e.cep) partes.push('CEP ' + e.cep);
+    if (e.cidade) partes.push(e.cidade + (e.uf ? '/' + e.uf : ''));
+    return prefixo + ': ' + partes.join(' - ');
+  }
+
+  // Handler global do botão "Copiar" (chamado via onclick inline).
+  window.viaCopiarMensagem = function(btn) {
+    var msg = btn.getAttribute('data-msg') || '';
+    if (!msg) return;
+    var feedback = function() {
+      var orig = btn.textContent;
+      btn.textContent = '✓ Copiado!';
+      btn.classList.add('copiado');
+      setTimeout(function() {
+        btn.textContent = orig;
+        btn.classList.remove('copiado');
+      }, 1800);
+    };
+    try {
+      navigator.clipboard.writeText(msg).then(feedback, function() {
+        // fallback execCommand
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = msg; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          feedback();
+        } catch (e) {}
+      });
+    } catch (e) {}
+  };
 
   function gerarMotivo(resultado, ctos) {
     var primeira = ctos[0];
@@ -520,10 +640,19 @@
   // ── Render do resultado
   function renderResultado(c) {
     var emoji = ({ DISPONIVEL:'✅', PROVAVEL:'⚠️', SEM_COBERTURA:'❓', AREA_PROIBIDA:'⛔', INDETERMINADO:'⏱' })[c.resultado] || '⏱';
+    var msgVendedor = montarMensagemVendedor(c);
+    var blocoMsg = '';
+    if (msgVendedor) {
+      blocoMsg = '<div class="via-mensagem-vendedor">' +
+        '<div class="via-msg-texto">' + escapeHtml(msgVendedor) + '</div>' +
+        '<button class="via-btn-copiar" type="button" onclick="viaCopiarMensagem(this)" data-msg="' + escapeHtml(msgVendedor) + '">📋 Copiar</button>' +
+      '</div>';
+    }
     var html = '<div class="via-resultado-card r-' + c.resultado + '">' +
       '<div class="via-badge-grande">' + emoji + ' ' + c.resultado.replace('_', ' ') + '</div>' +
       '<div class="via-endereco">' + escapeHtml(c.endereco.completo || '') + '</div>' +
       '<div class="via-motivo">' + escapeHtml(c.motivo) + '</div>' +
+      blocoMsg +
       '<div class="via-meta">' +
         (c.endereco.cidade ? '<span>📍 ' + escapeHtml(c.endereco.cidade) + (c.endereco.uf ? '/' + escapeHtml(c.endereco.uf) : '') + '</span>' : '') +
         (c.ctos.length ? '<span>📡 ' + c.ctos.length + ' CTO(s)</span>' : '') +
