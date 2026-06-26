@@ -570,10 +570,10 @@
   // Retorna null se resultado é INDETERMINADO (sem decisão).
   function montarMensagemVendedor(c) {
     var prefixos = {
-      DISPONIVEL:    'Cobertura Disponível',
-      PROVAVEL:      'Cobertura Provável (sujeita a vistoria)',
-      SEM_COBERTURA: 'Sem Cobertura no endereço',
-      AREA_PROIBIDA: 'Endereço fora da área de atendimento'
+      DISPONIVEL:    '✅ Cobertura Disponível',
+      PROVAVEL:      '⚠️ Cobertura Provável (sujeita a vistoria)',
+      SEM_COBERTURA: '❌ Sem Cobertura no endereço',
+      AREA_PROIBIDA: '⛔ Endereço fora da área de atendimento'
     };
     var prefixo = prefixos[c.resultado];
     if (!prefixo) return null;
