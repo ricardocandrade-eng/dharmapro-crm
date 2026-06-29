@@ -56,6 +56,22 @@
 .via-numero-row label { color: var(--via-muted); font-size: 13px; }
 .via-numero-row input { width: 110px; }
 
+.via-coords-row { margin-top: 10px; }
+.via-coords-aviso {
+  background: rgba(247, 162, 59, 0.10);
+  border: 1px solid rgba(247, 162, 59, 0.30);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #e09a5e;
+  margin-bottom: 10px;
+}
+.via-coords-aviso strong { color: #f7a23b; }
+.via-coords-input-row { display: flex; gap: 8px; align-items: center; }
+.via-coords-input-row label { color: var(--via-muted); font-size: 13px; white-space: nowrap; }
+.via-coords-input-row input { flex: 1; }
+
 .via-resultado-card { border-left: 3px solid; padding: 14px 16px; margin-bottom: 14px; }
 .via-resultado-card.r-DISPONIVEL    { background: var(--via-verde);    border-color: var(--via-verdeFg); }
 .via-resultado-card.r-PROVAVEL      { background: var(--via-amarelo);  border-color: var(--via-amareloFg); }
@@ -114,6 +130,20 @@
       <button id="viaBtnConsultar" class="via-btn">Consultar</button>
       <button id="viaBtnLimpar" class="via-btn btn-ghost btn-small">Nova consulta</button>
     </div>
+    <!-- Linha mostrada quando a sugestao eh 'place' (CEP unico de cidade):
+         pede coordenadas explicitas pra resultado preciso. -->
+    <div class="via-coords-row" id="viaCoordsRow" style="display:none">
+      <div class="via-coords-aviso">
+        💡 <strong>CEP genérico de cidade.</strong> Pra resultado preciso, abra o Google Maps,
+        encontre o endereço do cliente, clique com o botão direito no marcador → <strong>Copiar coordenadas</strong> → cole abaixo.
+      </div>
+      <div class="via-coords-input-row">
+        <label for="viaCoords">Coordenadas:</label>
+        <input id="viaCoords" type="text" class="via-input" placeholder="ex: -21.4554123, -43.5530892" autocomplete="off" />
+        <button id="viaBtnConsultarCoords" class="via-btn">Consultar</button>
+        <button id="viaBtnLimparCoords" class="via-btn btn-ghost btn-small">Nova consulta</button>
+      </div>
+    </div>
   </div>
 
   <div id="viaResultado"></div>
@@ -151,6 +181,10 @@
   var $numero = document.getElementById('viaNumero');
   var $btnCon = document.getElementById('viaBtnConsultar');
   var $btnLim = document.getElementById('viaBtnLimpar');
+  var $coordsRow = document.getElementById('viaCoordsRow');
+  var $coords    = document.getElementById('viaCoords');
+  var $btnConCoords = document.getElementById('viaBtnConsultarCoords');
+  var $btnLimCoords = document.getElementById('viaBtnLimparCoords');
   var $resultado = document.getElementById('viaResultado');
   var $historico = document.getElementById('viaHistorico');
 
@@ -443,14 +477,45 @@
     $input.value = sug.completo || '';
     $sugs.style.display = 'none';
     if (sug.marker_type === 'place') {
-      // Já tem número embutido — pula a etapa de pedir número, consulta direto com numero=0
-      $numero.value = '';
-      $numeroRow.style.display = 'flex';
-      $btnCon.click();
+      // CEP unico de cidade / ponto de referencia: lat/lng da sugestao eh
+      // o centroide da cidade, nao do endereco real. Consulta automatica
+      // aqui retornaria CTOs aleatorias e enganaria a decisao de venda.
+      // Em vez disso, pede coordenadas exatas (workaround Google Maps).
+      $numeroRow.style.display = 'none';
+      $coordsRow.style.display = 'block';
+      $coords.value = '';
+      setTimeout(function() { $coords.focus(); }, 50);
     } else {
+      $coordsRow.style.display = 'none';
       $numeroRow.style.display = 'flex';
       $numero.focus();
     }
+  }
+
+  // Handler do 'Consultar' da linha de coordenadas (caso 'place').
+  // Valida formato, cria sug 'fake' com aquelas coords (igual o caminho
+  // de coords coladas direto no input principal) e dispara consulta.
+  function consultarPorCoordsManual() {
+    var raw = ($coords.value || '').trim();
+    var coords = ehCoordenadasColadas(raw);
+    if (!coords) {
+      alert('Coordenadas inválidas. Use o formato do Google Maps, ex: -21.4554123, -43.5530892');
+      $coords.focus();
+      return;
+    }
+    var sugFake = {
+      completo: 'Coordenadas (' + coords.lat.toFixed(6) + ', ' + coords.lng.toFixed(6) + ')',
+      latitude: coords.lat,
+      longitude: coords.lng,
+      marker_type: 'street_without_number',
+      cidade: null
+    };
+    state.sugSelecionada = sugFake;
+    $input.value = sugFake.completo;
+    $coordsRow.style.display = 'none';
+    $numeroRow.style.display = 'flex';
+    $numero.value = '';
+    $btnCon.click();
   }
 
   // ── Consulta unitária
@@ -787,15 +852,25 @@
   });
 
   // ── Limpar
-  $btnLim.addEventListener('click', function() {
+  function _viaLimparTudo() {
     state.sugSelecionada = null;
     $input.value = '';
     $numero.value = '';
+    $coords.value = '';
     $numeroRow.style.display = 'none';
+    $coordsRow.style.display = 'none';
     $sugs.style.display = 'none';
     $sugs.innerHTML = '';
     $resultado.innerHTML = '';
     $input.focus();
+  }
+  $btnLim.addEventListener('click', _viaLimparTudo);
+  $btnLimCoords.addEventListener('click', _viaLimparTudo);
+
+  // Handlers da linha de coordenadas (mostrada quando sugestao eh 'place')
+  $btnConCoords.addEventListener('click', consultarPorCoordsManual);
+  $coords.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); consultarPorCoordsManual(); }
   });
 
   // ── Helper
