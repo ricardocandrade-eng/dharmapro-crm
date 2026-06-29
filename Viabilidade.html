@@ -221,6 +221,16 @@
   }
 
   function setBanner(tipo, texto, action) {
+    // Gateia o "pisca verde" do health check (30s polling): so mostra o
+    // banner ok->ok se for boot ou recuperacao de um estado de erro/aviso.
+    // Estados de problema (warn/laranja/err) seguem fixos como antes.
+    var ultimo = state.lastBannerTipo;
+    state.lastBannerTipo = tipo;
+    if (tipo === 'ok' && ultimo === 'ok') {
+      $banner.className = 'via-banner bn-ok';
+      $banner.style.display = 'none';
+      return;
+    }
     $banner.className = 'via-banner bn-' + tipo;
     $banner.innerHTML = '';
     var span = document.createElement('span');
@@ -233,7 +243,7 @@
       $banner.appendChild(btn);
     }
     if (tipo === 'ok') {
-      // Mostra o banner verde por 2s e depois esconde
+      // Boot ou recuperacao de erro: mostra verde por 2s e esconde
       $banner.style.display = 'flex';
       setTimeout(function() { $banner.style.display = 'none'; }, 2000);
     } else {
