@@ -343,20 +343,53 @@
   }
 
   // ViaCEP (gratuito, sem auth): { logradouro, bairro, localidade, uf, ... }.
-  // Retorna string "logradouro, bairro, cidade - UF" ou null em CEP inválido.
+  // Retorna { principal, candidatos[] }: principal eh a string completa pro
+  // input (display); candidatos eh uma cascata de queries do mais robusto
+  // pro mais largo, pra usar em fallback no autocomplete da Vero.
+  //
+  // Motivacao da cascata: o bairro do ViaCEP frequentemente diverge do
+  // indice da Vero (que usa geocoding Google). Ex: CEP 36035-130 -> ViaCEP
+  // 'Morro da Gloria' vs Google 'Jardim Gloria'. String com bairro errado
+  // zera o autocomplete. Comecando SEM bairro o match acerta.
   function buscarPorCep(cep, callback) {
     var limpo = cep.replace(/[^\d]/g, '');
     fetch('https://viacep.com.br/ws/' + limpo + '/json/')
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (!data || data.erro) return callback(null, 'CEP não encontrado');
-        var partes = [];
-        if (data.logradouro) partes.push(data.logradouro);
-        if (data.bairro) partes.push(data.bairro);
-        if (data.localidade) partes.push(data.localidade + (data.uf ? ' - ' + data.uf : ''));
-        else if (data.uf) partes.push(data.uf);
-        if (!partes.length) return callback(null, 'CEP sem endereço associado');
-        callback(partes.join(', '), null);
+        var uf = data.uf ? ' - ' + data.uf : '';
+        var candidatos = [];
+
+        if (data.logradouro && data.localidade) {
+          // 1) rua + cidade (SEM bairro — bairro do ViaCEP costuma divergir
+          //    do indice da Vero)
+          candidatos.push(data.logradouro + ', ' + data.localidade + uf);
+          // 2) com bairro (caso a Vero indexe nominalmente esse bairro)
+          if (data.bairro) {
+            candidatos.push(data.logradouro + ', ' + data.bairro + ', ' + data.localidade + uf);
+          }
+          // 3) ultimo recurso: so cidade (CEP de cidade pequena, ou rua nao
+          //    indexada — operador escolhe a cidade e digita rua manualmente)
+          candidatos.push(data.localidade + uf);
+        } else if (data.localidade) {
+          // CEP unico de cidade (sem logradouro)
+          candidatos.push(data.localidade + uf);
+        } else {
+          return callback(null, 'CEP sem endereço associado');
+        }
+
+        // String pro input (display): a mais completa, com bairro
+        var principal;
+        if (data.logradouro) {
+          principal = data.logradouro;
+          if (data.bairro) principal += ', ' + data.bairro;
+          if (data.localidade) principal += ', ' + data.localidade;
+          principal += uf;
+        } else {
+          principal = data.localidade + uf;
+        }
+
+        callback({ principal: principal, candidatos: candidatos }, null);
       })
       .catch(function() { callback(null, 'Erro ao consultar ViaCEP'); });
   }
@@ -374,14 +407,15 @@
       state.debounceTimer = setTimeout(function() {
         $sugs.innerHTML = '<div class="via-sug-vazio">Buscando CEP ' + cep + '…</div>';
         $sugs.style.display = 'block';
-        buscarPorCep(cep, function(endereco, erro) {
+        buscarPorCep(cep, function(resultado, erro) {
           if (erro) {
             $sugs.innerHTML = '<div class="via-sug-vazio">' + escapeHtml(erro) + '</div>';
             return;
           }
-          $input.value = endereco;
-          $btnIA.disabled = endereco.length < 10;
-          buscarSugestoes(endereco);
+          $input.value = resultado.principal;
+          $btnIA.disabled = resultado.principal.length < 10;
+          // Tenta query principal e cai pros candidatos seguintes se vazio
+          buscarSugestoes(resultado.candidatos[0], resultado.candidatos.slice(1));
         });
       }, DEBOUNCE_AUTOCOMPLETE_MS);
       return;
@@ -392,11 +426,15 @@
     state.debounceTimer = setTimeout(function() { buscarSugestoes(v); }, DEBOUNCE_AUTOCOMPLETE_MS);
   });
 
-  function buscarSugestoes(q) {
+  // q: query principal. fallbackQs (opcional): array de queries a tentar
+  // caso a principal nao retorne sugestoes (cascata pos-CEP).
+  function buscarSugestoes(q, fallbackQs) {
     $sugs.innerHTML = '<div class="via-sug-vazio">Buscando…</div>';
     $sugs.style.display = 'block';
     sendMsg({ action: 'viabilidade.autocomplete', usuario: state.usuario, input: q }, function(r) {
       if (!r || !r.ok) {
+        // Erro na chamada: se ainda houver fallback, tenta proximo
+        if (fallbackQs && fallbackQs.length) return buscarSugestoes(fallbackQs[0], fallbackQs.slice(1));
         $sugs.innerHTML = '<div class="via-sug-vazio">Erro: ' + ((r && r.erro) || 'sem resposta') + '</div>';
         return;
       }
@@ -405,7 +443,9 @@
                !(s.latitude === 0 && s.longitude === 0);
       });
       if (!arr.length) {
-        $sugs.innerHTML = '<div class="via-sug-vazio">Nenhuma sugestão.</div>';
+        // Sem resultados: tenta proxima query da cascata, se houver
+        if (fallbackQs && fallbackQs.length) return buscarSugestoes(fallbackQs[0], fallbackQs.slice(1));
+        $sugs.innerHTML = '<div class="via-sug-vazio">Nenhuma sugestão. Tente refinar o endereço manualmente.</div>';
         return;
       }
       $sugs.innerHTML = '';
