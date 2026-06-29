@@ -879,6 +879,12 @@
       r.resumo = mTaxa
         ? 'Aguardando instalação (taxa aplicada em ' + mTaxa[1] + ')'
         : 'Aguardando instalação (taxa aplicada)';
+    } else if (r.contratos && r.contratos.length > 0 && !r.debug.contratoCancelado) {
+      // Default conservador: card lateral confirmou nosso contrato, sem cancelamento,
+      // mas Wing nao expoe Caso Criacao* (taxa/osExterna ausentes — estado fora do
+      // fluxo de criacao, ex: Caso Contratacao). Resolve como "aguardando" em vez
+      // de "nao identificado" — informativo e nunca arrisca falso positivo.
+      r.resumo = 'Aguardando instalação';
     } else {
       r.resumo = 'Status não identificado (ver debug)';
     }
