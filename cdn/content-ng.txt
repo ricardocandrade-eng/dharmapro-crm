@@ -132,6 +132,24 @@
     return null;
   }
 
+  // Em multi-contrato, ha um Atend360ContratoTipoFisicoCardWComp por card lateral.
+  // findCtrlByType pegaria o primeiro (top do painel) — pode nao ser o nosso.
+  function findContratoCardByNumero(instances, numero) {
+    var alvo = String(numero || '').trim();
+    if (!alvo) return null;
+    for (var id in instances) {
+      var ctrl = instances[id];
+      if (!ctrl || !ctrl.type) continue;
+      if (ctrl.type.indexOf('Atend360ContratoTipoFisicoCardWComp') < 0) continue;
+      var n = '';
+      try { n = lerItemTexto(ctrl.items && ctrl.items.numeroContratoST); } catch(e) {}
+      if (String(n).trim() === alvo) {
+        return { id: parseInt(id), ctrl: ctrl };
+      }
+    }
+    return null;
+  }
+
   // Verifica se há um campo de senha *visível* (visibilidade efetiva, não só DOM)
   function temCampoSenhaVisivel() {
     var pwFields = document.querySelectorAll('input[type="password"]');
@@ -738,7 +756,15 @@
     }
 
     // ── Dados do contrato (Wing) ──
-    var contratoCard = findCtrlByType(instances, 'Atend360ContratoTipoFisicoCardWComp');
+    // Fix multi-contrato: filtra pelo numeroContratoST igual ao contrato buscado.
+    // Sem isso, com cliente de N contratos, o card do TOPO da lista vencia mesmo
+    // sendo de outro contrato — e a dataInstalacaoST dele virava r.dataInstalacao.
+    var contratoCard = findContratoCardByNumero(instances, contrato);
+    if (!contratoCard) {
+      r.debug.cardLateralSkip = true;
+      console.warn('[DHP-NG] Nenhum card lateral casou com contrato ' + contrato +
+                   ' — pulando leitura do card. Fonte da verdade: OS Externa + Taxa.');
+    }
     if (contratoCard && contratoCard.ctrl.items) {
       var items = contratoCard.ctrl.items;
       var numContrato = lerItemTexto(items.numeroContratoST);
@@ -904,6 +930,18 @@
     // Contrato (card no painel esquerdo)
     if (r.contratos.length === 0 && !r.debug.semContratoConfirmado) {
       var numContrato = lerCampoDOM('Contrato');
+
+      // Guard multi-contrato: lerCampoDOM('Contrato') pega o PRIMEIRO label do DOM,
+      // que pode ser o card de outro contrato do mesmo cliente. Se nao bate com o
+      // contrato buscado, aborta — confiar no centro (CasoCriacao*) e nao inventar.
+      if (numContrato && String(numContrato).trim() !== String(contrato).trim()) {
+        r.debug.domSkipMultiContrato = true;
+        r.debug.domNumContrato = numContrato;
+        console.warn('[DHP-NG] DOM fallback abortado: card lateral [' + numContrato +
+                     '] != contrato buscado [' + contrato + '].');
+        return;
+      }
+
       var dataInst    = lerCampoDOM('Instalado em');
       var cancelEm    = lerCampoDOM('Cancelado em');
       var tipoContr   = lerCampoDOM('Tipo de contrato');
