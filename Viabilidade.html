@@ -402,14 +402,26 @@
     $sugs.innerHTML = '<div class="via-sug-vazio">Buscando…</div>';
     $sugs.style.display = 'block';
     sendMsg({ action: 'viabilidade.autocomplete', usuario: state.usuario, input: q }, function(r) {
+      try { console.log('[VIA-DEBUG] autocomplete query=', q, '| resposta:', JSON.stringify(r).substring(0, 1500)); } catch(eDbg) {}
       if (!r || !r.ok) {
         $sugs.innerHTML = '<div class="via-sug-vazio">Erro: ' + ((r && r.erro) || 'sem resposta') + '</div>';
         return;
       }
-      var arr = (r.body || []).filter(function(s) {
-        return s && typeof s.latitude === 'number' && typeof s.longitude === 'number' &&
-               !(s.latitude === 0 && s.longitude === 0);
-      });
+      // Aceita lat/lng como number OU string (Vero as vezes retorna string).
+      // Converte pra number na hora de filtrar e usar.
+      var bodyArr = Array.isArray(r.body) ? r.body : [];
+      try { console.log('[VIA-DEBUG] bodyArr.length=', bodyArr.length); } catch(eDbg) {}
+      var arr = bodyArr.map(function(s) {
+        if (!s) return null;
+        var lat = (typeof s.latitude === 'number') ? s.latitude : parseFloat(s.latitude);
+        var lng = (typeof s.longitude === 'number') ? s.longitude : parseFloat(s.longitude);
+        if (isNaN(lat) || isNaN(lng)) return null;
+        if (lat === 0 && lng === 0) return null;
+        // Normaliza pra number antes de devolver (selecionarSugestao e
+        // detalhesNumero esperam number)
+        return Object.assign({}, s, { latitude: lat, longitude: lng });
+      }).filter(Boolean);
+      try { console.log('[VIA-DEBUG] arr filtrado length=', arr.length); } catch(eDbg) {}
       if (!arr.length) {
         $sugs.innerHTML = '<div class="via-sug-vazio">Nenhuma sugestão. Tente refinar o endereço ou cole as coordenadas do Google Maps (lat, lng).</div>';
         return;
