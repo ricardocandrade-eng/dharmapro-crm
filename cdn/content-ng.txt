@@ -812,7 +812,23 @@
     var criacaoCtrl = findCtrlByType(instances, 'CasoCriacaoDeContratoWComp');
     if (criacaoCtrl && criacaoCtrl.ctrl.items) {
       var numContr = lerItemTexto(criacaoCtrl.ctrl.items.contratoST);
-      if (numContr) r.debug.contrato = numContr;
+      if (numContr) {
+        r.debug.contrato = numContr;
+        // Em multi-contrato, o card lateral do nosso contrato pode nao estar
+        // exposto (o filtro de findContratoCardByNumero pula). Mas criacaoCtrl
+        // e atrelado a aba ativa — se ele bate, garante presenca em r.contratos
+        // pra branch de pre-instalacao do resumo ("taxa aplicada em ...") rodar.
+        if (r.contratos.length === 0 && String(numContr).trim() === String(contrato).trim()) {
+          r.contratos.push({
+            numero: numContr,
+            tipo: '',
+            dataInstalacao: '',
+            endereco: '',
+            bairro: ''
+          });
+          r.debug.contratoStubFromCriacao = true;
+        }
+      }
     }
 
     // ── Taxa de Habilitação ──
