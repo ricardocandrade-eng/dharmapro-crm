@@ -441,6 +441,15 @@ function acharAbaPing() {
 }
 
 function enviarParaMainWorld(tabId, payload) {
+  return tentarEnvioMainWorld(tabId, payload, false);
+}
+
+// Tenta sendMessage; se vier 'Could not establish connection' (content script
+// nao injetado — caso classico de aba do PinG aberta antes do reload da
+// extensao), injeta content-ping.js + ping-main-world.js via chrome.scripting
+// e refaz UMA vez. Sem isso, BKO precisava lembrar de dar F5 na aba do PinG
+// toda vez que a extensao era atualizada.
+function tentarEnvioMainWorld(tabId, payload, jaReinjetou) {
   return new Promise(function (resolve) {
     var done = false;
     var to = setTimeout(function () {
@@ -452,12 +461,29 @@ function enviarParaMainWorld(tabId, payload) {
     try {
       chrome.tabs.sendMessage(tabId, { target: 'ping-main-world', payload: payload }, function (resp) {
         if (done) return;
-        done = true;
-        clearTimeout(to);
-        if (chrome.runtime.lastError) {
-          resolve({ ok: false, erro: 'CONTENT_PING_INACESSIVEL', msg: chrome.runtime.lastError.message });
+        var lastErr = chrome.runtime.lastError;
+        if (lastErr) {
+          var msg = lastErr.message || '';
+          var conexao = msg.indexOf('Could not establish connection') !== -1 ||
+                        msg.indexOf('Receiving end does not exist') !== -1;
+          if (conexao && !jaReinjetou) {
+            // Tenta injetar e refaz. NAO marca done — o timeout ainda vale
+            // como fallback.
+            clearTimeout(to);
+            injetarContentPingEReenviar(tabId, payload).then(function (r2) {
+              if (done) return;
+              done = true;
+              resolve(r2);
+            });
+            return;
+          }
+          done = true;
+          clearTimeout(to);
+          resolve({ ok: false, erro: 'CONTENT_PING_INACESSIVEL', msg: msg });
           return;
         }
+        done = true;
+        clearTimeout(to);
         resolve(resp);
       });
     } catch (e) {
@@ -466,6 +492,43 @@ function enviarParaMainWorld(tabId, payload) {
       clearTimeout(to);
       resolve({ ok: false, erro: 'EXTENSAO_ERRO_INTERNO', msg: String(e && e.message || e) });
     }
+  });
+}
+
+function injetarContentPingEReenviar(tabId, payload) {
+  return new Promise(function (resolve) {
+    if (!chrome.scripting || !chrome.scripting.executeScript) {
+      resolve({ ok: false, erro: 'EXTENSAO_SEM_SCRIPTING' });
+      return;
+    }
+    // 1) Injeta content-ping.js no isolated world
+    chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      files: ['content-ping.js'],
+      world: 'ISOLATED'
+    }, function () {
+      var err1 = chrome.runtime.lastError;
+      if (err1) {
+        resolve({ ok: false, erro: 'INJECAO_FALHOU', msg: err1.message });
+        return;
+      }
+      // 2) Injeta ping-main-world.js no MAIN world (precisa do JWT do SPA)
+      chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ['ping-main-world.js'],
+        world: 'MAIN'
+      }, function () {
+        var err2 = chrome.runtime.lastError;
+        if (err2) {
+          // Tentamos mesmo assim — content-ping pode ja ter sido instalado
+          // e ter alguma logica propria de bootstrap do main world.
+        }
+        // 3) Aguarda 200ms pro main world boot, e refaz o envio
+        setTimeout(function () {
+          tentarEnvioMainWorld(tabId, payload, true).then(resolve);
+        }, 200);
+      });
+    });
   });
 }
 
