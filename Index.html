@@ -136,14 +136,17 @@
     .topbar-action-btn:active { transform: translateY(1px); }
 
     /* Grupo "Consultar" — substitui o botao unico anterior. Mostra um rotulo
-       + 2 opcoes clicaveis (Viabilidade / Instalacoes) num unico container. */
+       + 2 opcoes clicaveis (Viabilidade / Instalacoes) num unico container.
+       Ancorado na direita (igual o .topbar-action-btn antigo) pra ficar
+       ao lado do health-widget. */
     .topbar-consultar-group {
+      position: fixed; right: 145px; top: 9px; z-index: 300;
       display: inline-flex;
       align-items: center;
       gap: 6px;
       padding: 5px 10px;
       background: var(--surface2);
-      border: 1px solid var(--border);
+      border: 1.5px solid var(--border);
       border-radius: 8px;
       transition: border-color .15s;
     }
