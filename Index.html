@@ -135,6 +135,48 @@
     .topbar-action-btn:hover { background: var(--border); border-color: var(--accent); color: var(--accent); }
     .topbar-action-btn:active { transform: translateY(1px); }
 
+    /* Grupo "Consultar" — substitui o botao unico anterior. Mostra um rotulo
+       + 2 opcoes clicaveis (Viabilidade / Instalacoes) num unico container. */
+    .topbar-consultar-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: border-color .15s;
+    }
+    .topbar-consultar-group:hover { border-color: var(--accent); }
+    .topbar-consultar-label { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; white-space: nowrap; }
+    .topbar-consultar-sep { color: var(--border2); font-size: 12px; }
+    .topbar-consultar-opcao {
+      background: transparent;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 12px;
+      padding: 2px 6px;
+      font-family: 'Sora', sans-serif;
+      border-radius: 4px;
+      transition: background .15s, color .15s;
+    }
+    .topbar-consultar-opcao:hover { background: var(--border); color: var(--text); }
+    .topbar-consultar-opcao:active { transform: translateY(1px); }
+
+    /* Modal Viabilidade — overlay grande pra consulta rapida sem sair do
+       contexto. Compartilha .modal-overlay base. */
+    .modal-overlay.modal-viabilidade-ping .modal-box {
+      max-width: 920px;
+      width: 95%;
+      max-height: 90vh;
+    }
+    .modal-viabilidade-ping .modal-body {
+      padding: 0;
+      max-height: calc(90vh - 60px);
+    }
+    .modal-viabilidade-ping #viabilidadeModalContainer { padding: 18px 22px; }
+
     /* ── Health Check Widget (VPN/NG/Adapter) ─────────────────────────── */
     .health-widget {
       position: fixed; right: 78px; top: 14px; z-index: 300;
@@ -1864,7 +1906,7 @@
 
     /* Modal de ofertas — usa modal-overlay existente mas com estilos próprios */
     #modalOfertas .modal-box {
-      max-width: 480px;
+      max-width: 620px;
       max-height: 88vh;
     }
 
@@ -1909,9 +1951,9 @@
     /* Step 2: resultado das ofertas */
     .ofertas-header {
       background: linear-gradient(135deg, #e63e6d 0%, #a01845 100%);
-      border-radius: 10px;
-      padding: 16px 18px;
-      margin-bottom: 14px;
+      border-radius: 8px;
+      padding: 15px 18px;
+      margin-bottom: 16px;
     }
     .ofertas-header-cidade {
       font-size: 18px; font-weight: 800;
@@ -1936,7 +1978,7 @@
 
     /* Grupos de categorias */
     .ofertas-grupo {
-      margin-bottom: 14px;
+      margin-bottom: 16px;
     }
     .ofertas-grupo-titulo {
       font-size: 10px; font-weight: 800;
@@ -1948,24 +1990,70 @@
       display: flex; align-items: center; gap: 6px;
     }
     .ofertas-plano-row {
-      display: flex; align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      padding: 11px 12px;
       background: var(--surface2);
       border: 1px solid var(--border);
       border-radius: 8px;
-      margin-bottom: 4px;
-      transition: border-color 0.15s;
+      margin-bottom: 6px;
+      transition: border-color 0.15s, background 0.15s;
     }
     .ofertas-plano-row:hover { border-color: var(--border2); }
     .ofertas-plano-nome {
-      font-size: 12px; font-weight: 600; color: var(--text);
+      min-width: 0;
+      font-size: 12px; font-weight: 700; color: var(--text);
+      line-height: 1.35;
     }
     .ofertas-plano-valor {
-      font-size: 15px; font-weight: 800;
-      color: var(--green);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 6px;
+      min-width: 178px;
+    }
+    .ofertas-preco-chip {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 5px;
+      padding: 5px 8px;
+      border-radius: 7px;
+      background: var(--surface);
+      border: 1px solid var(--border);
       font-family: 'DM Mono', monospace;
       white-space: nowrap;
+    }
+    .ofertas-preco-chip strong {
+      color: var(--green);
+      font-size: 14px;
+    }
+    .ofertas-preco-label {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .ofertas-preco-chip.principal {
+      border-color: rgba(34,197,94,0.35);
+      background: rgba(34,197,94,0.08);
+    }
+    .ofertas-observacao {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 8px;
+      font-family: 'DM Mono', monospace;
+      line-height: 1.5;
+    }
+    @media (max-width: 560px) {
+      .ofertas-plano-row {
+        grid-template-columns: 1fr;
+      }
+      .ofertas-plano-valor {
+        justify-content: flex-start;
+        min-width: 0;
+      }
     }
 
     /* Botão copiar WhatsApp */
@@ -2419,8 +2507,10 @@
     .filtro-btn-caret { font-size: 8px; color: var(--muted); display: none; }
     /* Fase 5b: wrapper que mantém badge + botão ↻ juntos na última coluna do grid */
     .lista-sync-wrap { display: flex; align-items: center; gap: 6px; justify-self: end; }
-    .btn-refresh-lista { width: 32px; height: 32px; padding: 0; font-size: 0; line-height: 1; flex: 0 0 auto; border-radius: 6px; border-width: 1px; }
-    .btn-refresh-lista::before { content: '\21BB'; font-size: 15px; }
+    .btn-refresh-lista { width: 32px; height: 32px; padding: 0; font-size: 0; line-height: 1; flex: 0 0 auto; border-radius: 6px; border-width: 1px; transition: opacity .15s; }
+    .btn-refresh-lista::before { content: '\21BB'; font-size: 15px; display: inline-block; }
+    .btn-refresh-lista[disabled] { opacity: .6; cursor: wait; }
+    .btn-refresh-lista[disabled]::before { animation: spin 1s linear infinite; }
     /* Fase 5b: badge "Dados de até X min" — afordância visual de frescura do cache */
     .badge-idade-lista {
       display: inline-flex; align-items: center;
@@ -2689,8 +2779,13 @@
           <span class="msg-sistema-texto" id="msgSistemaTexto"></span>
         </div>
 
-        <!-- ── Botão Consultar Instalações (Modo Varredura) ── -->
-        <button id="btnVarredura" class="topbar-action-btn" onclick="_varreduraAbrir()" title="Consultar status de instalação em lote via NG/Adapter">🔍 Consultar instalações</button>
+        <!-- ── Grupo "Consultar" — opcoes Viabilidade (modal) + Instalacoes (Modo Varredura) ── -->
+        <div id="btnVarreduraGroup" class="topbar-consultar-group">
+          <span class="topbar-consultar-label">🔍 Consultar:</span>
+          <button class="topbar-consultar-opcao" onclick="_abrirModalViabilidadePing()" title="Consultar viabilidade de instalação via PinG">Viabilidade</button>
+          <span class="topbar-consultar-sep">·</span>
+          <button id="btnVarredura" class="topbar-consultar-opcao" onclick="_varreduraAbrir()" title="Consultar status de instalação em lote via NG/Adapter">Instalações</button>
+        </div>
 
         <!-- ── Health Check Widget: VPN / NG / Adapter ── -->
         <div class="health-widget" id="healthWidget" onclick="_verificarConexoes(true)" title="Verificar conexões NG / Adapter / VPN — clique pra refresh">
@@ -3033,7 +3128,7 @@
               </div>
               <div class="lista-sync-wrap">
                 <span id="badgeIdadeLista" class="badge-idade-lista" style="display:none" title=""></span>
-                <button class="btn btn-ghost btn-refresh-lista" onclick="recarregarLista()" title="Sincronizar — buscar dados frescos do servidor (use quando suspeitar que algo foi editado direto no Sheets ou por script externo)">↻</button>
+                <button id="btnRefreshLista" class="btn btn-ghost btn-refresh-lista" onclick="recarregarLista()" title="Sincronizar — buscar dados frescos do servidor (use quando suspeitar que algo foi editado direto no Sheets ou por script externo)">↻</button>
               </div>
             </div>
             <div class="filtro-chips" id="filtroChipsAtivos"></div>
@@ -3315,7 +3410,7 @@
                     <select id="pif-formaPagamento" onchange="pifOnFormaPagamentoChange()">
                       <option value="">—</option>
                       <option value="BOLETO">💰 Boleto</option>
-                      <option value="RECORRENTE">🔁 Recorrente</option>
+                      <option value="RECORRENTE">💳 Cartão</option>
                     </select>
                   </div>
                   <!-- Dir.C 20/05: Plano em largura total (span2) — nome do plano é longo
@@ -3741,6 +3836,21 @@
         </div>
         <div class="modal-body" id="modalAgendaBody">
           <div class="ofertas-loading">⏳ Carregando...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Modal Consulta de Viabilidade — PinG (atalho topbar) ── -->
+    <div class="modal-overlay modal-viabilidade-ping" id="modalViabilidadePing">
+      <div class="modal-box">
+        <div class="modal-head">
+          <h3>⌖ Consulta de Viabilidade — PinG</h3>
+          <button class="modal-close" onclick="_fecharModalViabilidadePing()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="viabilidadeModalContainer">
+            <div style="padding:40px;text-align:center;color:var(--muted);">⏳ Carregando…</div>
+          </div>
         </div>
       </div>
     </div>

@@ -1568,6 +1568,59 @@ document.addEventListener('click', function(ev) {
 
 
 
+// ─── MODAL VIABILIDADE PinG (atalho topbar) ────────────────────────────────
+// Reusa o mesmo HTML/JS injetado pelo getViabilidadeHtml(), mas dentro de um
+// modal flutuante. Cuidado com IDs duplicados: o container da pagina lateral
+// (#viabilidadeContainer) e o do modal (#viabilidadeModalContainer) usam os
+// mesmos IDs do Viabilidade.html — entao ao abrir/fechar um, esvaziamos o
+// outro pra garantir mutex.
+function _abrirModalViabilidadePing() {
+  var modal = document.getElementById('modalViabilidadePing');
+  if (!modal) return;
+
+  // Esvazia o container da pagina lateral pra evitar IDs duplicados
+  var pageCont = document.getElementById('viabilidadeContainer');
+  if (pageCont) {
+    pageCont.innerHTML = '';
+    pageCont.removeAttribute('data-loaded');
+  }
+
+  var modalCont = document.getElementById('viabilidadeModalContainer');
+  modalCont.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);">⏳ Carregando…</div>';
+  modal.classList.add('ativo');
+
+  google.script.run
+    .withSuccessHandler(function(html) {
+      modalCont.innerHTML = html;
+      modalCont.querySelectorAll('script').forEach(function(s) {
+        var ns = document.createElement('script');
+        ns.textContent = s.textContent;
+        document.body.appendChild(ns);
+      });
+    })
+    .withFailureHandler(function(e) {
+      modalCont.innerHTML = '<div style="padding:40px;text-align:center;color:#e63e6d;font-family:monospace">Erro ao carregar Viabilidade: ' + (e && e.message || e) + '</div>';
+    })
+    .getViabilidadeHtml();
+}
+
+function _fecharModalViabilidadePing() {
+  var modal = document.getElementById('modalViabilidadePing');
+  if (modal) modal.classList.remove('ativo');
+  // Esvazia o container do modal pra liberar IDs caso o usuario navegue
+  // depois pra pagina Viabilidade pelo menu lateral
+  var modalCont = document.getElementById('viabilidadeModalContainer');
+  if (modalCont) modalCont.innerHTML = '';
+}
+
+// Fecha o modal com Esc
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    var modal = document.getElementById('modalViabilidadePing');
+    if (modal && modal.classList.contains('ativo')) _fecharModalViabilidadePing();
+  }
+});
+
 // ─── VIABILIDADE VEROHUB ───────────────────────────────────────────────────
 function _abrirModalViabilidade() {
   var m = document.getElementById('modalViabilidadeVero');
@@ -6023,6 +6076,12 @@ function navegar(pagina) {
     document.getElementById('menuViabilidade').classList.add('ativo');
     document.getElementById('pageViabilidade').classList.add('ativa');
     document.getElementById('breadcrumbTexto').textContent = 'Viabilidade — PinG';
+    // Fecha o modal de Viabilidade se estiver aberto + esvazia seu container
+    // pra evitar IDs duplicados quando carregarmos na pagina lateral.
+    var modalVia = document.getElementById('modalViabilidadePing');
+    if (modalVia && modalVia.classList.contains('ativo')) modalVia.classList.remove('ativo');
+    var modalContVia = document.getElementById('viabilidadeModalContainer');
+    if (modalContVia) modalContVia.innerHTML = '';
     var vbc = document.getElementById('viabilidadeContainer');
     // Recarrega a cada visita pra refazer health check da extensão / PinG
     vbc.removeAttribute('data-loaded');
@@ -6830,7 +6889,7 @@ var _dadosListaTimestamp = 0;   // Fase 5b: quando o cache local foi populado (m
 // Performance (19/05/2026): persistência em sessionStorage. Sobrevive a F5 e
 // troca de aba dentro da mesma sessão. TTL curto (120s) pra equilibrar com
 // invalidações do servidor (cache de Lista no GAS tem TTL 1800s — Fase 5b).
-var _LISTA_SS_KEY  = 'dharmapro_lista_v1';
+var _LISTA_SS_KEY  = 'dharmapro_lista_v2';
 var _LISTA_SS_TTL  = 120 * 1000; // 120s
 
 function _listaCacheSalvarSS() {
