@@ -458,21 +458,22 @@ function _getTokenVeroHub() {
 }
 
 
-// ── VEROHUB — cria novo pedido via UrlFetchApp (caminho backend direto) ──────
-// Refatorado em 30/06/2026: recebe payload completo do modal (#modalVeroHub) e
-// loga cada step com status code + corpo da resposta. Não abre Hub Web — toda
-// a criação acontece via API. Pré-requisito: token CSRF salvo via "Conectar
-// VeroHub" (bookmarklet) em Configurações. ⚠️ APIs Rails normalmente exigem
-// CSRF + cookie de sessão; UrlFetchApp NÃO passa cookie do navegador. Se Hub
-// rejeitar com 401/403, o caminho via API direta não funciona — rodar
-// _diagVeroHubAuth() no editor pra confirmar e voltar pra plano B (bookmarklet
-// ou content script).
+// ── VEROHUB — criação via API (DORMENTE desde 30/06/2026) ────────────────────
+// Confirmado em 30/06/2026 (Ricardo testou): Hub responde HTTP 403 a UrlFetchApp
+// porque APIs Rails exigem CSRF + cookie de sessão JUNTOS, e UrlFetchApp do GAS
+// não pode passar cookie do navegador do usuário (roda no servidor Google).
+// Esse caminho via API direta NÃO FUNCIONA com a infra atual.
 //
-// Payload esperado (do modal): {
-//   linha, nome, phone, cpf, emailPfx, email, rg, mae, nasc, genero,
-//   planoBusca, dueDate,
-//   endereco: { cep, rua, num, compl, bairro, cidade, uf }
-// }
+// Mantida só como referência caso a Vero algum dia exponha API com Bearer token
+// (sem dependência de cookie). Hoje o fluxo de pedido é: modal simplificado
+// (#modalVeroHub) abre Hub Web limpo, operador cria manualmente e cola o número
+// no CRM, que grava via salvarPedidoVeroHub. Nenhum caller chama esta função.
+//
+// Para reativar futuramente: precisa também reativar a chamada no
+// _confirmarModalVeroHub (JS.html) e ajustar o modal pra coletar os campos
+// novamente (email, RG, mãe, etc).
+//
+// Diagnóstico do auth fica em _diagVeroHubAuth() abaixo.
 function criarPedidoVeroHub(dados) {
   var debug = { steps: [] };
   function logStep(nome, status, body) {

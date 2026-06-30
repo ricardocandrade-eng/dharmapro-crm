@@ -7703,43 +7703,48 @@ function _novoPedidoVeroHub(index) {
   if (!v) return;
 
   if (v.verohubPedido) {
-    if (!confirm('Pedido #' + v.verohubPedido + ' já existe. Recriar?')) return;
-    v.verohubPedido = ''; v.verohubPedidoDt = '';
+    if (!confirm('Pedido #' + v.verohubPedido + ' já existe. Substituir pelo número de um novo pedido?')) return;
   }
 
-  var nome  = String(v.cliente || '').trim();
-  var phone = String(v.whats || v.tel || '').replace(/\D/g, '');
-  if (!nome || !phone) {
-    mostrarToast('⚠️ Cliente sem nome ou telefone.', 'warning'); return;
+  var nome = String(v.cliente || '').trim();
+  if (!nome) {
+    mostrarToast('⚠️ Cliente sem nome.', 'warning'); return;
   }
 
-  // Guarda o index e abre o modal
   _vhModalIndex = index;
 
-  // Preenche info do cliente no topo do modal
+  // Info do cliente no topo do modal
   var info = document.getElementById('mvh-cliente-info');
   if (info) {
-    info.textContent = nome + ' · ' + phone +
+    var phone = String(v.whats || v.tel || '').replace(/\D/g, '');
+    info.textContent = nome +
+      (phone ? ' · ' + phone : '') +
       (v.cpf ? ' · CPF: ' + v.cpf : '') +
       (v.plano ? ' · ' + v.plano : '');
   }
 
-  // Limpa campos e erros
-  ['mvh-email','mvh-birthday','mvh-mother','mvh-rg','mvh-plano-busca'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) { el.value = ''; el.classList.remove('mvh-erro'); }
-  });
-  ['mvh-gender','mvh-due-date'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) { el.value = ''; el.classList.remove('mvh-erro'); }
-  });
+  // Limpa o input do número e o erro
+  var input = document.getElementById('mvh-numero-pedido');
+  if (input) { input.value = ''; input.classList.remove('mvh-erro'); }
   var erroEl = document.getElementById('mvh-erro');
-  if (erroEl) erroEl.style.display = 'none';
+  if (erroEl) { erroEl.style.display = 'none'; erroEl.textContent = ''; }
 
   var btn = document.getElementById('mvh-btn-confirmar');
-  if (btn) { btn.disabled = false; btn.textContent = '🟠 Criar Pedido'; }
+  if (btn) { btn.disabled = false; btn.textContent = '✅ Salvar Número'; }
 
   document.getElementById('modalVeroHub').classList.add('ativo');
+
+  // Foco no input pra colar de cara depois de criar no Hub
+  setTimeout(function() {
+    var inp = document.getElementById('mvh-numero-pedido');
+    if (inp) inp.focus();
+  }, 100);
+}
+
+// Abre o Hub Web limpo numa aba nova. Operador faz tudo lá manualmente.
+function _abrirHubParaNovoPedido() {
+  window.open('https://hub.veronet.com.br/sales/new', '_blank');
+  mostrarToast('🟠 VeroHub aberto. Cole o número do pedido aqui depois de criar.', '');
 }
 
 function _fecharModalVeroHub() {
@@ -7753,125 +7758,55 @@ function _confirmarModalVeroHub() {
   var v = _paginaAtual[index];
   if (!v) return;
 
-  // Validação
-  var email      = (document.getElementById('mvh-email').value       || '').trim();
-  var birthday   = (document.getElementById('mvh-birthday').value    || '').trim();
-  var gender     = (document.getElementById('mvh-gender').value      || '').trim();
-  var mother     = (document.getElementById('mvh-mother').value      || '').trim();
-  var rg         = (document.getElementById('mvh-rg').value          || '').trim();
-  var dueDate    = (document.getElementById('mvh-due-date').value    || '').trim();
-  var planoBusca = (document.getElementById('mvh-plano-busca').value || '').trim();
+  var input = document.getElementById('mvh-numero-pedido');
+  var numero = (input && input.value || '').replace(/\D/g, '').trim();
+  var erroEl = document.getElementById('mvh-erro');
 
-  var erros = [];
-  var campos = {
-    'mvh-email':       { val: (email && email.indexOf('@') !== -1 ? email : ''), msg: 'Informe o e-mail completo do cliente (com @).' },
-    'mvh-birthday':    { val: birthday,   msg: 'Informe a data de nascimento.' },
-    'mvh-gender':      { val: gender,     msg: 'Selecione o gênero.' },
-    'mvh-mother':      { val: mother,     msg: 'Informe o nome da mãe.' },
-    'mvh-rg':          { val: rg,         msg: 'Informe o RG.' },
-    'mvh-due-date':    { val: dueDate,    msg: 'Selecione o vencimento.' },
-    'mvh-plano-busca': { val: planoBusca, msg: 'Digite o nome ou parte do plano VeroHub.' }
-  };
-
-  Object.keys(campos).forEach(function(id) {
-    var el = document.getElementById(id);
-    if (!campos[id].val) {
-      erros.push(campos[id].msg);
-      if (el) el.classList.add('mvh-erro');
-    } else {
-      if (el) el.classList.remove('mvh-erro');
-    }
-  });
-
-  if (erros.length) {
-    var erroEl = document.getElementById('mvh-erro');
-    erroEl.textContent = erros[0];
+  if (!numero) {
+    erroEl.textContent = 'Cole o número do pedido criado no VeroHub.';
     erroEl.style.display = 'block';
+    if (input) { input.classList.add('mvh-erro'); input.focus(); }
+    return;
+  }
+  if (numero.length < 4) {
+    erroEl.textContent = 'Número parece inválido (poucos dígitos). Verifique no VeroHub.';
+    erroEl.style.display = 'block';
+    if (input) input.classList.add('mvh-erro');
     return;
   }
 
-  // Trava botão e busca registro completo (endereço não está em _paginaAtual por performance)
   var btn = document.getElementById('mvh-btn-confirmar');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Buscando dados...'; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando...'; }
 
-  // Caminho via backend (30/06/2026): chama criarPedidoVeroHub no GAS em vez
-  // de abrir popup do Hub Web. Backend faz POST/PUT direto na API via
-  // UrlFetchApp + CSRF token salvo. Sem extensão, sem bookmarklet, sem popup.
+  var _n  = new Date();
+  var _dt = ('0'+_n.getDate()).slice(-2)+'/'+('0'+(_n.getMonth()+1)).slice(-2)+'/'+_n.getFullYear()+
+            ' '+('0'+_n.getHours()).slice(-2)+':'+('0'+_n.getMinutes()).slice(-2);
+
   google.script.run
-    .withSuccessHandler(function(vFull) {
-      if (!vFull) {
-        if (btn) { btn.disabled = false; btn.textContent = '🟠 Criar Pedido'; }
-        mostrarToast('❌ Não foi possível carregar os dados do cliente.', 'error');
+    .withSuccessHandler(function(res) {
+      if (btn) { btn.disabled = false; btn.textContent = '✅ Salvar Número'; }
+      if (!res || !res.sucesso) {
+        erroEl.textContent = 'Erro ao salvar: ' + (res && res.mensagem ? res.mensagem : 'desconhecido');
+        erroEl.style.display = 'block';
         return;
       }
-
-      if (btn) btn.textContent = '🟠 Criando no VeroHub...';
-
-      var nome  = String(vFull.cliente || '').trim();
-      var phone = String(vFull.whats || vFull.tel || '').replace(/\D/g, '');
-      var payload = {
-        linha:      vFull.linha,
-        nome:       nome,
-        phone:      phone,
-        cpf:        (vFull.cpf || '').replace(/\D/g, ''),
-        emailPfx:   email.split('@')[0],
-        email:      email,
-        rg:         rg,
-        mae:        mother,
-        nasc:       birthday,
-        genero:     gender,
-        planoBusca: planoBusca,
-        dueDate:    dueDate,
-        endereco: {
-          cep:    (vFull.cep || '').replace(/\D/g, ''),
-          rua:    vFull.rua         || '',
-          num:    vFull.num         || '',
-          compl:  vFull.complemento || '',
-          bairro: vFull.bairro      || '',
-          cidade: vFull.cidade      || '',
-          uf:     vFull.uf          || ''
-        }
-      };
-
-      google.script.run
-        .withSuccessHandler(function(res) {
-          if (btn) { btn.disabled = false; btn.textContent = '🟠 Criar Pedido'; }
-          if (!res || !res.sucesso) {
-            var msg = (res && res.mensagem) ? res.mensagem : 'Erro desconhecido ao criar pedido.';
-            var erroEl = document.getElementById('mvh-erro');
-            erroEl.textContent = '❌ ' + msg;
-            erroEl.style.display = 'block';
-            mostrarToast('❌ ' + msg, 'error');
-            // Debug detalhado no console pra inspecionar steps da API
-            if (res && res.debug) { try { console.log('VeroHub debug:', res.debug); } catch(e){} }
-            return;
-          }
-          _fecharModalVeroHub();
-          // Atualiza UI
-          v.verohubPedido   = String(res.numeroPedido);
-          v.verohubPedidoDt = res.dataHoraPedido;
-          var w = document.getElementById('vhub-wrap-' + index);
-          if (w) {
-            var novo = document.createElement('div');
-            novo.innerHTML = _veroHubPedidoHtml(v, index);
-            w.parentNode.replaceChild(novo.firstChild, w);
-          }
-          mostrarToast('✅ Pedido #' + res.numeroPedido + ' criado no VeroHub!', 'success');
-          // Backend já gravou as cols VEROHUB_PEDIDO/_DT — não chama salvarPedidoVeroHub.
-        })
-        .withFailureHandler(function(err) {
-          if (btn) { btn.disabled = false; btn.textContent = '🟠 Criar Pedido'; }
-          var erroEl = document.getElementById('mvh-erro');
-          erroEl.textContent = '❌ Erro: ' + (err && err.message ? err.message : 'falha de conexão');
-          erroEl.style.display = 'block';
-        })
-        .criarPedidoVeroHub(payload);
+      _fecharModalVeroHub();
+      v.verohubPedido   = numero;
+      v.verohubPedidoDt = res.dataHoraPedido || _dt;
+      var w = document.getElementById('vhub-wrap-' + index);
+      if (w) {
+        var novo = document.createElement('div');
+        novo.innerHTML = _veroHubPedidoHtml(v, index);
+        w.parentNode.replaceChild(novo.firstChild, w);
+      }
+      mostrarToast('✅ Pedido #' + numero + ' salvo!', 'success');
     })
     .withFailureHandler(function(err) {
-      if (btn) { btn.disabled = false; btn.textContent = '🟠 Criar Pedido'; }
-      mostrarToast('❌ Erro ao buscar dados: ' + (err && err.message ? err.message : ''), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '✅ Salvar Número'; }
+      erroEl.textContent = 'Erro: ' + (err && err.message ? err.message : 'falha de conexão');
+      erroEl.style.display = 'block';
     })
-    .getVendaPorLinha(v.linha);
+    .salvarPedidoVeroHub(v.linha, numero, _dt);
 }
 
 

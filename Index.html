@@ -4128,64 +4128,48 @@
 
   <!-- Sprint 2 (11/05/2026): MS2/MS3 eliminados, campos extras agora vivem inline no painel -->
 
-  <!-- ══ MODAL NOVO PEDIDO VEROHUB ══════════════════════════════════════════ -->
+  <!-- ══ MODAL NOVO PEDIDO VEROHUB (simplificado 30/06/2026) ══════════════════
+       Fluxo: abre Hub Web limpo numa aba, operador cria o pedido manualmente
+       no Hub, copia o número e cola aqui. CRM só guarda o número/data nas cols
+       AK/AL via salvarPedidoVeroHub. Sem tentativa de automatizar — robusto
+       a qualquer mudança da Vero (única superfície que a Vero oferece).        -->
   <div class="modal-overlay" id="modalVeroHub">
-    <div class="modal-box" style="max-width:480px;">
+    <div class="modal-box" style="max-width:440px;">
       <div class="modal-head">
         <h3>🟠 Novo Pedido VeroHub</h3>
         <button class="modal-close" onclick="_fecharModalVeroHub()">✕</button>
       </div>
       <div class="modal-body">
-        <p id="mvh-cliente-info" style="font-size:13px;color:var(--muted);margin-bottom:16px;font-family:'DM Mono',monospace;"></p>
+        <p id="mvh-cliente-info" style="font-size:13px;color:var(--muted);margin-bottom:14px;font-family:'DM Mono',monospace;"></p>
 
-        <div class="mvh-grid">
-          <div class="mvh-field mvh-full">
-            <label class="mvh-label">E-mail do cliente</label>
-            <input id="mvh-email" type="text" class="mvh-input" placeholder="cliente@email.com">
-          </div>
-          <div class="mvh-field">
-            <label class="mvh-label">Data de nascimento</label>
-            <input id="mvh-birthday" type="date" class="mvh-input">
-          </div>
-          <div class="mvh-field">
-            <label class="mvh-label">Gênero</label>
-            <select id="mvh-gender" class="mvh-input">
-              <option value="">Selecione</option>
-              <option value="M">Masculino</option>
-              <option value="F">Feminino</option>
-            </select>
-          </div>
-          <div class="mvh-field mvh-full">
-            <label class="mvh-label">Nome da mãe</label>
-            <input id="mvh-mother" type="text" class="mvh-input" placeholder="Nome completo da mãe">
-          </div>
-          <div class="mvh-field">
-            <label class="mvh-label">RG</label>
-            <input id="mvh-rg" type="text" class="mvh-input" placeholder="Ex: 1234567">
-          </div>
-          <div class="mvh-field">
-            <label class="mvh-label">Vencimento</label>
-            <select id="mvh-due-date" class="mvh-input">
-              <option value="">Selecione</option>
-              <option value="1">Dia 1</option>
-              <option value="3">Dia 3</option>
-              <option value="5">Dia 5</option>
-              <option value="9">Dia 9</option>
-              <option value="13">Dia 13</option>
-              <option value="18">Dia 18</option>
-            </select>
-          </div>
-          <div class="mvh-field mvh-full">
-            <label class="mvh-label">Plano VeroHub <span style="color:var(--muted);font-weight:400;text-transform:none;">(digite parte do nome para buscar)</span></label>
-            <input id="mvh-plano-busca" type="text" class="mvh-input" placeholder="Ex: 800MB, Globoplay, Mundo Fibra...">
-          </div>
+        <div style="background:rgba(79,158,255,0.06);border:1px solid rgba(79,158,255,0.2);border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:700;color:#4f9eff;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;">Como criar</div>
+          <ol style="font-size:12px;color:var(--muted);line-height:1.9;padding-left:18px;font-family:'DM Mono',monospace;margin:0;">
+            <li>Clique em <strong style="color:var(--text)">Abrir VeroHub</strong> abaixo</li>
+            <li>Crie o pedido manualmente no Hub</li>
+            <li>Copie o número do pedido criado</li>
+            <li>Cole aqui e clique em Salvar</li>
+          </ol>
+        </div>
+
+        <button type="button" onclick="_abrirHubParaNovoPedido()"
+          style="width:100%;padding:12px;background:rgba(223,95,48,.15);border:1px solid #DF5F30;border-radius:8px;color:#DF5F30;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:16px;transition:background .15s;"
+          onmouseover="this.style.background='rgba(223,95,48,.25)'"
+          onmouseout="this.style.background='rgba(223,95,48,.15)'">
+          🟠 Abrir VeroHub
+        </button>
+
+        <div class="mvh-field mvh-full">
+          <label class="mvh-label">Número do pedido criado</label>
+          <input id="mvh-numero-pedido" type="text" class="mvh-input" placeholder="Ex: 2027460" inputmode="numeric"
+            onkeydown="if(event.key==='Enter')_confirmarModalVeroHub()">
         </div>
 
         <div id="mvh-erro" style="display:none;margin-top:12px;padding:10px 12px;background:rgba(230,62,109,.08);border:1px solid rgba(230,62,109,.3);border-radius:8px;font-size:12px;color:var(--accent);"></div>
       </div>
       <div class="modal-foot">
         <button class="btn btn-ghost" onclick="_fecharModalVeroHub()">Cancelar</button>
-        <button class="btn" id="mvh-btn-confirmar" onclick="_confirmarModalVeroHub()" style="background:rgba(223,95,48,.15);border-color:#DF5F30;color:#DF5F30;">🟠 Criar Pedido</button>
+        <button class="btn" id="mvh-btn-confirmar" onclick="_confirmarModalVeroHub()" style="background:rgba(34,217,138,0.15);border-color:#22d98a;color:#22d98a;">✅ Salvar Número</button>
       </div>
     </div>
   </div>
