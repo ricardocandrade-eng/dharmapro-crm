@@ -677,6 +677,57 @@ e o usuário precisa **logout/login** (permissões só recarregam no login). A t
 "Permissões por Perfil" (`Usuarios.html` → `US_TODOS_MENUS`/`US_MENU_LABELS`)
 também precisa listar o menu novo, senão um "salvar" por ali o remove do JSON.
 
+### Fallback manual (quando a Action falha)
+
+A Action pode falhar pontualmente em `clasp push` ou `clasp deploy` com erro
+**`Invalid response body while trying to fetch https://oauth2.googleapis.com/token: Premature close`**.
+Causa: flakiness do endpoint OAuth do Google (não do nosso código) — o TLS fecha
+antes do response completo durante a renovação do access_token do clasp. O
+workflow já tem retry com backoff de 4 tentativas (5/10/15s, commit `9f5ec7d`,
+30/06/2026) que cobre >99% das ocorrências. Mas em outage real do Google (>90s)
+as 4 tentativas falham e o deploy fica sem ir pro ar enquanto o commit no main
+sugere que foi.
+
+**Sintoma operacional:** `DEPLOY_DATE` no CRM (sidebar / tela de login) trava
+numa data antiga mesmo após push aceito na main.
+
+**Como confirmar:** abrir Actions no GitHub e procurar o último run falho —
+mensagem `Premature close` no step "Enviar código para o GAS" ou "Publicar
+nova versão".
+
+**Procedimento de fallback** (faz manualmente o que a Action faria):
+
+```bash
+# 1. Atualizar DEPLOY_DATE em Config.js com hora BRT atual
+#    (a Action manual NÃO sobrescreve, então tem que ser pelo nome)
+
+# 2. clasp push manual — envia disco inteiro pro GAS
+clasp push --force
+
+# 3. clasp deploy manual no MESMO deploymentId (preserva o URL público)
+clasp deploy --deploymentId AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw -d "Deploy manual - <motivo>"
+
+# 4. Commit do estado do disco + push pro git, com [skip ci]
+#    pra Action não duplicar versão (o GAS já recebeu).
+git add <arquivos>
+git commit -m "chore(deploy): <descrição> [skip ci]"
+git push origin main
+```
+
+**O `[skip ci]` no commit message é obrigatório no fallback** — GitHub Actions
+reconhece e pula o workflow. Sem isso, a Action roda em paralelo, faz outro
+`clasp deploy` e cria uma versão duplicada (consumindo o limite de 200).
+
+**Quando NÃO usar o fallback:** se a Action falhou uma vez mas conseguiu na
+re-run (botão "Re-run all jobs" no Actions), o estado já está correto — não
+fazer fallback redundante. Se o `DEPLOY_DATE` atualizou pra hoje no CRM,
+deployou.
+
+**Caso histórico** (30/06/2026 15:39): Action falhou em `3e4f8e4` (botão
+VeroHub), retry foi adicionado em `9f5ec7d`, mas como a Action de `9f5ec7d`
+também falhou por OAuth, o fallback manual deployou `70993fa` como versão
+@941 via clasp local.
+
 ### Regras obrigatórias (seguir sempre)
 
 1. **Perguntar antes de subir** — nunca executar `clasp push` ou `clasp deploy` sem aprovação explícita do Ricardo.
@@ -729,6 +780,7 @@ AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw
 
 | Data/hora | Versão GAS | O que mudou |
 |---|---|---|
+| 30/06/2026 15:39 | deploy manual @941 (commits `3e4f8e4` + `9f5ec7d` + `70993fa`) | **feat(verohub): botão 'Criar Pedido / Refazer' volta a aparecer no card (status 1) + fix(ci): retry com backoff em clasp push/versions/deploy.** Dois itens deployados juntos: (1) reativa o gatilho dormente do fluxo Hub Web — modal `#modalVeroHub`, função `_novoPedidoVeroHub`, backend `criarPedidoVeroHub/salvarPedidoVeroHub` e extensão Chrome `extensao-dharmapro` já existiam intactos; faltava o botão na UI. Adicionado no helper compartilhado `_veroHubPedidoHtml` em `JS.html`, aparece nos 3 renderizadores (principal, PAP, combo agrupado) quando status = `1- Conferencia/Ativação`. Texto dinâmico: 'Criar Pedido' (sem pedido) ou 'Refazer' (com pedido existente, mantém `confirm()` da função). CSS `.vhub-novo-btn` em `Index.html` (chip laranja DF5F30 discreto + variante menor pra band do status). Sem mudança em backend ou na extensão. (2) `.github/workflows/deploy.yml`: envolve `clasp push --force`, `clasp versions` e `clasp deploy` em retry de 4 tentativas com backoff linear 5/10/15s. Causa: `oauth2.googleapis.com/token` retorna `Premature close` intermitentemente quando o clasp renova o access_token (flakiness do endpoint OAuth do Google, não do nosso código). Histórico de ocorrências: 25/05, 28/06, 30/06. Mensagem de erro final aponta o caminho de re-run / commit dummy se as 4 tentativas falharem. **Caso operacional**: a Action de `3e4f8e4` falhou em `Premature close`; o retry foi adicionado em `9f5ec7d`, mas a Action desse commit também falhou no mesmo erro — outage do endpoint nesse instante. Como o código precisava ir pro ar, deploy fechou no fallback manual: `clasp push --force` local (passou na 1ª tentativa, 58 arquivos) + `clasp deploy --deploymentId AKfycby...` (versão @941) + `git commit -m "... [skip ci]"` (commit `70993fa`) pra Action não duplicar versão. Procedimento de fallback adicionado em `CLAUDE.md` § Deploy → Fallback manual. |
 | 24/06/2026 10:07 | (via Action) | **fix(cruzamento-vero): import deixa de falhar com "E-mail encontrado mas sem anexo .xlsx".** A Vero passou a enviar o `SNIPER MOBILE.xlsx` com `Content-Type: application/octet-stream`, que o Apps Script classifica como inline — `msg.getAttachments({ includeInlineImages: false })` retornava lista vazia mesmo com o `.xlsx` presente na thread. Em `CruzamentoAutoAPI.js#_baixarAnexoXlsxDoThread_`, trocado para `includeInlineImages: true`; o filtro pelo regex `/\.xlsx?$/i` logo abaixo continua garantindo que só o XLSX é selecionado. Diagnosticado rodando one-shot que comparou `includeInlineImages: false` (0 anexos) vs `true` (2 — xlsx + png inline). |
 | 17/06/2026 16:18 | (via Action — commit 345d6a7) | **chore(rev12): fix NP 3.0 — NOME_VERO canônico + velocidade VERO PRO/PRO MAX + códigos VeroHub reais na pontuação.** Continuação da migração NP 3.0 de 16/06/2026 (Rev11 inicial), com 3 gaps corrigidos via one-shot `_setupRev12FixNP30.js`. **(1) `planos_vero.json` col 14 `NOME_VERO`**: 31 entradas preenchidas com nomes canônicos do VeroHub — "VERO FAST MAIS" (interno) em vez de "VERO FAST PLUS" (comercial), "MAIS CONECTADO XXGB" em vez de "MÓVEL XXGB", "FAMILIY" (com typo da Vero), "ESPORTES/FILMES" em vez de SPORTS/FILMS. Destrava o passo (0) NOME_VERO em `getCodigoVeroPorPlanoCidade` (memo `project_renata_token_drift` § sweep VeroHub — agora resolve sem cair no fuzzy). **(2) Fix velocidade**: 10 PLANOs renomeados — VERO PRO Game/Tech/One/Sports/Films/Live de `800MB` → `850MB`; VERO PRO MAX Family/Tech/VIP/VIP Premium ganharam `900MB` no nome (Rev11 tinha gravado sem velocidade). Conforme spec Vero NP 3.0 e VeroHub. **(3) `pontuacao_planos.json`**: 29 placeholders `NP30-<slug>` substituídos pelos códigos VeroHub reais (5000–5049 + 4678/4688 do legado VERO MAIS Esportes Futebol). 4 placeholders permanecem (STARLINK + VERO CONTROLE MAIS 40/60/100GB) porque Vero ainda não emitiu código — pegar em venda real desses SKUs e fazer Rev13 cirúrgica. Fonte dos códigos: extração VeroHub via venda #2027460 (17/06/2026). Cache de ambos os JSONs invalidado pós-escrita. **Idempotente** (dry-run `_verificarRev12_dryRun()` disponível). One-shot a ser removido no próximo push. Validação no editor: `_executarRev12_Completo()` → log `10 PLANOs renomeados, 31 NOME_VERO atualizados, 19007 bytes` + `29 placeholders resolvidos, 70819 bytes`. |
 | 05/06/2026 18:26 | deploy manual @883 | **ux(dashboard): barra de instaladas deixa de dividir visualmente o preenchimento por backlog.** Ajuste fino sobre o deploy @880: o total instalado agora aparece como uma unica barra rosa cheia, e `vendaBrutaMes` vira um marcador vertical âmbar na regua. O texto segue mostrando `10 inst | 8 vendas | +5 ant.`, mas o olho nao le mais `5/10` porque o backlog anterior deixa de ser um segmento escuro dentro da barra principal. `DEPLOY_DATE` atualizado para `05/06/2026 18:26`. Validacao: `node --check Code.js` + parse do `<script>` de `Dashboard.html` OK. |
