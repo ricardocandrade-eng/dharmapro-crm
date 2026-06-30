@@ -5074,7 +5074,7 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
     }
 
     // ── CACHE HIT (somente offset=0, sem filtro de texto) ────────────────────
-    var CACHE_KEY_LISTA = CONFIG.CACHE_PREFIX + 'lista_v4';
+    var CACHE_KEY_LISTA = CONFIG.CACHE_PREFIX + 'lista_v5';
     if (offset === 0 && !filtro) {
       var cachedLista = _cacheGetChunked(CACHE_KEY_LISTA);
       if (cachedLista && Array.isArray(cachedLista.dados) && cachedLista.dados.length > 0) {
@@ -6194,7 +6194,7 @@ function moverVendaFunil(payload) {
     _bumpMovelStatusAguardandoEntrega_(sheet, linha, statusAnt, novoStatus);
 
     // Funil 20/05: update fino em vez de invalidação total. _atualizarVendaNoCache_
-    // cuida da Lista (lista_v4) E do board (funil_v2 via _atualizarVendaNoFunilCache_).
+    // cuida da Lista (lista_v5) E do board (funil_v2 via _atualizarVendaNoFunilCache_).
     _limparCacheSemLista();
     _atualizarVendaNoCache_(linha);
 
@@ -6444,7 +6444,7 @@ function _limparCacheListaV3() {
   try {
     var prefixes = [
       CONFIG.CACHE_PREFIX + 'lista_v3',
-      CONFIG.CACHE_PREFIX + 'lista_v4'
+      CONFIG.CACHE_PREFIX + 'lista_v5'
     ];
     var keys = [];
 
@@ -6570,7 +6570,7 @@ function _limparCache() {
 //  cache quente entre saves. Em caso de erro, fallback para invalidação total.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Variante de _limparCache() que NÃO invalida o cache da Lista (lista_v4 /
+// Variante de _limparCache() que NÃO invalida o cache da Lista (lista_v5 /
 // lista_completa). Usar nos pontos de save onde _atualizarVendaNoCache_()
 // cuida da lista linha-a-linha. Sem essa função, todo save invalida cache via
 // cascata em _limparCache() → _limparCacheListaV3 — anulando a Fase 5b.
@@ -6595,7 +6595,7 @@ function _limparCacheSemLista() {
   try { cache.removeAll(toRemove); } catch(e) { Logger.log('_limparCacheSemLista removeAll erro: ' + e); }
 }
 
-// Atualiza a entrada de UMA venda nos caches da Lista (lista_v4 + lista_completa).
+// Atualiza a entrada de UMA venda nos caches da Lista (lista_v5 + lista_completa).
 // UPDATE se já existe; INSERT no topo se nova. Mantém ≤ 500 itens.
 // Reconstrói vínculos da venda + pai + filhas pra manter card agrupado correto.
 // Falha graciosa: em erro, cai pra invalidação total (comportamento antigo).
@@ -6633,7 +6633,7 @@ function _atualizarVendaNoCache_(numeroLinha) {
       mapaResumoVinculos
     );
 
-    _aplicarUpdateNoChunked_(CONFIG.CACHE_PREFIX + 'lista_v4',       numeroLinha, vendaAtualizada);
+    _aplicarUpdateNoChunked_(CONFIG.CACHE_PREFIX + 'lista_v5',       numeroLinha, vendaAtualizada);
     _aplicarUpdateNoChunked_(CONFIG.CACHE_PREFIX + 'lista_completa', numeroLinha, vendaAtualizada);
     _incCounter_('lista_fine_update');
   } catch(e) {
@@ -6749,6 +6749,22 @@ function _fmtDataHoraBR(d) {
   return dd + '/' + mm + '/' + d.getFullYear() + ' ' + HH + ':' + MM;
 }
 
+// Memo per-execução: (plano|cidade) → codPlano resolvido. Compartilhado
+// entre _mapearLinhaLista e _mapearLinha pra evitar N chamadas de resolver
+// em listas grandes (500 vendas). Vive só dentro do request V8.
+var _codPlanoResolverCache = {};
+function _resolverCodPlanoMemoizado_(plano, cidade) {
+  var p = String(plano || '').trim();
+  var ci = String(cidade || '').trim();
+  if (!p || !ci) return '';
+  var key = p + '||' + ci;
+  if (_codPlanoResolverCache.hasOwnProperty(key)) return _codPlanoResolverCache[key];
+  var r = '';
+  try { r = getCodigoVeroPorPlanoCidade(p, ci) || ''; } catch (e) {}
+  _codPlanoResolverCache[key] = r;
+  return r;
+}
+
 function _mapearLinhaLista(row, numeroLinha, tz) {
   var c = CONFIG.COLUNAS;
   var clienteLegado = _normalizarCamposClienteLegado(row, c);
@@ -6825,7 +6841,15 @@ function _mapearLinhaLista(row, numeroLinha, tz) {
     criadoPor:        String(row[c.CRIADO_POR] || '').trim(),
     veroStatus:       String(row[c.VERO_STATUS] || '').trim(),
     formaPagamento:   String(row[c.FORMA_PAGAMENTO] || '').trim(),
-    codPlano:         String(row[c.COD_PLANO] || '').trim()
+    codPlano:         (function() {
+      // Prioridade: col AU (snapshot Fase 3) > col Q legado (capturada desde 20/05) >
+      // resolver moderno on-the-fly (memoizado, cobre vendas históricas sem snapshot).
+      var snap = String(row[c.COD_PLANO] || '').trim();
+      if (snap) return snap;
+      var legado = String(row[c.FAT] || '').trim();
+      if (legado && /^\d{3,5}$/.test(legado)) return legado;
+      return _resolverCodPlanoMemoizado_(row[c.PLANO], row[c.CIDADE]);
+    })()
   };
 }
 
@@ -6907,7 +6931,15 @@ function _mapearLinha(row, numeroLinha) {
     veroStatus:       String(row[c.VERO_STATUS] || '').trim(),
     formaPagamento:   String(row[c.FORMA_PAGAMENTO] || '').trim(),
     // ── Financeiro (AU-BL) — Fase 3. Lidos p/ preservar em edição (full-row rewrite). ──
-    codPlano:            String(row[c.COD_PLANO] || '').trim(),
+    // Resolver on-the-fly quando snapshot vazio: garante código no painel lateral
+    // pra vendas históricas (forward-only de 20/05 não cobriu legacy).
+    codPlano:            (function() {
+      var snap = String(row[c.COD_PLANO] || '').trim();
+      if (snap) return snap;
+      var legado = String(row[c.FAT] || '').trim();
+      if (legado && /^\d{3,5}$/.test(legado)) return legado;
+      return _resolverCodPlanoMemoizado_(row[c.PLANO], row[c.CIDADE]);
+    })(),
     pontosVenda:         (row[c.PONTOS_VENDA]  === '' || row[c.PONTOS_VENDA]  == null) ? '' : row[c.PONTOS_VENDA],
     pontosMovel:         (row[c.PONTOS_MOVEL]  === '' || row[c.PONTOS_MOVEL]  == null) ? '' : row[c.PONTOS_MOVEL],
     mesCompetencia:      String(row[c.MES_COMPETENCIA] || '').trim(),

@@ -305,6 +305,7 @@ var CFG_REWABA_AUTO = {
   CACHE_KEY_PAP:         'crm_v3_rewaba_indice_pap',
   CACHE_TTL_INDICE:      600,                // 10min
   USER_TAG:              'n8n_workflow_reengajamento_auto',
+  TEMPLATE_DEFAULT:      'followup_24horas', // override via Script Property REENGAJ_AUTO_TEMPLATE
 };
 
 // Índice de telefones de vendedores PAP (aba "3 - PAP" col U whatsapp).
@@ -388,10 +389,18 @@ function _rwBuildIndiceLeadsMeta_() {
  *           phone, name, nivel, plano, cidade, tentativa, contexto_template,
  *           ultima_msg_lead_at}]}}
  */
-function listarCandidatosReengajamentoAuto() {
+function listarCandidatosReengajamentoAuto(opts) {
   var props = PropertiesService.getScriptProperties();
   var ativo = String(props.getProperty('REENGAJAMENTO_AUTO_ATIVO') || '0') === '1';
   if (!ativo) return { ok: true, ativo: false, total: 0, candidatos: [] };
+
+  // Override do hard limit pra diagnóstico (contagem real sem teto).
+  // Default = CFG_REWABA_AUTO.HARD_LIMIT (50, defesa de tier WABA).
+  var hardLimit = (opts && Number(opts.hardLimit) > 0) ? Number(opts.hardLimit) : CFG_REWABA_AUTO.HARD_LIMIT;
+
+  // Nome do template — Script Property REENGAJ_AUTO_TEMPLATE > default.
+  var templateName = String(props.getProperty('REENGAJ_AUTO_TEMPLATE') || '').trim()
+                  || CFG_REWABA_AUTO.TEMPLATE_DEFAULT;
 
   var rows = _sbFetch_(
     'GET',
@@ -409,7 +418,7 @@ function listarCandidatosReengajamentoAuto() {
 
   var out = [];
   for (var i = 0; i < rows.length; i++) {
-    if (out.length >= CFG_REWABA_AUTO.HARD_LIMIT) break;
+    if (out.length >= hardLimit) break;
     var r = rows[i];
 
     // (1) Exclui sem-viabilidade.
@@ -457,12 +466,13 @@ function listarCandidatosReengajamentoAuto() {
       cidade:                   '',
       tentativa:                tentativa,
       contexto_template:        ctxVar,
+      template_name:            templateName,
       ultima_msg_lead_at:       r.last_inbound_at,
       horas_silencio:           Math.round(horas),
     });
   }
 
-  return { ok: true, ativo: true, total: out.length, candidatos: out };
+  return { ok: true, ativo: true, total: out.length, template: templateName, candidatos: out };
 }
 
 /**

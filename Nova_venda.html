@@ -369,7 +369,7 @@
           <select id="nv-formaPagamento" onchange="nvOnFormaPagamentoChange()">
             <option value="">— Selecione —</option>
             <option value="BOLETO">💰 Boleto</option>
-            <option value="RECORRENTE">🔁 Recorrente</option>
+            <option value="RECORRENTE">💳 Cartão</option>
           </select>
           <span class="err-msg" id="nv-err-formaPagamento">Selecione a Forma de Pagamento.</span>
         </div>
@@ -820,7 +820,7 @@ function nvOnFormaPagamentoChange() {
         return;
       }
       valorEl.value = 'R$ ' + r.valor.toFixed(2).replace('.', ',');
-      if (hint) { hint.textContent = forma === 'BOLETO' ? '💰 Boleto' : '🔁 Pagamento Recorrente'; hint.style.color = 'var(--muted)'; }
+      if (hint) { hint.textContent = forma === 'BOLETO' ? '💰 Boleto' : '💳 Cartão'; hint.style.color = 'var(--muted)'; }
     })
     .withFailureHandler(function() {
       if (hint) hint.textContent = '⚠️ Erro ao consultar valor.';

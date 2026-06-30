@@ -535,11 +535,26 @@
     .dash-tab { flex:1; padding:9px 0; border-radius:10px; font-size:13px; font-weight:600; background:var(--surface2); border:1px solid var(--border); color:var(--muted); cursor:pointer; transition:all .2s; }
     .dash-tab.active { background:var(--accent); border-color:var(--accent); color:#fff; }
     .dash-list { display:flex; flex-direction:column; gap:10px; }
-    .dash-card { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; }
+    .dash-card { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; cursor:pointer; transition:border-color .15s; }
+    .dash-card:active { border-color:var(--accent); }
     .dash-card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
     .dash-card-nome { font-size:14px; font-weight:600; color:var(--text); flex:1; }
     .dash-card-plano { font-size:12px; color:var(--muted); margin-top:3px; }
     .dash-card-date  { font-size:11px; color:var(--muted); margin-top:8px; }
+    .dash-card-chevron { font-size:10px; color:var(--muted); margin-left:4px; transition:transform .2s; display:inline-block; }
+    .dash-card.expanded .dash-card-chevron { transform:rotate(180deg); }
+    .dash-card-detail { display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); flex-direction:column; gap:6px; }
+    .dash-card.expanded .dash-card-detail { display:flex; }
+    .dash-card-detail-row { display:flex; gap:6px; align-items:flex-start; font-size:12px; }
+    .dash-card-detail-lbl { color:var(--muted); min-width:72px; flex-shrink:0; }
+    .dash-card-detail-val { color:var(--text); word-break:break-word; }
+    .dash-card-detail-val a { color:var(--green); text-decoration:none; }
+    .dash-card-motivo { margin-top:4px; padding:7px 10px; background:rgba(230,62,109,.12); border-radius:8px; font-size:12px; color:var(--accent); }
+    .filtro-bar { display:flex; gap:8px; overflow-x:auto; padding:0 20px 12px; scrollbar-width:none; flex-shrink:0; }
+    .filtro-bar::-webkit-scrollbar { display:none; }
+    .filtro-chip { flex-shrink:0; padding:5px 13px; border-radius:20px; font-size:12px; font-weight:600; background:var(--surface2); border:1px solid var(--border); color:var(--muted); cursor:pointer; transition:all .15s; white-space:nowrap; }
+    .filtro-chip.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .dash-refresh { background:transparent; border:1px solid var(--border); color:var(--muted); border-radius:8px; padding:5px 10px; font-size:14px; cursor:pointer; }
     .badge { display:inline-block; padding:3px 9px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap; }
     .badge-pendente  { background:rgba(247,162,59,.18);  color:var(--yellow); }
     .badge-aprovado  { background:rgba(34,217,138,.18);  color:var(--green);  }
@@ -1707,10 +1722,16 @@ const genId = () => Date.now().toString(36).toUpperCase().slice(-6);
 
 /* ── MINHAS VENDAS ── */
 let _dashData = null, _mesAtual = null, _tabVendasAtual = 'pv';
+let _filtroStatusPV = '', _filtroStatusAV = '';
 
 async function abrirMinhasVendas() {
   openSheet('sheet-vendas');
   if (!_dashData) await carregarDashboard();
+}
+
+async function atualizarVendas() {
+  _dashData = null;
+  await carregarDashboard();
 }
 
 async function carregarDashboard() {
@@ -1772,29 +1793,64 @@ function _filtrarMes(items, campo) {
 }
 
 function _renderListaPV(pvAll) {
-  const pv = _filtrarMes(pvAll, 'ts');
-  document.getElementById('lista-pv').innerHTML = pv.length ? pv.map(p => `
-    <div class="dash-card">
+  let pv = _filtrarMes(pvAll, 'ts');
+  if (_filtroStatusPV) pv = pv.filter(p => (p.status||'').toLowerCase().includes(_filtroStatusPV));
+  document.getElementById('lista-pv').innerHTML = pv.length ? pv.map(p => {
+    const rejeitado = (p.status||'').toLowerCase().includes('rejeitado');
+    const waNum = (p.whatsapp||'').replace(/\D/g,'');
+    const waLink = waNum ? `<a href="https://wa.me/55${waNum}" target="_blank">📞 ${esc(p.whatsapp)}</a>` : '—';
+    return `
+    <div class="dash-card" onclick="_toggleCard(this)">
       <div class="dash-card-top">
-        <div><div class="dash-card-nome">${esc(p.nomeCliente)||'Cliente'}</div>
-             <div class="dash-card-plano">${esc(p.plano)}${p.movel==='SIM'?' · Combo':''}</div></div>
+        <div>
+          <div class="dash-card-nome">${esc(p.nomeCliente)||'Cliente'} <span class="dash-card-chevron">▼</span></div>
+          <div class="dash-card-plano">${esc(p.plano)}${p.movel==='SIM'?' · Combo':''}</div>
+        </div>
         <span class="badge ${badgePV(p.status)}">${esc(p.status)}</span>
       </div>
       <div class="dash-card-date">${fmtDate(p.ts)} · #${esc(p.id)}</div>
-    </div>`).join('') : '<div class="empty-state"><div class="empty-icon">📋</div>Nenhuma pré-venda encontrada.</div>';
+      <div class="dash-card-detail">
+        ${p.cidade?`<div class="dash-card-detail-row"><span class="dash-card-detail-lbl">Cidade</span><span class="dash-card-detail-val">${esc(p.cidade)}</span></div>`:''}
+        <div class="dash-card-detail-row"><span class="dash-card-detail-lbl">WhatsApp</span><span class="dash-card-detail-val">${waLink}</span></div>
+        ${p.valor?`<div class="dash-card-detail-row"><span class="dash-card-detail-lbl">Valor</span><span class="dash-card-detail-val">R$ ${esc(p.valor)}</span></div>`:''}
+        ${rejeitado && p.motivo?`<div class="dash-card-motivo">❌ Motivo: ${esc(p.motivo)}</div>`:''}
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty-state"><div class="empty-icon">📋</div>Nenhuma pré-venda encontrada.</div>';
 }
 
 function _renderListaAV(avAll) {
-  const av = _filtrarMes(avAll, 'dataInstal');
-  document.getElementById('lista-av').innerHTML = av.length ? av.map(v => `
-    <div class="dash-card">
+  // AV tab doesn't use month filter — use status filter only
+  let av = avAll;
+  if (_filtroStatusAV) av = av.filter(v => (v.status||'').toLowerCase().includes(_filtroStatusAV));
+  document.getElementById('lista-av').innerHTML = av.length ? av.map(v => {
+    const statusLabel = esc((v.status||'').replace(/^\d+\s*-\s*/,''));
+    const waNum = (v.whats||'').replace(/\D/g,'');
+    const waLink = waNum ? `<a href="https://wa.me/55${waNum}" target="_blank">📞 ${esc(v.whats)}</a>` : '—';
+    const hasAgenda  = v.agenda   && v.agenda   !== '' && v.agenda   !== 'Invalid Date';
+    const hasAtiv    = v.dataAtiv && v.dataAtiv !== '' && v.dataAtiv !== 'Invalid Date';
+    const hasInstal  = v.dataInstal && v.dataInstal !== '' && v.dataInstal !== 'Invalid Date';
+    return `
+    <div class="dash-card" onclick="_toggleCard(this)">
       <div class="dash-card-top">
-        <div><div class="dash-card-nome">${esc(v.cliente)||'Cliente'}</div>
-             <div class="dash-card-plano">${esc(v.plano)} · ${esc(v.produto)}</div></div>
-        <span class="badge ${badgeVenda(v.status)}">${esc(v.status.replace(/^\d+\s*-\s*/,''))}</span>
+        <div>
+          <div class="dash-card-nome">${esc(v.cliente)||'Cliente'} <span class="dash-card-chevron">▼</span></div>
+          <div class="dash-card-plano">${esc(v.plano)}${v.produto&&v.produto!==v.plano?' · '+esc(v.produto):''}</div>
+        </div>
+        <span class="badge ${badgeVenda(v.status)}">${statusLabel}</span>
       </div>
-      ${v.statusPAP?`<div class="dash-card-date">Pagamento: ${esc(v.statusPAP)}</div>`:''}
-    </div>`).join('') : '<div class="empty-state"><div class="empty-icon">📦</div>Nenhuma venda encontrada.</div>';
+      ${v.statusPAP?`<div class="dash-card-date">💰 Pagamento: ${esc(v.statusPAP)}</div>`:''}
+      <div class="dash-card-detail">
+        ${hasAtiv   ?`<div class="dash-card-detail-row"><span class="dash-card-detail-lbl">Ativação</span><span class="dash-card-detail-val">${fmtDate(v.dataAtiv)}</span></div>`:''}
+        ${hasAgenda ?`<div class="dash-card-detail-row"><span class="dash-card-detail-lbl">Agenda</span><span class="dash-card-detail-val">${fmtDate(v.agenda)}</span></div>`:''}
+        ${hasInstal ?`<div class="dash-card-detail-row"><span class="dash-card-detail-lbl">Instalação</span><span class="dash-card-detail-val">${fmtDate(v.dataInstal)}</span></div>`:''}
+        ${v.contrato?`<div class="dash-card-detail-row"><span class="dash-card-detail-lbl">Contrato</span><span class="dash-card-detail-val">${esc(v.contrato)}</span></div>`:''}
+        ${v.cidade  ?`<div class="dash-card-detail-row"><span class="dash-card-detail-lbl">Cidade</span><span class="dash-card-detail-val">${esc(v.cidade)}</span></div>`:''}
+        <div class="dash-card-detail-row"><span class="dash-card-detail-lbl">WhatsApp</span><span class="dash-card-detail-val">${waLink}</span></div>
+        ${v.valor   ?`<div class="dash-card-detail-row"><span class="dash-card-detail-lbl">Valor</span><span class="dash-card-detail-val">R$ ${esc(v.valor)}</span></div>`:''}
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty-state"><div class="empty-icon">📦</div>Nenhuma venda encontrada.</div>';
 }
 
 function switchVendasTab(tab) {
@@ -1805,8 +1861,32 @@ function switchVendasTab(tab) {
   document.getElementById('lista-pv').style.display      = tab==='pv'      ? 'flex'  : 'none';
   document.getElementById('lista-av').style.display      = tab==='av'      ? 'flex'  : 'none';
   document.getElementById('lista-receber').style.display = tab==='receber' ? 'flex'  : 'none';
+  // mes-bar: only for PV and A Receber
   const mesBar = document.getElementById('mes-bar');
-  if (mesBar) mesBar.style.display = tab === 'receber' ? 'none' : '';
+  if (mesBar) mesBar.style.display = tab === 'av' ? 'none' : '';
+  // status filter bars
+  const fpv = document.getElementById('filtros-pv');
+  const fav = document.getElementById('filtros-av');
+  if (fpv) fpv.style.display = tab === 'pv'      ? '' : 'none';
+  if (fav) fav.style.display = tab === 'av'      ? '' : 'none';
+}
+
+function setFiltroStatus(tab, valor, el) {
+  if (tab === 'pv') {
+    _filtroStatusPV = valor;
+    document.querySelectorAll('#filtros-pv .filtro-chip').forEach(c => c.classList.remove('active'));
+  } else {
+    _filtroStatusAV = valor;
+    document.querySelectorAll('#filtros-av .filtro-chip').forEach(c => c.classList.remove('active'));
+  }
+  if (el) el.classList.add('active');
+  if (!_dashData) return;
+  if (tab === 'pv') _renderListaPV(_dashData.preVendas||[]);
+  else              _renderListaAV(_dashData.vendasAtivas||[]);
+}
+
+function _toggleCard(el) {
+  el.closest('.dash-card')?.classList.toggle('expanded');
 }
 
 function badgePV(s) {
@@ -1956,8 +2036,13 @@ function esc(s) {
 }
 function fmtDate(ts) {
   if (!ts) return '';
-  try { const d=new Date(ts); return isNaN(d)?String(ts).slice(0,10):d.toLocaleDateString('pt-BR'); }
-  catch { return String(ts).slice(0,10); }
+  try {
+    const s = String(ts);
+    // Already DD/MM/YYYY or DD/MM/YYYY HH:MM — return as-is (Sheets sometimes returns this)
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) return s.slice(0,10);
+    const d = new Date(ts);
+    return isNaN(d) ? s.slice(0,10) : d.toLocaleDateString('pt-BR');
+  } catch { return String(ts).slice(0,10); }
 }
 </script>
 
@@ -1966,7 +2051,10 @@ function fmtDate(ts) {
   <div class="sheet-handle"></div>
   <div class="sheet-header">
     <div><div class="sheet-tag">Histórico</div><div class="sheet-title">Minhas Vendas</div></div>
-    <button class="sheet-close" onclick="closeSheets()">✕</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="dash-refresh" onclick="atualizarVendas()" title="Atualizar">↻</button>
+      <button class="sheet-close" onclick="closeSheets()">✕</button>
+    </div>
   </div>
   <div class="sheet-body">
     <div class="dash-summary">
@@ -1980,8 +2068,20 @@ function fmtDate(ts) {
       <button class="dash-tab"        id="tab-receber" onclick="switchVendasTab('receber')">💰 A Receber</button>
     </div>
     <div class="mes-bar" id="mes-bar"></div>
-    <div class="dash-list" id="lista-pv"></div>
-    <div class="dash-list" id="lista-av"      style="display:none"></div>
+    <div class="filtro-bar" id="filtros-pv">
+      <div class="filtro-chip active" onclick="setFiltroStatus('pv','',this)">Todos</div>
+      <div class="filtro-chip" onclick="setFiltroStatus('pv','pendente',this)">⏳ Pendente</div>
+      <div class="filtro-chip" onclick="setFiltroStatus('pv','aprovado',this)">✅ Aprovado</div>
+      <div class="filtro-chip" onclick="setFiltroStatus('pv','rejeitado',this)">❌ Rejeitado</div>
+    </div>
+    <div class="filtro-bar" id="filtros-av" style="display:none">
+      <div class="filtro-chip active" onclick="setFiltroStatus('av','',this)">Todos</div>
+      <div class="filtro-chip" onclick="setFiltroStatus('av','aguardand',this)">⏳ Aguardando</div>
+      <div class="filtro-chip" onclick="setFiltroStatus('av','ativand',this)">🔄 Ativando</div>
+      <div class="filtro-chip" onclick="setFiltroStatus('av','instalad',this)">✅ Instalada</div>
+    </div>
+    <div class="dash-list" id="lista-pv" style="padding:0 20px 80px"></div>
+    <div class="dash-list" id="lista-av" style="display:none;padding:0 20px 80px"></div>
     <div class="pag-list"  id="lista-receber" style="display:none"></div>
   </div>
 </div>

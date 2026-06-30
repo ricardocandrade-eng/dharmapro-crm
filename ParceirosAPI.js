@@ -72,12 +72,13 @@ const HEADERS_PRE_VENDAS = [
   'Plano', 'Móvel', 'Tipo Móvel',
   'Vencimento', 'Pagamento',
   'Data Decisão', 'Decidido Por',
-  'Rua', 'Número', 'Complemento', 'Bairro', 'Cidade', 'UF', 'Valor Plano'
+  'Rua', 'Número', 'Complemento', 'Bairro', 'Cidade', 'UF', 'Valor Plano',
+  'Motivo Rejeição'
 ];
 // Índices PV (0-based): 0=ID 1=TS 2=Status 3=Parceiro 4=ParceiroCPF
 // 5=CPFCliente 6=Nome 7=CEP 8=ProtRef 9=Whats 10=Email
 // 11=Plano 12=Movel 13=TipoMovel 14=Venc 15=Pag 16=DataDecisão 17=DecididoPor
-// 18=Rua 19=Num 20=Complemento 21=Bairro 22=Cidade 23=UF 24=ValorPlano
+// 18=Rua 19=Num 20=Complemento 21=Bairro 22=Cidade 23=UF 24=ValorPlano 25=MotivoRejeição
 
 // ── Roteador principal ─────────────────────────────────────────────────────────
 // Chamado pelo doPost do Code.js quando payload.action está presente.
@@ -580,6 +581,7 @@ function rejeitarPreVenda(id, emailRejeitor, motivo) {
     sheet.getRange(sheetRow, 3).setValue('Rejeitado');
     sheet.getRange(sheetRow, 17).setValue(_papNow());
     sheet.getRange(sheetRow, 18).setValue(emailRejeitor || 'backoffice');
+    if (motivo) sheet.getRange(sheetRow, 26).setValue(String(motivo));
     SpreadsheetApp.flush();
     pvCopia   = [...data[rowIdx]];
     resultado = { ok: true };
@@ -1124,6 +1126,9 @@ function getMinhaDashboard(cpf) {
         plano:       String(row[11] || ''),
         movel:       String(row[12] || ''),
         valor:       String(row[24] || ''),
+        whatsapp:    String(row[9]  || ''),
+        cidade:      String(row[22] || ''),
+        motivo:      String(row[25] || ''),
       });
       if (preVendas.length >= 30) break;
     }
@@ -1135,25 +1140,32 @@ function getMinhaDashboard(cpf) {
     const c = CONFIG.COLUNAS;
     const numRows = sheetV.getLastRow() - 2;
     if (numRows > 0) {
-      const maxCol = Math.max(c.CANAL, c.STATUS, c.RESP, c.CLIENTE||0, c.PLANO||0, c.PRODUTO||0, c.STATUS_PAP||0) + 1;
+      const maxCol = Math.max(c.CANAL, c.STATUS, c.RESP, c.CLIENTE||0, c.PLANO||0, c.PRODUTO||0,
+                              c.STATUS_PAP||0, c.INSTAL||0, c.DATA_ATIV||0, c.AGENDA||0,
+                              c.CIDADE||0, c.WHATS||0, c.CONTRATO||0, c.VALOR||0) + 1;
       const raw = sheetV.getRange(3, 1, numRows, maxCol).getValues();
       const nomeNorm = nomeParceiro.trim().toLowerCase();
       const _stripD = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'');
+      const _fmtD   = v => v instanceof Date ? v.toISOString() : String(v||'');
       for (let i = raw.length - 1; i >= 0; i--) {
         const row = raw[i];
         if (String(row[c.CANAL]||'').toUpperCase() !== 'PAP') continue;
         if (String(row[c.RESP]||'').trim().toLowerCase() !== nomeNorm) continue;
         const prodNorm = _stripD(String(row[c.PRODUTO]||'').trim().toUpperCase());
         if (prodNorm !== 'FIBRA ALONE' && prodNorm !== 'FIBRA COMBO') continue;
-        const dInstal = row[c.INSTAL];
         vendasAtivas.push({
-          cliente:    String(row[c.CLIENTE   ||0]||''),
-          plano:      String(row[c.PLANO     ||0]||''),
-          produto:    String(row[c.PRODUTO   ||0]||''),
-          status:     String(row[c.STATUS]       ||''),
-          statusPAP:  String(row[c.STATUS_PAP||0]||''),
-          valor:      String(row[c.VALOR     ||0]||''),
-          dataInstal: dInstal instanceof Date ? dInstal.toISOString() : String(dInstal||''),
+          cliente:    String(row[c.CLIENTE    ||0]||''),
+          plano:      String(row[c.PLANO      ||0]||''),
+          produto:    String(row[c.PRODUTO    ||0]||''),
+          status:     String(row[c.STATUS]        ||''),
+          statusPAP:  String(row[c.STATUS_PAP ||0]||''),
+          valor:      String(row[c.VALOR      ||0]||''),
+          dataInstal: _fmtD(row[c.INSTAL      ||0]),
+          dataAtiv:   _fmtD(row[c.DATA_ATIV   ||0]),
+          agenda:     _fmtD(row[c.AGENDA      ||0]),
+          cidade:     String(row[c.CIDADE     ||0]||''),
+          whats:      String(row[c.WHATS      ||0]||''),
+          contrato:   String(row[c.CONTRATO   ||0]||''),
         });
         if (vendasAtivas.length >= 50) break;
       }
