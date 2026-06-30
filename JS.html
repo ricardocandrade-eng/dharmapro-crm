@@ -7685,6 +7685,11 @@ function _veroHubPedidoHtml(v, index) {
       ? '<a class="vhub-ped-num" href="https://hub.veronet.com.br/sales/' + esc(v.verohubPedido) +
           '" target="_blank" onclick="event.stopPropagation()">#' + esc(v.verohubPedido) + '</a>'
       : '') +
+    '<button class="vhub-novo-btn" type="button" ' +
+      'onclick="event.stopPropagation();_novoPedidoVeroHub(' + index + ');" ' +
+      'title="' + (temPedido ? 'Refazer pedido no VeroHub' : 'Criar novo pedido no VeroHub') + '">' +
+      '🟠 ' + (temPedido ? 'Refazer' : 'Criar Pedido') +
+    '</button>' +
   '</div>';
 }
 

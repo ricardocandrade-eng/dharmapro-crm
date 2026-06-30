@@ -2577,6 +2577,25 @@
     .vhub-ped-dt  { font-size: 11px; color: var(--muted); font-weight: 600; white-space: nowrap; }
     .vi-row-vhub-pedido-wrap { display: flex; align-items: center; gap: 5px; margin-top: 3px; cursor: default; flex-wrap: wrap; }
     .vi-row-vhub-pedido-wrap:hover .verohub-label { opacity: .75; }
+    /* Botão "🟠 Criar Pedido / Refazer" — chip laranja discreto, igual paleta VeroHub */
+    .vhub-novo-btn {
+      background: rgba(223,95,48,.12);
+      border: 1px solid rgba(223,95,48,.4);
+      color: #DF5F30;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 9px;
+      border-radius: 12px;
+      cursor: pointer;
+      letter-spacing: .5px;
+      white-space: nowrap;
+      transition: background .15s, transform .08s;
+      line-height: 1.4;
+    }
+    .vhub-novo-btn:hover  { background: rgba(223,95,48,.22); }
+    .vhub-novo-btn:active { transform: scale(.96); }
+    .vi-status-band .vhub-novo-btn { font-size: 9px; padding: 1px 7px; }
     .agenda-input { background: transparent; border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 10px; padding: 2px 4px; width: 115px; cursor: pointer; }
     .agenda-input:focus { outline: none; border-color: var(--accent); }
     .agenda-input::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
