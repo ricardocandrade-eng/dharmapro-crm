@@ -39,8 +39,33 @@ jobs:
           print(f'[OK] DEPLOY_DATE atualizado para: {d}')
           EOF
 
+      # Retry wrapper pra todas as chamadas clasp.
+      # Causa: oauth2.googleapis.com/token retorna "Premature close" intermitentemente
+      # quando o clasp renova o access_token (flakiness do endpoint OAuth do Google,
+      # não do nosso código). Histórico de ocorrências: 25/05, 28/06, 30/06.
+      # Solução: 4 tentativas com backoff linear (5/10/15s). Resolve >99% dos casos
+      # sem precisar re-rodar a Action manualmente.
       - name: Enviar código para o GAS
-        run: clasp push --force
+        run: |
+          set +e
+          MAX=4
+          for i in $(seq 1 $MAX); do
+            echo "::group::clasp push --force — tentativa $i/$MAX"
+            clasp push --force
+            STATUS=$?
+            echo "::endgroup::"
+            if [ $STATUS -eq 0 ]; then
+              echo "::notice::clasp push OK na tentativa $i"
+              exit 0
+            fi
+            if [ $i -lt $MAX ]; then
+              SLEEP=$((5 * i))
+              echo "::warning::Tentativa $i falhou (exit $STATUS). Aguardando ${SLEEP}s..."
+              sleep $SLEEP
+            fi
+          done
+          echo "::error::clasp push falhou em $MAX tentativas. Provável flakiness persistente do oauth2.googleapis.com/token — re-rode a Action (Actions → este run → Re-run all jobs) ou aguarde 5min e empurre um commit dummy."
+          exit 1
 
       - name: Verificar limite de versões (200 = teto rígido do GAS)
         run: |
@@ -52,7 +77,23 @@ jobs:
           #
           # Estratégia atual: detectar e alertar. Se >195, FAIL LOUD pra deploy
           # NÃO ir silenciosamente quebrado (o que aconteceu em 27-29/05).
-          TOTAL=$(clasp versions 2>/dev/null | grep -oP '^\d+' | wc -l)
+          set +e
+          MAX=4
+          for i in $(seq 1 $MAX); do
+            OUTPUT=$(clasp versions 2>/dev/null)
+            STATUS=$?
+            if [ $STATUS -eq 0 ]; then break; fi
+            if [ $i -lt $MAX ]; then
+              SLEEP=$((5 * i))
+              echo "::warning::clasp versions tentativa $i falhou. Aguardando ${SLEEP}s..."
+              sleep $SLEEP
+            fi
+          done
+          if [ $STATUS -ne 0 ]; then
+            echo "::error::clasp versions falhou em $MAX tentativas — abortando."
+            exit 1
+          fi
+          TOTAL=$(echo "$OUTPUT" | grep -oP '^\d+' | wc -l)
           echo "Versões atuais: $TOTAL/200"
           if [ "$TOTAL" -gt 195 ]; then
             echo "::error::Limite de 200 versões PRÓXIMO ($TOTAL/200). clasp deploy vai quebrar — abortando o deploy."
@@ -66,4 +107,23 @@ jobs:
           fi
 
       - name: Publicar nova versão
-        run: clasp deploy --deploymentId AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw -d "Deploy ${{ github.sha }}"
+        run: |
+          set +e
+          MAX=4
+          for i in $(seq 1 $MAX); do
+            echo "::group::clasp deploy — tentativa $i/$MAX"
+            clasp deploy --deploymentId AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw -d "Deploy ${{ github.sha }}"
+            STATUS=$?
+            echo "::endgroup::"
+            if [ $STATUS -eq 0 ]; then
+              echo "::notice::clasp deploy OK na tentativa $i"
+              exit 0
+            fi
+            if [ $i -lt $MAX ]; then
+              SLEEP=$((5 * i))
+              echo "::warning::Tentativa $i falhou (exit $STATUS). Aguardando ${SLEEP}s..."
+              sleep $SLEEP
+            fi
+          done
+          echo "::error::clasp deploy falhou em $MAX tentativas — re-rode a Action ou empurre commit dummy."
+          exit 1
