@@ -7794,6 +7794,9 @@ function _confirmarModalVeroHub() {
   var btn = document.getElementById('mvh-btn-confirmar');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Buscando dados...'; }
 
+  // Caminho via backend (30/06/2026): chama criarPedidoVeroHub no GAS em vez
+  // de abrir popup do Hub Web. Backend faz POST/PUT direto na API via
+  // UrlFetchApp + CSRF token salvo. Sem extensão, sem bookmarklet, sem popup.
   google.script.run
     .withSuccessHandler(function(vFull) {
       if (!vFull) {
@@ -7802,94 +7805,67 @@ function _confirmarModalVeroHub() {
         return;
       }
 
-      _fecharModalVeroHub();
+      if (btn) btn.textContent = '🟠 Criando no VeroHub...';
 
-      // Piscar na lista
-      var wrap = document.getElementById('vhub-wrap-' + index);
-      if (wrap) wrap.style.opacity = '.5';
-
-      // Ouvir resposta da extensão
-      var _handler = function(e) {
-        if (!e.data) return;
-        // Erro enviado pela extensão (ex: e-mail recusado pelo VeroHub)
-        if (e.data.type === 'dhp_pedido_erro' && String(e.data.linha) === String(v.linha)) {
-          window.removeEventListener('message', _handler);
-          clearTimeout(_timeout);
-          if (wrap) wrap.style.opacity = '1';
-          var msgErro = e.data.titulo || 'Erro no VeroHub';
-          if (e.data.detalhe) msgErro += ': ' + e.data.detalhe;
-          mostrarToast('⚠️ ' + msgErro + ' — refaça o pedido.', 'error');
-          return;
-        }
-        if (e.data.type !== 'dhp_pedido_criado') return;
-        if (String(e.data.linha) !== String(v.linha)) return;
-        window.removeEventListener('message', _handler);
-        clearTimeout(_timeout);
-        var novoId = e.data.id;
-        if (!novoId) {
-          if (wrap) wrap.style.opacity = '1';
-          mostrarToast('❌ Erro ao criar pedido.', 'error');
-          return;
-        }
-        var _n = new Date();
-        var _dt = ('0'+_n.getDate()).slice(-2)+'/'+('0'+(_n.getMonth()+1)).slice(-2)+'/'+_n.getFullYear()+' '+('0'+_n.getHours()).slice(-2)+':'+('0'+_n.getMinutes()).slice(-2);
-        google.script.run
-          .withSuccessHandler(function(res) {
-            if (wrap) wrap.style.opacity = '1';
-            if (!res || !res.sucesso) {
-              mostrarToast('❌ Erro ao salvar: ' + (res && res.mensagem ? res.mensagem : ''), 'error');
-              return;
-            }
-            v.verohubPedido   = String(novoId);
-            v.verohubPedidoDt = _dt;
-            var w = document.getElementById('vhub-wrap-' + index);
-            if (w) {
-              var novo = document.createElement('div');
-              novo.innerHTML = _veroHubPedidoHtml(v, index);
-              w.parentNode.replaceChild(novo.firstChild, w);
-            }
-            mostrarToast('✅ Pedido #' + novoId + ' criado!', 'success');
-          })
-          .withFailureHandler(function(err) {
-            if (wrap) wrap.style.opacity = '1';
-            mostrarToast('❌ Erro: ' + (err && err.message ? err.message : ''), 'error');
-          })
-          .salvarPedidoVeroHub(v.linha, String(novoId), _dt);
-      };
-      window.addEventListener('message', _handler);
-      var _timeout = setTimeout(function() {
-        window.removeEventListener('message', _handler);
-        if (wrap) wrap.style.opacity = '1';
-        mostrarToast('⏱️ Tempo esgotado. Extensão instalada?', 'warning');
-      }, 120000);
-
-      // Monta os params com dados completos vindos do backend (vFull tem endereço)
       var nome  = String(vFull.cliente || '').trim();
       var phone = String(vFull.whats || vFull.tel || '').replace(/\D/g, '');
-      var cep   = String(vFull.cep || '').replace(/\D/g, '');
+      var payload = {
+        linha:      vFull.linha,
+        nome:       nome,
+        phone:      phone,
+        cpf:        (vFull.cpf || '').replace(/\D/g, ''),
+        emailPfx:   email.split('@')[0],
+        email:      email,
+        rg:         rg,
+        mae:        mother,
+        nasc:       birthday,
+        genero:     gender,
+        planoBusca: planoBusca,
+        dueDate:    dueDate,
+        endereco: {
+          cep:    (vFull.cep || '').replace(/\D/g, ''),
+          rua:    vFull.rua         || '',
+          num:    vFull.num         || '',
+          compl:  vFull.complemento || '',
+          bairro: vFull.bairro      || '',
+          cidade: vFull.cidade      || '',
+          uf:     vFull.uf          || ''
+        }
+      };
 
-      var params =
-        'dhp_nome='         + encodeURIComponent(nome)                              +
-        '&dhp_fone='        + encodeURIComponent(phone)                             +
-        '&dhp_email='       + encodeURIComponent(email)                             +
-        '&dhp_cpf='         + encodeURIComponent((vFull.cpf||'').replace(/\D/g,'')) +
-        '&dhp_rg='          + encodeURIComponent(rg)                                +
-        '&dhp_nasc='        + encodeURIComponent(birthday)                          +
-        '&dhp_mae='         + encodeURIComponent(mother)                            +
-        '&dhp_genero='      + encodeURIComponent(gender)                            +
-        '&dhp_cep='         + encodeURIComponent(cep)                               +
-        '&dhp_rua='         + encodeURIComponent(vFull.rua         || '')           +
-        '&dhp_num='         + encodeURIComponent(vFull.num         || '')           +
-        '&dhp_compl='       + encodeURIComponent(vFull.complemento || '')           +
-        '&dhp_bairro='      + encodeURIComponent(vFull.bairro      || '')           +
-        '&dhp_cidade='      + encodeURIComponent(vFull.cidade      || '')           +
-        '&dhp_uf='          + encodeURIComponent(vFull.uf          || '')           +
-        '&dhp_plano_busca=' + encodeURIComponent(planoBusca)                        +
-        '&dhp_venc='        + encodeURIComponent(dueDate)                           +
-        '&dhp_linha='       + encodeURIComponent(vFull.linha       || '');
-
-      window.open('https://hub.veronet.com.br/sales/new?' + params, '_blank');
-      mostrarToast('🟠 Criando pedido...', '');
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (btn) { btn.disabled = false; btn.textContent = '🟠 Criar Pedido'; }
+          if (!res || !res.sucesso) {
+            var msg = (res && res.mensagem) ? res.mensagem : 'Erro desconhecido ao criar pedido.';
+            var erroEl = document.getElementById('mvh-erro');
+            erroEl.textContent = '❌ ' + msg;
+            erroEl.style.display = 'block';
+            mostrarToast('❌ ' + msg, 'error');
+            // Debug detalhado no console pra inspecionar steps da API
+            if (res && res.debug) { try { console.log('VeroHub debug:', res.debug); } catch(e){} }
+            return;
+          }
+          _fecharModalVeroHub();
+          // Atualiza UI
+          v.verohubPedido   = String(res.numeroPedido);
+          v.verohubPedidoDt = res.dataHoraPedido;
+          var w = document.getElementById('vhub-wrap-' + index);
+          if (w) {
+            var novo = document.createElement('div');
+            novo.innerHTML = _veroHubPedidoHtml(v, index);
+            w.parentNode.replaceChild(novo.firstChild, w);
+          }
+          mostrarToast('✅ Pedido #' + res.numeroPedido + ' criado no VeroHub!', 'success');
+          // Backend já gravou as cols VEROHUB_PEDIDO/_DT — não chama salvarPedidoVeroHub.
+        })
+        .withFailureHandler(function(err) {
+          if (btn) { btn.disabled = false; btn.textContent = '🟠 Criar Pedido'; }
+          var erroEl = document.getElementById('mvh-erro');
+          erroEl.textContent = '❌ Erro: ' + (err && err.message ? err.message : 'falha de conexão');
+          erroEl.style.display = 'block';
+        })
+        .criarPedidoVeroHub(payload);
     })
     .withFailureHandler(function(err) {
       if (btn) { btn.disabled = false; btn.textContent = '🟠 Criar Pedido'; }

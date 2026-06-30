@@ -458,89 +458,183 @@ function _getTokenVeroHub() {
 }
 
 
-// ── VEROHUB — cria novo pedido via UrlFetchApp (sem CORS) ────────────────────
-// Recebe: { linha, csrfToken, nome, phone, cpf, emailPfx }
-// O csrfToken é capturado pelo browser e passado aqui para autenticar os requests
+// ── VEROHUB — cria novo pedido via UrlFetchApp (caminho backend direto) ──────
+// Refatorado em 30/06/2026: recebe payload completo do modal (#modalVeroHub) e
+// loga cada step com status code + corpo da resposta. Não abre Hub Web — toda
+// a criação acontece via API. Pré-requisito: token CSRF salvo via "Conectar
+// VeroHub" (bookmarklet) em Configurações. ⚠️ APIs Rails normalmente exigem
+// CSRF + cookie de sessão; UrlFetchApp NÃO passa cookie do navegador. Se Hub
+// rejeitar com 401/403, o caminho via API direta não funciona — rodar
+// _diagVeroHubAuth() no editor pra confirmar e voltar pra plano B (bookmarklet
+// ou content script).
+//
+// Payload esperado (do modal): {
+//   linha, nome, phone, cpf, emailPfx, email, rg, mae, nasc, genero,
+//   planoBusca, dueDate,
+//   endereco: { cep, rua, num, compl, bairro, cidade, uf }
+// }
 function criarPedidoVeroHub(dados) {
+  var debug = { steps: [] };
+  function logStep(nome, status, body) {
+    debug.steps.push({ step: nome, status: status, body: String(body || '').substring(0, 500) });
+    Logger.log('VeroHub[' + nome + '] HTTP ' + status + ' :: ' + String(body || '').substring(0, 200));
+  }
+  function falha(mensagem) {
+    return { sucesso: false, mensagem: mensagem, debug: debug };
+  }
   try {
-    var linha     = parseInt(dados.linha);
-    var csrf      = String(dados.csrfToken || _getTokenVeroHub() || '').trim();
-    var nome      = String(dados.nome      || '').trim();
-    var phone     = String(dados.phone     || '').replace(/\D/g, '');
-    var cpf       = String(dados.cpf       || '').replace(/\D/g, '');
-    var emailPfx  = String(dados.emailPfx  || cpf || 'cliente').trim();
+    var linha      = parseInt(dados.linha);
+    var csrf       = String(dados.csrfToken || _getTokenVeroHub() || '').trim();
+    var nome       = String(dados.nome       || '').trim();
+    var phone      = String(dados.phone      || '').replace(/\D/g, '');
+    var cpf        = String(dados.cpf        || '').replace(/\D/g, '');
+    var emailFull  = String(dados.email      || '').trim();
+    var emailPfx   = String(dados.emailPfx   || (emailFull ? emailFull.split('@')[0] : cpf) || 'cliente').trim();
+    var emailDom   = emailFull && emailFull.indexOf('@') > -1 ? emailFull.split('@')[1] : 'gmail.com';
+    var rg         = String(dados.rg         || '').replace(/\D/g, '');
+    var mae        = String(dados.mae        || '').trim();
+    var nasc       = String(dados.nasc       || '').trim();   // YYYY-MM-DD do <input type=date>
+    var genero     = String(dados.genero     || '').trim();   // M / F
+    var planoBusca = String(dados.planoBusca || '').trim();
+    var dueDate    = String(dados.dueDate    || '').trim();   // 1/3/5/9/13/18
+    var end        = dados.endereco || {};
 
-    if (!csrf)  return { sucesso: false, mensagem: 'CSRF token ausente. Faça login no VeroHub.' };
-    if (!nome)  return { sucesso: false, mensagem: 'Nome do cliente não informado.' };
-    if (!phone) return { sucesso: false, mensagem: 'Telefone não informado.' };
+    if (!csrf)  return falha('CSRF token ausente. Reconecte o VeroHub em Configurações.');
+    if (!nome)  return falha('Nome do cliente não informado.');
+    if (!phone) return falha('Telefone não informado.');
 
     var BASE    = 'https://hub.veronet.com.br';
     var headers = {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrf
+      'Content-Type':     'application/json',
+      'Accept':           'application/json',
+      'X-CSRF-Token':     csrf,
+      'X-Requested-With': 'XMLHttpRequest'
     };
-    var opts = { muteHttpExceptions: true, headers: headers };
 
-    // ── 1. Duplicar ou criar novo pedido ──────────────────────────────────
-    var bodyLead = JSON.stringify({
+    function fetchHub(step, method, path, payload) {
+      var opts = { muteHttpExceptions: true, headers: headers, method: method };
+      if (payload != null) opts.payload = typeof payload === 'string' ? payload : JSON.stringify(payload);
+      var r = UrlFetchApp.fetch(BASE + path, opts);
+      var status = r.getResponseCode();
+      var body   = r.getContentText();
+      logStep(step, status, body);
+      var json = null;
+      try { json = JSON.parse(body); } catch(e) {}
+      return { status: status, body: body, json: json };
+    }
+
+    // ── 1. POST /api/sales — cria pedido ────────────────────────────────────
+    var r1 = fetchHub('POST /api/sales', 'post', '/api/sales', {
       name:                nome,
       phone:               phone,
       email_prefix:        emailPfx,
-      custom_email_domain: 'gmail.com',
+      custom_email_domain: emailDom,
       seller_id:           335
     });
-    var r1 = UrlFetchApp.fetch(BASE + '/api/sales',
-      Object.assign({}, opts, { method: 'post', payload: bodyLead })
-    );
-    var d1 = JSON.parse(r1.getContentText());
-    var novoId = d1.id;
-    if (!novoId) return { sucesso: false, mensagem: 'Falha ao criar pedido: ' + r1.getContentText().substring(0, 200) };
-
-    // ── 2. create_lead ────────────────────────────────────────────────────
-    UrlFetchApp.fetch(BASE + '/api/sales/create_lead/' + novoId,
-      Object.assign({}, opts, { method: 'put', payload: '{}' }));
-
-    // ── 3. Confirmar endereço ─────────────────────────────────────────────
-    UrlFetchApp.fetch(BASE + '/api/sales/' + novoId,
-      Object.assign({}, opts, { method: 'put', payload: '{}' }));
-
-    // ── 4. Confirmar plano ────────────────────────────────────────────────
-    UrlFetchApp.fetch(BASE + '/api/sales/' + novoId + '/update_plan',
-      Object.assign({}, opts, { method: 'put', payload: '{}' }));
-
-    // ── 5. Dados pessoais ─────────────────────────────────────────────────
-    if (cpf) {
-      UrlFetchApp.fetch(BASE + '/api/sales/' + novoId + '/update_personal_data_pf',
-        Object.assign({}, opts, { method: 'put', payload: JSON.stringify({ cpf: cpf }) }));
+    if (r1.status === 401 || r1.status === 403) {
+      return falha('Hub rejeitou autenticação (HTTP ' + r1.status + '). Token CSRF sem cookie de sessão não funciona — caminho via UrlFetchApp inviável. Reconecte ou use bookmarklet.');
     }
+    if (r1.status >= 400) {
+      return falha('Hub falhou em POST /api/sales (HTTP ' + r1.status + '). Body: ' + r1.body.substring(0, 200));
+    }
+    var novoId = r1.json && r1.json.id;
+    if (!novoId) return falha('POST /api/sales OK mas resposta sem id: ' + r1.body.substring(0, 200));
 
-    // ── 6. Análise de crédito ─────────────────────────────────────────────
-    UrlFetchApp.fetch(BASE + '/api/sale/' + novoId + '/credit_analisys',
-      Object.assign({}, opts, { method: 'post', payload: '{}' }));
+    // ── 2. PUT /api/sales/create_lead/:id ───────────────────────────────────
+    fetchHub('PUT create_lead', 'put', '/api/sales/create_lead/' + novoId, {});
 
-    // ── 7. Salvar na planilha ─────────────────────────────────────────────
+    // ── 3. PUT /api/sales/:id — endereço completo ───────────────────────────
+    // Payload heurístico baseado em campos comuns Rails. Se Hub não aceitar
+    // essas chaves, os logs vão mostrar o erro e ajustamos.
+    var enderecoPayload = {};
+    if (end.cep)     enderecoPayload.zipcode    = String(end.cep).replace(/\D/g, '');
+    if (end.rua)     enderecoPayload.street     = String(end.rua).trim();
+    if (end.num)     enderecoPayload.number     = String(end.num).trim();
+    if (end.compl)   enderecoPayload.complement = String(end.compl).trim();
+    if (end.bairro)  enderecoPayload.district   = String(end.bairro).trim();
+    if (end.cidade)  enderecoPayload.city       = String(end.cidade).trim();
+    if (end.uf)      enderecoPayload.state      = String(end.uf).trim();
+    fetchHub('PUT update endereço', 'put', '/api/sales/' + novoId,
+      Object.keys(enderecoPayload).length ? enderecoPayload : {});
+
+    // ── 4. PUT /api/sales/:id/update_plan — plano + vencimento ─────────────
+    var planoPayload = {};
+    if (planoBusca) planoPayload.plan_search = planoBusca;
+    if (dueDate)    planoPayload.due_date    = dueDate;
+    fetchHub('PUT update_plan', 'put', '/api/sales/' + novoId + '/update_plan',
+      Object.keys(planoPayload).length ? planoPayload : {});
+
+    // ── 5. PUT /api/sales/:id/update_personal_data_pf — dados PF completos ─
+    var pfPayload = {};
+    if (cpf)    pfPayload.cpf         = cpf;
+    if (rg)     pfPayload.rg          = rg;
+    if (mae)    pfPayload.mother_name = mae;
+    if (nasc)   pfPayload.birthday    = nasc;
+    if (genero) pfPayload.gender      = genero;
+    fetchHub('PUT personal_data_pf', 'put', '/api/sales/' + novoId + '/update_personal_data_pf',
+      Object.keys(pfPayload).length ? pfPayload : {});
+
+    // ── 6. POST /api/sale/:id/credit_analisys ───────────────────────────────
+    fetchHub('POST credit_analisys', 'post', '/api/sale/' + novoId + '/credit_analisys', {});
+
+    // ── 7. Salvar na planilha ───────────────────────────────────────────────
     var tz     = Session.getScriptTimeZone();
-    var agora  = new Date();
-    var dtHora = Utilities.formatDate(agora, tz, 'dd/MM/yyyy HH:mm');
+    var dtHora = Utilities.formatDate(new Date(), tz, 'dd/MM/yyyy HH:mm');
 
     if (linha >= 3) {
       var c = CONFIG.COLUNAS;
       var sheet = _getSheet();
       sheet.getRange(linha, c.VEROHUB_PEDIDO    + 1).setValue(String(novoId));
       sheet.getRange(linha, c.VEROHUB_PEDIDO_DT + 1).setValue(dtHora);
-      _atualizarVendaNoCache_(linha); // Fase 5b
+      _atualizarVendaNoCache_(linha);
     }
 
     return {
-      sucesso:         true,
-      numeroPedido:    String(novoId),
-      dataHoraPedido:  dtHora
+      sucesso:        true,
+      numeroPedido:   String(novoId),
+      dataHoraPedido: dtHora,
+      debug:          debug
     };
 
   } catch(e) {
-    Logger.log('Erro criarPedidoVeroHub: ' + e.message);
-    return { sucesso: false, mensagem: e.message };
+    Logger.log('Erro criarPedidoVeroHub: ' + e.message + ' :: ' + (e.stack || ''));
+    return { sucesso: false, mensagem: e.message, debug: debug };
   }
+}
+
+// ── VEROHUB — diagnóstico de autenticação ───────────────────────────────────
+// Roda 4 GETs sentinela no Hub com o token CSRF salvo. Se TODOS derem 401/403,
+// confirma que UrlFetchApp sem cookie de sessão não consegue autenticar e o
+// caminho via API direta (criarPedidoVeroHub) não vai funcionar. Rodar no
+// editor Apps Script: Logger mostra status code de cada endpoint.
+function _diagVeroHubAuth() {
+  var csrf = _getTokenVeroHub();
+  if (!csrf) {
+    Logger.log('Token CSRF ausente. Vá em Configurações → Conectar VeroHub primeiro.');
+    return { ok: false, motivo: 'sem_token' };
+  }
+  var BASE = 'https://hub.veronet.com.br';
+  var opts = {
+    muteHttpExceptions: true,
+    method: 'get',
+    headers: {
+      'Accept':           'application/json',
+      'X-CSRF-Token':     csrf,
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  };
+  var endpoints = ['/api/me', '/api/users/me', '/api/current_user', '/api/sales'];
+  var resultados = [];
+  endpoints.forEach(function(path) {
+    try {
+      var r = UrlFetchApp.fetch(BASE + path, opts);
+      resultados.push({ path: path, status: r.getResponseCode(), body: r.getContentText().substring(0, 200) });
+    } catch(e) {
+      resultados.push({ path: path, status: -1, body: e.message });
+    }
+  });
+  Logger.log('VeroHub auth diag:\n' + JSON.stringify(resultados, null, 2));
+  return { ok: true, resultados: resultados };
 }
 
 
