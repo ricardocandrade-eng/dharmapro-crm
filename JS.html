@@ -1791,6 +1791,11 @@ var _healthExtensionId  = null; // back-compat: ID primário (1ª entrada de _he
 var _healthExtensionIds = [];   // lista completa; Via A tenta cada (necessário p/ extensões unpacked
                                  // — Chrome gera ID por path local, então BKO e Ricardo têm IDs distintos)
 
+// Feature flags das consultas NG/Adapter sem popup (HANDOFF_CLAUDE_CODE_CONSULTAS_SEM_POPUP.md).
+// Default OFF → comportamento idêntico ao atual (popup). Carregadas no boot via
+// getConsultasConfig; se o boot falhar, ficam OFF (fallback seguro pro popup).
+var _consultasFlags = { adapterBg: false, ngAbaQuente: false };
+
 function _verificarConexoes(manual) {
   var dots = {
     vpn: document.getElementById('healthDotVpn'),
@@ -1856,7 +1861,9 @@ function _atualizarHealthWidget() {
 
 // Envia mensagem pra extensão via tripla via (mesma estratégia do Viabilidade.html).
 // Returns 'ok' se algum caminho respondeu em ≤7s, ou 'erro' se nenhum.
-function _healthSendMsg(msg, cb) {
+// timeoutMs opcional (default 12000). As consultas sem popup passam um valor
+// maior (Adapter/NG podem demorar o bootstrap da 1ª chamada) — health mantém 12s.
+function _healthSendMsg(msg, cb, timeoutMs) {
   var id = 'h-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
   var done = false;
   function finish(resp) {
@@ -1879,7 +1886,7 @@ function _healthSendMsg(msg, cb) {
   }
   var to = setTimeout(function() {
     finish({ ok: false, erro: 'EXTENSAO_NAO_DISPONIVEL' });
-  }, 12000);
+  }, timeoutMs || 12000);
   window.addEventListener('message', msgHandler);
   document.addEventListener('dhp-via-res', docHandler);
 
@@ -1940,6 +1947,24 @@ function _iniciarPollingHealth() {
   }
 }
 
+// Carrega as feature flags das consultas sem popup (ADAPTER_BG / NG_ABA_QUENTE).
+// Também guarda os extensionIds (mesma fonte do health) caso o boot do health
+// ainda não tenha rodado. Falha → flags ficam OFF (fallback pro popup).
+function _carregarConsultasConfig() {
+  try {
+    google.script.run
+      .withSuccessHandler(function(cfg) {
+        if (!cfg) return;
+        _consultasFlags.adapterBg   = !!cfg.adapterBgAtivo;
+        _consultasFlags.ngAbaQuente = !!cfg.ngAbaQuenteAtivo;
+        if (cfg.extensionId  && !_healthExtensionId)  _healthExtensionId  = cfg.extensionId;
+        if (cfg.extensionIds && (!_healthExtensionIds || !_healthExtensionIds.length)) _healthExtensionIds = cfg.extensionIds;
+      })
+      .withFailureHandler(function() { /* flags OFF — popup */ })
+      .getConsultasConfig(AppState.get('usuario') || '');
+  } catch (e) { /* flags OFF — popup */ }
+}
+
 
 // ─── INSTRUMENTAÇÃO DE CONSULTAS NG/ADAPTER (Fase 1.0) ────────────────────
 // Helpers compartilhados pelas funções _consultarNGVenda e _consultarAdapterVenda.
@@ -1996,6 +2021,17 @@ function _mensagemErroHumana(categoria, sistema) {
     case 'sem_credenciais':    return 'Credenciais do ' + sis + ' não configuradas. Vá em Config e salve usuário/senha.';
     default:                   return null;
   }
+}
+
+// Distingue falha do CANAL (extensão ausente / versão antiga sem a rota / timeout
+// do envio) de um erro legítimo da consulta (contrato_nao_encontrado, login etc).
+// Quando o canal falha, as consultas sem popup revertem para o popup atual
+// (migração sem risco — HANDOFF §9). true = canal indisponível → fallback popup.
+function _consultaCanalFalhou(resp) {
+  if (!resp) return true;
+  if (resp.ok === true) return false;
+  var e = String(resp.erro || '');
+  return /EXTENSAO_NAO_DISPONIVEL|EXTENSAO_TIMEOUT|EXTENSAO_RUNTIME_ERRO|EXTENSAO_SEM_SCRIPTING|EXTENSAO_ERRO_INTERNO|BG_RESP_UNDEFINED|ADAPTER_ERRO_INTERNO|NG_ERRO_INTERNO|CONTENT_PING|CONTENT_NG|BRIDGE_EXCECAO|ACAO_DESCONHECIDA|INJECAO_FALHOU/i.test(e);
 }
 
 
@@ -2489,53 +2525,92 @@ function _consultarAdapterVenda(index, _tentativa) {
         }
       };
 
-      window.addEventListener('message', _handler);
+      // Declarado no escopo do handler; armado só no caminho popup (backstop 30s).
+      var _timeout;
 
-      var _timeout = setTimeout(function() {
-        window.removeEventListener('message', _handler);
-        var _ms = Date.now() - _inicio;
+      // Caminho popup atual — usado com a flag OFF e como fallback quando o
+      // canal da extensão está indisponível (extensão ausente ou versão antiga
+      // sem a rota adapter.consulta). Comportamento idêntico ao de antes.
+      function _abrirPopupAdapter() {
+        window.addEventListener('message', _handler);
 
-        // Retry transparente UMA vez em timeout do frontend
-        if (_tentativa === 1) {
-          _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'retry', categoria: 'timeout_frontend', ms: _ms });
-          if (_popup && !_popup.closed) { try { _popup.close(); } catch(x) {} }
-          mostrarToast('Sem resposta da extensão — tentando novamente em 10s...', 'warning');
-          setTimeout(function() { _consultarAdapterVenda(index, 2); }, 10000);
-          return;
+        _timeout = setTimeout(function() {
+          window.removeEventListener('message', _handler);
+          var _ms = Date.now() - _inicio;
+
+          // Retry transparente UMA vez em timeout do frontend
+          if (_tentativa === 1) {
+            _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'retry', categoria: 'timeout_frontend', ms: _ms });
+            if (_popup && !_popup.closed) { try { _popup.close(); } catch(x) {} }
+            mostrarToast('Sem resposta da extensão — tentando novamente em 10s...', 'warning');
+            setTimeout(function() { _consultarAdapterVenda(index, 2); }, 10000);
+            return;
+          }
+
+          _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'timeout_frontend', categoria: 'timeout_frontend', ms: _ms });
+          document.getElementById('madp-loading').style.display = 'none';
+          document.getElementById('madp-erro').style.display = 'block';
+          document.getElementById('madp-erro-msg').textContent = _mensagemErroHumana('timeout_frontend', 'Adapter');
+        }, 30000);
+
+        // Fecha popup Adapter anterior se ainda aberto (mesmo motivo do NG)
+        if (_adapterPopupAtual && !_adapterPopupAtual.closed) { try { _adapterPopupAtual.close(); } catch(x) {} }
+
+        // Abrir popup no Adapter com contrato no hash + nome único por consulta
+        var _hash = '#dhp?contrato=' + encodeURIComponent(contrato) +
+                    '&user='    + encodeURIComponent(creds.user) +
+                    '&pass='    + encodeURIComponent(creds.pass);
+        // Popup stealth: Adapter precisa só de cookies + AJAX, então usa o
+        // mínimo permitido pelo Chrome (~200x100). Posição offscreen + blur +
+        // moveTo via helper compartilhado com o popup do NG.
+        _popup = window.open(
+          'https://adapter.veronet.com.br/adapter/' + _hash,
+          'dhp_adapter_' + Date.now(),
+          'width=200,height=100,left=99999,top=99999,menubar=no,toolbar=no,location=no,status=no,scrollbars=no,resizable=no'
+        );
+        _adapterPopupAtual = _popup;
+        _tornarPopupInvisivel(_popup);
+
+        // Detecta popup bloqueado pelo navegador
+        if (!_popup || _popup.closed || typeof _popup.closed === 'undefined') {
+          clearTimeout(_timeout);
+          window.removeEventListener('message', _handler);
+          _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'erro_extensao', categoria: 'popup_bloqueado', ms: Date.now() - _inicio, mensagem: 'window.open retornou null/closed' });
+          document.getElementById('madp-loading').style.display = 'none';
+          document.getElementById('madp-erro').style.display = 'block';
+          document.getElementById('madp-erro-msg').textContent = _mensagemErroHumana('popup_bloqueado', 'Adapter');
         }
+      }
 
-        _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'timeout_frontend', categoria: 'timeout_frontend', ms: _ms });
-        document.getElementById('madp-loading').style.display = 'none';
-        document.getElementById('madp-erro').style.display = 'block';
-        document.getElementById('madp-erro-msg').textContent = _mensagemErroHumana('timeout_frontend', 'Adapter');
-      }, 30000);
-
-      // Fecha popup Adapter anterior se ainda aberto (mesmo motivo do NG)
-      if (_adapterPopupAtual && !_adapterPopupAtual.closed) { try { _adapterPopupAtual.close(); } catch(x) {} }
-
-      // Abrir popup no Adapter com contrato no hash + nome único por consulta
-      var _hash = '#dhp?contrato=' + encodeURIComponent(contrato) +
-                  '&user='    + encodeURIComponent(creds.user) +
-                  '&pass='    + encodeURIComponent(creds.pass);
-      // Popup stealth: Adapter precisa só de cookies + AJAX, então usa o
-      // mínimo permitido pelo Chrome (~200x100). Posição offscreen + blur +
-      // moveTo via helper compartilhado com o popup do NG.
-      _popup = window.open(
-        'https://adapter.veronet.com.br/adapter/' + _hash,
-        'dhp_adapter_' + Date.now(),
-        'width=200,height=100,left=99999,top=99999,menubar=no,toolbar=no,location=no,status=no,scrollbars=no,resizable=no'
-      );
-      _adapterPopupAtual = _popup;
-      _tornarPopupInvisivel(_popup);
-
-      // Detecta popup bloqueado pelo navegador
-      if (!_popup || _popup.closed || typeof _popup.closed === 'undefined') {
-        clearTimeout(_timeout);
-        window.removeEventListener('message', _handler);
-        _logConsulta({ sistema: 'Adapter', linha: v.linha, cpf: v.cpf, evento: 'erro_extensao', categoria: 'popup_bloqueado', ms: Date.now() - _inicio, mensagem: 'window.open retornou null/closed' });
-        document.getElementById('madp-loading').style.display = 'none';
-        document.getElementById('madp-erro').style.display = 'block';
-        document.getElementById('madp-erro-msg').textContent = _mensagemErroHumana('popup_bloqueado', 'Adapter');
+      // Caminho SEM popup (flag ADAPTER_BG_ATIVO): fetch no service worker da
+      // extensão via _healthSendMsg (mesmo canal do health). O resultado é
+      // entregue ao MESMO _handler acima (shape idêntico ao dhp_adapter_result),
+      // preservando telemetria, retry e auto-fallback NG↔Adapter. Se o canal
+      // falhar (extensão ausente/antiga), reverte pro popup atual.
+      if (_consultasFlags.adapterBg) {
+        var _reqId = 'adp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+        _healthSendMsg({
+          action:   'adapter.consulta',
+          contrato: contrato,
+          user:     creds.user,
+          pass:     creds.pass,
+          reqId:    _reqId,
+          usuario:  (typeof AppState !== 'undefined' && AppState.get('usuario')) || ''
+        }, function(resp) {
+          if (_consultaCanalFalhou(resp)) {
+            _abrirPopupAdapter();   // extensão indisponível/antiga — reverte pro popup
+            return;
+          }
+          if (resp.ok === true) {
+            var d = resp.resultado || {};
+            d.type = 'dhp_adapter_result';
+            _handler({ data: d });
+          } else {
+            _handler({ data: { type: 'dhp_adapter_result', erro: resp.erro || 'Erro Adapter' } });
+          }
+        }, 45000);
+      } else {
+        _abrirPopupAdapter();
       }
     })
     .withFailureHandler(function(err) {
@@ -5484,6 +5559,9 @@ function fazerLogin() {
 
         // Health Check: pontinhos VPN/NG/Adapter no header + polling 60s
         try { _iniciarPollingHealth(); } catch (e) { console.warn('Health check init falhou:', e); }
+
+        // Feature flags das consultas sem popup (ADAPTER_BG / NG_ABA_QUENTE) — default OFF
+        try { _carregarConsultasConfig(); } catch (e) { console.warn('Consultas config init falhou:', e); }
 
         // Pré-aquece o cache dos Relatórios (janela 12m) em background — 1ª abertura do dia já vem quente
         try { google.script.run.prewarmRelatorios(); } catch (e) {}
