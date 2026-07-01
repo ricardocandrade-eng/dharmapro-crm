@@ -3713,7 +3713,7 @@ function _funilSLABadge(v) {
 function _criarFunilCard(v, col) {
   var hoje       = new Date(); hoje.setHours(0,0,0,0);
   var agendaStr  = _fmtData(v.agenda) || '';
-  var agendaBadge = '';
+  var agendaDestaque = '';
   var ehHoje     = false;
 
   if (agendaStr) {
@@ -3723,10 +3723,10 @@ function _criarFunilCard(v, col) {
       : new Date(agendaStr);
     var vencido = !isNaN(agendaDate) && agendaDate < hoje;
     ehHoje      = !isNaN(agendaDate) && agendaDate.getTime() === hoje.getTime();
-    agendaBadge =
-      '<div class="funil-badge-agenda' + (vencido ? ' vencido' : '') + '">' +
+    agendaDestaque =
+      '<div class="funil-card-agenda-destaque' + (vencido ? ' vencido' : '') + '">' +
         (vencido ? '⚠️' : '📅') + ' ' + esc(agendaStr) +
-        (v.turno ? ' · ' + esc(v.turno.split(' ')[0]) : '') +
+        (v.turno ? ' · ' + esc(v.turno) : '') +
       '</div>';
   }
 
@@ -3752,6 +3752,7 @@ function _criarFunilCard(v, col) {
         ' data-linha="' + esc(String(v.linha)) + '"' +
         ' data-status="' + esc(v.status) + '">' +
       '<div class="funil-card-nome">' + dotHoje + esc(v.cliente || 'Sem nome') + '</div>' +
+      agendaDestaque +
       (v.produto || v.plano
         ? '<div class="funil-card-row">📦 ' + esc(v.produto || '') + (v.plano ? ' · ' + _prefixoCodigoVero(v) + esc(_limparNomePlano(v.plano)) : '') + '</div>'
         : '') +
@@ -3764,10 +3765,6 @@ function _criarFunilCard(v, col) {
       (v.contrato
         ? '<div class="funil-card-row" style="font-size:10px;color:var(--muted)">ID Contrato: ' + esc(v.contrato) + '</div>'
         : '') +
-      (v.whats
-        ? '<div class="funil-card-row">📱 ' + esc(v.whats) + '</div>'
-        : '') +
-      agendaBadge +
       slaBadge +
       '<div class="funil-card-acoes" style="display:flex;align-items:stretch;gap:6px;margin-top:8px">' +
         btnConsulta +
