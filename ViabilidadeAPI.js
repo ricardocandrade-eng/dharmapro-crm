@@ -5,6 +5,7 @@
 //  Públicas (google.script.run):
 //    getViabilidadeHtml()                                    → string HTML
 //    getViabilidadeConfig()                                  → { ok, ativo, extensionId, usuario }
+//    getConsultasConfig(usuario)                             → { ok, adapterBgAtivo, ngAbaQuenteAtivo, extensionId(s) }
 //    getViabilidadeAddressCleanupBackend(textoCru, usuario)  → { ok, logradouro|motivo, ... }
 //    salvarConsultaViabilidade(usuario, consulta)            → { ok, hash, linha }
 //    getHistoricoViabilidadeUsuario(usuario, limite)         → { ok, lista }
@@ -25,6 +26,11 @@ var VIABILIDADE_PROP_EXT_ID    = 'VIABILIDADE_EXTENSION_ID';     // ID(s) da ext
 var VIABILIDADE_MODEL_CLAUDE   = 'claude-haiku-4-5-20251001';
 var VIABILIDADE_CLEANUP_TIMEOUT = 8000;
 var VIABILIDADE_CLEANUP_MAX_HORA = 30;                           // throttle por usuario por hora
+
+// Feature flags das consultas NG/Adapter sem popup (HANDOFF_CLAUDE_CODE_CONSULTAS_SEM_POPUP.md).
+// Ambas default '0' (OFF) — com OFF o comportamento é idêntico ao atual (popup).
+var CONSULTAS_PROP_ADAPTER_BG  = 'ADAPTER_BG_ATIVO';            // '1' = Adapter via fetch no background (sem aba)
+var CONSULTAS_PROP_NG_ABA_QUENTE = 'NG_ABA_QUENTE_ATIVO';      // '1' = NG via aba quente residente (sem popup)
 
 // ── 1. HTML serve ─────────────────────────────────────────────────────────────
 function getViabilidadeHtml() {
@@ -51,6 +57,24 @@ function getViabilidadeConfig(usuario) {
     extensionId:  ids[0] || '',  // back-compat: callers antigos leem só o primeiro
     extensionIds: ids,           // lista completa pro health check (Via A tenta cada)
     usuario:      String(usuario || 'anon')
+  };
+}
+
+// ── 2b. Config das consultas NG/Adapter (flags + extensionIds) ────────────────
+// Consumida pelo CRM no boot (JS.html _carregarConsultasConfig). Reusa a mesma
+// fonte de extensionId do health check (VIABILIDADE_EXTENSION_ID). As flags
+// controlam o caminho "sem popup": OFF (default) mantém o popup atual.
+function getConsultasConfig(usuario) {
+  var props = PropertiesService.getScriptProperties();
+  var raw = props.getProperty(VIABILIDADE_PROP_EXT_ID) || '';
+  var ids = raw.split(/[,;\s]+/).map(function(s){ return s.trim(); }).filter(Boolean);
+  return {
+    ok:               true,
+    adapterBgAtivo:   props.getProperty(CONSULTAS_PROP_ADAPTER_BG) === '1',
+    ngAbaQuenteAtivo: props.getProperty(CONSULTAS_PROP_NG_ABA_QUENTE) === '1',
+    extensionId:      ids[0] || '',
+    extensionIds:     ids,
+    usuario:          String(usuario || 'anon')
   };
 }
 
