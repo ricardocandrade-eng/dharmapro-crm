@@ -125,6 +125,149 @@ async function consultarAdapter(cpf, user, pass) {
   }
 }
 
+// ── Adapter por CONTRATO (sem aba, sem popup) ─────────────────────────────────
+// Espelha exatamente content-adapter.js#executar (busca por contrato, refator
+// 21/05/2026): login → GET /comercial/contratos/{contrato} → agendamento só
+// quando aguardando. A sessão vive no cookie jar do navegador (credentials:
+// 'include') e é (re)estabelecida no login desta mesma cadeia de fetch a cada
+// consulta — não depende de sessão prévia (ver HANDOFF §1.1/§10).
+// Retorna o MESMO shape do dhp_adapter_result de hoje:
+//   { instalada, dataInstalacao, dataAgendamento, resumo, contratos, aguardando }
+//   ou { erro: '<msg|token>' }.
+async function consultarAdapterContrato(contrato, user, pass) {
+  try {
+    // 1. Login (credentials:'include' — grava a sessão no cookie jar)
+    var loginResp = await fetch(BASE + '/auth/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'login=' + encodeURIComponent(user) + '&senha=' + encodeURIComponent(pass)
+    });
+    if (!loginResp.ok) {
+      var errBody = '';
+      try { errBody = await loginResp.text(); } catch (x) {}
+      return { erro: 'Login falhou (HTTP ' + loginResp.status + '). ' + errBody.substring(0, 300) };
+    }
+
+    // 2. Buscar o contrato direto pelo ID (só GET /comercial/contratos/{id}
+    //    funciona; os padrões /novo/{id}, ?id= e datatables retornam HTTP 500).
+    var contratoLimpo = String(contrato).replace(/\D/g, '');
+    var contratoResp = await fetch(BASE + '/comercial/contratos/' + encodeURIComponent(contratoLimpo), {
+      credentials: 'include'
+    });
+
+    var c;
+    if (contratoResp.status === 200) {
+      c = await contratoResp.json();
+    } else if (contratoResp.status === 404 || contratoResp.status === 500) {
+      // 500 = padrão do Adapter quando o contrato não existe (testado em produção)
+      return { erro: 'contrato_nao_encontrado' };
+    } else {
+      return { erro: 'Erro ao buscar contrato (HTTP ' + contratoResp.status + ')' };
+    }
+
+    // 3. Processar o contrato consultado (sem loop — é exatamente um)
+    var r = { instalada: false, dataInstalacao: '', dataAgendamento: '',
+              resumo: '', contratos: [], aguardando: false };
+
+    var cStatus = (c.status && typeof c.status === 'object') ? (c.status.descricao || '') : String(c.status || '');
+    var cPlano  = (c.plano  && typeof c.plano  === 'object') ? (c.plano.nome || '')       : String(c.plano || '');
+    var cStatusUp = cStatus.toUpperCase();
+
+    r.contratos.push({ id: c.id || '', plano: cPlano, status: cStatus });
+
+    if (cStatusUp === 'CANCELADO') {
+      var dtCanc = c.dataCancelamento || '';
+      r.resumo = 'Contrato cancelado' + (dtCanc ? ' em ' + (typeof dtCanc === 'string' && dtCanc.indexOf('/') > -1 ? dtCanc.split(' ')[0] : fmtData(dtCanc)) : '');
+      return r; // estado terminal — NÃO marca instalada
+    }
+
+    if (cStatusUp === 'HABILITADO') {
+      r.instalada = true;
+      var dtHab = c.dataHabilitacao || c.dataUltimaHabilitacao || '';
+      if (dtHab) r.dataInstalacao = (typeof dtHab === 'string' && dtHab.indexOf('/') > -1) ? dtHab.split(' ')[0] : fmtData(dtHab);
+    }
+
+    if (cStatusUp.indexOf('AGUARDANDO') > -1) r.aguardando = true;
+
+    // 4. Agendamento — só quando aguardando. Usa o cliente do próprio payload.
+    if (!r.instalada && r.aguardando) {
+      var clienteId = c.cliente && c.cliente.id ? c.cliente.id : '';
+      if (clienteId) {
+        var dtBody = JSON.stringify({
+          draw: 1, start: 0, length: 50,
+          columns: [{ data: null, name: '', searchable: true, orderable: false, search: { value: '', regex: false } }],
+          order: [{ column: 0, dir: 'asc' }],
+          search: { value: '', regex: false }
+        });
+        var agendadosResp = await fetch(
+          BASE + '/comercial/atendimentos/novo/datatables?clienteId=' + clienteId + '&status=VISITA_AGENDADA',
+          {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: dtBody
+          }
+        );
+        var agendadosRaw = agendadosResp.ok ? await agendadosResp.json() : {};
+        var agendados = agendadosRaw.data || agendadosRaw.content || (Array.isArray(agendadosRaw) ? agendadosRaw : []);
+        for (var k = 0; k < agendados.length; k++) {
+          var dtAg = agendados[k].dataAgendamento || '';
+          if (dtAg) {
+            r.dataAgendamento = (typeof dtAg === 'string' && dtAg.indexOf(' ') > -1) ? dtAg.split(' ')[0] : dtAg;
+            break;
+          }
+        }
+      }
+    }
+
+    if (r.instalada) r.resumo = 'Instalada' + (r.dataInstalacao ? ' em ' + r.dataInstalacao : '');
+    else if (r.dataAgendamento) r.resumo = 'Agendada para ' + r.dataAgendamento;
+    else if (r.aguardando) r.resumo = 'Aguardando Instalacao (sem agendamento)';
+    else r.resumo = 'Sem contrato ativo';
+
+    return r;
+
+  } catch (e) {
+    return { erro: 'Erro: ' + (e.message || String(e)) };
+  }
+}
+
+// ── Roteador das consultas sem popup (Adapter/NG) ─────────────────────────────
+// Colapsa entrega dupla: _healthSendMsg (JS.html) manda a MESMA mensagem por Via
+// A (externa, N extIds) e Via B/C (bridge → onMessage interno). Sem dedup por
+// reqId, uma consulta rodaria 2x. Guarda a promise em voo por reqId e reusa.
+var _consultaInflight = Object.create(null);
+function handleConsultaDedup(msg, fn) {
+  var reqId = msg && msg.reqId;
+  if (!reqId) return fn();
+  if (_consultaInflight[reqId]) return _consultaInflight[reqId];
+  var p = fn().then(function (res) {
+    // mantém no map por 5s pra colher a 2ª entrega, depois limpa
+    setTimeout(function () { delete _consultaInflight[reqId]; }, 5000);
+    return res;
+  }, function (err) {
+    delete _consultaInflight[reqId];
+    throw err;
+  });
+  _consultaInflight[reqId] = p;
+  return p;
+}
+
+// Normaliza o resultado do consultarAdapterContrato pro contrato do HANDOFF §5:
+//   { ok:true, resultado:{...} } | { ok:false, erro:'<token|msg>' }
+async function handleAdapterConsulta(msg) {
+  var contrato = msg && msg.contrato;
+  var user = msg && msg.user;
+  var pass = msg && msg.pass;
+  if (!contrato) return { ok: false, erro: 'contrato_formato_invalido' };
+  if (!user || !pass) return { ok: false, erro: 'sem_credenciais' };
+  var r = await consultarAdapterContrato(contrato, user, pass);
+  if (!r) return { ok: false, erro: 'Adapter: resposta vazia' };
+  if (r.erro) return { ok: false, erro: r.erro };
+  return { ok: true, resultado: r };
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 //  Health Check — diagnóstico de conexões (VPN/NG/Adapter)
 //  Permite ao CRM detectar em tempo real se o usuário tem:
@@ -242,6 +385,14 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return true;
   }
 
+  // Consulta Adapter sem popup (fetch no background) — ação `adapter.consulta`
+  if (msg && msg.action === 'adapter.consulta') {
+    handleConsultaDedup(msg, function () { return handleAdapterConsulta(msg); }).then(sendResponse, function (err) {
+      sendResponse({ ok: false, erro: 'ADAPTER_ERRO_INTERNO', msg: String(err && err.message || err) });
+    });
+    return true;
+  }
+
   // Roteamento Viabilidade (PinG) — ações `viabilidade.*`
   if (msg && typeof msg.action === 'string' && msg.action.indexOf('viabilidade.') === 0) {
     handleViabilidade(msg, sender).then(function(resp) {
@@ -265,6 +416,14 @@ chrome.runtime.onMessageExternal.addListener(function(msg, sender, sendResponse)
   if (msg && msg.action === 'health.check') {
     realizarHealthCheck().then(sendResponse, function(err) {
       sendResponse({ ok: false, erro: 'HEALTH_CHECK_ERRO', msg: String(err && err.message || err) });
+    });
+    return true;
+  }
+
+  // Consulta Adapter sem popup (fetch no background) — ação `adapter.consulta`
+  if (msg && msg.action === 'adapter.consulta') {
+    handleConsultaDedup(msg, function () { return handleAdapterConsulta(msg); }).then(sendResponse, function (err) {
+      sendResponse({ ok: false, erro: 'ADAPTER_ERRO_INTERNO', msg: String(err && err.message || err) });
     });
     return true;
   }
