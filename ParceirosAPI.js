@@ -73,12 +73,14 @@ const HEADERS_PRE_VENDAS = [
   'Vencimento', 'Pagamento',
   'Data Decisão', 'Decidido Por',
   'Rua', 'Número', 'Complemento', 'Bairro', 'Cidade', 'UF', 'Valor Plano',
-  'Motivo Rejeição'
+  'Motivo Rejeição',
+  'Data Nascimento Cliente', 'Nome Mãe Cliente'
 ];
 // Índices PV (0-based): 0=ID 1=TS 2=Status 3=Parceiro 4=ParceiroCPF
 // 5=CPFCliente 6=Nome 7=CEP 8=ProtRef 9=Whats 10=Email
 // 11=Plano 12=Movel 13=TipoMovel 14=Venc 15=Pag 16=DataDecisão 17=DecididoPor
 // 18=Rua 19=Num 20=Complemento 21=Bairro 22=Cidade 23=UF 24=ValorPlano 25=MotivoRejeição
+// 26=DataNascimentoCliente 27=NomeMãeCliente (Assertiva na Máscara de Venda)
 
 // ── Roteador principal ─────────────────────────────────────────────────────────
 // Chamado pelo doPost do Code.js quando payload.action está presente.
@@ -253,10 +255,18 @@ function consultarAssertivaGAS(cpf) {
     var res = consultarAssertivaCPF(cpf);
     if (res.erro) return { found: false, status: res.mensagem };
     var d = res.dados || {};
+    var nasc = '';
+    if (d.dataNascimento) {
+      nasc = (typeof _formatarDataNascimento === 'function')
+        ? (_formatarDataNascimento(d.dataNascimento, 'dd/MM/yyyy') || String(d.dataNascimento))
+        : String(d.dataNascimento);
+    }
     return {
-      found:  !!d.nome,
-      nome:   d.nome || '',
-      status: d.situacaoCadastral || (d.nome ? 'Localizado' : 'Não encontrado')
+      found:      !!d.nome,
+      nome:       d.nome || '',
+      nascimento: nasc,
+      nomeMae:    d.nomeMae || '',
+      status:     d.situacaoCadastral || (d.nome ? 'Localizado' : 'Não encontrado')
     };
   } catch (e) {
     return { found: false, status: 'Erro: ' + e.message };
@@ -326,6 +336,15 @@ function salvarPreVenda(data) {
   try {
     lock.waitLock(10000);
     pvId = _papGerarId('PV');
+
+    // Garante os cabeçalhos das colunas de Assertiva (27/28) em sheets criadas
+    // antes desta feature — cosmético, os dados são gravados de qualquer forma.
+    try {
+      var hdr = sheet.getRange(1, 27, 1, 2).getValues()[0];
+      if (!hdr[0]) sheet.getRange(1, 27).setValue('Data Nascimento Cliente');
+      if (!hdr[1]) sheet.getRange(1, 28).setValue('Nome Mãe Cliente');
+    } catch (he) { /* não bloqueia o save */ }
+
     sheet.appendRow([
       pvId,
       _papNow(),
@@ -352,6 +371,9 @@ function salvarPreVenda(data) {
       data.cidade       || '',
       data.uf           || '',
       data.valor        || '',
+      '',  // 25 Motivo Rejeição (preenchido ao rejeitar)
+      data.nascimento   || '',  // 26 Data Nascimento (Assertiva)
+      data.nomeMae      || '',  // 27 Nome da Mãe (Assertiva)
     ]);
     SpreadsheetApp.flush();
   } finally {
@@ -417,6 +439,8 @@ function aprovarPreVenda(id, emailAprovador) {
       resp:          pv[3]  || '',
       cpf:           pv[5]  || '',
       cliente:       pv[6]  || '',
+      dtNasc:        pv[26] || '',   // Data Nascimento (Assertiva, Máscara de Venda)
+      nomeMae:       pv[27] || '',   // Nome da Mãe (Assertiva)
       whats:         pv[9]  || '',
       cep:           String(pv[7]  || end?.cep    || '').replace(/\D/g,'').replace(/(\d{5})(\d{3})/,'$1-$2'),
       rua:           String(pv[18] || end?.rua    || '').toUpperCase(),

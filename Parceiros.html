@@ -927,8 +927,8 @@
   <div class="sheet-handle"></div>
   <div class="sheet-header">
     <div>
-      <div class="sheet-tag">Pré-Venda</div>
-      <div class="sheet-title">Concluir Pedido</div>
+      <div class="sheet-tag">Máscara</div>
+      <div class="sheet-title">Efetuar Pedido</div>
     </div>
     <button class="sheet-close" onclick="closeSheets()">✕</button>
   </div>
@@ -948,11 +948,25 @@
       <label>CPF do Cliente <span class="req">*</span></label>
       <input type="text" id="pv-cpf" placeholder="000.000.000-00" maxlength="14"
              inputmode="numeric" oninput="maskCPF(this)">
+      <button class="btn-cpf" style="margin-top:8px" id="pv-btn-assertiva" onclick="consultarAssertivaPreVenda()">🔍 Buscar dados no Assertiva</button>
+      <div class="f-hint" id="pv-assertiva-hint"></div>
     </div>
 
     <div class="f-group">
       <label>Nome do Cliente <span class="req">*</span></label>
       <input type="text" id="pv-nome" placeholder="Nome completo do cliente">
+    </div>
+
+    <div class="f-row">
+      <div class="f-group">
+        <label>Data de Nascimento</label>
+        <input type="text" id="pv-nasc" placeholder="DD/MM/AAAA" maxlength="10"
+               inputmode="numeric" oninput="maskData(this)">
+      </div>
+      <div class="f-group">
+        <label>Nome da Mãe</label>
+        <input type="text" id="pv-mae" placeholder="Nome completo da mãe">
+      </div>
     </div>
 
     <div class="f-section">📱 Contato</div>
@@ -1083,11 +1097,11 @@
   <!-- Sucesso -->
   <div class="success-view" id="pv-success">
     <div class="success-icon">⏳</div>
-    <div class="success-title">Pré-Venda Registrada!</div>
+    <div class="success-title">Pedido Registrado!</div>
     <div class="success-id" id="pv-success-id">—</div>
     <div class="success-notif">🖥️ Aguardando aprovação do backoffice no CRM</div>
     <div class="success-proto">Guarde o protocolo para referência</div>
-    <button class="btn-submit" onclick="resetPreVenda()">+ Nova Pré-Venda</button>
+    <button class="btn-submit" onclick="resetPreVenda()">+ Novo Pedido</button>
     <button class="btn-ghost" onclick="closeSheets()">Voltar ao início</button>
   </div>
 </div>
@@ -1298,53 +1312,63 @@ function recarregarPlanos() {
 
 async function carregarPlanos(cep) {
   const sel = document.getElementById('pv-plano');
-  sel.innerHTML = '<option value="">⏳ Carregando planos...</option>';
+  sel.innerHTML = '<option value="">⏳ Carregando endereço...</option>';
   sel.disabled = true;
 
   try {
+    // 1) Endereço via CEP
     const res = await API.buscarCEP(cep);
-
-    sel.disabled = false;
-
-    if (res.erro || !res.planos || res.planos.length === 0) {
-      sel.innerHTML = '<option value="">Sem planos disponíveis para este CEP</option>';
-      document.getElementById('pv-cep-hint').textContent = res.erro ? '⚠ CEP não encontrado' : '';
+    if (res.erro || !res.cidade) {
+      sel.disabled = false;
+      sel.innerHTML = '<option value="">Informe o CEP para carregar planos...</option>';
+      document.getElementById('pv-cep-hint').textContent = '⚠ CEP não encontrado';
       return;
     }
-
-    // Preenche hint e campos de endereço
-    if (res.cidade) {
-      document.getElementById('pv-cep-hint').textContent = res.cidade + (res.uf ? '/' + res.uf : '');
-    }
+    document.getElementById('pv-cep-hint').textContent = res.cidade + (res.uf ? '/' + res.uf : '');
     document.getElementById('pv-rua').value    = (res.logradouro || '').toUpperCase();
     document.getElementById('pv-bairro').value = (res.bairro     || '').toUpperCase();
     document.getElementById('pv-cidade').value = (res.cidade     || '').toUpperCase();
     document.getElementById('pv-uf').value     = (res.uf         || '').toUpperCase();
     document.getElementById('pv-endereco-fields').style.display = '';
 
-    // Constrói select com cabeçalhos de categoria
-    sel.innerHTML = '<option value="">Selecionar plano...</option>';
-    for (const item of res.planos) {
-      const opt = document.createElement('option');
-      if (item.startsWith('▶️')) {
-        // Cabeçalho de categoria — disabled
-        opt.disabled = true;
-        opt.textContent = '── ' + item.replace('▶️ ', '').replace(' ◀️', '') + ' ──';
-      } else {
-        // Plano — "Nome | 99,90"
-        const partes = item.split(' | ');
-        const nome   = (partes[0] || item).trim();
-        const valor  = (partes[1] || '').trim();
-        opt.value       = item;  // guarda full "Nome | valor"
-        opt.textContent = nome + (valor ? ' — R$ ' + valor : '');
-      }
-      sel.appendChild(opt);
-    }
-
+    // 2) Planos — mesma fonte do Mapa de Ofertas (getOfertasCidade), Fibra apenas.
+    //    (Móvel entra pelo toggle "Plano Móvel", não pelo dropdown de plano.)
+    await _preencherPlanosPreVenda(res.cidade);
   } catch (err) {
     sel.disabled = false;
     sel.innerHTML = '<option value="">Erro ao carregar planos</option>';
     console.error('[carregarPlanos]', err);
+  }
+}
+
+async function _preencherPlanosPreVenda(cidade) {
+  const sel = document.getElementById('pv-plano');
+  sel.innerHTML = '<option value="">⏳ Carregando planos...</option>';
+  sel.disabled = true;
+  try {
+    const of = await API.getOfertasCidade(cidade);
+    sel.disabled = false;
+    if (!of || of.erro || !Array.isArray(of.grupos) || !of.grupos.length) {
+      sel.innerHTML = '<option value="">Sem planos disponíveis para esta cidade</option>';
+      return;
+    }
+    let html = '<option value="">Selecionar plano...</option>';
+    for (const g of of.grupos) {
+      const cat = String(g.categoria || '').toUpperCase();
+      if (cat.indexOf('MÓVEL') > -1 || cat.indexOf('MOVEL') > -1) continue; // Móvel = toggle
+      const planos = g.planos || [];
+      if (!planos.length) continue;
+      html += `<option disabled>── ${esc(g.categoria)} ──</option>`;
+      for (const p of planos) {
+        const val = `${p.nome} | ${p.valorBoleto}`; // formato "Nome | valor" esperado no submit
+        html += `<option value="${esc(val)}">${esc(p.nome)} — R$ ${esc(p.valorBoleto)}</option>`;
+      }
+    }
+    sel.innerHTML = html;
+  } catch (e) {
+    sel.disabled = false;
+    sel.innerHTML = '<option value="">Erro ao carregar planos</option>';
+    console.error('[_preencherPlanosPreVenda]', e);
   }
 }
 
@@ -1539,6 +1563,38 @@ function abrirPreVendaDireta() {
   _abrirPreVendaComDados();
 }
 
+/* Busca dados do cliente no Assertiva pelo CPF (Máscara de Venda) e
+   preenche Nome, Data de Nascimento e Nome da Mãe. */
+async function consultarAssertivaPreVenda() {
+  const cpf  = getVal('pv-cpf').replace(/\D/g,'');
+  const hint = document.getElementById('pv-assertiva-hint');
+  if (cpf.length < 11) { toast('Informe um CPF válido', 'warn'); return; }
+
+  const btn = document.getElementById('pv-btn-assertiva');
+  btn.disabled = true; btn.textContent = '⏳ Consultando...';
+  setLoading(true, 'Consultando Assertiva...');
+  try {
+    const res = await API.consultarAssertiva(cpf);
+    setLoading(false);
+    btn.disabled = false; btn.textContent = '🔍 Buscar dados no Assertiva';
+
+    if (res && res.found) {
+      if (res.nome)       document.getElementById('pv-nome').value = res.nome;
+      if (res.nascimento) document.getElementById('pv-nasc').value = res.nascimento;
+      if (res.nomeMae)    document.getElementById('pv-mae').value  = res.nomeMae;
+      hint.style.color   = 'var(--green)';
+      hint.textContent   = '✅ ' + (res.nome || 'Cliente localizado');
+    } else {
+      hint.style.color   = 'var(--yellow)';
+      hint.textContent   = '⚠ ' + (res.status || 'CPF não localizado — preencha manualmente');
+    }
+  } catch {
+    setLoading(false);
+    btn.disabled = false; btn.textContent = '🔍 Buscar dados no Assertiva';
+    toast('Erro ao consultar Assertiva.', 'err');
+  }
+}
+
 function _abrirPreVendaComDados() {
   const d = _consultaData;
   const nomeEl = document.getElementById('pv-nome');
@@ -1555,6 +1611,13 @@ function _abrirPreVendaComDados() {
   }
 
   nomeEl.value = d?.nome || '';
+  // Nascimento / Nome da Mãe (Assertiva) — prefill se veio da Consulta
+  const nascEl = document.getElementById('pv-nasc');
+  const maeEl  = document.getElementById('pv-mae');
+  if (nascEl) nascEl.value = d?.nascimento || '';
+  if (maeEl)  maeEl.value  = d?.nomeMae    || '';
+  const asHint = document.getElementById('pv-assertiva-hint');
+  if (asHint) asHint.textContent = '';
   // Pré-preenche campos de endereço separados
   document.getElementById('pv-rua').value         = d ? (d.rua    || '').toUpperCase() : '';
   document.getElementById('pv-bairro').value      = d ? (d.bairro || '').toUpperCase() : '';
@@ -1631,6 +1694,8 @@ async function submitPreVenda() {
     parceiroCpf: SELLER_CPF,
     cpfCliente:  getVal('pv-cpf'),
     nomeCliente: getVal('pv-nome'),
+    nascimento:  getVal('pv-nasc'),
+    nomeMae:     getVal('pv-mae'),
     cep:         getVal('pv-cep').replace(/\D/g,''),
     rua:         getVal('pv-rua'),
     num:         getVal('pv-num'),
