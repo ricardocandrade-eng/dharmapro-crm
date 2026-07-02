@@ -609,6 +609,22 @@
       font-size: 9px; font-family: 'DM Mono', monospace; text-transform: uppercase;
       letter-spacing: 1px; white-space: nowrap; flex-shrink: 0;
     }
+    /* ── PONTOS & PRÊMIOS — TEASER "EM BREVE" ── */
+    .soon-hero { background:linear-gradient(135deg,#1c1438 0%,#141720 100%); border:1px solid rgba(167,139,250,.3); border-radius:var(--radius); padding:26px 20px; text-align:center; margin-bottom:18px; }
+    .soon-hero-emoji { font-size:46px; line-height:1; }
+    .soon-hero-title { font-size:22px; font-weight:800; color:var(--purple); margin-top:10px; }
+    .soon-hero-sub { font-size:13px; color:var(--muted); margin-top:8px; line-height:1.55; }
+    .soon-p { font-size:14px; color:var(--text); line-height:1.6; margin-bottom:14px; }
+    .soon-p b { color:var(--purple); }
+    .soon-callout { background:var(--surface2); border:1px solid var(--border2); border-radius:12px; padding:14px 16px; font-size:14px; color:var(--text); margin-bottom:18px; text-align:center; }
+    .soon-callout b { color:var(--purple); font-weight:800; }
+    .soon-section { font-size:10px; font-family:'DM Mono',monospace; color:var(--accent); text-transform:uppercase; letter-spacing:2px; margin:6px 0 12px; display:flex; align-items:center; gap:8px; }
+    .soon-section::after { content:''; flex:1; height:1px; background:var(--border); }
+    .soon-premios { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px; }
+    .soon-premio { background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:16px 10px; text-align:center; }
+    .soon-premio-emoji { font-size:28px; line-height:1; }
+    .soon-premio-lbl { font-size:12px; color:var(--text); margin-top:7px; font-weight:600; }
+    .soon-cta { background:linear-gradient(135deg,rgba(230,62,109,.16),rgba(167,139,250,.14)); border:1px solid rgba(230,62,109,.3); border-radius:14px; padding:16px; text-align:center; font-size:14px; font-weight:700; color:var(--text); line-height:1.55; }
     /* ── PERÍODO DOS BADGES (Minhas Vendas) ── */
     .periodo-badges { display:flex; gap:8px; margin-bottom:12px; }
     .periodo-chip { flex:1; padding:7px 0; border-radius:10px; font-size:12px; font-weight:600; text-align:center; background:var(--surface2); border:1px solid var(--border); color:var(--muted); cursor:pointer; transition:all .15s; }
@@ -757,11 +773,11 @@
         <div class="card-arrow">›</div>
       </button>
 
-      <button class="action-card card-disabled" disabled aria-disabled="true">
+      <button class="action-card card-c1" onclick="abrirPontosEmBreve()">
         <div class="card-icon">⭐</div>
         <div class="card-text">
           <div class="card-title">Pontos & Prêmios</div>
-          <div class="card-desc" id="card-pontos-desc">Troque pontos por recompensas</div>
+          <div class="card-desc" id="card-pontos-desc">Vem novidade por aí 🚀</div>
         </div>
         <span class="soon-tag">Em breve</span>
       </button>
@@ -2158,6 +2174,12 @@ async function carregarPagamentosPAP() {
 /* ── PONTOS & PRÊMIOS ── */
 let _extratoPontos = null, _premiosData = null;
 
+// Programa ainda não lançado: o card abre a apresentação "em breve".
+// Quando o programa entrar no ar, trocar o onclick do card para abrirPontos().
+function abrirPontosEmBreve() {
+  openSheet('sheet-pontos-soon');
+}
+
 async function abrirPontos() {
   openSheet('sheet-pontos');
   await Promise.all([carregarExtratoPontos(), carregarCatalogo()]);
@@ -2402,6 +2424,42 @@ function _renderOfertas(res) {
     </div>
     <div class="premios-grid"  id="lista-premios"></div>
     <div class="resgates-list" id="lista-resgates" style="display:none"></div>
+  </div>
+</div>
+
+<!-- SHEET · PONTOS & PRÊMIOS — TEASER "EM BREVE" -->
+<div class="sheet" id="sheet-pontos-soon">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div><div class="sheet-tag">Programa de Pontos</div><div class="sheet-title">Pontos & Prêmios</div></div>
+    <button class="sheet-close" onclick="closeSheets()">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="soon-hero">
+      <div class="soon-hero-emoji">🚀</div>
+      <div class="soon-hero-title">Vem novidade por aí!</div>
+      <div class="soon-hero-sub">Estamos finalizando um programa de pontos para reconhecer quem mais vende.</div>
+    </div>
+
+    <p class="soon-p">A lógica vai ser simples: <b>cada real vendido vira ponto</b>. Ou seja, quanto maior o valor dos planos vendidos, mais pontos você acumula.</p>
+
+    <div class="soon-callout">Exemplo: um plano de <b>R$ 159,00</b> = <b>159 pontos</b></div>
+
+    <p class="soon-p">E o melhor: a partir de <b>1.000 pontos</b>, você já poderá trocar seus pontos por prêmios como:</p>
+
+    <div class="soon-section">Prêmios</div>
+    <div class="soon-premios">
+      <div class="soon-premio"><div class="soon-premio-emoji">🎁</div><div class="soon-premio-lbl">Alexa</div></div>
+      <div class="soon-premio"><div class="soon-premio-emoji">📱</div><div class="soon-premio-lbl">Celular</div></div>
+      <div class="soon-premio"><div class="soon-premio-emoji">🍔</div><div class="soon-premio-lbl">Créditos no iFood</div></div>
+      <div class="soon-premio"><div class="soon-premio-emoji">🚗</div><div class="soon-premio-lbl">Créditos no Uber</div></div>
+    </div>
+    <p class="soon-p" style="text-align:center;color:var(--muted)">E muito mais!</p>
+
+    <p class="soon-p">Isso é só o começo. Em breve vamos divulgar todas as regras, a lista completa de prêmios e a data de início.</p>
+
+    <div class="soon-cta">Então já fica o recado: cada venda vai valer ainda mais.<br>Quem vender mais, acumula mais pontos e leva os melhores prêmios! 🔥</div>
+    <div style="height:16px"></div>
   </div>
 </div>
 
