@@ -46,10 +46,17 @@ function _verohubCapturarVenda_(payload) {
     Logger.log('verohub dedupe erro: ' + (eDup && eDup.message || eDup));
   }
 
-  // ── 2. Plano: código VeroHub → nome canônico (forward, determinístico) ─────
+  // ── 2. Plano: nome vindo da página (plans_svas) tem prioridade ─────────────
+  // A extensão lê o nome real do plano na API da própria página — sempre atual,
+  // independe do dicionário (verohub_codigos_cidades.json, que fica defasado
+  // quando a Vero troca códigos, ex.: NP 3.0). Fallback: dicionário por código.
   var planCode = String(sale.plan != null ? sale.plan : (sale.planCode || '')).replace(/\D/g, '').trim();
   var planName = '';
-  if (planCode) {
+  if (sale.plan_name) {
+    // tira prefixo de código legado no início do nome (ex.: "4678 - VERO MAIS ...")
+    planName = String(sale.plan_name).replace(/^\s*\d+\s*[-–—]\s*/, '').trim();
+  }
+  if (!planName && planCode) {
     try {
       var vh = _getVerohubCodigos();
       if (vh && vh.codigos && vh.codigos[planCode] && vh.codigos[planCode].nome) {
@@ -154,7 +161,12 @@ function _verohubCapturarVenda_(payload) {
   var combo = null;
   if (produto === 'Fibra Combo' && planName) {
     try {
-      var inf = _inferirMovelComboFromFibra_(planName);
+      // O VeroHub nomeia o móvel como "MAIS CONECTADO XXGB"; a inferência do CRM
+      // (_inferirMovelComboFromFibra_) procura "MÓVEL XXGB". Extrai o GB das duas
+      // formas e monta um nome sintético que a função reconhece.
+      var mGb = planName.match(/(?:M[ÓO]VEL|MAIS\s*CONECTADO)\s*(\d+)\s*GB/i);
+      var nomeParaInferir = mGb ? ('MÓVEL ' + mGb[1] + 'GB') : planName;
+      var inf = _inferirMovelComboFromFibra_(nomeParaInferir);
       if (inf && !inf.erro) {
         var m0 = mvnoArr[0] || {};
         var portab = m0.is_portability ? 'SIM' : 'NÃO';

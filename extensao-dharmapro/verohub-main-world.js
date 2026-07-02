@@ -61,14 +61,41 @@
     return out;
   }
 
+  // Anexa o NOME real do plano lido da própria API da página (/api/plans_svas).
+  // Isso torna a captura independente do dicionário do backend (que fica defasado
+  // quando a Vero troca códigos). Same-origin + credentials — mesma chamada que a
+  // página já faz. Falha silenciosa: sem plan_name, o backend cai no dicionário.
+  async function anexarNomePlano(sale) {
+    if (sale.city == null || sale.id == null) return;
+    var conn = sale.connection || 'Minas';
+    var url = '/api/plans_svas/' + encodeURIComponent(sale.city) +
+              '?sale=' + encodeURIComponent(sale.id) +
+              '&connection=' + encodeURIComponent(conn);
+    var r = await fetch(url, { credentials: 'include' });
+    if (!r.ok) return;
+    var j = await r.json();
+    var plans = (j && j.plans) || [];
+    for (var i = 0; i < plans.length; i++) {
+      if (String(plans[i].id) === String(sale.plan)) {
+        sale.plan_name = plans[i].name || '';
+        sale.plan_speed = plans[i].speed || '';
+        sale.plan_price_base = (plans[i].price != null ? plans[i].price : '');
+        break;
+      }
+    }
+  }
+
   // Responde a pedidos do content script (isolated world).
-  window.addEventListener('message', function (ev) {
+  window.addEventListener('message', async function (ev) {
     if (ev.source !== window) return;
     var data = ev.data;
     if (!data || data.source !== 'dhp-verohub-req') return;
 
     var sale = null, erro = null;
     try { sale = lerSaleLimpo(); } catch (e) { erro = String(e && e.message || e); }
+    if (sale && sale.plan) {
+      try { await anexarNomePlano(sale); } catch (e) { /* segue sem nome — backend usa o dicionário */ }
+    }
 
     window.postMessage({
       source: 'dhp-verohub-res',
