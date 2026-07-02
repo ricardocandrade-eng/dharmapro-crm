@@ -1315,6 +1315,7 @@ function getMinhaDashboard(cpf) {
           plano:      String(row[c.PLANO      ||0]||''),
           produto:    String(row[c.PRODUTO    ||0]||''),
           status:     String(row[c.STATUS]        ||''),
+          preStatus:  String(row[c.PRE_STATUS ||0]||''),  // col C — Pré-Status
           statusPAP:  String(row[c.STATUS_PAP ||0]||''),
           valor:      String(row[c.VALOR      ||0]||''),
           dataInstal: _fmtD(row[c.INSTAL      ||0]),

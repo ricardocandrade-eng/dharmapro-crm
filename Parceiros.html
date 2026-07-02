@@ -2063,6 +2063,7 @@ function _renderListaAV(avAll) {
         </div>
         <span class="badge ${badgeVenda(v.status)}">${statusLabel}</span>
       </div>
+      ${v.preStatus?`<div class="dash-card-date">🏷️ Pré-status: ${esc(v.preStatus)}</div>`:''}
       ${v.statusPAP?`<div class="dash-card-date">💰 Status Pagamento: ${esc(v.statusPAP)}</div>`:''}
       <div class="dash-card-detail">
         ${hasAtiv   ?`<div class="dash-card-detail-row"><span class="dash-card-detail-lbl">Ativação</span><span class="dash-card-detail-val">${fmtDate(v.dataAtiv)}</span></div>`:''}
