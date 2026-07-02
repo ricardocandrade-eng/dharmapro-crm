@@ -1781,7 +1781,8 @@ const genId = () => Date.now().toString(36).toUpperCase().slice(-6);
 /* ── MINHAS VENDAS ── */
 let _dashData = null, _mesAtual = null, _tabVendasAtual = 'av';
 let _filtroStatusPV = '', _filtroStatusAV = '';
-let _periodoBadges = 'mes'; // 'mes' | '3meses'
+// Mês selecionado nos badges — chave 'YYYY-MM'. Default: mês corrente.
+let _periodoBadges = (() => { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0'); })();
 
 async function abrirMinhasVendas() {
   openSheet('sheet-vendas');
@@ -1804,7 +1805,8 @@ async function carregarDashboard() {
     if (!res.ok) { toast('Erro: ' + (res.error||''), 'err'); return; }
     _dashData = res;
     const pv = res.preVendas||[], av = res.vendasAtivas||[];
-    _renderBadges();          // KPIs do período (mês / 3 meses)
+    _renderPeriodoChips();    // chips de meses (mês corrente + 2 anteriores)
+    _renderBadges();          // KPIs do mês selecionado
     _renderMeses(pv, av);
     _renderListaPV(pv);
     _renderListaAV(av);
@@ -1812,7 +1814,10 @@ async function carregarDashboard() {
   } catch(e) { setLoading(false); toast('Erro de conexão.', 'err'); }
 }
 
-/* ── BADGES POR PERÍODO (mês corrente / últimos 3 meses) ── */
+/* ── BADGES POR MÊS ── */
+const _MESES_LONGOS = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO',
+                       'JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+
 function _mesKeyDe(v) {
   if (!v) return null;
   const s = String(v);
@@ -1821,41 +1826,42 @@ function _mesKeyDe(v) {
   const d = new Date(v);
   return isNaN(d) ? null : (d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'));
 }
-function _keysPeriodo() {
+function _noMesSelecionado(v) { return _mesKeyDe(v) === _periodoBadges; }
+
+// Chips dos meses: corrente + 2 anteriores (ex.: JUNHO, MAIO, ABRIL).
+function _renderPeriodoChips() {
+  const bar = document.getElementById('periodo-badges');
+  if (!bar) return;
   const now = new Date();
-  const n = _periodoBadges === '3meses' ? 3 : 1;
-  const keys = new Set();
-  for (let i = 0; i < n; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    keys.add(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'));
+  let html = '';
+  for (let i = 0; i < 3; i++) {
+    const d   = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    html += `<div class="periodo-chip${key === _periodoBadges ? ' active' : ''}" onclick="switchPeriodoBadges('${key}',this)">${_MESES_LONGOS[d.getMonth()]}</div>`;
   }
-  return keys;
+  bar.innerHTML = html;
 }
-function _noPeriodo(v, keys) { const k = _mesKeyDe(v); return !!k && keys.has(k); }
 
 function _renderBadges() {
   if (!_dashData) return;
-  const keys = _keysPeriodo();
-  const pv = _dashData.preVendas   || [];
   const av = _dashData.vendasAtivas || [];
-  const nPV = pv.filter(p => _noPeriodo(p.ts, keys)).length;
-  const nAV = av.filter(v => _noPeriodo(v.dataAtiv, keys)).length;
-  const nInst = av.filter(v => {
-    const s = (v.status||'').toLowerCase();
-    const instalada = /^\s*[34]/.test(s) || s.includes('instalad') || s.includes('finalizada');
-    return instalada && _noPeriodo(v.dataInstal, keys);
-  }).length;
-  document.getElementById('kpi-prevendas').textContent  = nPV;
-  document.getElementById('kpi-ativas').textContent     = nAV;
-  document.getElementById('kpi-instaladas').textContent = nInst;
+  const ehInstalada = s => { s = (s||'').toLowerCase(); return /^\s*[34]/.test(s) || s.includes('instalad') || s.includes('finalizada'); };
+  const ehAgInst    = s => (s||'').toLowerCase().includes('aguardand');
 
-  // Valores (a receber / recebido) do período — via getMeusPagamentosPAP.
+  const nInst   = av.filter(v => ehInstalada(v.status) && _noMesSelecionado(v.dataInstal)).length;
+  const nAgInst = av.filter(v => ehAgInst(v.status)    && _noMesSelecionado(v.dataAtiv)).length;
+  const nAtivas = av.filter(v => _noMesSelecionado(v.dataAtiv)).length;
+  document.getElementById('kpi-instaladas').textContent = nInst;
+  document.getElementById('kpi-aginst').textContent     = nAgInst;
+  document.getElementById('kpi-ativas').textContent     = nAtivas;
+
+  // Valores (a receber / recebido) do mês — via getMeusPagamentosPAP.
   const fmtR = v => 'R$ ' + Number(v||0).toFixed(2).replace('.', ',');
   const pg = _pagamentosData;
   if (pg && pg.ok && !pg.semConfig) {
     let receber = 0, recebido = 0;
-    (pg.itens      || []).forEach(it => { if (_noPeriodo(it.dataInstal, keys)) receber  += Number(it.comissao||0); });
-    (pg.itensPagos || []).forEach(it => { if (_noPeriodo(it.dataInstal, keys)) recebido += Number(it.comissao||0); });
+    (pg.itens      || []).forEach(it => { if (_noMesSelecionado(it.dataInstal)) receber  += Number(it.comissao||0); });
+    (pg.itensPagos || []).forEach(it => { if (_noMesSelecionado(it.dataInstal)) recebido += Number(it.comissao||0); });
     document.getElementById('kpi-receber').textContent  = fmtR(receber);
     document.getElementById('kpi-recebido').textContent = fmtR(recebido);
   } else {
@@ -1864,8 +1870,8 @@ function _renderBadges() {
   }
 }
 
-function switchPeriodoBadges(p, el) {
-  _periodoBadges = p;
+function switchPeriodoBadges(key, el) {
+  _periodoBadges = key;
   document.querySelectorAll('#periodo-badges .periodo-chip').forEach(c => c.classList.remove('active'));
   if (el) el.classList.add('active');
   _renderBadges();
@@ -1956,7 +1962,7 @@ function _renderListaAV(avAll) {
         </div>
         <span class="badge ${badgeVenda(v.status)}">${statusLabel}</span>
       </div>
-      ${v.statusPAP?`<div class="dash-card-date">💰 Pagamento: ${esc(v.statusPAP)}</div>`:''}
+      ${v.statusPAP?`<div class="dash-card-date">💰 Status Pagamento: ${esc(v.statusPAP)}</div>`:''}
       <div class="dash-card-detail">
         ${hasAtiv   ?`<div class="dash-card-detail-row"><span class="dash-card-detail-lbl">Ativação</span><span class="dash-card-detail-val">${fmtDate(v.dataAtiv)}</span></div>`:''}
         ${hasAgenda ?`<div class="dash-card-detail-row"><span class="dash-card-detail-lbl">Agenda</span><span class="dash-card-detail-val">${fmtDate(v.agenda)}</span></div>`:''}
@@ -2254,14 +2260,11 @@ function _renderOfertas(res) {
     </div>
   </div>
   <div class="sheet-body">
-    <div class="periodo-badges" id="periodo-badges">
-      <div class="periodo-chip active" onclick="switchPeriodoBadges('mes',this)">Mês atual</div>
-      <div class="periodo-chip" onclick="switchPeriodoBadges('3meses',this)">Últimos 3 meses</div>
-    </div>
+    <div class="periodo-badges" id="periodo-badges"></div>
     <div class="dash-summary">
-      <div class="dash-kpi"><div class="dash-kpi-val" id="kpi-prevendas">—</div><div class="dash-kpi-lbl">Pré-vendas</div></div>
-      <div class="dash-kpi"><div class="dash-kpi-val" id="kpi-ativas">—</div><div class="dash-kpi-lbl">Vendas ativas</div></div>
       <div class="dash-kpi"><div class="dash-kpi-val" id="kpi-instaladas">—</div><div class="dash-kpi-lbl">Instaladas</div></div>
+      <div class="dash-kpi"><div class="dash-kpi-val" id="kpi-aginst">—</div><div class="dash-kpi-lbl">Ag. Instalação</div></div>
+      <div class="dash-kpi"><div class="dash-kpi-val" id="kpi-ativas">—</div><div class="dash-kpi-lbl">Vendas Ativas</div></div>
     </div>
     <div class="dash-summary-money">
       <div class="dash-kpi-money receber"><div class="m-val" id="kpi-receber">—</div><div class="m-lbl">A receber</div></div>
