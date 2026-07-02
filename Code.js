@@ -1771,6 +1771,23 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // ── Captura VeroHub: extensão lê window.__SALE de hub.veronet.com.br/sales/{id} ──
+    // e manda pra cá pra virar venda em "1 - Vendas". Secret próprio
+    // (VEROHUB_CAPTURE_SECRET) com fallback pro webhook_secret global. Lógica em
+    // VerohubAPI.js#_verohubCapturarVenda_.
+    if (payload.action === 'verohub_capture') {
+      var vhSecret = PropertiesService.getScriptProperties().getProperty('VEROHUB_CAPTURE_SECRET') || SECRET;
+      if (vhSecret && payload.secret !== vhSecret) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ ok: false, erro: 'verohub: secret inválido' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var vhRes = _verohubCapturarVenda_(payload);
+      return ContentService
+        .createTextOutput(JSON.stringify(vhRes))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // ── Roteador PAP: ações do mini site Parceiros.html ──────────────────────
     // Payloads PAP têm campo 'action' e NÃO têm 'webhook_secret' (não são BotConversa)
     if (payload.action && payload.secret === undefined) {

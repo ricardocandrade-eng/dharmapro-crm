@@ -269,6 +269,56 @@ async function handleAdapterConsulta(msg) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+//  Captura VeroHub → CRM
+//  content-verohub.js manda o pedido lido de window.__SALE; aqui fazemos o POST
+//  no doPost do CRM (rota verohub_capture). URL/secret vêm do chrome.storage.local
+//  (keys verohub_crm_url / verohub_crm_secret) com fallback pra URL de deploy.
+//  Content-Type text/plain evita preflight OPTIONS (que o Apps Script não trata).
+// ══════════════════════════════════════════════════════════════════════════════
+var VEROHUB_CRM_URL_DEFAULT =
+  'https://script.google.com/macros/s/AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw/exec';
+
+function _vhGetConfig() {
+  return new Promise(function (resolve) {
+    try {
+      chrome.storage.local.get(['verohub_crm_url', 'verohub_crm_secret'], function (o) {
+        if (chrome.runtime.lastError) return resolve({ url: VEROHUB_CRM_URL_DEFAULT, secret: '' });
+        resolve({
+          url: (o && o.verohub_crm_url) || VEROHUB_CRM_URL_DEFAULT,
+          secret: (o && o.verohub_crm_secret) || ''
+        });
+      });
+    } catch (e) { resolve({ url: VEROHUB_CRM_URL_DEFAULT, secret: '' }); }
+  });
+}
+
+async function enviarVerohubCapture(msg) {
+  var cfg = await _vhGetConfig();
+  if (!cfg.secret) {
+    return { ok: false, erro: 'Secret não configurado na extensão. Rode chrome.storage.local.set({verohub_crm_secret:"…"}).' };
+  }
+  var body = JSON.stringify({
+    action: 'verohub_capture',
+    secret: cfg.secret,
+    sale: msg.sale,
+    criadoPor: msg.criadoPor || ''
+  });
+  try {
+    var resp = await fetch(cfg.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: body,
+      redirect: 'follow'
+    });
+    var txt = await resp.text();
+    try { return JSON.parse(txt); }
+    catch (e) { return { ok: false, erro: 'Resposta não-JSON do CRM (HTTP ' + resp.status + ')', raw: txt.slice(0, 200) }; }
+  } catch (e) {
+    return { ok: false, erro: 'Falha de rede ao chamar o CRM: ' + (e && e.message || e) };
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 //  Health Check — diagnóstico de conexões (VPN/NG/Adapter)
 //  Permite ao CRM detectar em tempo real se o usuário tem:
 //    - VPN conectada (alcança domínios internos da Vero)
@@ -381,6 +431,14 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   if (msg && msg.action === 'health.check') {
     realizarHealthCheck().then(sendResponse, function(err) {
       sendResponse({ ok: false, erro: 'HEALTH_CHECK_ERRO', msg: String(err && err.message || err) });
+    });
+    return true;
+  }
+
+  // Captura VeroHub → CRM — ação `verohub.enviar`
+  if (msg && msg.action === 'verohub.enviar') {
+    enviarVerohubCapture(msg).then(sendResponse, function (err) {
+      sendResponse({ ok: false, erro: 'VEROHUB_ERRO_INTERNO', msg: String(err && err.message || err) });
     });
     return true;
   }
