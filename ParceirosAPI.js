@@ -143,6 +143,18 @@ function _routePAP(payload) {
       case 'getMeusPagamentosPAP':
         result = getMeusPagamentosPAP(payload.cpf);
         break;
+      case 'listarCidadesPAP':
+        // Reusa o helper público do doGet (Code.js) — lista de cidades ordenada.
+        result = (typeof _serveActionCidades_ === 'function')
+          ? _serveActionCidades_()
+          : { ok: false, error: 'Cidades indisponíveis', cidades: [] };
+        break;
+      case 'getOfertasCidade':
+        // Reusa getOfertasCidade do CRM (Code.js) — Mapa de Ofertas no portal PAP.
+        result = (typeof getOfertasCidade === 'function')
+          ? getOfertasCidade(payload.cidade)
+          : { erro: true, mensagem: 'Ofertas indisponíveis.' };
+        break;
       default:
         result = { ok: false, error: 'Ação desconhecida: ' + payload.action };
     }
@@ -1356,8 +1368,10 @@ function getMeusPagamentosPAP(cpf) {
   const stripD = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'');
   const fNorm = stripD(formaPgto.toUpperCase());
 
-  let totalComissao = 0;
-  const itens = [];
+  let totalComissao = 0;   // a receber (STATUS_PAP = "Em Aberto")
+  let totalPago     = 0;   // já recebido (STATUS_PAP = "Pago")
+  const itens      = [];   // a receber
+  const itensPagos = [];   // recebido
 
   for (const row of raw) {
     if (String(row[c.CANAL]||'').toUpperCase() !== 'PAP') continue;
@@ -1365,7 +1379,11 @@ function getMeusPagamentosPAP(cpf) {
     const prodNorm = stripD(String(row[c.PRODUTO]||'').trim().toUpperCase());
     if (prodNorm !== 'FIBRA ALONE' && prodNorm !== 'FIBRA COMBO') continue;
     if (String(row[c.STATUS]||'').trim() !== '3 - Finalizada/Instalada') continue;
-    if (stripD(String(row[c.STATUS_PAP]||'').trim().toUpperCase()) !== 'EM ABERTO') continue;
+
+    const statusPapNorm = stripD(String(row[c.STATUS_PAP]||'').trim().toUpperCase());
+    const ehAberto = statusPapNorm === 'EM ABERTO';
+    const ehPago   = statusPapNorm === 'PAGO';
+    if (!ehAberto && !ehPago) continue;
 
     const valor = parseFloat(row[c.VALOR]||0) || 0;
     let comissao;
@@ -1374,19 +1392,22 @@ function getMeusPagamentosPAP(cpf) {
     else continue;
 
     const dInstal = row[c.INSTAL];
-    totalComissao += comissao;
-    itens.push({
+    const item = {
       cliente:    String(row[c.CLIENTE] ||''),
       plano:      String(row[c.PLANO]   ||''),
       produto:    String(row[c.PRODUTO] ||''),
       valor,
       comissao,
       dataInstal: dInstal instanceof Date ? dInstal.toISOString() : String(dInstal||''),
-    });
+    };
+    if (ehAberto) { totalComissao += comissao; itens.push(item); }
+    else          { totalPago     += comissao; itensPagos.push(item); }
   }
 
-  return { ok: true, totalComissao, qtd: itens.length,
-           formaPgto, periodicidade, chavePix, itens };
+  return { ok: true,
+           totalComissao, qtd: itens.length,
+           totalPago, qtdPago: itensPagos.length,
+           formaPgto, periodicidade, chavePix, itens, itensPagos };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
