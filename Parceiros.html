@@ -948,7 +948,7 @@
       <label>CPF do Cliente <span class="req">*</span></label>
       <input type="text" id="pv-cpf" placeholder="000.000.000-00" maxlength="14"
              inputmode="numeric" oninput="maskCPF(this)">
-      <button class="btn-cpf" style="margin-top:8px" id="pv-btn-assertiva" onclick="consultarAssertivaPreVenda()">🔍 Buscar dados no Assertiva</button>
+      <button class="btn-cpf" style="margin-top:8px" id="pv-btn-assertiva" onclick="consultarAssertivaPreVenda()">🔍 Buscar dados do cliente</button>
       <div class="f-hint" id="pv-assertiva-hint"></div>
     </div>
 
@@ -1333,7 +1333,9 @@ async function carregarPlanos(cep) {
 
     // 2) Planos — mesma fonte do Mapa de Ofertas (getOfertasCidade), Fibra apenas.
     //    (Móvel entra pelo toggle "Plano Móvel", não pelo dropdown de plano.)
-    await _preencherPlanosPreVenda(res.cidade);
+    //    Fallback: os planos que o próprio buscarCEP já devolveu (res.planos),
+    //    caso getOfertasCidade não responda (ex.: rota indisponível).
+    await _preencherPlanosPreVenda(res.cidade, res.planos);
   } catch (err) {
     sel.disabled = false;
     sel.innerHTML = '<option value="">Erro ao carregar planos</option>';
@@ -1341,35 +1343,49 @@ async function carregarPlanos(cep) {
   }
 }
 
-async function _preencherPlanosPreVenda(cidade) {
+async function _preencherPlanosPreVenda(cidade, fallbackPlanos) {
   const sel = document.getElementById('pv-plano');
   sel.innerHTML = '<option value="">⏳ Carregando planos...</option>';
   sel.disabled = true;
+  let html = '';
   try {
     const of = await API.getOfertasCidade(cidade);
-    sel.disabled = false;
-    if (!of || of.erro || !Array.isArray(of.grupos) || !of.grupos.length) {
-      sel.innerHTML = '<option value="">Sem planos disponíveis para esta cidade</option>';
-      return;
-    }
-    let html = '<option value="">Selecionar plano...</option>';
-    for (const g of of.grupos) {
-      const cat = String(g.categoria || '').toUpperCase();
-      if (cat.indexOf('MÓVEL') > -1 || cat.indexOf('MOVEL') > -1) continue; // Móvel = toggle
-      const planos = g.planos || [];
-      if (!planos.length) continue;
-      html += `<option disabled>── ${esc(g.categoria)} ──</option>`;
-      for (const p of planos) {
-        const val = `${p.nome} | ${p.valorBoleto}`; // formato "Nome | valor" esperado no submit
-        html += `<option value="${esc(val)}">${esc(p.nome)} — R$ ${esc(p.valorBoleto)}</option>`;
+    if (of && !of.erro && Array.isArray(of.grupos) && of.grupos.length) {
+      html = '<option value="">Selecionar plano...</option>';
+      for (const g of of.grupos) {
+        const cat = String(g.categoria || '').toUpperCase();
+        if (cat.indexOf('MÓVEL') > -1 || cat.indexOf('MOVEL') > -1) continue; // Móvel = toggle
+        const planos = g.planos || [];
+        if (!planos.length) continue;
+        html += `<option disabled>── ${esc(g.categoria)} ──</option>`;
+        for (const p of planos) {
+          const val = `${p.nome} | ${p.valorBoleto}`; // formato "Nome | valor" esperado no submit
+          html += `<option value="${esc(val)}">${esc(p.nome)} — R$ ${esc(p.valorBoleto)}</option>`;
+        }
       }
     }
-    sel.innerHTML = html;
   } catch (e) {
-    sel.disabled = false;
-    sel.innerHTML = '<option value="">Erro ao carregar planos</option>';
-    console.error('[_preencherPlanosPreVenda]', e);
+    console.error('[_preencherPlanosPreVenda] getOfertasCidade falhou, usando fallback', e);
   }
+
+  // Fallback: array "▶️ CATEGORIA ◀️" / "Nome | valor" vindo de buscarCEP.
+  if (!html && Array.isArray(fallbackPlanos) && fallbackPlanos.length) {
+    html = '<option value="">Selecionar plano...</option>';
+    for (const item of fallbackPlanos) {
+      if (typeof item !== 'string') continue;
+      if (item.startsWith('▶️')) {
+        html += `<option disabled>── ${esc(item.replace('▶️ ', '').replace(' ◀️', ''))} ──</option>`;
+      } else {
+        const partes = item.split(' | ');
+        const nome   = (partes[0] || item).trim();
+        const valor  = (partes[1] || '').trim();
+        html += `<option value="${esc(item)}">${esc(nome)}${valor ? ' — R$ ' + esc(valor) : ''}</option>`;
+      }
+    }
+  }
+
+  sel.disabled = false;
+  sel.innerHTML = html || '<option value="">Sem planos disponíveis para esta cidade</option>';
 }
 
 /* ────────────────────────────────────────────────────────
@@ -1446,7 +1462,7 @@ async function consultarAssertiva() {
 
   const btn = document.getElementById('btn-assertiva');
   btn.disabled = true; btn.textContent = '⏳ Consultando...';
-  setLoading(true, 'Consultando Assertiva...');
+  setLoading(true, 'Consultando dados do cliente...');
 
   try {
     const res = await API.consultarAssertiva(cpf);
@@ -1470,7 +1486,7 @@ async function consultarAssertiva() {
   } catch {
     setLoading(false);
     btn.disabled = false; btn.textContent = '🔍 Consultar no Assertiva';
-    toast('Erro ao consultar Assertiva.', 'err');
+    toast('Erro ao consultar os dados do cliente.', 'err');
   }
 }
 
@@ -1572,11 +1588,11 @@ async function consultarAssertivaPreVenda() {
 
   const btn = document.getElementById('pv-btn-assertiva');
   btn.disabled = true; btn.textContent = '⏳ Consultando...';
-  setLoading(true, 'Consultando Assertiva...');
+  setLoading(true, 'Consultando dados do cliente...');
   try {
     const res = await API.consultarAssertiva(cpf);
     setLoading(false);
-    btn.disabled = false; btn.textContent = '🔍 Buscar dados no Assertiva';
+    btn.disabled = false; btn.textContent = '🔍 Buscar dados do cliente';
 
     if (res && res.found) {
       if (res.nome)       document.getElementById('pv-nome').value = res.nome;
@@ -1594,8 +1610,8 @@ async function consultarAssertivaPreVenda() {
     }
   } catch {
     setLoading(false);
-    btn.disabled = false; btn.textContent = '🔍 Buscar dados no Assertiva';
-    toast('Erro ao consultar Assertiva.', 'err');
+    btn.disabled = false; btn.textContent = '🔍 Buscar dados do cliente';
+    toast('Erro ao consultar os dados do cliente.', 'err');
   }
 }
 
