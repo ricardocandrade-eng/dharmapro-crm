@@ -98,7 +98,7 @@ function _routePAP(payload) {
         result = salvarConsulta('Crédito', payload);
         break;
       case 'consultarAssertiva':
-        result = consultarAssertivaGAS(payload.cpf);
+        result = consultarAssertivaGAS(payload.cpf, payload.parceiroCpf);
         break;
       case 'buscarCliente':
         result = buscarClienteConsultas(payload.cpf);
@@ -250,27 +250,148 @@ function salvarConsulta(tipo, data) {
 // 3. CONSULTAR ASSERTIVA (via Localize API)
 //    Usa consultarAssertivaCPF() definida em Code.js
 // ══════════════════════════════════════════════════════════════════════════════
-function consultarAssertivaGAS(cpf) {
+// ── Controle de custo da Assertiva (PAP) ─────────────────────────────────────
+// A Assertiva cobra por consulta. Para evitar que parceiros gastem crédito à toa
+// (ou usem o portal como ferramenta de consulta avulsa), TODA consulta passa por
+// aqui e sofre 3 travas + auditoria:
+//   1. Dígito verificador do CPF   → não paga por CPF inválido/typo.
+//   2. Dedupe por 30 dias          → mesmo CPF já consultado (por qualquer
+//                                     parceiro) reusa o resultado, sem cobrar.
+//   3. Limite de 5 PAGAS/dia/parceiro.
+//   + Log de tudo na aba "Log Assertiva PAP" (auditoria consulta→venda).
+var PAP_SHEET_LOG_ASSERTIVA  = 'Log Assertiva PAP';
+var PAP_ASSERTIVA_LIMITE_DIA = 5;   // consultas PAGAS por parceiro por dia
+var PAP_ASSERTIVA_CACHE_DIAS = 30;  // reusa resultado do mesmo CPF por N dias
+var HEADERS_LOG_ASSERTIVA = [
+  'Timestamp', 'Parceiro CPF', 'Parceiro Nome', 'CPF Consultado',
+  'Encontrado', 'Origem', 'Nome', 'Nascimento', 'Nome Mae', 'Status'
+];
+
+// Valida CPF com dígito verificador (evita gastar consulta com CPF inválido).
+function _papCpfValido(cpf) {
+  var s = String(cpf || '').replace(/\D/g, '');
+  if (s.length !== 11 || /^(\d)\1{10}$/.test(s)) return false;
+  var soma = 0, resto, i;
+  for (i = 1; i <= 9; i++)  soma += parseInt(s.substring(i-1, i), 10) * (11 - i);
+  resto = (soma * 10) % 11; if (resto >= 10) resto = 0;
+  if (resto !== parseInt(s.substring(9, 10), 10)) return false;
+  soma = 0;
+  for (i = 1; i <= 10; i++) soma += parseInt(s.substring(i-1, i), 10) * (12 - i);
+  resto = (soma * 10) % 11; if (resto >= 10) resto = 0;
+  return resto === parseInt(s.substring(10, 11), 10);
+}
+
+function _papDiaBRT_(d) {
+  return Utilities.formatDate(d, 'America/Sao_Paulo', 'yyyy-MM-dd');
+}
+
+function _papRegistrarLogAssertiva_(sheet, parceiroCpf, parceiroNome, cpf, res, origem) {
   try {
-    var res = consultarAssertivaCPF(cpf);
-    if (res.erro) return { found: false, status: res.mensagem };
-    var d = res.dados || {};
-    var nasc = '';
-    if (d.dataNascimento) {
-      nasc = (typeof _formatarDataNascimento === 'function')
-        ? (_formatarDataNascimento(d.dataNascimento, 'dd/MM/yyyy') || String(d.dataNascimento))
-        : String(d.dataNascimento);
-    }
-    return {
-      found:      !!d.nome,
-      nome:       d.nome || '',
-      nascimento: nasc,
-      nomeMae:    d.nomeMae || '',
-      status:     d.situacaoCadastral || (d.nome ? 'Localizado' : 'Não encontrado')
-    };
-  } catch (e) {
-    return { found: false, status: 'Erro: ' + e.message };
+    sheet.appendRow([
+      new Date(),
+      String(parceiroCpf || ''),
+      String(parceiroNome || ''),
+      String(cpf || ''),
+      (res && res.found) ? 'SIM' : 'NÃO',
+      origem,                               // PAGO | CACHE | BLOQUEADO | INVALIDO
+      (res && res.nome)       || '',
+      (res && res.nascimento) || '',
+      (res && res.nomeMae)    || '',
+      (res && res.status)     || ''
+    ]);
+  } catch (e) { Logger.log('_papRegistrarLogAssertiva_: ' + e.message); }
+}
+
+function consultarAssertivaGAS(cpf, parceiroCpf) {
+  var cpfLimpo = _papNormCpf(cpf);
+  var pcpf     = _papNormCpf(parceiroCpf);
+  var parceiroNome = '';
+  try { var a = autenticarParceiro(pcpf); if (a && a.found) parceiroNome = a.nome; } catch (_) {}
+
+  var sheet = null;
+  try { sheet = _papGetOrCreateSheet(PAP_SHEET_LOG_ASSERTIVA, HEADERS_LOG_ASSERTIVA); } catch (_) {}
+
+  // 1) CPF inválido → não gasta consulta.
+  if (!_papCpfValido(cpfLimpo)) {
+    var invRes = { found: false, status: 'CPF inválido' };
+    if (sheet) _papRegistrarLogAssertiva_(sheet, pcpf, parceiroNome, cpfLimpo, invRes, 'INVALIDO');
+    return invRes;
   }
+
+  // Lê o log UMA vez (de baixo p/ cima, parando fora da janela) para resolver
+  // dedupe (cache) e o contador diário do parceiro na mesma passada.
+  var agora = new Date();
+  var hojeBRT = _papDiaBRT_(agora);
+  var msJanela = PAP_ASSERTIVA_CACHE_DIAS * 24 * 60 * 60 * 1000;
+  var cacheHit = null, consultasHoje = 0;
+  if (sheet && sheet.getLastRow() >= 2) {
+    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, HEADERS_LOG_ASSERTIVA.length).getValues();
+    for (var i = rows.length - 1; i >= 0; i--) {
+      var r  = rows[i];
+      var ts = (r[0] instanceof Date) ? r[0] : new Date(r[0]);
+      if (isNaN(ts)) continue;
+      if ((agora - ts) > msJanela) break;   // além de 30 dias → nada relevante daqui p/ cima
+      var origem = String(r[5] || '');
+      if (origem === 'PAGO' && _papNormCpf(r[1]) === pcpf && _papDiaBRT_(ts) === hojeBRT) {
+        consultasHoje++;
+      }
+      if (!cacheHit && origem === 'PAGO' && String(r[4]) === 'SIM' && _papNormCpf(r[3]) === cpfLimpo) {
+        cacheHit = {
+          found: true,
+          nome:       String(r[6] || ''),
+          nascimento: String(r[7] || ''),
+          nomeMae:    String(r[8] || ''),
+          status:     String(r[9] || '') || 'Localizado',
+          cache: true
+        };
+      }
+    }
+  }
+
+  // 2) Dedupe → devolve o cache, sem custo (e não conta no limite diário).
+  if (cacheHit) {
+    if (sheet) _papRegistrarLogAssertiva_(sheet, pcpf, parceiroNome, cpfLimpo, cacheHit, 'CACHE');
+    return cacheHit;
+  }
+
+  // 3) Limite diário de consultas PAGAS por parceiro.
+  if (consultasHoje >= PAP_ASSERTIVA_LIMITE_DIA) {
+    var blkRes = {
+      found: false, blocked: true,
+      status: 'Limite de ' + PAP_ASSERTIVA_LIMITE_DIA + ' consultas por dia atingido. Tente amanhã.'
+    };
+    if (sheet) _papRegistrarLogAssertiva_(sheet, pcpf, parceiroNome, cpfLimpo, blkRes, 'BLOQUEADO');
+    return blkRes;
+  }
+
+  // 4) Consulta paga.
+  var out;
+  try {
+    var res = consultarAssertivaCPF(cpfLimpo);
+    if (res.erro) {
+      out = { found: false, status: res.mensagem };
+    } else {
+      var d = res.dados || {};
+      var nasc = '';
+      if (d.dataNascimento) {
+        nasc = (typeof _formatarDataNascimento === 'function')
+          ? (_formatarDataNascimento(d.dataNascimento, 'dd/MM/yyyy') || String(d.dataNascimento))
+          : String(d.dataNascimento);
+      }
+      out = {
+        found:      !!d.nome,
+        nome:       d.nome || '',
+        nascimento: nasc,
+        nomeMae:    d.nomeMae || '',
+        status:     d.situacaoCadastral || (d.nome ? 'Localizado' : 'Não encontrado')
+      };
+    }
+  } catch (e) {
+    out = { found: false, status: 'Erro: ' + e.message };
+  }
+
+  if (sheet) _papRegistrarLogAssertiva_(sheet, pcpf, parceiroNome, cpfLimpo, out, 'PAGO');
+  return out;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

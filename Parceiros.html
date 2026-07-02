@@ -1583,7 +1583,11 @@ async function consultarAssertivaPreVenda() {
       if (res.nascimento) document.getElementById('pv-nasc').value = res.nascimento;
       if (res.nomeMae)    document.getElementById('pv-mae').value  = res.nomeMae;
       hint.style.color   = 'var(--green)';
-      hint.textContent   = '✅ ' + (res.nome || 'Cliente localizado');
+      hint.textContent   = '✅ ' + (res.nome || 'Cliente localizado') + (res.cache ? ' · dados recentes' : '');
+    } else if (res && res.blocked) {
+      hint.style.color   = 'var(--accent)';
+      hint.textContent   = '⛔ ' + res.status;
+      toast(res.status, 'warn');
     } else {
       hint.style.color   = 'var(--yellow)';
       hint.textContent   = '⚠ ' + (res.status || 'CPF não localizado — preencha manualmente');
@@ -1817,7 +1821,7 @@ const API = {
   /* ── Consulta Assertiva (CPF) ─────────────────────────
      Retorna: { found: bool, nome: string, status: string } */
   consultarAssertiva: async (cpf) => {
-    return API._post({ action: 'consultarAssertiva', cpf });
+    return API._post({ action: 'consultarAssertiva', cpf, parceiroCpf: SELLER_CPF });
   },
 
   /* ── Buscar CEP + Planos ──────────────────────────────
