@@ -7338,7 +7338,12 @@ function _construirLinhaDados(d) {
   // vazios. Em edição, o merge (_mesclarDadosVendaComLinhaAtual_) traz o valor
   // atual em d.*, então NÃO recomputa (preserva o snapshot original — §5). Em
   // cadastro novo, d.* vem vazio e calcula. Mesmo padrão do auto-fill de Sistema.
-  var codPlanoF = String(d.codPlano || '').trim();
+  // Fonte autoritativa do código: snapshot da edição (d.codPlano, preservado no
+  // merge) OU o código escolhido no dropdown do cadastro (d.codigoVero, entregue
+  // por _buildVendaPayload_ / planosDetalhes). O reverse-lookup por nome+cidade é
+  // só fallback (cobertura parcial; falha na NP 3.0). Preenchendo AU aqui, o
+  // código do dropdown passa a alimentar os pontos (bloco getPontuacaoVenda abaixo).
+  var codPlanoF = String(d.codPlano || d.codigoVero || '').trim();
   if (!codPlanoF && d.plano && d.cidade) {
     try { codPlanoF = getCodigoVeroPorPlanoCidade(d.plano, d.cidade) || ''; } catch (eC) {}
   }
