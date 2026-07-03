@@ -73,33 +73,58 @@ function _atualizarPlanosVeroJsonRev13() {
 }
 
 // Backfill idempotente do COD_PLANO (col AU) nas vendas com AU vazio.
-// dryRun=true => so conta. Ver Tarefa B do BRIEF_CODIGO_PRODUTO.
-function backfillCodPlano(dryRun) {
+// MEMOIZADO por (plano|cidade) + RESUMIVEL em lotes (cursor em Script Property)
+// pra nao estourar o teto de 6 min do GAS. Le so 3 colunas (PLANO/CIDADE/AU).
+//   backfillCodPlano(true) = dry-run (conta o lote atual, nao grava nem avanca cursor).
+//   backfillCodPlano()     = grava o lote e avanca. Rodar de novo ate ver ">>> CONCLUIDO".
+//   backfillCodPlano(false, true) = reseta o cursor pro inicio.
+function backfillCodPlano(dryRun, resetCursor) {
   var sheet = _getSheet();
   var ultLinha = sheet.getLastRow();
   if (ultLinha < 3) { Logger.log('backfillCodPlano: nenhuma venda.'); return; }
   var c = CONFIG.COLUNAS;
   var nLinhas = ultLinha - 2;
-  var dados = sheet.getRange(3, 1, nLinhas, CONFIG.TOTAL_COLUNAS).getValues();
-  var colAU = sheet.getRange(3, c.COD_PLANO + 1, nLinhas, 1).getValues();
-  var total = nLinhas, jaTinham = 0, resolvidos = 0, semResolucao = 0, semPlanoOuCidade = 0;
-  for (var i = 0; i < nLinhas; i++) {
+  var props = PropertiesService.getScriptProperties();
+  var CURSOR_KEY = 'BACKFILL_CODPLANO_CURSOR';
+  var LOTE = 1200;
+  if (resetCursor) { try { props.deleteProperty(CURSOR_KEY); } catch (e) {} }
+  var inicio = 0;
+  try { inicio = parseInt(props.getProperty(CURSOR_KEY) || '0', 10) || 0; } catch (e) {}
+  if (inicio >= nLinhas) inicio = 0;
+  var fim = Math.min(inicio + LOTE, nLinhas);
+
+  var colPlano  = sheet.getRange(3, c.PLANO + 1, nLinhas, 1).getValues();
+  var colCidade = sheet.getRange(3, c.CIDADE + 1, nLinhas, 1).getValues();
+  var colAU     = sheet.getRange(3, c.COD_PLANO + 1, nLinhas, 1).getValues();
+
+  var memo = {};
+  var jaTinham = 0, resolvidos = 0, semResolucao = 0, semPlanoOuCidade = 0, processadas = 0;
+  for (var i = inicio; i < fim; i++) {
+    processadas++;
     var atual = String(colAU[i][0] || '').trim();
     if (atual) { jaTinham++; continue; }
-    var plano = String(dados[i][c.PLANO] || '').trim();
-    var cidade = String(dados[i][c.CIDADE] || '').trim();
+    var plano = String(colPlano[i][0] || '').trim();
+    var cidade = String(colCidade[i][0] || '').trim();
     if (!plano || !cidade) { semPlanoOuCidade++; continue; }
-    var cod = '';
-    try { cod = getCodigoVeroPorPlanoCidade(plano, cidade) || ''; } catch (e) {}
+    var key = plano + '||' + cidade, cod;
+    if (memo.hasOwnProperty(key)) { cod = memo[key]; }
+    else { try { cod = getCodigoVeroPorPlanoCidade(plano, cidade) || ''; } catch (e) { cod = ''; } memo[key] = cod; }
     if (cod) { colAU[i][0] = String(cod).trim(); resolvidos++; }
     else { semResolucao++; }
   }
-  if (!dryRun && resolvidos > 0) {
-    sheet.getRange(3, c.COD_PLANO + 1, nLinhas, 1).setValues(colAU);
-    try { _limparCache(); } catch (eC) {}
+
+  var concluido = (fim >= nLinhas);
+  if (!dryRun) {
+    if (resolvidos > 0) { sheet.getRange(3, c.COD_PLANO + 1, nLinhas, 1).setValues(colAU); try { _limparCache(); } catch (eC) {} }
+    if (concluido) { try { props.deleteProperty(CURSOR_KEY); } catch (e) {} }
+    else { try { props.setProperty(CURSOR_KEY, String(fim)); } catch (e) {} }
   }
-  var msg = 'backfillCodPlano' + (dryRun ? ' (DRY-RUN)' : '') + ': total=' + total + ' | jaTinham=' + jaTinham + ' | resolvidos=' + resolvidos + ' | semResolucao=' + semResolucao + ' | semPlanoOuCidade=' + semPlanoOuCidade;
+
+  var msg = 'backfillCodPlano' + (dryRun ? ' (DRY-RUN)' : '') + ': linhas ' + (inicio + 3) + '..' + (fim + 2) + ' de ' + nLinhas +
+            ' | resolvidos=' + resolvidos + ' | jaTinham=' + jaTinham + ' | semResolucao=' + semResolucao +
+            ' | semPlanoOuCidade=' + semPlanoOuCidade + ' | pares_unicos=' + Object.keys(memo).length +
+            (concluido ? '  >>> CONCLUIDO' : '  >>> RODAR DE NOVO pra continuar');
   Logger.log(msg);
   try { _getSpreadsheet_().toast(msg, (dryRun ? 'Dry-run' : 'Backfill'), 12); } catch (eT) {}
-  return { total: total, jaTinham: jaTinham, resolvidos: resolvidos, semResolucao: semResolucao, semPlanoOuCidade: semPlanoOuCidade };
+  return { inicio: inicio, fim: fim, nLinhas: nLinhas, resolvidos: resolvidos, jaTinham: jaTinham, semResolucao: semResolucao, semPlanoOuCidade: semPlanoOuCidade, concluido: concluido };
 }
