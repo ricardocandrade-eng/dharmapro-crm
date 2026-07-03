@@ -4073,7 +4073,13 @@ function _decompoeValorFibraMovel_(plano, valorTotal, codigo, cidade, valorMovel
 
 // Reverse lookup legado: planos_vero_codigos.json (4 cidades), match por
 // nome_crm_match exato + cidade exata. Mantido como fallback do sweep.
+// Guard por execução: se o dicionário legado estiver indisponível no Drive
+// (ex.: CODIGOS_VERO_FILE_ID stale apontando pra arquivo apagado), tenta UMA vez,
+// marca indisponível e não re-tenta — evita 1 chamada Drive + 1 log por linha em
+// varreduras grandes (backfillCodPlano). O sweep (passos 0/1) já cobre a NP 3.0.
+var _codigosVeroIndisponivel_ = false;
 function _getCodigoVeroLegado_(planoCore, cidNorm) {
+  if (_codigosVeroIndisponivel_) return '';
   try {
     var cv = _getCodigosVero();
     var rank = { alta: 3, media: 2, baixa: 1, '': 0 };
@@ -4094,7 +4100,8 @@ function _getCodigoVeroLegado_(planoCore, cidNorm) {
     });
     return melhor ? melhor.codigo : '';
   } catch (e) {
-    Logger.log('_getCodigoVeroLegado_ erro: ' + e.message);
+    _codigosVeroIndisponivel_ = true;
+    Logger.log('_getCodigoVeroLegado_ indisponivel (dicionario legado ausente): ' + e.message + ' — nao re-tenta nesta execucao.');
     return '';
   }
 }
