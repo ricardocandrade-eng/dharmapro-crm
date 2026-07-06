@@ -142,6 +142,12 @@ function _routePAP(payload) {
       case 'getExtratoPontos':
         result = getExtratoPontos(payload.cpf);
         break;
+      case 'getExtratoPontosLedger': // Fase 1 — consulta read-only do ledger (saldo + eventos)
+        result = getExtratoPontosLedger(payload.cpf, payload.limite);
+        break;
+      case 'getSaldoPontos':         // Fase 1 — saldo (SUM do ledger) + porTipo
+        result = getSaldoPontos(payload.cpf);
+        break;
       case 'getMeusPagamentosPAP':
         result = getMeusPagamentosPAP(payload.cpf);
         break;

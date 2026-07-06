@@ -609,6 +609,12 @@
       font-size: 9px; font-family: 'DM Mono', monospace; text-transform: uppercase;
       letter-spacing: 1px; white-space: nowrap; flex-shrink: 0;
     }
+    /* ── PONTOS — CONSULTA READ-ONLY (Fase 1) ── */
+    .plc-regras { display:flex; flex-wrap:wrap; gap:4px 8px; justify-content:center;
+      font-size:11px; color:var(--muted); margin:14px 2px 4px; line-height:1.5; text-align:center; }
+    .plc-regras b { color:var(--text); }
+    .resgate-pontos.plc-pos { color:#34d399; }
+    .resgate-pontos.plc-neg { color:#f87171; }
     /* ── PONTOS & PRÊMIOS — TEASER "EM BREVE" ── */
     .soon-hero { background:linear-gradient(135deg,#1c1438 0%,#141720 100%); border:1px solid rgba(167,139,250,.3); border-radius:var(--radius); padding:26px 20px; text-align:center; margin-bottom:18px; }
     .soon-hero-emoji { font-size:46px; line-height:1; }
@@ -773,13 +779,13 @@
         <div class="card-arrow">›</div>
       </button>
 
-      <button class="action-card card-c1" onclick="abrirPontosEmBreve()">
+      <button class="action-card card-c1" onclick="abrirPontosConsulta()">
         <div class="card-icon">⭐</div>
         <div class="card-text">
           <div class="card-title">Pontos & Prêmios</div>
-          <div class="card-desc" id="card-pontos-desc">Vem novidade por aí 🚀</div>
+          <div class="card-desc" id="card-pontos-desc">Consulte seu saldo de pontos</div>
         </div>
-        <span class="soon-tag">Em breve</span>
+        <div class="card-arrow">›</div>
       </button>
 
       <button class="action-card card-c4" onclick="abrirOfertas()">
@@ -1867,6 +1873,7 @@ const API = {
   getCatalogoPremios:   async ()              => API._post({ action: 'getCatalogoPremios' }),
   resgatarPremio:       async (cpf, premioId) => API._post({ action: 'resgatarPremio', cpf, premioId }),
   getExtratoPontos:     async (cpf)           => API._post({ action: 'getExtratoPontos', cpf }),
+  getExtratoPontosLedger: async (cpf)         => API._post({ action: 'getExtratoPontosLedger', cpf }),
   getMeusPagamentosPAP: async (cpf)           => API._post({ action: 'getMeusPagamentosPAP', cpf }),
 
   /* ── Mapa de Ofertas ───────────────────────────────── */
@@ -2175,8 +2182,64 @@ async function carregarPagamentosPAP() {
 /* ── PONTOS & PRÊMIOS ── */
 let _extratoPontos = null, _premiosData = null;
 
-// Programa ainda não lançado: o card abre a apresentação "em breve".
-// Quando o programa entrar no ar, trocar o onclick do card para abrirPontos().
+// Fase 1 (Pontos PAP) — consulta read-only do saldo/extrato lidos do ledger
+// (`PAP Pontos Ledger`). Resgate/loja ficam pra Fase 2 (sheet-pontos + abrirPontos
+// seguem dormentes). Rótulos e sinal por tipo de evento.
+const PONTOS_TIPO_LABEL = {
+  CREDITO_VENDA:         { txt: 'Venda instalada',      cls: 'pos' },
+  BONUS_CAMPANHA:        { txt: 'Bônus de campanha',    cls: 'pos' },
+  AJUSTE_MANUAL:         { txt: 'Ajuste',               cls: 'neu' },
+  DEBITO_RESGATE:        { txt: 'Resgate',              cls: 'neg' },
+  ESTORNO_CANCELAMENTO:  { txt: 'Estorno (cancelamento)', cls: 'neg' },
+  EXPIRACAO:             { txt: 'Expiração',            cls: 'neg' }
+};
+
+async function abrirPontosConsulta() {
+  openSheet('sheet-pontos-consulta');
+  await carregarPontosLedger();
+}
+
+async function carregarPontosLedger() {
+  const saldoEl = document.getElementById('plc-saldo');
+  const listaEl = document.getElementById('plc-extrato');
+  saldoEl.textContent = '—';
+  listaEl.innerHTML = '<div class="empty-state"><div class="empty-icon">⏳</div>Carregando…</div>';
+  try {
+    const res = await API.getExtratoPontosLedger(SELLER_CPF);
+    if (!res || !res.ok) {
+      listaEl.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div>Não foi possível carregar seus pontos agora.</div>';
+      saldoEl.textContent = '—';
+      return;
+    }
+    saldoEl.textContent = res.saldo ?? 0;
+    const ev = res.eventos || [];
+    listaEl.innerHTML = ev.length
+      ? ev.map(e => {
+          const meta = PONTOS_TIPO_LABEL[e.tipo] || { txt: e.tipo || 'Evento', cls: 'neu' };
+          const sinal = e.pontos > 0 ? '+' : '';
+          const corCls = meta.cls === 'pos' ? 'plc-pos' : (meta.cls === 'neg' ? 'plc-neg' : '');
+          const linhaRef = e.ref ? ('Contrato ' + esc(e.ref)) : '';
+          const dataTxt = fmtDate(e.data) || fmtDate(e.ts);
+          const validade = (e.tipo === 'CREDITO_VENDA' && e.expira)
+            ? ('<div class="resgate-date">Válido até ' + esc(fmtDate(e.expira)) + '</div>') : '';
+          return `<div class="resgate-card">
+            <div class="resgate-card-top">
+              <span class="resgate-nome">${esc(meta.txt)}</span>
+              <span class="resgate-pontos ${corCls}">${sinal}${e.pontos} pts</span>
+            </div>
+            <div class="resgate-date">${linhaRef}${linhaRef && dataTxt ? ' · ' : ''}${esc(dataTxt)}</div>
+            ${validade}
+          </div>`;
+        }).join('')
+      : '<div class="empty-state"><div class="empty-icon">⭐</div>Você ainda não tem pontos. Eles entram quando sua venda é instalada.</div>';
+  } catch (e) {
+    listaEl.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div>Erro de conexão. Tente de novo.</div>';
+    saldoEl.textContent = '—';
+  }
+}
+
+// Programa ainda não lançado (loja/resgate): dormente até a Fase 2.
+// A consulta de saldo já está no ar via abrirPontosConsulta().
 function abrirPontosEmBreve() {
   openSheet('sheet-pontos-soon');
 }
@@ -2402,7 +2465,32 @@ function _renderOfertas(res) {
   </div>
 </div>
 
-<!-- SHEET · PONTOS & PRÊMIOS -->
+<!-- SHEET · PONTOS — CONSULTA READ-ONLY (Fase 1: saldo + extrato do ledger) -->
+<div class="sheet" id="sheet-pontos-consulta">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <div><div class="sheet-tag">Programa de Pontos</div><div class="sheet-title">Meus Pontos</div></div>
+    <button class="sheet-close" onclick="closeSheets()">✕</button>
+  </div>
+  <div class="sheet-body">
+    <div class="pontos-hero">
+      <div class="pontos-hero-val" id="plc-saldo">—</div>
+      <div class="pontos-hero-sub">pontos disponíveis</div>
+    </div>
+    <div class="plc-regras">
+      <span>1 ponto = R$ 1,00 vendido</span>
+      <span>·</span>
+      <span>válidos por 24 meses</span>
+      <span>·</span>
+      <span>resgate a partir de 1.000 pts <b>(loja em breve)</b></span>
+    </div>
+    <div class="soon-section">Extrato</div>
+    <div class="resgates-list" id="plc-extrato" style="display:flex"></div>
+    <div style="height:16px"></div>
+  </div>
+</div>
+
+<!-- SHEET · PONTOS & PRÊMIOS (loja — dormente até a Fase 2) -->
 <div class="sheet" id="sheet-pontos">
   <div class="sheet-handle"></div>
   <div class="sheet-header">
