@@ -1335,6 +1335,9 @@ function getMinhaDashboard(cpf) {
            pontos: { saldo: pontosInfo.saldo, instaladas: pontosInfo.instaladas } };
 }
 
+// LEGADO — substituído pelo ledger (Fase 1). Régua antiga (1/2 por instalação,
+// matching por nome). Mantido dormente até a Fase 2 migrar os leitores
+// (getMinhaDashboard/getExtratoPontos/resgatarPremio) para getSaldoPontos.
 function _calcularPontos(cpfLimpo, nomeParceiro) {
   const ss = _getSpreadsheet_();
   let pontosBrutos = 0, instaladas = 0;
@@ -1778,4 +1781,284 @@ function excluirVendedorPAP(usuario, linha) {
 // Injeta a página VendedoresPAP.html no CRM.
 function getVendedoresPAPHtml() {
   return HtmlService.createHtmlOutputFromFile('VendedoresPAP').getContent();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PROGRAMA DE PONTOS PAP — Motor de Crédito + Ledger (Fase 1)
+//   Spec: BRIEF_PROGRAMA_PONTOS_PAP.md (decisões D1–D10) +
+//         BRIEF_PROGRAMA_PONTOS_PAP_FASE1.md.
+//   Modelo: livro-razão de eventos (ledger). Saldo = SUM(Pontos) por CPF.
+//   Régua: 1 ponto = R$ 1,00 do VALOR (Math.round), combo soma o Móvel filho.
+//   Gate: venda (DATA_ATIV, fallback CRIADO_EM) ≥ 01/07/2026, instalada.
+//   Fase 1 grava só CREDITO_VENDA (+). Resgate/estorno/expiração → fases 2-4.
+// ══════════════════════════════════════════════════════════════════════════════
+
+const PAP_SHEET_LEDGER = 'PAP Pontos Ledger';
+const HEADERS_LEDGER = [
+  'ID','Timestamp','CPF','Nome','Tipo','Pontos',
+  'Ref','Ref Tipo','Data Competencia','Expira Em','Origem','Obs'
+];
+
+// Índices 0-based das colunas do ledger (espelham HEADERS_LEDGER).
+const PAP_LEDGER_COL = {
+  ID: 0, TS: 1, CPF: 2, NOME: 3, TIPO: 4, PONTOS: 5,
+  REF: 6, REF_TIPO: 7, DATA_COMPETENCIA: 8, EXPIRA_EM: 9, ORIGEM: 10, OBS: 11
+};
+
+// Gate de elegibilidade (D4): venda a partir de 01/07/2026 (00:00 local).
+const PAP_PONTOS_GATE = new Date(2026, 6, 1); // mês 6 = julho (0-based)
+
+// ── 2.1 Resolver nome do vendedor (RESP) → CPF do parceiro via "3 - PAP" ────────
+// Retorna { cpf, nome, ambiguo }. Cacheia o índice nome→CPF por execução para
+// não reler "3 - PAP" a cada venda (passar `indice` construído por
+// _papIndiceParceirosPorNome()).
+function _papResolverCpfParceiroPorNome(nomeResp, indice) {
+  const chave = _papNormNome_(nomeResp);
+  if (!chave) return { cpf: '', nome: '', ambiguo: false };
+  const idx = indice || _papIndiceParceirosPorNome();
+  const hit = idx[chave];
+  if (!hit) return { cpf: '', nome: String(nomeResp || '').trim(), ambiguo: false };
+  if (hit.ambiguo) return { cpf: '', nome: hit.nome, ambiguo: true };
+  return { cpf: hit.cpf, nome: hit.nome, ambiguo: false };
+}
+
+// Normaliza nome: trim + lowercase + strip acento.
+function _papNormNome_(nome) {
+  return String(nome || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// Constrói { nomeNorm: { cpf, nome, ambiguo } } lendo "3 - PAP" uma única vez.
+// Nome que casa com 2+ CPFs distintos vira { ambiguo:true }.
+function _papIndiceParceirosPorNome() {
+  const idx = {};
+  const sh = _getSpreadsheet_().getSheetByName(PAP_SHEET_PAP);
+  if (!sh || sh.getLastRow() < PAP_FIRST_ROW) return idx;
+  const numRows = sh.getLastRow() - PAP_FIRST_ROW + 1;
+  const numCols = PAP_COL_ATIVO - PAP_COL_NOME + 1;
+  const raw = sh.getRange(PAP_FIRST_ROW, PAP_COL_NOME, numRows, numCols).getValues();
+  for (let i = 0; i < raw.length; i++) {
+    const nome = String(raw[i][0] || '').trim();
+    const cpf  = _papNormCpf(String(raw[i][PAP_COL_CPF - PAP_COL_NOME] || ''));
+    if (!nome || cpf.length !== 11) continue;
+    const chave = _papNormNome_(nome);
+    if (!chave) continue;
+    const atual = idx[chave];
+    if (!atual) {
+      idx[chave] = { cpf: cpf, nome: nome, ambiguo: false };
+    } else if (!atual.ambiguo && atual.cpf !== cpf) {
+      idx[chave] = { cpf: '', nome: nome, ambiguo: true };
+    }
+  }
+  return idx;
+}
+
+// ── 2.2 Pontos de uma venda (régua R$1=1pt, combo somado) ───────────────────────
+function _papPontosDaVenda(row, c, vinculosMap, linha1based, sheetV) {
+  let pts = _papValorEmPontos_(row[c.VALOR]);
+  const prod = String(row[c.PRODUTO] || '').toUpperCase();
+  if (prod.indexOf('COMBO') !== -1 && vinculosMap && vinculosMap.filhasPorMae) {
+    const filhas = vinculosMap.filhasPorMae[linha1based] || [];
+    for (let i = 0; i < filhas.length; i++) {
+      const filhaLinha = filhas[i].vendaFilhaLinha;
+      if (!filhaLinha) continue;
+      const rowFilha = sheetV.getRange(filhaLinha, c.VALOR + 1).getValue();
+      pts += _papValorEmPontos_(rowFilha);
+    }
+  }
+  return pts;
+}
+
+// R$ → pontos inteiros. _normalizarValorParaNumero_ devolve '' quando vazio/ruim.
+function _papValorEmPontos_(v) {
+  const n = _normalizarValorParaNumero_(v);
+  return (typeof n === 'number' && isFinite(n)) ? Math.round(n) : 0;
+}
+
+// ── 2.3 Elegibilidade da venda ──────────────────────────────────────────────────
+function _papVendaElegivel(row, c) {
+  if (String(row[c.CANAL] || '').trim().toUpperCase() !== 'PAP') return false;
+
+  const status = String(row[c.STATUS] || '');
+  const statusInstalado = /^4/.test(status) ||
+    status.toLowerCase().indexOf('instalad') !== -1 ||
+    status.toLowerCase().indexOf('ativo')    !== -1;
+  if (!statusInstalado) return false;
+
+  if (!_parseDataFlex(row[c.INSTAL])) return false; // INSTAL preenchido/válido
+
+  // Gate D4: data da venda (DATA_ATIV, fallback CRIADO_EM) ≥ 01/07/2026.
+  let dVenda = _parseDataFlex(row[c.DATA_ATIV]);
+  if (!dVenda && c.CRIADO_EM != null) dVenda = _parseDataFlex(row[c.CRIADO_EM]);
+  if (!dVenda || dVenda < PAP_PONTOS_GATE) return false;
+
+  return true;
+}
+
+// ── 2.4 Motor de crédito idempotente ────────────────────────────────────────────
+// opts = { dryRun?:bool, origem?:string }. Um CREDITO_VENDA por contrato.
+function creditarPontosPAPVendas(opts) {
+  opts = opts || {};
+  const origem = opts.origem || 'JOB_DIARIO';
+  const dryRun = !!opts.dryRun;
+
+  if (typeof CONFIG === 'undefined') {
+    return { ok: false, error: 'CONFIG indisponível' };
+  }
+  const c  = CONFIG.COLUNAS;
+  const ss = _getSpreadsheet_();
+  const sheetV = ss.getSheetByName(PAP_SHEET_VENDAS);
+  if (!sheetV || sheetV.getLastRow() < 3) {
+    return { ok: true, creditadas: 0, pulhadas: 0, semParceiro: 0, ambiguos: 0, pontosTotais: 0 };
+  }
+
+  // 1. Set de contratos já creditados (CREDITO_VENDA no ledger) — 1 leitura.
+  const ledger = _papGetOrCreateSheet(PAP_SHEET_LEDGER, HEADERS_LEDGER);
+  const jaCreditados = {};
+  if (ledger.getLastRow() >= 2) {
+    const lRaw = ledger.getRange(2, 1, ledger.getLastRow() - 1, HEADERS_LEDGER.length).getValues();
+    for (let i = 0; i < lRaw.length; i++) {
+      if (String(lRaw[i][PAP_LEDGER_COL.TIPO] || '') !== 'CREDITO_VENDA') continue;
+      const ref = String(lRaw[i][PAP_LEDGER_COL.REF] || '').trim();
+      if (ref) jaCreditados[ref] = true;
+    }
+  }
+
+  // Índice nome→CPF (1 leitura de "3 - PAP") + mapa de vínculos de combo.
+  const idxParceiros = _papIndiceParceirosPorNome();
+  const vinculosMap  = _getVinculosVendasMap_();
+
+  // 2. Varre 1 - Vendas (linha 3+). Só col VALOR-dependente lê filha por getValue.
+  const numRows = sheetV.getLastRow() - 2;
+  const maxCol  = Math.max(c.CANAL, c.STATUS, c.RESP, c.PRODUTO, c.VALOR,
+                           c.DATA_ATIV, c.INSTAL, c.CONTRATO, c.CLIENTE,
+                           (c.CRIADO_EM != null ? c.CRIADO_EM : 0)) + 1;
+  const raw = sheetV.getRange(3, 1, numRows, maxCol).getValues();
+
+  let creditadas = 0, pulhadas = 0, semParceiro = 0, ambiguos = 0, pontosTotais = 0;
+  const novasLinhas = [];
+  const ts = _papNow();
+
+  for (let i = 0; i < raw.length; i++) {
+    const row = raw[i];
+    const linha1based = i + 3;
+
+    if (!_papVendaElegivel(row, c)) continue;
+
+    // Móvel filho de um combo: seu VALOR já é somado no crédito da Fibra mãe
+    // (D2). Creditá-lo no próprio contrato duplicaria os pontos do móvel — pula.
+    if (vinculosMap.maePorFilha && vinculosMap.maePorFilha[linha1based]) continue;
+
+    const contrato = String(row[c.CONTRATO] || '').trim();
+    if (!contrato) { pulhadas++; continue; }
+    if (jaCreditados[contrato]) continue; // idempotência
+
+    const resolvido = _papResolverCpfParceiroPorNome(row[c.RESP], idxParceiros);
+    if (resolvido.ambiguo) { ambiguos++; Logger.log('creditarPontosPAP: parceiro ambíguo "' + row[c.RESP] + '" contrato ' + contrato); continue; }
+    if (!resolvido.cpf)    { semParceiro++; Logger.log('creditarPontosPAP: sem CPF p/ "' + row[c.RESP] + '" contrato ' + contrato); continue; }
+
+    const pontos = _papPontosDaVenda(row, c, vinculosMap, linha1based, sheetV);
+    if (!(pontos > 0)) { pulhadas++; continue; }
+
+    const dInstal = _parseDataFlex(row[c.INSTAL]);
+    const dExpira = dInstal ? new Date(dInstal.getFullYear(), dInstal.getMonth() + 24, dInstal.getDate()) : '';
+
+    novasLinhas.push([
+      _papGerarId('PL'),           // ID
+      ts,                          // Timestamp
+      resolvido.cpf,               // CPF
+      resolvido.nome,              // Nome
+      'CREDITO_VENDA',             // Tipo
+      pontos,                      // Pontos (+)
+      contrato,                    // Ref
+      'CONTRATO',                  // Ref Tipo
+      dInstal ? _fmtDataBR(dInstal) : '', // Data Competencia
+      dExpira ? _fmtDataBR(dExpira) : '', // Expira Em
+      origem,                      // Origem
+      String(row[c.CLIENTE] || '').trim() // Obs (snapshot cliente)
+    ]);
+    jaCreditados[contrato] = true; // evita duplicar dentro da mesma execução
+    creditadas++;
+    pontosTotais += pontos;
+  }
+
+  // 4. Grava em batch, sob lock. dryRun não grava.
+  if (!dryRun && novasLinhas.length) {
+    const lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(20000);
+      const start = ledger.getLastRow() + 1;
+      ledger.getRange(start, 1, novasLinhas.length, HEADERS_LEDGER.length).setValues(novasLinhas);
+      SpreadsheetApp.flush();
+    } finally {
+      try { lock.releaseLock(); } catch (_) {}
+    }
+  }
+
+  return { ok: true, dryRun: dryRun, creditadas: creditadas, pulhadas: pulhadas,
+           semParceiro: semParceiro, ambiguos: ambiguos, pontosTotais: pontosTotais };
+}
+
+// ── 2.5 Saldo a partir do ledger ────────────────────────────────────────────────
+function getSaldoPontos(cpf) {
+  const cpfLimpo = _papNormCpf(cpf);
+  if (cpfLimpo.length !== 11) return { ok: false, error: 'CPF inválido' };
+  const ledger = _getSpreadsheet_().getSheetByName(PAP_SHEET_LEDGER);
+  let saldo = 0;
+  const porTipo = {};
+  if (ledger && ledger.getLastRow() >= 2) {
+    const raw = ledger.getRange(2, 1, ledger.getLastRow() - 1, HEADERS_LEDGER.length).getValues();
+    for (let i = 0; i < raw.length; i++) {
+      if (_papNormCpf(raw[i][PAP_LEDGER_COL.CPF]) !== cpfLimpo) continue;
+      const pts  = Number(raw[i][PAP_LEDGER_COL.PONTOS] || 0);
+      const tipo = String(raw[i][PAP_LEDGER_COL.TIPO] || '');
+      saldo += pts;
+      porTipo[tipo] = (porTipo[tipo] || 0) + pts;
+    }
+  }
+  return { ok: true, saldo: saldo, porTipo: porTipo };
+}
+
+// ── 2.6 Extrato a partir do ledger (Fase 2 troca getExtratoPontos por este) ──────
+function getExtratoPontosLedger(cpf, limite) {
+  limite = limite || 50;
+  const cpfLimpo = _papNormCpf(cpf);
+  if (cpfLimpo.length !== 11) return { ok: false, error: 'CPF inválido' };
+  const ledger = _getSpreadsheet_().getSheetByName(PAP_SHEET_LEDGER);
+  let saldo = 0;
+  const eventos = [];
+  if (ledger && ledger.getLastRow() >= 2) {
+    const raw = ledger.getRange(2, 1, ledger.getLastRow() - 1, HEADERS_LEDGER.length).getValues();
+    for (let i = raw.length - 1; i >= 0; i--) {
+      if (_papNormCpf(raw[i][PAP_LEDGER_COL.CPF]) !== cpfLimpo) continue;
+      saldo += Number(raw[i][PAP_LEDGER_COL.PONTOS] || 0);
+      if (eventos.length < limite) {
+        const r = raw[i];
+        eventos.push({
+          tipo:   String(r[PAP_LEDGER_COL.TIPO]   || ''),
+          pontos: Number(r[PAP_LEDGER_COL.PONTOS] || 0),
+          ref:    String(r[PAP_LEDGER_COL.REF]    || ''),
+          data:   _papCelToStr_(r[PAP_LEDGER_COL.DATA_COMPETENCIA]),
+          expira: _papCelToStr_(r[PAP_LEDGER_COL.EXPIRA_EM]),
+          ts:     _papCelToStr_(r[PAP_LEDGER_COL.TS]),
+          obs:    String(r[PAP_LEDGER_COL.OBS]    || '')
+        });
+      }
+    }
+  }
+  // eventos já em ordem desc (varremos de baixo p/ cima = mais recentes primeiro).
+  return { ok: true, saldo: saldo, eventos: eventos };
+}
+
+function _papCelToStr_(v) {
+  if (v instanceof Date && !isNaN(v)) return v.toISOString();
+  return String(v || '');
+}
+
+// Entrypoint do trigger diário (permanece deployado — o trigger referencia por
+// nome). Instalação/remoção do trigger ficam em _pontosPapSetup.js (one-shot).
+function creditarPontosPAPDiario() {
+  var res = creditarPontosPAPVendas({ origem: 'JOB_DIARIO' });
+  Logger.log('creditarPontosPAPDiario: ' + JSON.stringify(res));
+  return res;
 }
