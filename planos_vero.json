@@ -1,6 +1,6 @@
 [
   [
-    "Última atualização: 16/06/2026 — Rev11 NP 3.0: novo portfólio B2C 3.0 (VERO FAST 550/700, VERO FAST PLUS Cat 01/02/03, VERO PRO, VERO PRO MAX, VERO CONTROLE MAIS 40/60/100, STARLINK). Antigos VERO MAIS/DUO/FULL e planos Mundo arquivados.",
+    "Última atualização: 07/07/2026 — Rev14: tabela 26/07/06 (FAST 700 combos −R$5; PRO SPORTS 209,99; ESPORTES FUTEBOL 159,99 / ROKU 169,99) + VERO FAST PLUS DISNEY+ ADS PROMO (VeroHub 5201, 139,99) publicado; DISNEY+ ADS 147,99 (5726) despublicado.",
     "",
     "NG / ADAPTER",
     "NG / ADAPTER",
@@ -13,7 +13,8 @@
     "",
     "",
     "",
-    ""
+    "",
+    "NOME_VERO (sweep canônico)"
   ],
   [
     "Valores para pagamento via boleto",
@@ -29,7 +30,8 @@
     "OURO_REC",
     "PRATA_REC",
     "PADRÃO_REC",
-    "PRODUTO_TIPO"
+    "PRODUTO_TIPO",
+    "NOME_VERO"
   ],
   [
     "VERO MAIS 550MB + MÓVEL 20GB",
@@ -45,7 +47,8 @@
     "102.9",
     "102.9",
     "102.9",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO MAIS 550MB + MAIS CONECTADO 20GB"
   ],
   [
     "VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB",
@@ -61,7 +64,8 @@
     "139.9",
     "139.9",
     "139.9",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO MAIS 800MB + GLOBOPLAY PREMIUM + MAIS CONECTADO 20GB"
   ],
   [
     "VERO MAIS 800MB + HBO MAX + MÓVEL 20GB",
@@ -77,39 +81,25 @@
     "139.9",
     "139.9",
     "139.9",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO MAIS 800MB + HBO MAX + MAIS CONECTADO 20GB"
   ],
   [
     "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB",
     "VERO MAIS",
-    129.9,
-    129.9,
-    129.9,
-    129.9,
+    159.99,
+    159.99,
+    159.99,
+    159.99,
     "Vero Mais",
     "Esportes Futebol | YouTube Premium | 30GB Celular | Wi-Fi 6 | Instalação Grátis",
     true,
-    "124.90",
-    "124.90",
-    "124.90",
-    "124.90",
-    "FIBRA_COMBO"
-  ],
-  [
-    "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU/TV BOX + MÓVEL 30GB",
-    "VERO MAIS",
-    139.9,
-    139.9,
-    139.9,
-    139.9,
-    "Vero Mais",
-    "Esportes Futebol | YouTube Premium | ROKU/TV Box | 30GB Celular | Wi-Fi 6 | Instalação Grátis",
-    true,
-    "134.90",
-    "134.90",
-    "134.90",
-    "134.90",
-    "FIBRA_COMBO"
+    "149.99",
+    "149.99",
+    "149.99",
+    "149.99",
+    "FIBRA_COMBO",
+    "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MAIS CONECTADO 30GB"
   ],
   [
     "VERO MAIS 800MB + DISNEY+ PADRÃO + MÓVEL 20GB",
@@ -125,7 +115,8 @@
     "134.9",
     "134.9",
     "134.9",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO MAIS 800MB + DISNEY+ PADRÃO + MAIS CONECTADO 20GB"
   ],
   [
     "VERO MAIS 800MB + DISNEY+ PREMIUM + MÓVEL 20GB",
@@ -141,7 +132,8 @@
     "139.9",
     "139.9",
     "139.9",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO MAIS 800MB + DISNEY+ PREMIUM + MAIS CONECTADO 20GB"
   ],
   [
     "VERO MAIS 850MB + DIVERSÃO + MÓVEL 20GB",
@@ -157,7 +149,8 @@
     "179.9",
     "179.9",
     "179.9",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO MAIS 850MB + DIVERSÃO + MAIS CONECTADO 20GB"
   ],
   [
     "VERO MAIS 800MB - GLP PREMIUM + ASSISTÊNCIA RES. + MÓVEL 20GB",
@@ -173,7 +166,8 @@
     "144.9",
     "144.9",
     "144.9",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO MAIS 800MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL + MAIS CONECTADO 20GB"
   ],
   [
     "VERO MAIS 1GB + GLP PREMIUM + EXITLAG + MÓVEL 60GB",
@@ -185,59 +179,63 @@
     "Vero Mais",
     "Globoplay Premium | Assistência Residencial | Wi-Fi 6 | Kiddle | Instalação Grátis",
     false,
-    "199.9 (Bauru)",
+    "199,9 (Bauru)",
     "",
     "",
     "",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO MAIS 1GB + GLOBOPLAY PREMIUM + EXIT LAG + MAIS CONECTADO 60GB"
   ],
   [
     "VERO DUO 800MB + DISNEY+ ADS + HBO MAX ADS + MÓVEL 30GB",
-    "VERO MAIS",
+    "VERO DUO",
     159.9,
     159.9,
     159.9,
     159.9,
-    "Vero Mais",
+    "Vero Duo",
     "Disney com Ads | HBO Max com Ads | 30GB Celular | Wi-Fi 6 | Instalação Grátis",
     false,
     "149.9",
     "149.9",
     "149.9",
     "149.9",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO DUO 800MB + DISNEY+ COM ANÚNCIO + HBO MAX COM ANÚNCIO + MAIS CONECTADO 30GB"
   ],
   [
     "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MÓVEL 30GB",
-    "VERO MAIS",
+    "VERO DUO",
     159.9,
     159.9,
     159.9,
     159.9,
-    "Vero Mais",
+    "Vero Duo",
     "Prime Video | Apple TV | 30GB Celular | Wi-Fi 6 | Instalação Grátis",
     false,
     "149.9",
     "149.9",
     "149.9",
     "149.9",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO DUO 800MB + PRIME VIDEO + APPLE TV + MAIS CONECTADO 30GB"
   ],
   [
     "VERO FULL 800MB + PRIME VIDEO + APPLE TV + HBO MAX + GLP PREMIUM + MÓVEL 60GB",
-    "VERO MAIS",
+    "VERO FULL",
     209.9,
     209.9,
     209.9,
     209.9,
-    "Vero Mais",
+    "Vero Full",
     "Prime Video | Apple TV | HBO Max | Globoplay Premium | 60GB Celular | Wi-Fi 6 | Instalação Grátis",
     false,
     "199.9",
     "199.9",
     "199.9",
     "199.9",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO MAIS FULL 800MB + PRIME VIDEO + APPLE TV + HBO + GLP PREMIUM + MAIS CONECTADO 60GB"
   ],
   [
     "550MB MUNDO FIBRA",
@@ -253,7 +251,8 @@
     "97.9",
     "97.9",
     "97.9",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "MUNDO FIBRA 550MB"
   ],
   [
     "550MB ASSISTÊNCIA RESIDENCIAL",
@@ -269,7 +268,8 @@
     "110.9",
     "118.9",
     "120.9",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "MUNDO FIBRA 550MB + ASSISTENCIA RESIDENCIAL"
   ],
   [
     "750MB MUNDO FIBRA",
@@ -285,7 +285,8 @@
     "117.9",
     "117.9",
     "117.9",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "MUNDO FIBRA 750MB"
   ],
   [
     "600MB GLOBOPLAY PADRÃO COM ANÚNCIOS",
@@ -301,7 +302,8 @@
     "127.9",
     "127.9",
     "127.9",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "MUNDO ENTRETENIMENTO 600MB + GLOBOPLAY PADRÃO COM ANÚNCIOS"
   ],
   [
     "800MB YOUTUBE PREMIUM ou HBO MAX ou TELECINE",
@@ -317,7 +319,12 @@
     "134.9",
     "134.9",
     "134.9",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    [
+      "MUNDO ENTRETENIMENTO 800MB + YOUTUBE PREMIUM",
+      "MUNDO ENTRETENIMENTO 800MB + HBO MAX",
+      "MUNDO ENTRETENIMENTO 800MB + TELECINE"
+    ]
   ],
   [
     "800MB DISNEY+ PADRÃO",
@@ -333,7 +340,8 @@
     "134.9",
     "134.9",
     "134.9",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PADRÃO"
   ],
   [
     "800MB DISNEY+ PREMIUM",
@@ -349,7 +357,8 @@
     "155",
     "155",
     "155",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "MUNDO ENTRETENIMENTO 800MB + DISNEY+ PREMIUM"
   ],
   [
     "800MB GLOBOPLAY PREMIUM",
@@ -365,7 +374,8 @@
     "134.9",
     "134.9",
     "134.9",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM"
   ],
   [
     "800MB GLOBOPLAY PREMIUM + ASSISTÊNCIA RESIDENCIAL",
@@ -381,7 +391,8 @@
     "139.9",
     "139.9",
     "139.9",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "MUNDO ENTRETENIMENTO 800MB + GLOBOPLAY PREMIUM + ASSISTENCIA RESIDENCIAL"
   ],
   [
     "800MB PREMIERE",
@@ -397,7 +408,8 @@
     "150",
     "150",
     "150",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "MUNDO ENTRETENIMENTO 800MB + PREMIERE"
   ],
   [
     "850MB FILMES",
@@ -413,7 +425,8 @@
     "160",
     "160",
     "160",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "MUNDO COMPLETO 850MB + FILMES"
   ],
   [
     "850MB ESPORTES",
@@ -429,7 +442,8 @@
     "175",
     "175",
     "175",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "MUNDO COMPLETO 850MB + ESPORTES"
   ],
   [
     "1GB DIVERSÃO",
@@ -445,7 +459,8 @@
     "200",
     "200",
     "200",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "MUNDO COMPLETO 1GB + DIVERSÃO"
   ],
   [
     "800MB GAMER",
@@ -461,39 +476,8 @@
     "150",
     "150",
     "150",
-    "FIBRA_ALONE"
-  ],
-  [
-    "VERO B2B IP FIXO 550MB",
-    "B2B",
-    178,
-    178,
-    178,
-    178,
-    "Vero B2B",
-    "IP Fixo | 24 meses | Empresarial | Instalação Grátis",
-    true,
-    "",
-    "",
-    "",
-    "",
-    "FIBRA_ALONE"
-  ],
-  [
-    "VERO B2B COMBO 750MB + 1 LINHA",
-    "B2B",
-    99,
-    99,
-    99,
-    99,
-    "Vero B2B",
-    "750MB | 1 Linha Empresarial | 24 meses | Instalação Grátis",
-    true,
-    "",
-    "",
-    "",
-    "",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "MUNDO GAMER 800MB"
   ],
   [
     "VERO CONTROLE 10GB",
@@ -509,7 +493,8 @@
     30,
     30,
     30,
-    "MOVEL_ALONE"
+    "MOVEL_ALONE",
+    ""
   ],
   [
     "VERO CONTROLE 20GB",
@@ -525,7 +510,8 @@
     40,
     40,
     40,
-    "MOVEL_ALONE"
+    "MOVEL_ALONE",
+    ""
   ],
   [
     "VERO CONTROLE 30GB",
@@ -541,7 +527,8 @@
     50,
     50,
     50,
-    "MOVEL_ALONE"
+    "MOVEL_ALONE",
+    ""
   ],
   [
     "VERO CONTROLE 60GB",
@@ -557,7 +544,8 @@
     80,
     80,
     80,
-    "MOVEL_ALONE"
+    "MOVEL_ALONE",
+    ""
   ],
   [
     "VERO CONTROLE + CHIPS 20GB",
@@ -573,7 +561,8 @@
     40,
     40,
     40,
-    "MOVEL_ALONE"
+    "MOVEL_ALONE",
+    ""
   ],
   [
     "ASSINATURA + CHIPS 20GB",
@@ -589,7 +578,8 @@
     12,
     12,
     12,
-    "MOVEL_ALONE"
+    "MOVEL_ALONE",
+    ""
   ],
   [
     "VERO CONTROLE + CHIPS 30GB",
@@ -605,7 +595,8 @@
     50,
     50,
     50,
-    "MOVEL_ALONE"
+    "MOVEL_ALONE",
+    ""
   ],
   [
     "ASSINATURA + CHIPS 30GB",
@@ -621,7 +612,8 @@
     12,
     12,
     12,
-    "MOVEL_ALONE"
+    "MOVEL_ALONE",
+    ""
   ],
   [
     "VERO CONTROLE + CHIPS 60GB",
@@ -637,7 +629,8 @@
     80,
     80,
     80,
-    "MOVEL_ALONE"
+    "MOVEL_ALONE",
+    ""
   ],
   [
     "ASSINATURA + CHIPS 60GB",
@@ -653,7 +646,8 @@
     12,
     12,
     12,
-    "MOVEL_ALONE"
+    "MOVEL_ALONE",
+    ""
   ],
   [
     "10GB | MAIS CONECTADO | COMBO",
@@ -669,7 +663,8 @@
     30,
     30,
     30,
-    "MOVEL_COMBO"
+    "MOVEL_COMBO",
+    ""
   ],
   [
     "20GB | MAIS CONECTADO | COMBO",
@@ -685,7 +680,8 @@
     40,
     40,
     40,
-    "MOVEL_COMBO"
+    "MOVEL_COMBO",
+    ""
   ],
   [
     "30GB | MAIS CONECTADO | COMBO",
@@ -701,7 +697,8 @@
     50,
     50,
     50,
-    "MOVEL_COMBO"
+    "MOVEL_COMBO",
+    ""
   ],
   [
     "60GB | MAIS CONECTADO | COMBO",
@@ -717,7 +714,59 @@
     80,
     80,
     80,
-    "MOVEL_COMBO"
+    "MOVEL_COMBO",
+    ""
+  ],
+  [
+    "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU/TV BOX + MÓVEL 30GB",
+    "VERO MAIS",
+    169.99,
+    169.99,
+    169.99,
+    169.99,
+    "Vero Mais",
+    "Esportes Futebol | YouTube Premium | ROKU/TV Box | 30GB Celular | Wi-Fi 6 | Instalação Grátis",
+    true,
+    "159.99",
+    "159.99",
+    "159.99",
+    "159.99",
+    "FIBRA_COMBO",
+    "4688 - VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU + MAIS CONECTADO 30GB"
+  ],
+  [
+    "VERO B2B IP FIXO 550MB",
+    "B2B",
+    178,
+    178,
+    178,
+    178,
+    "Vero B2B",
+    "IP Fixo | 24 meses | Empresarial | Instalação Grátis",
+    true,
+    "",
+    "",
+    "",
+    "",
+    "FIBRA_ALONE",
+    ""
+  ],
+  [
+    "VERO B2B COMBO 750MB + 1 LINHA",
+    "B2B",
+    99,
+    99,
+    99,
+    99,
+    "Vero B2B",
+    "750MB | 1 Linha Empresarial | 24 meses | Instalação Grátis",
+    true,
+    "",
+    "",
+    "",
+    "",
+    "FIBRA_ALONE",
+    ""
   ],
   [
     "VERO FAST 550MB",
@@ -733,7 +782,8 @@
     "99.99",
     "103.99",
     "104.99",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "VERO FAST 550MB"
   ],
   [
     "VERO FAST 700MB",
@@ -749,7 +799,8 @@
     "109.99",
     "113.99",
     "114.99",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "VERO FAST 700MB"
   ],
   [
     "VERO FAST 700MB + MEDIQUO",
@@ -765,7 +816,8 @@
     "114.99",
     "118.99",
     "119.99",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "VERO FAST 700MB + MEDIQUO"
   ],
   [
     "VERO FAST 700MB + ASSISTÊNCIA RESIDENCIAL",
@@ -781,55 +833,59 @@
     "114.99",
     "118.99",
     "119.99",
-    "FIBRA_ALONE"
+    "FIBRA_ALONE",
+    "VERO FAST 700MB + ASSISTÊNCIA RESIDENCIAL"
   ],
   [
     "VERO FAST 700MB + MÓVEL 20GB",
+    "VERO FAST",
+    123.99,
+    124.99,
+    128.99,
+    129.99,
+    "Vero Fast",
+    "20GB Celular | Wi-Fi 6 | Pequenos Leitores | Estuda Mais | Instalação Grátis",
+    true,
+    "113.99",
+    "114.99",
+    "118.99",
+    "119.99",
+    "FIBRA_COMBO",
+    "VERO FAST 700MB + MAIS CONECTADO 20GB"
+  ],
+  [
+    "VERO FAST 700MB + MEDIQUO + MÓVEL 20GB",
     "VERO FAST",
     128.99,
     129.99,
     133.99,
     134.99,
     "Vero Fast",
-    "20GB Celular | Wi-Fi 6 | Pequenos Leitores | Estuda Mais | Instalação Grátis",
+    "20GB Celular | Mediquo | Wi-Fi 6 | Estuda Mais | UBOOK GO | Instalação Grátis",
     true,
     "118.99",
     "119.99",
     "123.99",
     "124.99",
-    "FIBRA_COMBO"
-  ],
-  [
-    "VERO FAST 700MB + MEDIQUO + MÓVEL 20GB",
-    "VERO FAST",
-    133.99,
-    134.99,
-    138.99,
-    139.99,
-    "Vero Fast",
-    "20GB Celular | Mediquo | Wi-Fi 6 | Estuda Mais | UBOOK GO | Instalação Grátis",
-    true,
-    "123.99",
-    "124.99",
-    "128.99",
-    "129.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO FAST 700MB + MEDIQUO + MAIS CONECTADO 20GB"
   ],
   [
     "VERO FAST 700MB + ASSISTÊNCIA RESIDENCIAL + MÓVEL 20GB",
     "VERO FAST",
+    128.99,
+    129.99,
     133.99,
     134.99,
-    138.99,
-    139.99,
     "Vero Fast",
     "20GB Celular | Assistência Residencial | Wi-Fi 6 | Estuda Mais | Instalação Grátis | Exceto PR",
     true,
+    "118.99",
+    "119.99",
     "123.99",
     "124.99",
-    "128.99",
-    "129.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO FAST 700MB + ASSISTÊNCIA RESIDENCIAL + MAIS CONECTADO 20GB"
   ],
   [
     "VERO FAST PLUS 800MB + DISNEY+ ADS + MÓVEL 30GB",
@@ -840,12 +896,30 @@
     147.99,
     "Vero Fast Plus",
     "Disney+ com Anúncios | 30GB Celular | Wi-Fi 6 | Pequenos Leitores | Estuda Mais | Instalação Grátis",
+    false,
+    "137.99",
+    "137.99",
+    "137.99",
+    "137.99",
+    "FIBRA_COMBO",
+    "VERO FAST MAIS 800MB + DISNEY+ COM ANÚNCIOS + MAIS CONECTADO 30GB"
+  ],
+  [
+    "VERO FAST PLUS 800MB + DISNEY+ ADS + MÓVEL 30GB PROMO",
+    "VERO FAST PLUS",
+    139.99,
+    139.99,
+    139.99,
+    139.99,
+    "Vero Fast Plus",
+    "Disney+ com Anúncios | 30GB Celular | Wi-Fi 6 | Pequenos Leitores | Estuda Mais | Instalação Grátis",
     true,
-    "137.99",
-    "137.99",
-    "137.99",
-    "137.99",
-    "FIBRA_COMBO"
+    "129.99",
+    "129.99",
+    "129.99",
+    "129.99",
+    "FIBRA_COMBO",
+    "VERO FAST PLUS 800MB + DISNEY+ COM ANÚNCIOS + MAIS CONECTADO 30GB PROMO"
   ],
   [
     "VERO FAST PLUS 800MB + HBO MAX ADS + MÓVEL 30GB",
@@ -861,7 +935,8 @@
     "137.99",
     "137.99",
     "137.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO FAST MAIS 800MB + HBO MAX COM ANÚNCIOS + MAIS CONECTADO 30GB"
   ],
   [
     "VERO FAST PLUS 800MB + GLOBOPLAY ADS + MÓVEL 30GB",
@@ -877,7 +952,8 @@
     "137.99",
     "137.99",
     "137.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO FAST MAIS 800MB + GLOBOPLAY COM ANÚNCIOS + MAIS CONECTADO 30GB"
   ],
   [
     "VERO FAST PLUS 800MB + DISNEY+ PADRÃO + MÓVEL 30GB",
@@ -893,7 +969,8 @@
     "139.99",
     "139.99",
     "139.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO FAST MAIS 800MB + DISNEY+ PADRÃO + MAIS CONECTADO 30GB"
   ],
   [
     "VERO FAST PLUS 800MB + HBO MAX + MÓVEL 30GB",
@@ -909,7 +986,8 @@
     "139.99",
     "139.99",
     "139.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO FAST MAIS 800MB + HBO MAX + MAIS CONECTADO 30GB"
   ],
   [
     "VERO FAST PLUS 800MB + GLOBOPLAY PREMIUM + MÓVEL 30GB",
@@ -925,7 +1003,8 @@
     "139.99",
     "139.99",
     "139.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO FAST MAIS 800MB + GLOBOPLAY PREMIUM + MAIS CONECTADO 30GB"
   ],
   [
     "VERO FAST PLUS 800MB + YOUTUBE PREMIUM + MÓVEL 30GB",
@@ -941,7 +1020,8 @@
     "139.99",
     "139.99",
     "139.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO FAST MAIS 800MB + YOUTUBE PREMIUM + MAIS CONECTADO 30GB"
   ],
   [
     "VERO FAST PLUS 800MB + PRIME VIDEO + MÓVEL 30GB",
@@ -957,7 +1037,8 @@
     "139.99",
     "139.99",
     "139.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO FAST MAIS 800MB + PRIME VIDEO + MAIS CONECTADO 30GB"
   ],
   [
     "VERO FAST PLUS 800MB + APPLE TV + MÓVEL 30GB",
@@ -973,7 +1054,8 @@
     "139.99",
     "139.99",
     "139.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO FAST MAIS 800MB + APPLE TV + MAIS CONECTADO 30GB"
   ],
   [
     "VERO FAST PLUS 800MB + TELECINE + MÓVEL 30GB",
@@ -989,7 +1071,8 @@
     "139.99",
     "139.99",
     "139.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO FAST MAIS 800MB + TELECINE + MAIS CONECTADO 30GB"
   ],
   [
     "VERO FAST PLUS 800MB + DISNEY+ PREMIUM + MÓVEL 30GB",
@@ -1005,7 +1088,8 @@
     "149.99",
     "149.99",
     "149.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO FAST MAIS 800MB + DISNEY+ PREMIUM + MAIS CONECTADO 30GB"
   ],
   [
     "VERO FAST PLUS 800MB + PREMIERE + MÓVEL 30GB",
@@ -1021,10 +1105,11 @@
     "149.99",
     "149.99",
     "149.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO FAST MAIS 800MB + PREMIERE + MAIS CONECTADO 30GB"
   ],
   [
-    "VERO PRO ONE 800MB + MÓVEL 60GB",
+    "VERO PRO ONE 850MB + MÓVEL 60GB",
     "VERO PRO",
     159.99,
     159.99,
@@ -1037,10 +1122,11 @@
     "149.99",
     "149.99",
     "149.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO PRO ONE 850MB + MAIS CONECTADO 60GB"
   ],
   [
-    "VERO PRO TECH 800MB + MÓVEL 60GB",
+    "VERO PRO TECH 850MB + MÓVEL 60GB",
     "VERO PRO",
     159.99,
     159.99,
@@ -1053,10 +1139,11 @@
     "149.99",
     "149.99",
     "149.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO PRO TECH 850MB + MAIS CONECTADO 60GB"
   ],
   [
-    "VERO PRO GAME 800MB + MÓVEL 60GB",
+    "VERO PRO GAME 850MB + MÓVEL 60GB",
     "VERO PRO",
     159.99,
     159.99,
@@ -1069,26 +1156,28 @@
     "149.99",
     "149.99",
     "149.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO PRO GAME 850MB + MAIS CONECTADO 60GB"
   ],
   [
-    "VERO PRO SPORTS 800MB + MÓVEL 60GB",
+    "VERO PRO SPORTS 850MB + MÓVEL 60GB",
     "VERO PRO",
-    209.0,
-    209.0,
-    209.0,
-    209.0,
+    209.99,
+    209.99,
+    209.99,
+    209.99,
     "Vero Pro",
     "Vero Vídeo Esportes | 60GB Celular | Wi-Fi 6 | Kiddle | Estuda Mais | UBOOK GO | Instalação Grátis",
     true,
-    "199.00",
-    "199.00",
-    "199.00",
-    "199.00",
-    "FIBRA_COMBO"
+    "199.99",
+    "199.99",
+    "199.99",
+    "199.99",
+    "FIBRA_COMBO",
+    "VERO PRO ESPORTES 850MB + MAIS CONECTADO 60GB"
   ],
   [
-    "VERO PRO FILMS 800MB + MÓVEL 60GB",
+    "VERO PRO FILMS 850MB + MÓVEL 60GB",
     "VERO PRO",
     219.99,
     219.99,
@@ -1101,10 +1190,11 @@
     "209.99",
     "209.99",
     "209.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO PRO FILMES 850MB + MAIS CONECTADO 60GB"
   ],
   [
-    "VERO PRO LIVE 800MB + MÓVEL 60GB",
+    "VERO PRO LIVE 850MB + MÓVEL 60GB",
     "VERO PRO",
     259.99,
     259.99,
@@ -1117,10 +1207,11 @@
     "249.99",
     "249.99",
     "249.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO PRO LIVE 850MB + MAIS CONECTADO 60GB"
   ],
   [
-    "VERO PRO MAX FAMILY + MÓVEL 100GB",
+    "VERO PRO MAX FAMILY 900MB + MÓVEL 100GB",
     "VERO PRO MAX",
     229.99,
     229.99,
@@ -1133,10 +1224,11 @@
     "219.99",
     "219.99",
     "219.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO PRO MAX FAMILIY 900MB + MAIS CONECTADO FAMILIA 100GB"
   ],
   [
-    "VERO PRO MAX TECH + MÓVEL 60GB",
+    "VERO PRO MAX TECH 900MB + MÓVEL 60GB",
     "VERO PRO MAX",
     259.99,
     259.99,
@@ -1149,10 +1241,11 @@
     "249.99",
     "249.99",
     "249.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO PRO MAX TECH 900MB + MAIS CONECTADO 60GB"
   ],
   [
-    "VERO PRO MAX VIP + MÓVEL 100GB",
+    "VERO PRO MAX VIP 900MB + MÓVEL 100GB",
     "VERO PRO MAX",
     329.99,
     329.99,
@@ -1165,10 +1258,11 @@
     "319.99",
     "319.99",
     "319.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO PRO MAX VIP 900MB + MAIS CONECTADO FAMILIA 100GB"
   ],
   [
-    "VERO PRO MAX VIP PREMIUM + MÓVEL 100GB",
+    "VERO PRO MAX VIP PREMIUM 900MB + MÓVEL 100GB",
     "VERO PRO MAX",
     449.99,
     449.99,
@@ -1181,7 +1275,8 @@
     "439.99",
     "439.99",
     "439.99",
-    "FIBRA_COMBO"
+    "FIBRA_COMBO",
+    "VERO PRO MAX VIP PREMIUM 900MB + MAIS CONECTADO FAMILIA 100GB"
   ],
   [
     "VERO CONTROLE MAIS 40GB",
