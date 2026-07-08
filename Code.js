@@ -2841,6 +2841,26 @@ function getCidadesOfertas() {
   }
 }
 
+// Planos Móvel descontinuados pela Vero (nome não existe mais em nenhuma aba
+// do XLS de preços — confirmado no reajuste de 07/07/2026 contra B2C_MÓVEL /
+// COMPOSIÇÃO_MÓVEL VERO CONTROLE) — mas que continuam PUBLICAR=false só como
+// qualquer outro plano Móvel, então o guard "Móvel ignora PUBLICAR" (abaixo)
+// os deixaria visíveis igual aos avulsos reais (VERO CONTROLE 10/20/30/60GB).
+// Ficam ocultos no Mapa de Ofertas e no dropdown Nova Venda; getValorPlano
+// continua resolvendo por nome, então edição de venda histórica não quebra.
+var _MOVEL_PLANOS_LEGADOS_OCULTOS_ = [
+  'VERO CONTROLE + CHIPS 20GB', 'ASSINATURA + CHIPS 20GB',
+  'VERO CONTROLE + CHIPS 30GB', 'ASSINATURA + CHIPS 30GB',
+  'VERO CONTROLE + CHIPS 60GB', 'ASSINATURA + CHIPS 60GB'
+];
+function _ehMovelLegadoOculto_(nomePlano) {
+  var n = String(nomePlano || '').toUpperCase().trim();
+  for (var i = 0; i < _MOVEL_PLANOS_LEGADOS_OCULTOS_.length; i++) {
+    if (_MOVEL_PLANOS_LEGADOS_OCULTOS_[i].toUpperCase() === n) return true;
+  }
+  return false;
+}
+
 // Retorna todas as ofertas de uma cidade (todos os produtos/categorias)
 function getOfertasCidade(cidade) {
   try {
@@ -2902,6 +2922,9 @@ function getOfertasCidade(cidade) {
         var pub = dadosTab[ti][colPublicar];
         if (pub !== true && pub !== 'SIM') continue;
       }
+      // 07/07/2026: planos Móvel legados que a Vero não vende mais (ver
+      // _MOVEL_PLANOS_LEGADOS_OCULTOS_) ficam fora mesmo sendo categoria Móvel.
+      if (ehMovelCat && _ehMovelLegadoOculto_(nomePlano)) continue;
 
       var valBol = _parseValor_(valRaw);
       if (valBol === 0) continue;
@@ -3259,6 +3282,10 @@ function getPlanosPorCidadeProduto(cidade, produto) {
         var pub = dadosTab[ti][colPublicar];
         if (pub !== true && pub !== 'SIM') continue;
       }
+      // 07/07/2026: planos Móvel legados que a Vero não vende mais (ver
+      // _MOVEL_PLANOS_LEGADOS_OCULTOS_) ficam fora do dropdown mesmo quando
+      // o operador escolhe Móvel Alone/Combo.
+      if (buscaMovel && _ehMovelLegadoOculto_(nome)) continue;
 
       if (colProdutoTipo > -1 && tipoAlvo) {
         // ── Filtro determinístico (Rev5+) ─────────────────────────────────
