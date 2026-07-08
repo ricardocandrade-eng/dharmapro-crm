@@ -4298,14 +4298,96 @@ function _selecionarCidade(cidade) {
     .getOfertasCidade(cidade);
 }
 
+// Modelo curado do texto "Copiar WhatsApp" do Mapa de Ofertas (pedido Ricardo,
+// 07/07/2026). Cada item aponta pro NOME exato da linha em planos_vero.json;
+// o preço (💳 cartão = valorRecorrente) vem sempre ao vivo de getOfertasCidade
+// pra cidade/segmentação selecionada — só rótulo/emoji/seção são editoriais.
+// Se a Vero adicionar/remover um plano deste conjunto curado, atualizar esta
+// lista manualmente (planos ausentes no res são pulados em silêncio).
+var _OFERTAS_WHATS_TEMPLATE_ = [
+  { titulo: '🏠 *FIBRA*', itens: [
+    { emoji: '🟣', nome: 'VERO FAST 550MB', label: 'VERO FAST 550 Mega' },
+    { emoji: '🟣', nome: 'VERO FAST 700MB', label: 'VERO FAST 700 Mega' },
+    { emoji: '🩺', nome: 'VERO FAST 700MB + MEDIQUO', label: 'VERO FAST 700 Mega + MediQuo' },
+    { emoji: '🏡', nome: 'VERO FAST 700MB + ASSISTÊNCIA RESIDENCIAL', label: 'VERO FAST 700 Mega + Assistência Residencial' }
+  ]},
+  { titulo: '📱 *COMBOS*', itens: [
+    { emoji: '🚀', nome: 'VERO FAST 700MB + MÓVEL 20GB', label: 'VERO FAST 700 Mega + 20GB' },
+    { emoji: '🩺', nome: 'VERO FAST 700MB + MEDIQUO + MÓVEL 20GB', label: 'VERO FAST 700 Mega + MediQuo + 20GB' },
+    { emoji: '🏡', nome: 'VERO FAST 700MB + ASSISTÊNCIA RESIDENCIAL + MÓVEL 20GB', label: 'VERO FAST 700 Mega + Assistência Residencial + 20GB' }
+  ]},
+  { titulo: '⭐ *VERO FAST PLUS (800 Mega + 30GB)*', itens: [
+    { emoji: '🎬', nome: 'VERO FAST PLUS 800MB + DISNEY+ ADS + MÓVEL 30GB PROMO', label: 'Disney+ Ads (Promo)' },
+    { emoji: '🎬', nome: 'VERO FAST PLUS 800MB + HBO MAX ADS + MÓVEL 30GB', label: 'HBO Max Ads' },
+    { emoji: '📺', nome: 'VERO FAST PLUS 800MB + GLOBOPLAY ADS + MÓVEL 30GB', label: 'Globoplay Ads' },
+    { emoji: '✨', nome: 'VERO FAST PLUS 800MB + DISNEY+ PADRÃO + MÓVEL 30GB', label: 'Disney+ Padrão' },
+    { emoji: '🎥', nome: 'VERO FAST PLUS 800MB + HBO MAX + MÓVEL 30GB', label: 'HBO Max' },
+    { emoji: '📺', nome: 'VERO FAST PLUS 800MB + GLOBOPLAY PREMIUM + MÓVEL 30GB', label: 'Globoplay Premium' },
+    { emoji: '▶️', nome: 'VERO FAST PLUS 800MB + YOUTUBE PREMIUM + MÓVEL 30GB', label: 'YouTube Premium' },
+    { emoji: '📦', nome: 'VERO FAST PLUS 800MB + PRIME VIDEO + MÓVEL 30GB', label: 'Prime Video' },
+    { emoji: '🍎', nome: 'VERO FAST PLUS 800MB + APPLE TV + MÓVEL 30GB', label: 'Apple TV+' },
+    { emoji: '🎞️', nome: 'VERO FAST PLUS 800MB + TELECINE + MÓVEL 30GB', label: 'Telecine' },
+    { emoji: '🌟', nome: 'VERO FAST PLUS 800MB + DISNEY+ PREMIUM + MÓVEL 30GB', label: 'Disney+ Premium' },
+    { emoji: '⚽', nome: 'VERO FAST PLUS 800MB + PREMIERE + MÓVEL 30GB', label: 'Premiere' }
+  ]},
+  { titulo: '🏆 *VERO MAIS*', itens: [
+    { emoji: '⚽', nome: 'VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + MÓVEL 30GB', label: '800 Mega + Esportes + YouTube Premium + 30GB' },
+    { emoji: '📺', nome: 'VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU/TV BOX + MÓVEL 30GB', label: '800 Mega + Esportes + YouTube Premium + Roku/TV Box + 30GB' }
+  ]},
+  { titulo: '💼 *VERO PRO (850 Mega + 60GB)*', itens: [
+    { emoji: '💻', nome: 'VERO PRO ONE 850MB + MÓVEL 60GB', label: 'One' },
+    { emoji: '🛠️', nome: 'VERO PRO TECH 850MB + MÓVEL 60GB', label: 'Tech' },
+    { emoji: '🎮', nome: 'VERO PRO GAME 850MB + MÓVEL 60GB', label: 'Game' },
+    { emoji: '⚽', nome: 'VERO PRO SPORTS 850MB + MÓVEL 60GB', label: 'Sports' },
+    { emoji: '🎬', nome: 'VERO PRO FILMS 850MB + MÓVEL 60GB', label: 'Films' },
+    { emoji: '📡', nome: 'VERO PRO LIVE 850MB + MÓVEL 60GB', label: 'Live' }
+  ]},
+  { titulo: '👑 *VERO PRO MAX*', itens: [
+    { emoji: '👨‍👩‍👧‍👦', nome: 'VERO PRO MAX FAMILY 900MB + MÓVEL 100GB', label: 'Family (900 Mega + 100GB)' },
+    { emoji: '💻', nome: 'VERO PRO MAX TECH 900MB + MÓVEL 60GB', label: 'Tech (900 Mega + 60GB)' },
+    { emoji: '💎', nome: 'VERO PRO MAX VIP 900MB + MÓVEL 100GB', label: 'VIP (900 Mega + 100GB)' },
+    { emoji: '🌟', nome: 'VERO PRO MAX VIP PREMIUM 900MB + MÓVEL 100GB', label: 'VIP Premium (900 Mega + 100GB)' }
+  ]}
+];
+
+function _montarTextoOfertasWhatsApp_(res) {
+  var precoPorNome = {};
+  (res.grupos || []).forEach(function(g) {
+    (g.planos || []).forEach(function(p) {
+      precoPorNome[p.nome] = p.valorRecorrente || p.valor || '';
+    });
+  });
+
+  var hoje = new Date();
+  var dd = ('0' + hoje.getDate()).slice(-2);
+  var mm = ('0' + (hoje.getMonth() + 1)).slice(-2);
+
+  var linhas = [];
+  linhas.push('📡 *OFERTAS VERO – ' + res.cidade + ' 💳 *(Valores no cartão)*');
+  linhas.push('Atualização: ' + dd + '/' + mm + '/' + hoje.getFullYear());
+  linhas.push('');
+
+  _OFERTAS_WHATS_TEMPLATE_.forEach(function(secao) {
+    linhas.push(secao.titulo);
+    linhas.push('');
+    secao.itens.forEach(function(item) {
+      var v = precoPorNome[item.nome];
+      if (!v) return; // plano não publicado/sem preço na cidade — pula em silêncio
+      linhas.push(item.emoji + ' ' + item.label + ' — 💳 *R$ ' + v + '*');
+    });
+    linhas.push('');
+  });
+
+  while (linhas.length && linhas[linhas.length - 1] === '') linhas.pop();
+  return linhas.join('\n');
+}
+
 function _renderizarOfertas(res) {
   var foot = document.getElementById('modalOfertasFoot');
   foot.style.display = 'flex';
 
-  // Monta texto WhatsApp para o botão copiar
-  _ofertasWhatsText = '*Ofertas Vero - ' + res.cidade + '*\n';
-  _ofertasWhatsText += 'Móvel: ' + res.telMovel + ' | Mesh: ' + res.comboMesh + ' | Roku: ' + res.roku + '\n';
-  _ofertasWhatsText += 'Sistema: ' + res.sistema + '\n\n';
+  // Monta texto WhatsApp pro botão copiar — formato curado (ver _OFERTAS_WHATS_TEMPLATE_)
+  _ofertasWhatsText = _montarTextoOfertasWhatsApp_(res);
 
   // Header
   var html =
@@ -4331,9 +4413,6 @@ function _renderizarOfertas(res) {
           esc(grupo.categoria.toUpperCase()) +
         '</div>';
 
-    // Whats
-    _ofertasWhatsText += icon + ' *' + grupo.categoria.toUpperCase() + '*\n';
-
     grupo.planos.forEach(function(p) {
       // Sprint 3 (12/05/2026): exibe os 2 valores (boleto + cartão).
       // Backward compat: se vier só p.valor (cache antigo), usa o que tiver.
@@ -4350,18 +4429,10 @@ function _renderizarOfertas(res) {
           '<span class="ofertas-plano-nome">' + esc(p.nome) + '</span>' +
           valoresHtml +
         '</div>';
-      _ofertasWhatsText += '• ' + p.nome + '\n';
-      _ofertasWhatsText += vBol
-        ? '  Cartão: *R$ ' + vRec + '* | Boleto: R$ ' + vBol + '\n'
-        : '  Cartão: *R$ ' + vRec + '*\n';
     });
 
     html += '</div>';
-    _ofertasWhatsText += '\n';
   });
-
-  _ofertasWhatsText += '_*Valor no Cartão, Pix automático ou débito em conta. Boleto +R$10,00.*_\n';
-  _ofertasWhatsText += '_Sujeito a viabilidade técnica e análise de crédito._';
 
   html += '<div class="ofertas-observacao">' +
     '* Valor no Cartão, Pix automático ou débito em conta. Boleto bancário +R$10,00.' +
