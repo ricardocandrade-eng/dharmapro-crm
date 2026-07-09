@@ -1541,6 +1541,7 @@ function doGet(e) {
     return HtmlService.createTemplateFromFile('Parceiros')
       .evaluate()
       .setTitle('Área do Parceiro')
+      .setFaviconUrl('https://cdn.jsdelivr.net/gh/ricardocandrade-eng/dharmapro-crm@main/cdn/favicon.png')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
   }
@@ -1591,6 +1592,7 @@ function doGet(e) {
     tmpl.initDash = initDash;
     return tmpl.evaluate()
       .setTitle('DharmaPro Mobile')
+      .setFaviconUrl('https://cdn.jsdelivr.net/gh/ricardocandrade-eng/dharmapro-crm@main/cdn/favicon.png')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
       .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
   }
@@ -1601,6 +1603,7 @@ function doGet(e) {
   return desktopTmpl
     .evaluate()
     .setTitle('CRM - Mobile Digital')
+    .setFaviconUrl('https://cdn.jsdelivr.net/gh/ricardocandrade-eng/dharmapro-crm@main/cdn/favicon.png')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
