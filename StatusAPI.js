@@ -62,6 +62,35 @@ function _st_(id, nome, status, detalhe, extra) {
   return { id: id, nome: nome, grupo: 'global', status: status, detalhe: detalhe || '', extra: extra || null };
 }
 
+// Formata número BR (JID/owner/phone_display) para "+55 32 99153-4154".
+function _statusFmtFone_(raw) {
+  var d = String(raw || '').replace(/@.*$/, '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.length > 11 && d.slice(0, 2) === '55') d = d.slice(2); // tira DDI
+  if (d.length < 10) return '+55 ' + d;                        // fallback defensivo
+  var ddd = d.slice(0, 2), rest = d.slice(2), meio, fim;
+  if (rest.length >= 9) { meio = rest.slice(0, 5); fim = rest.slice(5, 9); }
+  else { meio = rest.slice(0, 4); fim = rest.slice(4, 8); }
+  return '+55 ' + ddd + ' ' + meio + '-' + fim;
+}
+
+// Resolve o número (owner) de uma instância Evolution conectada via fetchInstances.
+// Usado quando o phone_display do sheet está vazio (chip conectado mas nunca carimbado).
+function _statusEvoOwner_(evoUrl, evoKey, inst) {
+  try {
+    var r = _statusGet_(evoUrl + '/instance/fetchInstances?instanceName=' + encodeURIComponent(inst), { 'apikey': evoKey });
+    if (!r.ok || r.code < 200 || r.code >= 300) return '';
+    var j = JSON.parse(r.text);
+    var arr = Array.isArray(j) ? j : [j];
+    for (var i = 0; i < arr.length; i++) {
+      var o = arr[i] || {};
+      var owner = (o.instance && (o.instance.owner || o.instance.wuid)) || o.owner || o.wuid || '';
+      if (owner) return _statusFmtFone_(owner);
+    }
+  } catch (e) {}
+  return '';
+}
+
 // ── FUNÇÃO PÚBLICA ───────────────────────────────────────────────────────────────
 /**
  * Status dos serviços de infra (grupo global). Cache 60s; forcar=true ignora.
@@ -189,9 +218,14 @@ function getStatusServicos(forcar) {
       var d = _waLerLinhas_(sh);
       var idxInst = _waColIdx_(d.header, 'instance_id');
       var idxAlias = _waColIdx_(d.header, 'alias');
+      var idxFone = _waColIdx_(d.header, 'phone_display');
       d.linhas.forEach(function (row) {
         var inst = idxInst >= 0 ? String(row[idxInst] || '').trim() : '';
-        if (inst) instancias.push({ instance: inst, alias: idxAlias >= 0 ? String(row[idxAlias] || '').trim() : '' });
+        if (inst) instancias.push({
+          instance: inst,
+          alias: idxAlias >= 0 ? String(row[idxAlias] || '').trim() : '',
+          foneRaw: idxFone >= 0 ? String(row[idxFone] || '').trim() : ''
+        });
       });
     } catch (e) {
       servicos.push(_st_('wacampanha', 'WA Campanha (chips)', 'warn', 'Aba WA Instâncias indisponível — ' + String(e && e.message || e)));
@@ -208,14 +242,45 @@ function getStatusServicos(forcar) {
         try { var j = JSON.parse(r.text); state = String((j.instance && j.instance.state) || j.state || '').toLowerCase(); } catch (e) {}
       }
       if (r.ok) evoHostUp = true; // conectou ao host
-      if (state === 'open') { conectados++; nomes.push((it.alias || it.instance) + ' ✓'); }
-      else nomes.push((it.alias || it.instance) + ' ✗');
+      if (state === 'open') {
+        conectados++;
+        var fone = it.foneRaw ? _statusFmtFone_(it.foneRaw) : _statusEvoOwner_(evoUrl, evoKey, it.instance);
+        nomes.push((it.alias || it.instance) + ' ✓' + (fone ? ' ' + fone : ''));
+      } else {
+        nomes.push((it.alias || it.instance) + ' ✗');
+      }
     });
 
     var det = conectados + '/' + total + ' conectados · ' + nomes.join(' · ');
     if (conectados === total) servicos.push(_st_('wacampanha', 'WA Campanha (chips)', 'ok', det));
     else if (conectados > 0) servicos.push(_st_('wacampanha', 'WA Campanha (chips)', 'warn', det));
     else servicos.push(_st_('wacampanha', 'WA Campanha (chips)', 'down', det));
+  })();
+
+  // ---- Alertas Operacionais (chip que dispara alertas de grupo + notificações PAP) ----
+  // Instância Evolution Ricardo_Andrade (= PAP_EVOLUTION_INSTANCE, ParceirosAPI.js).
+  // Se cair, os alertas de grupo (disparo-grupo Flow 1) e as notificações PAP param em silêncio.
+  (function () {
+    var evoUrl = props.getProperty('EVOLUTION_API_URL');
+    var evoKey = props.getProperty('EVOLUTION_API_KEY');
+    var inst = (typeof PAP_EVOLUTION_INSTANCE !== 'undefined' && PAP_EVOLUTION_INSTANCE) ? PAP_EVOLUTION_INSTANCE : 'Ricardo_Andrade';
+    if (!evoUrl || !evoKey) { servicos.push(_st_('alertasop', 'Alertas Operacionais', 'unknown', 'Evolution API não configurada')); return; }
+    evoUrl = evoUrl.replace(/\/+$/, '');
+
+    var r = _statusGet_(evoUrl + '/instance/connectionState/' + encodeURIComponent(inst), { 'apikey': evoKey });
+    if (!r.ok) { servicos.push(_st_('alertasop', 'Alertas Operacionais', 'down', 'Evolution inacessível — chip ' + inst)); return; }
+
+    var state = '';
+    if (r.code >= 200 && r.code < 300) {
+      try { var j = JSON.parse(r.text); state = String((j.instance && j.instance.state) || j.state || '').toLowerCase(); } catch (e) {}
+    }
+    if (state === 'open') {
+      var fone = _statusEvoOwner_(evoUrl, evoKey, inst);
+      servicos.push(_st_('alertasop', 'Alertas Operacionais', 'ok', 'Conectado' + (fone ? ' · ' + fone : '') + ' · chip ' + inst));
+    } else {
+      servicos.push(_st_('alertasop', 'Alertas Operacionais', 'down',
+        'Desconectado (' + (state || 'sem estado') + ') — alertas de grupo/PAP não saem · chip ' + inst));
+    }
   })();
 
   // ---- Tabela de Ofertas (última atualização) ----
