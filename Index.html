@@ -4427,6 +4427,56 @@
         <p style="font-size:12px;color:var(--muted);margin-top:4px;font-family:'DM Mono',monospace;">Gerencie integrações e preferências do sistema</p>
       </div>
 
+      <!-- ══════════ STATUS DOS SERVIÇOS (downdetector) ══════════ -->
+      <style>
+        .sv-grouptitle{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-family:'DM Mono',monospace;margin-bottom:8px;}
+        .sv-hint{text-transform:none;letter-spacing:0;font-weight:400;opacity:.8;}
+        .sv-list{display:grid;gap:6px;}
+        .sv-row{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;}
+        .sv-row .health-dot{flex:0 0 auto;}
+        .sv-nome{font-size:13px;font-weight:700;min-width:160px;flex:0 0 auto;}
+        .sv-det{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        .sv-loading{font-size:12px;color:var(--muted);font-family:'DM Mono',monospace;padding:8px;}
+        .sv-btn-refresh{padding:7px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:'Sora',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;}
+        .sv-btn-refresh:hover{border-color:var(--accent);}
+        @media(max-width:600px){.sv-nome{min-width:0;}.sv-row{flex-wrap:wrap;}.sv-det{white-space:normal;}}
+      </style>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px;margin-bottom:26px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:20px;">📡</span>
+            <div>
+              <h3 style="font-size:15px;font-weight:800;">Status dos Serviços</h3>
+              <p style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;">🟢 operando · 🟡 atenção · 🔴 queda · ⚪ desconhecido</p>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span id="sv-atualizado" style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;"></span>
+            <button class="sv-btn-refresh" onclick="_statusServicosCarregar(true)">↻ Atualizar</button>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;">
+          <div class="sv-grouptitle">Infraestrutura (global)</div>
+          <div id="sv-lista-global" class="sv-list"><div class="sv-loading">⏳ Consultando serviços…</div></div>
+        </div>
+
+        <div style="margin-top:18px;">
+          <div class="sv-grouptitle">Sua estação <span class="sv-hint">— reflete o SEU navegador; “fora” pode ser só a sua VPN/extensão, não uma queda geral</span></div>
+          <div id="sv-lista-estacao" class="sv-list">
+            <div class="sv-row" id="sv-est-extensao"><span class="health-dot"></span><span class="sv-nome">Extensão Chrome</span><span class="sv-det">—</span></div>
+            <div class="sv-row" id="sv-est-vpn"><span class="health-dot"></span><span class="sv-nome">VPN Vero</span><span class="sv-det">—</span></div>
+            <div class="sv-row" id="sv-est-ng"><span class="health-dot"></span><span class="sv-nome">NG</span><span class="sv-det">—</span></div>
+            <div class="sv-row" id="sv-est-adapter"><span class="health-dot"></span><span class="sv-nome">Adapter</span><span class="sv-det">—</span></div>
+            <div class="sv-row" id="sv-est-ping"><span class="health-dot"></span><span class="sv-nome">PinG</span><span class="sv-det">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin:0 0 14px;">
+        <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;">Integrações &amp; Credenciais</span>
+      </div>
+
       <!-- Card VeroHub -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border);">

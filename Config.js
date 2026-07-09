@@ -9,7 +9,11 @@
 
 // ── VERSÃO / DEPLOY ────────────────────────────────────────────────────────
 //  Atualizado automaticamente pelo salvar_010426_1930.bat a cada deploy
-var DEPLOY_DATE = '07/07/2026 22:20';
+var DEPLOY_DATE = '08/07/2026 15:30';
+
+// ── STATUS DOS SERVIÇOS (downdetector da página Configurações) ──────────────
+// Limiar (dias) acima do qual o card "Tabela de Ofertas" fica amarelo (desatualizada).
+var STATUS_OFERTAS_STALE_DIAS = 30;
 
 // ── USUÁRIOS ───────────────────────────────────────────────────────────────
 // SENHAS: use o campo senhaHash (SHA-256 em hex). Nunca armazene senha em texto puro.

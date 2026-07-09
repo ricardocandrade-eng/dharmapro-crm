@@ -1965,6 +1965,116 @@ function _carregarConsultasConfig() {
   } catch (e) { /* flags OFF — popup */ }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PAINEL DE STATUS DOS SERVIÇOS (downdetector — página Configurações)
+//  · Grupo "global": backend getStatusServicos() (infra checável do servidor).
+//  · Grupo "estação": extensão Chrome via _healthSendMsg (VPN/NG/Adapter/PinG) —
+//    reflete o navegador DO operador; NG/Adapter/PinG ficam atrás da VPN da Vero.
+// ═══════════════════════════════════════════════════════════════════════════
+var _statusPollTimer = null;
+
+function _statusIniciarPoll() {
+  if (_statusPollTimer) clearInterval(_statusPollTimer);
+  _statusPollTimer = setInterval(function () {
+    var pg = document.getElementById('pageConfig');
+    if (!pg || !pg.classList.contains('ativa')) { _statusPararPoll(); return; }
+    _statusServicosCarregar(false);
+    _statusEstacaoCarregar();
+  }, 60000);
+}
+function _statusPararPoll() {
+  if (_statusPollTimer) { clearInterval(_statusPollTimer); _statusPollTimer = null; }
+}
+
+function _svDotClasse(status) {
+  if (status === 'ok')    return 'health-dot health-dot--ok';
+  if (status === 'warn')  return 'health-dot health-dot--warn';
+  if (status === 'down')  return 'health-dot health-dot--erro';
+  if (status === 'check') return 'health-dot health-dot--check';
+  return 'health-dot'; // unknown → cinza
+}
+function _svEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c];
+  });
+}
+function _svHoraAgora() {
+  var d = new Date();
+  function z(n) { return (n < 10 ? '0' : '') + n; }
+  return z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds());
+}
+function _svPintarRow(rowEl, status, detalhe) {
+  if (!rowEl) return;
+  var dot = rowEl.querySelector('.health-dot');
+  var det = rowEl.querySelector('.sv-det');
+  if (dot) dot.className = _svDotClasse(status);
+  if (det) { det.textContent = detalhe || '—'; det.title = detalhe || ''; }
+}
+
+// ── Grupo global (backend) ──
+function _statusServicosCarregar(forcar) {
+  var lista = document.getElementById('sv-lista-global');
+  if (!lista) return;
+  if (forcar) lista.innerHTML = '<div class="sv-loading">⏳ Consultando serviços…</div>';
+  google.script.run
+    .withSuccessHandler(function (res) {
+      if (!res || !res.servicos) { lista.innerHTML = '<div class="sv-loading">Sem dados.</div>'; return; }
+      lista.innerHTML = res.servicos.map(function (s) {
+        return '<div class="sv-row">' +
+          '<span class="' + _svDotClasse(s.status) + '"></span>' +
+          '<span class="sv-nome">' + _svEsc(s.nome) + '</span>' +
+          '<span class="sv-det" title="' + _svEsc(s.detalhe) + '">' + _svEsc(s.detalhe) + '</span>' +
+          '</div>';
+      }).join('');
+      var sel = document.getElementById('sv-atualizado');
+      if (sel) sel.textContent = 'atualizado ' + _svHoraAgora() + (res.duracao_ms ? ' · ' + res.duracao_ms + 'ms' : '');
+    })
+    .withFailureHandler(function (e) {
+      lista.innerHTML = '<div class="sv-loading" style="color:#e63e6d;">Erro ao consultar: ' + _svEsc(e && e.message || String(e)) + '</div>';
+    })
+    .getStatusServicos(!!forcar);
+}
+
+// ── Grupo estação (extensão via _healthSendMsg) ──
+function _statusEstacaoCarregar() {
+  ['sv-est-extensao', 'sv-est-vpn', 'sv-est-ng', 'sv-est-adapter', 'sv-est-ping'].forEach(function (id) {
+    var r = document.getElementById(id); if (r) { var d = r.querySelector('.health-dot'); if (d) d.className = 'health-dot health-dot--check'; }
+  });
+
+  // health.check → VPN / NG / Adapter + presença da extensão
+  _healthSendMsg({ action: 'health.check' }, function (resp) {
+    var temExt = resp && !resp.erro;
+    _svPintarRow(document.getElementById('sv-est-extensao'), temExt ? 'ok' : 'down',
+      temExt ? 'Extensão respondendo' : 'Não instalada / desativada nesta máquina');
+
+    if (!temExt) {
+      _svPintarRow(document.getElementById('sv-est-vpn'), 'unknown', 'Sem extensão pra checar');
+      _svPintarRow(document.getElementById('sv-est-ng'), 'unknown', 'Sem extensão pra checar');
+      _svPintarRow(document.getElementById('sv-est-adapter'), 'unknown', 'Sem extensão pra checar');
+      return;
+    }
+    _svPintarRow(document.getElementById('sv-est-vpn'),
+      resp.vpn === 'ok' ? 'ok' : 'down',
+      resp.vpn === 'ok' ? 'Conectada' : 'Fora — conecte a VPN da Vero');
+    _svPintarRow(document.getElementById('sv-est-ng'),
+      resp.ng === 'logado' ? 'ok' : (resp.ng === 'sem_sessao' ? 'warn' : 'down'),
+      resp.ng === 'logado' ? 'Logado' : (resp.ng === 'sem_sessao' ? 'Sem sessão — faça login no NG' : 'Fora de alcance (VPN?)'));
+    _svPintarRow(document.getElementById('sv-est-adapter'),
+      resp.adapter === 'logado' ? 'ok' : (resp.adapter === 'sem_sessao' ? 'warn' : 'down'),
+      resp.adapter === 'logado' ? 'Logado' : (resp.adapter === 'sem_sessao' ? 'Sem sessão — faça login no Adapter' : 'Fora de alcance (VPN?)'));
+  });
+
+  // viabilidade.health → PinG
+  _healthSendMsg({ action: 'viabilidade.health' }, function (resp) {
+    var row = document.getElementById('sv-est-ping');
+    if (!resp || resp.erro === 'EXTENSAO_NAO_DISPONIVEL') { _svPintarRow(row, 'unknown', 'Sem extensão pra checar'); return; }
+    if (resp.ok && resp.autenticado) _svPintarRow(row, 'ok', 'Autenticado');
+    else if (resp.erro === 'PING_TAB_AUSENTE') _svPintarRow(row, 'warn', 'Abra uma aba do PinG (ping.veronet.com.br)');
+    else if (resp.erro === 'PING_NAO_AUTENTICADO' || resp.autenticado === false) _svPintarRow(row, 'warn', 'Não autenticado — faça login no PinG');
+    else _svPintarRow(row, 'down', 'Indisponível' + (resp.erro ? ' (' + resp.erro + ')' : ''));
+  });
+}
+
 
 // ─── INSTRUMENTAÇÃO DE CONSULTAS NG/ADAPTER (Fase 1.0) ────────────────────
 // Helpers compartilhados pelas funções _consultarNGVenda e _consultarAdapterVenda.
@@ -5768,6 +5878,7 @@ function navegar(pagina) {
   }
   document.querySelectorAll('.nav-item').forEach(function (m) { m.classList.remove('ativo'); });
   document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('ativa'); });
+  if (typeof _statusPararPoll === 'function') _statusPararPoll(); // para o auto-refresh do painel de status ao sair de Configurações
 
   if (pagina === 'dash') {
     document.getElementById('menuDash').classList.add('ativo');
@@ -5947,6 +6058,9 @@ function navegar(pagina) {
     _carregarStatusVeroHub();
     _verificarAdapterConfig();
     _verificarNGConfig();
+    _statusServicosCarregar(false);
+    _statusEstacaoCarregar();
+    _statusIniciarPoll();
 
   } else if (pagina === 'novaVenda') {
     document.getElementById('breadcrumbTexto').textContent = 'Nova Venda';
