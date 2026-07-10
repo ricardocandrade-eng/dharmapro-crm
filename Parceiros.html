@@ -1062,6 +1062,11 @@
           <div class="pill pill-blue" onclick="setPill('port-pills', this)">Número Novo</div>
           <div class="pill pill-blue" onclick="setPill('port-pills', this)">Portabilidade</div>
         </div>
+        <!-- Número a ser portado — aparece só quando "Portabilidade" -->
+        <div class="f-group" id="port-num-wrap" style="display:none;margin-top:10px">
+          <label>Número a ser portado <span class="req">*</span></label>
+          <input type="tel" id="pv-num-portado" placeholder="(00) 00000-0000" inputmode="tel">
+        </div>
       </div>
 
       <div class="f-section">🗓️ Vencimento</div>
@@ -1332,6 +1337,25 @@ function recarregarPlanos() {
   }
 }
 
+/* Preenche um campo de endereço (rua/bairro) tratando o caso de CEP único:
+   quando o CEP não traz o valor específico, deixa o campo editável para o
+   vendedor digitar; quando traz, mantém readonly (fonte da verdade = CEP). */
+function _pvSetEndereco(id, valor, tipo) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = valor;
+  if (valor) {
+    el.readOnly = true;
+    el.placeholder = 'Preenchido pelo CEP';
+  } else {
+    el.readOnly = false;
+    el.placeholder = tipo === 'logradouro'
+      ? 'CEP único — digite o logradouro'
+      : 'CEP único — digite o bairro';
+  }
+  el.classList.remove('err');
+}
+
 async function carregarPlanos(cep) {
   const sel = document.getElementById('pv-plano');
   sel.innerHTML = '<option value="">⏳ Carregando endereço...</option>';
@@ -1347,8 +1371,10 @@ async function carregarPlanos(cep) {
       return;
     }
     document.getElementById('pv-cep-hint').textContent = res.cidade + (res.uf ? '/' + res.uf : '');
-    document.getElementById('pv-rua').value    = (res.logradouro || '').toUpperCase();
-    document.getElementById('pv-bairro').value = (res.bairro     || '').toUpperCase();
+    // CEP único: cidade sem logradouro/bairro específico volta vazia — libera a
+    // digitação manual em vez de deixar o campo readonly em branco (trava o envio).
+    _pvSetEndereco('pv-rua',    (res.logradouro || '').toUpperCase(), 'logradouro');
+    _pvSetEndereco('pv-bairro', (res.bairro     || '').toUpperCase(), 'bairro');
     document.getElementById('pv-cidade').value = (res.cidade     || '').toUpperCase();
     document.getElementById('pv-uf').value     = (res.uf         || '').toUpperCase();
     document.getElementById('pv-endereco-fields').style.display = '';
@@ -1445,6 +1471,16 @@ function maskData(el) {
 function setPill(groupId, el) {
   document.querySelectorAll('#' + groupId + ' .pill').forEach(p => p.classList.remove('selected'));
   el.classList.add('selected');
+  // Portabilidade: revela o campo do número a ser portado; oculta e limpa em Número Novo.
+  if (groupId === 'port-pills') {
+    const isPort = el.textContent.trim() === 'Portabilidade';
+    const wrap = document.getElementById('port-num-wrap');
+    if (wrap) wrap.style.display = isPort ? '' : 'none';
+    if (!isPort) {
+      const n = document.getElementById('pv-num-portado');
+      if (n) { n.value = ''; n.classList.remove('err'); }
+    }
+  }
 }
 
 function setMovel(val) {
@@ -1723,6 +1759,11 @@ async function submitPreVenda() {
   const portSel = _movel === 'SIM' ? document.querySelector('#port-pills .pill.selected') : null;
   if (_movel === 'SIM' && !portSel) { toast('Informe se é número novo ou portabilidade', 'warn'); return; }
 
+  const isPortabilidade = !!portSel && portSel.textContent.trim() === 'Portabilidade';
+  if (isPortabilidade && !required('pv-num-portado')) {
+    toast('Informe o número que será portado', 'err'); return;
+  }
+
   // Extrai nome e valor do plano
   const planoFull = getVal('pv-plano');
   const [planoNome, planoValor] = planoFull.includes(' | ')
@@ -1752,6 +1793,7 @@ async function submitPreVenda() {
     valor:       (planoValor || '').trim(),
     movel:       _movel,
     tipoMovel:   portSel?.textContent || '',
+    numeroPortado: isPortabilidade ? getVal('pv-num-portado') : '',
     vencimento:  venc.textContent,
     pagamento:   pagamento,
     canal:       'PAP',
@@ -1818,6 +1860,7 @@ function resetPreVenda() {
   document.getElementById('movel-sim').className = 'toggle-btn';
   document.getElementById('movel-nao').className = 'toggle-btn';
   document.getElementById('port-wrap').classList.remove('show');
+  document.getElementById('port-num-wrap').style.display = 'none';
 
   // Reset pills
   document.querySelectorAll('#venc-pills .pill.selected, #port-pills .pill.selected').forEach(el => el.classList.remove('selected'));
@@ -1827,6 +1870,13 @@ function resetPreVenda() {
 
   // Reset plano
   document.getElementById('pv-plano').innerHTML = '<option value="">Informe o CEP para carregar planos...</option>';
+
+  // Re-trava o endereço (CEP único pode ter deixado rua/bairro editáveis) e limpa —
+  // o loop acima pula campos [readonly], então esses precisam de reset explícito.
+  ['pv-rua','pv-bairro'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; el.readOnly = true; el.placeholder = 'Preenchido pelo CEP'; el.classList.remove('err'); }
+  });
 
   // Reset info box
   document.getElementById('pv-info-box').classList.remove('show');

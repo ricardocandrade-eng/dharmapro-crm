@@ -9,7 +9,7 @@
 
 // ── VERSÃO / DEPLOY ────────────────────────────────────────────────────────
 //  Atualizado automaticamente pelo salvar_010426_1930.bat a cada deploy
-var DEPLOY_DATE = '10/07/2026 12:58';
+var DEPLOY_DATE = '10/07/2026 21:40';
 
 // ── STATUS DOS SERVIÇOS (downdetector da página Configurações) ──────────────
 // Limiar (dias) acima do qual o card "Tabela de Ofertas" fica amarelo (desatualizada).

@@ -74,13 +74,15 @@ const HEADERS_PRE_VENDAS = [
   'Data Decisão', 'Decidido Por',
   'Rua', 'Número', 'Complemento', 'Bairro', 'Cidade', 'UF', 'Valor Plano',
   'Motivo Rejeição',
-  'Data Nascimento Cliente', 'Nome Mãe Cliente'
+  'Data Nascimento Cliente', 'Nome Mãe Cliente',
+  'Número Portado'
 ];
 // Índices PV (0-based): 0=ID 1=TS 2=Status 3=Parceiro 4=ParceiroCPF
 // 5=CPFCliente 6=Nome 7=CEP 8=ProtRef 9=Whats 10=Email
 // 11=Plano 12=Movel 13=TipoMovel 14=Venc 15=Pag 16=DataDecisão 17=DecididoPor
 // 18=Rua 19=Num 20=Complemento 21=Bairro 22=Cidade 23=UF 24=ValorPlano 25=MotivoRejeição
 // 26=DataNascimentoCliente 27=NomeMãeCliente (Assertiva na Máscara de Venda)
+// 28=NúmeroPortado (número a portar, quando Tipo Móvel = Portabilidade)
 
 // ── Roteador principal ─────────────────────────────────────────────────────────
 // Chamado pelo doPost do Code.js quando payload.action está presente.
@@ -467,9 +469,10 @@ function salvarPreVenda(data) {
     // Garante os cabeçalhos das colunas de Assertiva (27/28) em sheets criadas
     // antes desta feature — cosmético, os dados são gravados de qualquer forma.
     try {
-      var hdr = sheet.getRange(1, 27, 1, 2).getValues()[0];
+      var hdr = sheet.getRange(1, 27, 1, 3).getValues()[0];
       if (!hdr[0]) sheet.getRange(1, 27).setValue('Data Nascimento Cliente');
       if (!hdr[1]) sheet.getRange(1, 28).setValue('Nome Mãe Cliente');
+      if (!hdr[2]) sheet.getRange(1, 29).setValue('Número Portado');
     } catch (he) { /* não bloqueia o save */ }
 
     sheet.appendRow([
@@ -499,8 +502,9 @@ function salvarPreVenda(data) {
       data.uf           || '',
       data.valor        || '',
       '',  // 25 Motivo Rejeição (preenchido ao rejeitar)
-      data.nascimento   || '',  // 26 Data Nascimento (Assertiva)
-      data.nomeMae      || '',  // 27 Nome da Mãe (Assertiva)
+      data.nascimento    || '',  // 26 Data Nascimento (Assertiva)
+      data.nomeMae       || '',  // 27 Nome da Mãe (Assertiva)
+      data.numeroPortado || '',  // 28 Número Portado (quando Portabilidade)
     ]);
     SpreadsheetApp.flush();
   } finally {
@@ -582,7 +586,7 @@ function aprovarPreVenda(id, emailAprovador) {
       fat:           pv[15] || '',
       plano:         pv[11] || '',
       valor:         pv[24] || '',
-      linhaMovel:    pv[12] || '',
+      linhaMovel:    pv[28] || '',   // número a ser portado (vazio em Número Novo)
       portabilidade: pv[13] || '',
       observacao:    _papMontarObservacaoPreVenda(pv),
       statusPAP:     'Em Aberto'
@@ -712,7 +716,8 @@ function _papMontarObservacaoPreVenda(pv) {
     'Pré-venda PAP aprovada pelo backoffice',
     pv[8]  ? 'Consulta: ' + pv[8] : '',
     pv[10] ? 'Email: ' + pv[10] : '',
-    pv[7]  ? 'CEP: ' + pv[7] : ''
+    pv[7]  ? 'CEP: ' + pv[7] : '',
+    pv[28] ? 'Nº portado: ' + pv[28] : ''
   ].filter(Boolean);
 
   return detalhes.join(' | ');
