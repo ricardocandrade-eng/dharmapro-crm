@@ -1796,6 +1796,25 @@ var _healthExtensionIds = [];   // lista completa; Via A tenta cada (necessário
 // getConsultasConfig; se o boot falhar, ficam OFF (fallback seguro pro popup).
 var _consultasFlags = { adapterBg: false, ngAbaQuente: false };
 
+// Normaliza a resposta do health.check corrigindo o falso "VPN ok".
+// NG (ng.vero.objective.com.br) é o único host de fato VPN-gated: sem VPN o fetch
+// dá timeout → ng='fora_de_alcance'. Já Adapter (adapter.veronet.com.br) e PinG estão
+// no domínio público veronet.com.br e às vezes respondem por edge SEM VPN — na extensão,
+// um Adapter que responde força vpn='ok' (background.js linha ~390), mascarando a VPN
+// caída. Aqui tratamos NG como autoridade: se NG está fora de alcance, a VPN está fora, e
+// NG+Adapter cascateiam pra fora de alcance (ambos dependem da VPN). Fix client-side —
+// vale pra bolinha do header e pro painel Configurações sem precisar recarregar a extensão.
+function _healthNormalizar(resp) {
+  if (!resp || typeof resp !== 'object') return resp;
+  var vpnFora = resp.vpn === 'fora' || resp.ng === 'fora_de_alcance';
+  if (vpnFora) {
+    resp.vpn = 'fora';
+    resp.ng = 'fora_de_alcance';
+    resp.adapter = 'fora_de_alcance';
+  }
+  return resp;
+}
+
 function _verificarConexoes(manual) {
   var dots = {
     vpn: document.getElementById('healthDotVpn'),
@@ -1815,7 +1834,7 @@ function _verificarConexoes(manual) {
       // Extensão off ou erro — marca tudo vermelho
       _healthState = { vpn: 'fora', ng: 'fora_de_alcance', adapter: 'fora_de_alcance', timestamp: Date.now(), motivo: resp && resp.erro };
     } else {
-      _healthState = resp;
+      _healthState = _healthNormalizar(resp);
     }
     _atualizarHealthWidget();
     if (manual) {
@@ -2044,6 +2063,7 @@ function _statusEstacaoCarregar() {
   // health.check → VPN / NG / Adapter + presença da extensão
   _healthSendMsg({ action: 'health.check' }, function (resp) {
     var temExt = resp && !resp.erro;
+    if (temExt) _healthNormalizar(resp); // corrige falso "VPN ok" (NG é a autoridade)
     _svPintarRow(document.getElementById('sv-est-extensao'), temExt ? 'ok' : 'down',
       temExt ? 'Extensão respondendo' : 'Não instalada / desativada nesta máquina');
 
