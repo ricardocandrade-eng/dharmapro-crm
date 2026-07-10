@@ -4,10 +4,14 @@
 //  Injeta o botão "📥 Enviar pro CRM" na página de um pedido (/sales/{id}).
 //  Lê o pedido pedindo o window.__SALE ao verohub-main-world.js (MAIN world) e
 //  oferece 2 caminhos (decisão do Ricardo, "os dois"):
-//    • Revisar antes  → abre painel com os dados p/ conferência → Confirmar
-//    • Enviar direto  → manda na hora
-//  O envio vai pro background (action:'verohub.enviar'), que faz POST no doPost
-//  do CRM (rota verohub_capture). Toda a normalização é server-side.
+//    • Revisar antes  → abre painel com os dados p/ conferência + 7 campos
+//      selecionáveis (canal, vendedor, pré-status, tipo de plano, plano, forma
+//      de pagamento, data+turno de agendamento — todos OPCIONAIS) → Confirmar
+//    • Enviar direto  → manda na hora com os defaults automáticos (sem escolhas)
+//  As opções dos dropdowns vêm do CRM (endpoint verohub_form_options, via
+//  background). O envio vai pro background (action:'verohub.enviar'), que faz
+//  POST no doPost do CRM (rota verohub_capture). Normalização é server-side;
+//  campo vazio → backend usa o default automático de antes.
 // ══════════════════════════════════════════════════════════════════════════════
 
 (function () {
@@ -43,12 +47,35 @@
     });
   }
 
-  // ── Envio pro CRM via background ───────────────────────────────────────────
-  function enviarParaCRM(sale) {
+  // ── Envio pro CRM via background (escolhas opcionais dos dropdowns) ─────────
+  function enviarParaCRM(sale, escolhas) {
     return new Promise(function (resolve) {
       try {
         chrome.runtime.sendMessage(
-          { action: 'verohub.enviar', sale: sale, criadoPor: (sale && sale.seller) || '' },
+          {
+            action: 'verohub.enviar',
+            sale: sale,
+            criadoPor: (sale && sale.seller) || '',
+            escolhas: escolhas || {}
+          },
+          function (resp) {
+            var le = chrome.runtime.lastError;
+            if (le) return resolve({ ok: false, erro: 'Extensão: ' + le.message });
+            resolve(resp || { ok: false, erro: 'Sem resposta do background.' });
+          }
+        );
+      } catch (e) {
+        resolve({ ok: false, erro: 'Falha ao chamar a extensão: ' + (e && e.message || e) });
+      }
+    });
+  }
+
+  // ── Opções dos dropdowns (vendedores, planos por cidade, enums) ────────────
+  function buscarOpcoes(sale) {
+    return new Promise(function (resolve) {
+      try {
+        chrome.runtime.sendMessage(
+          { action: 'verohub.options', zip_code: (sale && sale.zip_code) || '' },
           function (resp) {
             var le = chrome.runtime.lastError;
             if (le) return resolve({ ok: false, erro: 'Extensão: ' + le.message });
@@ -70,6 +97,23 @@
   function maskCpf(v) {
     var s = String(v || '').replace(/\D/g, '');
     return s.length >= 5 ? s.slice(0, 3) + '.***.***-' + s.slice(-2) : s;
+  }
+  function norm(s) {
+    return String(s == null ? '' : s).toUpperCase().normalize('NFD')
+      .replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+  }
+  // scheduling_date do VeroHub → yyyy-mm-dd (valor de <input type=date>)
+  function toDateInput(v) {
+    if (!v) return '';
+    var s = String(v);
+    var m = s.match(/(\d{4})-(\d{2})-(\d{2})/); if (m) return m[1] + '-' + m[2] + '-' + m[3];
+    var b = s.match(/(\d{2})\/(\d{2})\/(\d{4})/); if (b) return b[3] + '-' + b[2] + '-' + b[1];
+    return '';
+  }
+  function inferirProduto(sale) {
+    if (sale.only_chip_sale) return 'Móvel Alone';
+    var temMovel = !!(sale.mvno_plan || (Array.isArray(sale.mvno_phone_data) && sale.mvno_phone_data.length));
+    return temMovel ? 'Fibra Combo' : 'Fibra Alone';
   }
 
   function toast(msg, tipo) {
@@ -112,38 +156,59 @@
     toast(resultadoTexto(r), 'ok');
   }
 
-  // Painel de revisão (conferência antes de enviar)
+  // ── Monta as <option> de um select ─────────────────────────────────────────
+  function opcoes(lista, sel, placeholder) {
+    var html = placeholder != null ? '<option value="">' + esc(placeholder) + '</option>' : '';
+    (lista || []).forEach(function (item) {
+      var v, label, extra = '';
+      if (item && typeof item === 'object') {
+        v = item.v != null ? item.v : (item.nome != null ? item.nome : '');
+        label = item.label != null ? item.label : v;
+        if (item.codigo != null) extra = ' data-codigo="' + esc(item.codigo) + '"';
+        if (item.valor != null && item.label == null) label = v + ' | R$ ' + item.valor;
+      } else { v = item; label = item; }
+      var selAttr = (sel != null && norm(sel) === norm(v)) ? ' selected' : '';
+      html += '<option value="' + esc(v) + '"' + extra + selAttr + '>' + esc(label) + '</option>';
+    });
+    return html;
+  }
+
+  // Painel de revisão (conferência + campos selecionáveis antes de enviar)
   function abrirPainel(sale) {
     fecharPainel();
     var mvno = (Array.isArray(sale.mvno_phone_data) && sale.mvno_phone_data[0]) || null;
     var linhas = [
-      ['Cliente', sale.name],
-      ['CPF', maskCpf(sale.cpf)],
-      ['Nascimento', sale.birthday],
-      ['Nome da mãe', sale.mother_name],
+      ['Cliente', sale.name || sale.company_name || sale.fantasy_name],
+      ['CPF/CNPJ', maskCpf(sale.cpf || sale.cnpj)],
       ['Telefone', sale.phone],
-      ['E-mail', sale.email],
       ['CEP', sale.zip_code],
       ['Endereço', [sale.street, sale.number, sale.neighborhood].filter(Boolean).join(', ')],
-      ['UF', sale.state],
-      ['Plano (código)', sale.plan],
+      ['Plano (pedido)', sale.plan_name || sale.plan],
       ['Valor', sale.total_price != null ? ('R$ ' + sale.total_price) : ''],
       ['Vencimento', sale.due_date],
       ['Móvel combo', mvno ? ('DDD ' + mvno.ddd + ' ' + mvno.phone_number + (mvno.is_portability ? ' · portab.' : '')) : '—'],
-      ['Vendedor', sale.seller],
       ['Pedido VeroHub', sale.id]
     ];
     var rowsHtml = linhas.map(function (l) {
       return '<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #f0e6ea">' +
-        '<div style="min-width:120px;color:#9b6a7c;font-size:12px">' + esc(l[0]) + '</div>' +
+        '<div style="min-width:110px;color:#9b6a7c;font-size:12px">' + esc(l[0]) + '</div>' +
         '<div style="flex:1;color:#2a2230;font-size:13px;font-weight:600">' + (esc(l[1]) || '—') + '</div></div>';
     }).join('');
+
+    var selCss = 'width:100%;padding:7px 8px;border:1px solid #e2cdd6;border-radius:8px;' +
+      'font:600 13px system-ui,Segoe UI,Arial;color:#2a2230;background:#fff;margin-top:3px';
+    var lblCss = 'font-size:11px;font-weight:700;color:#9b6a7c;text-transform:uppercase;letter-spacing:.02em';
+    function campo(id, label, inner) {
+      return '<div style="margin-bottom:9px"><div style="' + lblCss + '">' + esc(label) + '</div>' +
+        '<div id="' + id + '-wrap">' + inner + '</div></div>';
+    }
+    var loading = '<div style="' + selCss + ';color:#b98;opacity:.7">carregando…</div>';
 
     var p = document.createElement('div');
     p.id = PANEL_ID;
     p.style.cssText = [
       'position:fixed', 'z-index:2147483647', 'right:20px', 'bottom:20px',
-      'width:380px', 'max-height:78vh', 'overflow:auto', 'background:#fff',
+      'width:400px', 'max-height:88vh', 'overflow:auto', 'background:#fff',
       'border-radius:14px', 'box-shadow:0 16px 48px rgba(0,0,0,.3)',
       'font-family:system-ui,Segoe UI,Arial', 'padding:16px 18px'
     ].join(';');
@@ -152,8 +217,21 @@
         '<div style="font-weight:800;font-size:15px;color:#c2185b">Enviar pedido pro CRM</div>' +
         '<button id="dhp-vh-x" style="border:0;background:#f4e7ec;color:#c2185b;border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:16px">×</button>' +
       '</div>' +
-      '<div style="font-size:12px;color:#9b6a7c;margin-bottom:10px">Confira os dados antes de gravar em “1 - Vendas”.</div>' +
+      '<div style="font-size:12px;color:#9b6a7c;margin-bottom:10px">Confira e, se quiser, ajuste os campos abaixo (todos opcionais). Vazio = automático.</div>' +
       rowsHtml +
+      '<div style="margin-top:12px;border-top:2px solid #f4e7ec;padding-top:12px">' +
+        campo('dhp-vh-canal', 'Canal de Venda', '<select id="dhp-vh-canal" style="' + selCss + '"><option value="">— VEROHUB (padrão) —</option></select>') +
+        campo('dhp-vh-vend', 'Vendedor', '<select id="dhp-vh-vend" style="' + selCss + '">' + loading + '</select>') +
+        campo('dhp-vh-prestatus', 'Pré-Status', '<select id="dhp-vh-prestatus" style="' + selCss + '"></select>') +
+        campo('dhp-vh-produto', 'Tipo de Plano', '<select id="dhp-vh-produto" style="' + selCss + '"></select>') +
+        campo('dhp-vh-plano', 'Plano', '<select id="dhp-vh-plano" style="' + selCss + '"><option value="">— manter do pedido —</option></select>') +
+        campo('dhp-vh-forma', 'Forma de Pagamento', '<select id="dhp-vh-forma" style="' + selCss + '"><option value="">— não definir —</option></select>') +
+        '<div style="margin-bottom:4px"><div style="' + lblCss + '">Agendamento</div>' +
+          '<div style="display:flex;gap:6px;margin-top:3px">' +
+            '<input type="date" id="dhp-vh-agenda" style="flex:1;padding:7px 8px;border:1px solid #e2cdd6;border-radius:8px;font:600 13px system-ui;color:#2a2230">' +
+            '<select id="dhp-vh-turno" style="flex:1;padding:7px 8px;border:1px solid #e2cdd6;border-radius:8px;font:600 13px system-ui;color:#2a2230;background:#fff"><option value="">— turno —</option></select>' +
+          '</div></div>' +
+      '</div>' +
       '<div style="display:flex;gap:8px;margin-top:14px">' +
         '<button id="dhp-vh-cancel" style="flex:1;padding:10px;border:1px solid #e2cdd6;background:#fff;color:#8a6575;border-radius:9px;cursor:pointer;font-weight:600">Cancelar</button>' +
         '<button id="dhp-vh-ok" style="flex:2;padding:10px;border:0;background:#c2185b;color:#fff;border-radius:9px;cursor:pointer;font-weight:700">✅ Enviar pro CRM</button>' +
@@ -162,10 +240,63 @@
 
     p.querySelector('#dhp-vh-x').onclick = fecharPainel;
     p.querySelector('#dhp-vh-cancel').onclick = fecharPainel;
+
+    // Preenche os dropdowns com as opções do CRM (async)
+    var _planosMap = {};
+    function montarPlano(produto) {
+      var selPlano = p.querySelector('#dhp-vh-plano');
+      if (!selPlano) return;
+      var lista = _planosMap[produto] || [];
+      var alvo = sale.plan_name || sale.plan;
+      selPlano.innerHTML = '<option value="">— manter do pedido —</option>' + opcoes(lista, alvo, null);
+    }
+    buscarOpcoes(sale).then(function (o) {
+      if (!o || o.ok === false) {
+        var vend = p.querySelector('#dhp-vh-vend');
+        if (vend) vend.innerHTML = '<option value="">(sem conexão CRM — recarregue)</option>';
+        return;
+      }
+      var en = o.enums || {};
+      _planosMap = o.planos || {};
+      var selCanal = p.querySelector('#dhp-vh-canal');
+      if (selCanal) selCanal.innerHTML = '<option value="">— VEROHUB (padrão) —</option>' + opcoes(en.canais, null, null);
+      var selVend = p.querySelector('#dhp-vh-vend');
+      if (selVend) selVend.innerHTML = opcoes((o.vendedores || []), sale.seller, '— manter do pedido —');
+      var selPre = p.querySelector('#dhp-vh-prestatus');
+      if (selPre) selPre.innerHTML = opcoes(en.preStatus, 'EM NEGOCIAÇÃO', null);
+      var selProd = p.querySelector('#dhp-vh-produto');
+      if (selProd) {
+        selProd.innerHTML = opcoes(en.produtos, inferirProduto(sale), null);
+        selProd.onchange = function () { montarPlano(selProd.value); };
+      }
+      montarPlano((selProd && selProd.value) || inferirProduto(sale));
+      var selForma = p.querySelector('#dhp-vh-forma');
+      if (selForma) selForma.innerHTML = '<option value="">— não definir —</option>' + opcoes(en.formasPagamento, null, null);
+      var selTurno = p.querySelector('#dhp-vh-turno');
+      if (selTurno) selTurno.innerHTML = '<option value="">— turno —</option>' + opcoes(en.turnos, null, null);
+      var inAg = p.querySelector('#dhp-vh-agenda');
+      if (inAg) inAg.value = toDateInput(sale.scheduling_date);
+    });
+
     p.querySelector('#dhp-vh-ok').onclick = function () {
       var btn = p.querySelector('#dhp-vh-ok');
+      function gv(sel) { var el = p.querySelector(sel); return el ? el.value : ''; }
+      var selPlano = p.querySelector('#dhp-vh-plano');
+      var codigo = (selPlano && selPlano.selectedOptions && selPlano.selectedOptions[0])
+        ? (selPlano.selectedOptions[0].getAttribute('data-codigo') || '') : '';
+      var escolhas = {
+        canal:          gv('#dhp-vh-canal'),
+        resp:           gv('#dhp-vh-vend'),
+        preStatus:      gv('#dhp-vh-prestatus'),
+        produto:        gv('#dhp-vh-produto'),
+        plano:          gv('#dhp-vh-plano'),
+        codPlano:       codigo,
+        formaPagamento: gv('#dhp-vh-forma'),
+        agenda:         gv('#dhp-vh-agenda'),
+        turno:          gv('#dhp-vh-turno')
+      };
       btn.disabled = true; btn.textContent = 'Enviando…'; btn.style.opacity = '.7';
-      enviarParaCRM(sale).then(function (r) { fecharPainel(); tratarResposta(r); });
+      enviarParaCRM(sale, escolhas).then(function (r) { fecharPainel(); tratarResposta(r); });
     };
   }
 

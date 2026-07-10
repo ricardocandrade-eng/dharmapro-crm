@@ -46,13 +46,23 @@ function _verohubCapturarVenda_(payload) {
     Logger.log('verohub dedupe erro: ' + (eDup && eDup.message || eDup));
   }
 
-  // ── 2. Plano: nome vindo da página (plans_svas) tem prioridade ─────────────
+  // Overrides opcionais escolhidos pelo operador na caixa da extensão (todos
+  // opcionais — vazio cai no comportamento automático atual). Vêm no topo do
+  // payload: canal, resp, preStatus, produto, plano, codPlano, formaPagamento,
+  // agenda, turno.
+  var ov = payload;
+
+  // ── 2. Plano: escolha do operador > nome da página (plans_svas) > dicionário ─
   // A extensão lê o nome real do plano na API da própria página — sempre atual,
   // independe do dicionário (verohub_codigos_cidades.json, que fica defasado
   // quando a Vero troca códigos, ex.: NP 3.0). Fallback: dicionário por código.
-  var planCode = String(sale.plan != null ? sale.plan : (sale.planCode || '')).replace(/\D/g, '').trim();
+  var planCode = String(ov.codPlano || (sale.plan != null ? sale.plan : (sale.planCode || ''))).replace(/\D/g, '').trim();
   var planName = '';
-  if (sale.plan_name) {
+  if (ov.plano) {
+    // operador escolheu na caixa — tira sufixo " | R$ XX,XX" e prefixo de código
+    planName = String(ov.plano).replace(/\s*\|\s*R?\$?\s*[\d.,]+\s*$/, '').replace(/^\s*\d+\s*[-–—]\s*/, '').trim();
+  }
+  if (!planName && sale.plan_name) {
     // tira prefixo de código legado no início do nome (ex.: "4678 - VERO MAIS ...")
     planName = String(sale.plan_name).replace(/^\s*\d+\s*[-–—]\s*/, '').trim();
   }
@@ -82,6 +92,7 @@ function _verohubCapturarVenda_(payload) {
   var temMovel = !!(sale.mvno_plan || mvnoArr.length);
   var produto = temMovel ? 'Fibra Combo' : 'Fibra Alone';
   if (sale.only_chip_sale) produto = 'Móvel Alone'; // venda só de chip (sem fibra)
+  if (ov.produto) produto = String(ov.produto).trim(); // override do operador na caixa
 
   // ── 5. Vencimento (due_date numérico → '05'/'10'/'13'/'19') ────────────────
   var venc = (sale.due_date != null && sale.due_date !== '') ? String(sale.due_date).replace(/\D/g, '') : '';
@@ -93,17 +104,26 @@ function _verohubCapturarVenda_(payload) {
   if (sale.status)          obsPartes.push('Status VeroHub: ' + sale.status);
   if (sale.scheduling_date) obsPartes.push('Agendamento VeroHub: ' + sale.scheduling_date);
   if (sale.email)           obsPartes.push('E-mail: ' + sale.email);
+  // PJ (venda com CNPJ): registra os dados da empresa que não têm coluna própria
+  if (sale.cnpj) {
+    obsPartes.push('PJ — CNPJ ' + String(sale.cnpj).replace(/\D/g, ''));
+    if (sale.fantasy_name)       obsPartes.push('Nome fantasia: ' + sale.fantasy_name);
+    if (sale.state_registration) obsPartes.push('IE: ' + sale.state_registration);
+  }
 
   var agora = new Date();
   var dataAtiv = Utilities.formatDate(agora, tz, 'dd/MM/yyyy');
 
   var d = {
-    canal:        String(payload.canal || 'VEROHUB').trim(),
+    canal:        String(ov.canal || 'VEROHUB').trim(),   // vazio → VEROHUB (default)
     produto:      produto,
     status:       '1- Conferencia/Ativação',
     dataAtiv:     dataAtiv,
-    cliente:      String(sale.name || '').trim(),
-    cpf:          String(sale.cpf || '').replace(/\D/g, ''),
+    agenda:       String(ov.agenda || '').trim(),         // data agendamento (yyyy-mm-dd → normaliza)
+    turno:        String(ov.turno  || '').trim(),         // Manhã/Tarde (enum _TURNOS_VALIDOS_)
+    formaPagamento: String(ov.formaPagamento || '').trim(), // BOLETO/RECORRENTE (metadado; valor = total_price)
+    cliente:      String(sale.name || sale.company_name || sale.fantasy_name || '').trim(),
+    cpf:          String(sale.cpf || sale.cnpj || '').replace(/\D/g, ''),  // CRM guarda o documento (CPF ou CNPJ) na coluna CPF
     rg:           String(sale.rg || '').trim(),
     nomeMae:      String(sale.mother_name || '').trim(),
     dtNasc:       String(sale.birthday || '').trim(),   // YYYY-MM-DD → _construirLinhaDados normaliza p/ DD/MM/YYYY
@@ -121,11 +141,11 @@ function _verohubCapturarVenda_(payload) {
     codPlano:     planCode,                  // vai direto pra COD_PLANO (pontos resolvem dele)
     valor:        (sale.total_price != null ? sale.total_price : ''),
     portabilidade:'',                        // Fibra não tem portabilidade (o Móvel vinculado tem)
-    preStatus:    'EM NEGOCIACAO',
+    preStatus:    String(ov.preStatus || 'EM NEGOCIACAO').trim(),
     verohubPedido: verohubId,
     verohubPedidoDt: Utilities.formatDate(agora, tz, 'dd/MM/yyyy HH:mm'),
     observacao:   obsPartes.join(' | '),
-    resp:         String(sale.seller || '').trim(),
+    resp:         String(ov.resp || sale.seller || '').trim(),  // vendedor escolhido > seller do pedido
     criadoPor:    String(payload.criadoPor || 'Captura VeroHub').trim()
   };
 
@@ -198,5 +218,69 @@ function _verohubCapturarVenda_(payload) {
     cidade:   cidade,
     valor:    d.valor,
     combo:    combo
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  _verohubFormOptions_ — opções pros dropdowns da caixa "Enviar pro CRM"
+//
+//  A extensão (content-verohub.js) não fala google.script.run — só faz POST no
+//  doPost. Este endpoint (rota verohub_form_options, mesmo secret) devolve num
+//  tiro só o que a caixa precisa pra montar os 7 campos selecionáveis:
+//    - cidade resolvida do CEP do pedido (pra listar planos)
+//    - vendedores (getResponsaveis — mesma lista da Nova Venda)
+//    - planos por produto (Fibra Alone/Combo, Móvel Alone) com nome/valor/código
+//    - enums estáticos (canais, pré-status, formas, turnos, produtos) espelhando
+//      Nova_venda.html / _TURNOS_VALIDOS_ — fonte única evita drift
+//  Reusa caches de _getTabela/_getCidades/getResponsaveis (leitura barata).
+// ══════════════════════════════════════════════════════════════════════════════
+function _verohubFormOptions_(payload) {
+  payload = payload || {};
+
+  // cidade: pelo CEP (autoritativo) ou explícita no payload
+  var cidade = '';
+  var cepLimpo = String(payload.zip_code || payload.cep || '').replace(/\D/g, '');
+  if (cepLimpo.length === 8) {
+    try { var cr = buscarCEPBackend(cepLimpo); if (cr && !cr.erro) cidade = cr.cidade || ''; }
+    catch (e) { Logger.log('verohub options CEP erro: ' + (e && e.message || e)); }
+  }
+  if (!cidade && payload.cidade) cidade = String(payload.cidade).trim();
+
+  var vendedores = [];
+  try { var rv = getResponsaveis(); if (rv && rv.lista) vendedores = rv.lista; }
+  catch (e) { Logger.log('verohub options responsaveis erro: ' + (e && e.message || e)); }
+
+  // planos por produto — a caixa troca o dropdown client-side sem novo round-trip
+  var planos = {};
+  ['Fibra Alone', 'Fibra Combo', 'Móvel Alone'].forEach(function (prod) {
+    var arr = [];
+    if (cidade) {
+      try {
+        var rp = getPlanosPorCidadeProduto(cidade, prod);
+        if (rp && rp.planosDetalhes) {
+          arr = rp.planosDetalhes.map(function (p) {
+            return { nome: p.nome, valor: p.valor, codigo: p.codigo || '' };
+          });
+        }
+      } catch (e) { Logger.log('verohub options planos erro (' + prod + '): ' + (e && e.message || e)); }
+    }
+    planos[prod] = arr;
+  });
+
+  return {
+    ok: true,
+    cidade: cidade,
+    vendedores: vendedores,
+    planos: planos,
+    enums: {
+      // espelham Nova_venda.html (canais/pré-status/formas/produtos) e _TURNOS_VALIDOS_
+      canais: ['PAP', 'META ADS', 'INDICAÇÃO', 'ATIVO', 'GOOGLE ADS'],
+      preStatus: ['EM NEGOCIAÇÃO', 'ANALISE PENDENTE', 'AG DOC', 'AG COMPROVANTE',
+                  'AG SELFIE', 'AG QUALIDADE', 'REPROVADO', 'AG AUDITORIA',
+                  'AG ACEITE', 'CRUZAMENTO DE CANAIS', 'ARQUIVAR VENDA'],
+      formasPagamento: [{ v: 'BOLETO', label: '💰 Boleto' }, { v: 'RECORRENTE', label: '💳 Cartão' }],
+      turnos: (typeof _TURNOS_VALIDOS_ !== 'undefined' ? _TURNOS_VALIDOS_ : ['Manhã (08h às 12h)', 'Tarde (13h às 17h)']),
+      produtos: ['Fibra Alone', 'Fibra Combo', 'Móvel Alone']
+    }
   };
 }

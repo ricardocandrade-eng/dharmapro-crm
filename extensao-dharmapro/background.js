@@ -297,11 +297,41 @@ async function enviarVerohubCapture(msg) {
   if (!cfg.secret) {
     return { ok: false, erro: 'Secret não configurado na extensão. Rode chrome.storage.local.set({verohub_crm_secret:"…"}).' };
   }
-  var body = JSON.stringify({
+  // Overrides opcionais escolhidos na caixa (canal, resp, preStatus, produto,
+  // plano, codPlano, formaPagamento, agenda, turno) vão no topo do payload.
+  var body = JSON.stringify(Object.assign({
     action: 'verohub_capture',
     secret: cfg.secret,
     sale: msg.sale,
     criadoPor: msg.criadoPor || ''
+  }, (msg.escolhas && typeof msg.escolhas === 'object') ? msg.escolhas : {}));
+  try {
+    var resp = await fetch(cfg.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: body,
+      redirect: 'follow'
+    });
+    var txt = await resp.text();
+    try { return JSON.parse(txt); }
+    catch (e) { return { ok: false, erro: 'Resposta não-JSON do CRM (HTTP ' + resp.status + ')', raw: txt.slice(0, 200) }; }
+  } catch (e) {
+    return { ok: false, erro: 'Falha de rede ao chamar o CRM: ' + (e && e.message || e) };
+  }
+}
+
+// Busca as opções pros dropdowns da caixa (vendedores, planos por cidade, enums).
+// Mesma URL/secret da captura; manda o CEP do pedido pra resolver cidade → planos.
+async function buscarVerohubOptions(msg) {
+  var cfg = await _vhGetConfig();
+  if (!cfg.secret) {
+    return { ok: false, erro: 'Secret não configurado na extensão.' };
+  }
+  var body = JSON.stringify({
+    action: 'verohub_form_options',
+    secret: cfg.secret,
+    zip_code: msg.zip_code || '',
+    cidade: msg.cidade || ''
   });
   try {
     var resp = await fetch(cfg.url, {
@@ -439,6 +469,14 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   if (msg && msg.action === 'verohub.enviar') {
     enviarVerohubCapture(msg).then(sendResponse, function (err) {
       sendResponse({ ok: false, erro: 'VEROHUB_ERRO_INTERNO', msg: String(err && err.message || err) });
+    });
+    return true;
+  }
+
+  // Opções pros dropdowns da caixa VeroHub — ação `verohub.options`
+  if (msg && msg.action === 'verohub.options') {
+    buscarVerohubOptions(msg).then(sendResponse, function (err) {
+      sendResponse({ ok: false, erro: 'VEROHUB_OPTS_ERRO', msg: String(err && err.message || err) });
     });
     return true;
   }

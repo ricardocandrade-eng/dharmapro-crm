@@ -21,6 +21,9 @@
   var CAMPOS = [
     'id', 'proposal_number', 'created_at',
     'name', 'cpf', 'rg', 'birthday', 'mother_name', 'gender',
+    // PJ (venda com CNPJ): nome/documento vêm aqui, não em name/cpf
+    'company_name', 'fantasy_name', 'cnpj', 'state_registration',
+    'city_registration', 'foundation_date', 'activity_kind',
     'email', 'phone', 'phone_optional', 'phone_contact',
     'zip_code', 'state', 'city', 'ibge_code', 'neighborhood', 'street',
     'number', 'complement', 'reference', 'coordinates', 'address_kind', 'block_lot',

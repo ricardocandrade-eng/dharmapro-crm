@@ -1774,6 +1774,20 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // ── Opções pros dropdowns da caixa "Enviar pro CRM" (vendedores, planos por
+    // cidade, enums). Mesmo secret da captura. Lógica em VerohubAPI.js#_verohubFormOptions_.
+    if (payload.action === 'verohub_form_options') {
+      var vhSecretO = PropertiesService.getScriptProperties().getProperty('VEROHUB_CAPTURE_SECRET') || SECRET;
+      if (vhSecretO && payload.secret !== vhSecretO) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ ok: false, erro: 'verohub: secret inválido' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      return ContentService
+        .createTextOutput(JSON.stringify(_verohubFormOptions_(payload)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // ── Captura VeroHub: extensão lê window.__SALE de hub.veronet.com.br/sales/{id} ──
     // e manda pra cá pra virar venda em "1 - Vendas". Secret próprio
     // (VEROHUB_CAPTURE_SECRET) com fallback pro webhook_secret global. Lógica em
