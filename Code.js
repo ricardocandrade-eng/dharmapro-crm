@@ -1518,13 +1518,13 @@ function doGet(e) {
       lang: 'pt-BR',
       icons: [
         {
-          src: 'https://ui-avatars.com/api/?name=DP&background=141720&color=e63e6d&size=192&bold=true&format=png',
+          src: 'https://cdn.jsdelivr.net/gh/ricardocandrade-eng/dharmapro-crm@main/cdn/favicon-192.png',
           sizes: '192x192',
           type: 'image/png',
           purpose: 'any'
         },
         {
-          src: 'https://ui-avatars.com/api/?name=DP&background=141720&color=e63e6d&size=512&bold=true&format=png',
+          src: 'https://cdn.jsdelivr.net/gh/ricardocandrade-eng/dharmapro-crm@main/cdn/favicon-512.png',
           sizes: '512x512',
           type: 'image/png',
           purpose: 'any maskable'
