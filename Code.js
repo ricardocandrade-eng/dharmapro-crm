@@ -6624,8 +6624,11 @@ function _limparCacheListaV3() {
       keys.push(prefix + '_meta');
       if (metaRaw) {
         var meta = JSON.parse(metaRaw);
-        if (meta && meta.total) {
-          for (var i = 0; i < meta.total; i++) keys.push(prefix + '_' + i);
+        // 14/07/2026: _cachePutChunked grava {chunks:N} — a leitura de meta.total
+        // (campo inexistente) deixava os chunks de dados órfãos no cache.
+        var nChunks = meta && (meta.chunks || meta.total);
+        if (nChunks) {
+          for (var i = 0; i < nChunks; i++) keys.push(prefix + '_' + i);
         }
       }
     }
@@ -6792,9 +6795,25 @@ function _atualizarVendaNoCache_(numeroLinha) {
       mapaResumoVinculos[lf] = _resumirVendaVinculada_(_mapearLinhaLista(rowF, lf, tz));
     }
     var pai = vinculosMap.maePorFilha[numeroLinha];
+    var maeUpdate = null;
     if (pai && pai.vendaMaeLinha && pai.vendaMaeLinha >= 3 && pai.vendaMaeLinha <= ult) {
       var rowM = sheet.getRange(pai.vendaMaeLinha, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
       mapaResumoVinculos[pai.vendaMaeLinha] = _resumirVendaVinculada_(_mapearLinhaLista(rowM, pai.vendaMaeLinha, tz));
+      // Refresh do card combo (14/07/2026): editar a FILHA também reescreve a
+      // entrada da MÃE no cache. O card agrupado da Lista renderiza o resumo
+      // da filha a partir da entrada da mãe (a filha fica oculta) — sem isto,
+      // trocar o status do Móvel ficava stale no card até o TTL (30min).
+      var irmas = vinculosMap.filhasPorMae[pai.vendaMaeLinha] || [];
+      for (var ir = 0; ir < irmas.length; ir++) {
+        var li = irmas[ir].vendaFilhaLinha;
+        if (!li || li < 3 || li > ult || mapaResumoVinculos[li]) continue;
+        var rowI = sheet.getRange(li, 1, 1, CONFIG.TOTAL_COLUNAS).getValues()[0];
+        mapaResumoVinculos[li] = _resumirVendaVinculada_(_mapearLinhaLista(rowI, li, tz));
+      }
+      maeUpdate = {
+        linha: pai.vendaMaeLinha,
+        venda: _decorarVendaComVinculos_(_mapearLinhaLista(rowM, pai.vendaMaeLinha, tz), vinculosMap, mapaResumoVinculos)
+      };
     }
 
     var vendaAtualizada = _decorarVendaComVinculos_(
@@ -6803,8 +6822,8 @@ function _atualizarVendaNoCache_(numeroLinha) {
       mapaResumoVinculos
     );
 
-    _aplicarUpdateNoChunked_(CONFIG.CACHE_PREFIX + 'lista_v5',       numeroLinha, vendaAtualizada);
-    _aplicarUpdateNoChunked_(CONFIG.CACHE_PREFIX + 'lista_completa', numeroLinha, vendaAtualizada);
+    _aplicarUpdateNoChunked_(CONFIG.CACHE_PREFIX + 'lista_v5',       numeroLinha, vendaAtualizada, maeUpdate);
+    _aplicarUpdateNoChunked_(CONFIG.CACHE_PREFIX + 'lista_completa', numeroLinha, vendaAtualizada, maeUpdate);
     _incCounter_('lista_fine_update');
   } catch(e) {
     Logger.log('_atualizarVendaNoCache_ erro (linha ' + numeroLinha + '): ' + (e && e.message || e) + ' — fallback p/ invalidação total.');
@@ -6818,23 +6837,37 @@ function _atualizarVendaNoCache_(numeroLinha) {
 // Aplica UPDATE-or-INSERT num cache chunked individual. Helper privado.
 // No-op se o cache ainda não existe (não cria do nada — Fase 5b assume
 // que getVendasPaginadas é quem cria o cache; update fino só mantém).
-function _aplicarUpdateNoChunked_(key, numeroLinha, vendaAtualizada) {
+// `extra` (14/07/2026): update adicional opcional {linha, venda} aplicado na
+// MESMA leitura/gravação do cache (usado pra reescrever a mãe do combo junto
+// com a filha, sem pagar 2× o read-modify-write dos chunks). O extra é só
+// UPDATE — se a linha não está na janela de 500 do cache, não insere.
+function _aplicarUpdateNoChunked_(key, numeroLinha, vendaAtualizada, extra) {
   var cached = _cacheGetChunked(key);
   if (!cached || !Array.isArray(cached.dados)) return;
+  _upsertNoCachedDados_(cached, numeroLinha, vendaAtualizada, false);
+  if (extra && extra.linha && extra.venda) {
+    _upsertNoCachedDados_(cached, extra.linha, extra.venda, true);
+  }
+  // TTL conservador 30min (commit 2 alinha o cache principal pra mesmo valor).
+  _cachePutChunked(key, cached, 1800);
+}
+
+// UPDATE-or-INSERT numa estrutura {dados:[], totalGeral} já lida do cache.
+// soUpdate=true: não insere se ausente (linha fora da janela de 500 — não é
+// venda nova, só não está renderizada; inserir inflaria totalGeral à toa).
+function _upsertNoCachedDados_(cached, numeroLinha, venda, soUpdate) {
   var idx = -1;
   for (var i = 0; i < cached.dados.length; i++) {
     if (cached.dados[i] && cached.dados[i].linha === numeroLinha) { idx = i; break; }
   }
   if (idx >= 0) {
-    cached.dados[idx] = vendaAtualizada;
-  } else {
+    cached.dados[idx] = venda;
+  } else if (!soUpdate) {
     // INSERT: presume mais recente = topo (linhasNaoVazias sort desc por linha física)
-    cached.dados.unshift(vendaAtualizada);
+    cached.dados.unshift(venda);
     if (cached.dados.length > 500) cached.dados.pop();
     cached.totalGeral = (cached.totalGeral || cached.dados.length - 1) + 1;
   }
-  // TTL conservador 30min (commit 2 alinha o cache principal pra mesmo valor).
-  _cachePutChunked(key, cached, 1800);
 }
 
 // Telemetria leve via Script Properties. Fire-and-forget — nunca falha.

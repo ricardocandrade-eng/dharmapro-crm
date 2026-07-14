@@ -1030,11 +1030,12 @@ function pifSalvar() {
         mostrarToast('❌ ' + (res ? res.mensagem : 'Erro ao salvar.'), 'error');
         return;
       }
-      _listaNeedsReload = true; // invalida cache — lista precisa de dado fresco
       mostrarToast('✅ ' + res.mensagem, 'success');
 
-      // Se foi arquivada, fecha painel e recarrega lista
+      // Se foi arquivada, fecha painel e recarrega lista (a linha sai da
+      // lista — não dá pra resolver com patch local, precisa do servidor)
       if (dados.preStatus === 'ARQUIVAR VENDA') {
+        _listaNeedsReload = true;
         _pifModoEdicao = false;
         AppState.set('vendaSelecionada', null);
         fecharPainel();
@@ -1051,30 +1052,35 @@ function pifSalvar() {
       // Recarrega venda atualizada e reabre painel
       google.script.run
         .withSuccessHandler(function(vAtual) {
-          if (!vAtual) { carregarVendas(1, ''); return; }
+          if (!vAtual) { _listaNeedsReload = true; carregarVendas(1, ''); return; }
           AppState.set('vendaSelecionada', vAtual);
           // Sprint 3.3: mostrarPainel já reseta tudo (modo leitura, botões etc),
           // não precisa mais alternar visibilidade manualmente aqui.
           mostrarPainel(vAtual);
-          // Frente 0 (26/05/2026): patch local imediato — atualiza _dadosListaCache
-          // + sessionStorage com o vAtual fresh do server. carregarVendas a seguir
-          // renderiza com dado atual sem esperar TTL do SS (era 2min de stale).
+          // Refresh imediato (14/07/2026): patch local com o vAtual fresh do
+          // servidor + re-render instantâneo do cache local. NÃO derrubar o
+          // cache aqui (_listaNeedsReload) — o backend já manteve o cache do
+          // servidor atualizado via _atualizarVendaNoCache_ (Fase 5b); derrubar
+          // anulava o patch e trocava o dado fresco por um pipeline Lite/Full
+          // de 7-40s de spinner.
           _atualizarVendaNoCacheLocal(vAtual);
+          var _pgPos = AppState.get('paginaAtual') || 1;
+          var _ftPos = AppState.get('filtroAtual') || '';
           // Se há venda Móvel vinculada e o backend retornou ela atualizada,
           // atualiza o cache local dela também (combo aparece agrupado correto).
           if (vAtual.vendaMovelResumo && vAtual.vendaMovelResumo.linha) {
             google.script.run
               .withSuccessHandler(function(mvAtual) {
                 if (mvAtual) _atualizarVendaNoCacheLocal(mvAtual);
-                carregarVendas(1, '');
+                carregarVendas(_pgPos, _ftPos);
               })
-              .withFailureHandler(function() { carregarVendas(1, ''); })
+              .withFailureHandler(function() { carregarVendas(_pgPos, _ftPos); })
               .getVendaPorLinha(vAtual.vendaMovelResumo.linha);
           } else {
-            carregarVendas(1, '');
+            carregarVendas(_pgPos, _ftPos);
           }
         })
-        .withFailureHandler(function() { carregarVendas(1, ''); })
+        .withFailureHandler(function() { _listaNeedsReload = true; carregarVendas(1, ''); })
         .getVendaPorLinha(v.linha);
     })
     .withFailureHandler(function(err) {
@@ -4150,6 +4156,11 @@ function _confirmarMoveFunil() {
         // Atualiza dado em memória
         venda.status = colCfg.status;
         if (payload.campoExtra) venda[payload.campoExtra] = payload.valorExtra;
+        // Refresh imediato (14/07/2026): espelha a mudança no cache local da
+        // Lista de Vendas — sem isto o card ficava com o status antigo lá.
+        var _patchLista = { status: colCfg.status };
+        if (payload.campoExtra) _patchLista[payload.campoExtra] = payload.valorExtra;
+        _patchVendaNoCacheLocal(venda.linha, _patchLista);
         // Ajusta a marca "técnico em campo" (frontend) conforme o destino:
         // só fica marcado se caiu na sub-coluna "tecnico" da Aguardando Instalação.
         if (colCfg.status === '2- Aguardando Instalação' && colCfg.sub === 'tecnico') {
@@ -4863,6 +4874,11 @@ function _confirmarMoveLeads() {
     .withSuccessHandler(function(res) {
       if (res && res.sucesso) {
         mostrarToast('✅ Lead movido para Ag. Instalação!', 'success');
+        // Refresh imediato (14/07/2026): espelha a mudança no cache local da
+        // Lista de Vendas — sem isto o card ficava com o status antigo lá.
+        var _patchLead = { status: '2- Aguardando Instalação', agenda: agenda, turno: turno };
+        if (contrato) _patchLead.contrato = contrato;
+        _patchVendaNoCacheLocal(venda.linha, _patchLead);
         // Lead salvo: pergunta se quer enviar a msg ao vendedor (PAP 2/3).
         _perguntarEnvioVendedorPosSave(venda.linha, '2- Aguardando Instalação', _statusAntLead);
       } else {
@@ -7106,6 +7122,13 @@ function _revalidarListaFresh() {
         _dadosTotalServidor  = res.totalGeral || res.dados.length;
         _dadosListaTimestamp = Date.now();
         _listaCacheSalvarSS();
+      } else {
+        // 14/07/2026: sincronização falhou — avisa em vez de renderizar o dado
+        // antigo em silêncio como se estivesse fresco (o badge "Há X min" fica
+        // com a idade real do cache mantido).
+        mostrarToast('⚠️ Falha ao sincronizar a lista' +
+          (res && res.erro ? ': ' + res.erro : '') +
+          ' — exibindo dados anteriores. Tente o ↻ novamente.', 'warning');
       }
       carregarVendas(1, ''); // cache fresco → render local instantâneo + badge "Agora"
       _setBotaoRefreshLoading(false);
@@ -7232,9 +7255,13 @@ function _atualizarBadgeIdadeLista() {
 function _atualizarVendaNoCacheLocal(venda) {
   if (!venda || !venda.linha) return false;
   if (!_dadosListaCache) return false; // cache não existe; nada a fazer
+  // 14/07/2026: compara por String() — getVendaPorLinha pode devolver linha
+  // como número e o cache como string (ou vice-versa); com === estrito o
+  // update virava INSERT duplicado no topo da lista.
+  var alvoLinha = String(venda.linha);
   var idx = -1;
   for (var i = 0; i < _dadosListaCache.length; i++) {
-    if (_dadosListaCache[i] && _dadosListaCache[i].linha === venda.linha) { idx = i; break; }
+    if (_dadosListaCache[i] && String(_dadosListaCache[i].linha) === alvoLinha) { idx = i; break; }
   }
   if (idx >= 0) {
     _dadosListaCache[idx] = venda;
@@ -7247,6 +7274,23 @@ function _atualizarVendaNoCacheLocal(venda) {
   _dadosListaTimestamp = Date.now();
   _listaCacheSalvarSS();
   return true;
+}
+
+// Refresh imediato (14/07/2026): patch de CAMPOS numa venda do cache local,
+// sem refetch. Usado pelos fluxos que alteram a venda FORA da Lista (drag no
+// Funil, Tratamento de Leads) — o cache local em memória não tem TTL, então
+// sem este patch o card mostrava o status antigo até um ↻ manual ou F5.
+function _patchVendaNoCacheLocal(linha, campos) {
+  if (!_dadosListaCache || !linha || !campos) return false;
+  var alvo = String(linha);
+  for (var i = 0; i < _dadosListaCache.length; i++) {
+    var v = _dadosListaCache[i];
+    if (!v || String(v.linha) !== alvo) continue;
+    for (var k in campos) { if (campos.hasOwnProperty(k)) v[k] = campos[k]; }
+    _listaCacheSalvarSS();
+    return true;
+  }
+  return false;
 }
 
 // ── Filtra _dadosListaCache localmente (sem chamada ao servidor) ──────────
@@ -7463,7 +7507,10 @@ function carregarVendas(pagina, filtro) {
         google.script.run
           .withSuccessHandler(function(resFull) {
             if (!resFull || resFull.erro) return;
-            if (resFull.dados && resFull.dados.length > (_dadosListaCache ? _dadosListaCache.length : 0)) {
+            // >= (14/07/2026): com > estrito, um Full do mesmo tamanho do cache
+            // era descartado e o dado fresco se perdia. O >= ainda protege o
+            // caso do usuário ter paginado além (cache maior que o Full).
+            if (resFull.dados && resFull.dados.length >= (_dadosListaCache ? _dadosListaCache.length : 0)) {
               _dadosListaCache     = resFull.dados;
               _dadosListaTotal     = resFull.dados.length;
               _dadosTotalServidor  = resFull.totalGeral || resFull.dados.length;
