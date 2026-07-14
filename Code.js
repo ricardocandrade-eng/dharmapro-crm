@@ -863,7 +863,9 @@ function atualizarVendaComNG(dados) {
 //   statuses: array de strings ('2','3', etc) — match no primeiro caractere de STATUS
 //   max:      número, default 100, cap 500
 //
-// Já filtra CPF válido (11 dígitos) — vendas com CNPJ/lixo não voltam.
+// Elegibilidade = status casado + CONTRATO preenchido (a consulta NG/Adapter é
+// por contrato desde 21/05). NÃO filtra mais por "CPF 11 dígitos" — isso escondia
+// PJ (CNPJ), CPF com zero à esquerda perdido e CPF vazio, que a consulta resolve.
 // Ordem: mais recentes primeiro (de trás pra frente na planilha).
 function getVendasParaVarredura(filtros) {
   try {
@@ -896,14 +898,19 @@ function getVendasParaVarredura(filtros) {
 
     for (var i = raw.length - 1; i >= 0 && resultado.length < max; i--) {
       var row = raw[i];
-      var cpf = String(row[c.CPF] || '').trim();
-      if (!cpf) continue;
-      var cpfDigitos = cpf.replace(/\D/g, '');
-      if (cpfDigitos.length !== 11) continue;
 
       var statusStr = String(row[c.STATUS] || '').trim();
       // Match exato no nome do status — não mais por primeiro caractere
       if (statusesExatos.indexOf(statusStr) === -1) continue;
+
+      // A consulta NG/Adapter é POR CONTRATO desde 21/05 (não mais por CPF).
+      // Elegibilidade = ter contrato preenchido. A trava antiga de "CPF 11 dígitos"
+      // escondia PJ (CNPJ), CPF com zero à esquerda perdido e CPF vazio — vendas
+      // pendentes que a consulta por contrato resolve normalmente.
+      var contrato = String(row[c.CONTRATO] || '').trim().replace(/\.0$/, '');
+      if (!contrato) continue;
+
+      var cpf = String(row[c.CPF] || '').trim(); // mantido só para exibição/log
 
       var sistemaRaw = String(row[c.SISTEMA] || '').trim().toUpperCase();
       // Normaliza: qualquer coisa que comece com "NG" vira NG; senão Adapter
@@ -930,9 +937,9 @@ function getVendasParaVarredura(filtros) {
       resultado.push({
         linha:   i + 3,
         cpf:     cpf,
-        // Consulta NG/Adapter passou a buscar por contrato (não por CPF) — a Varredura
-        // troca _paginaAtual por esta lista, então o contrato precisa vir junto.
-        contrato: String(row[c.CONTRATO] || '').trim().replace(/\.0$/, ''),
+        // Consulta NG/Adapter busca por contrato — a Varredura troca _paginaAtual
+        // por esta lista, então o contrato precisa vir junto.
+        contrato: contrato,
         sistema: sistema,
         sistemaFallback: sistemaFallback, // null se cidade não é ambígua
         cidade:  cidade,
