@@ -7309,10 +7309,10 @@ function _validarContratoFormatoBackend_(valor, sistema) {
   var v = String(valor).trim();
   if (!/^\d+$/.test(v)) return 'ID Contrato inválido. Use apenas números.';
   var sis = String(sistema || '').toUpperCase();
-  var msgErro = 'ID Contrato inválido. Use: NG (9 dígitos começando com 202) ou Adapter (7 dígitos começando com 3).';
-  if (sis.indexOf('NG') > -1)      return /^202\d{6}$/.test(v) ? null : msgErro;
+  var msgErro = 'ID Contrato inválido. Use: NG (9 dígitos começando com 20) ou Adapter (7 dígitos começando com 3).';
+  if (sis.indexOf('NG') > -1)      return /^20\d{7}$/.test(v) ? null : msgErro;
   if (sis.indexOf('ADAPTER') > -1) return /^3\d{6}$/.test(v)   ? null : msgErro;
-  return (/^202\d{6}$/.test(v) || /^3\d{6}$/.test(v)) ? null : msgErro;
+  return (/^20\d{7}$/.test(v) || /^3\d{6}$/.test(v)) ? null : msgErro;
 }
 
 function _construirLinhaDados(d) {

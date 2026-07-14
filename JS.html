@@ -237,10 +237,10 @@ function _validarContratoFormato(valor, sistema) {
   var v = String(valor).trim();
   if (!/^\d+$/.test(v)) return 'ID inválido. Use apenas números.';
   var sis = (sistema || '').toUpperCase();
-  var msgErro = 'ID inválido. Use:\n• NG: 9 dígitos começando com 202\n• Adapter: 7 dígitos começando com 3';
-  if (sis.indexOf('NG') > -1)      return /^202\d{6}$/.test(v) ? null : msgErro;
+  var msgErro = 'ID inválido. Use:\n• NG: 9 dígitos começando com 20\n• Adapter: 7 dígitos começando com 3';
+  if (sis.indexOf('NG') > -1)      return /^20\d{7}$/.test(v) ? null : msgErro;
   if (sis.indexOf('ADAPTER') > -1) return /^3\d{6}$/.test(v)   ? null : msgErro;
-  return (/^202\d{6}$/.test(v) || /^3\d{6}$/.test(v)) ? null : msgErro;
+  return (/^20\d{7}$/.test(v) || /^3\d{6}$/.test(v)) ? null : msgErro;
 }
 
 function _filtrarStatusPorProduto(produto, statusAtual) {
