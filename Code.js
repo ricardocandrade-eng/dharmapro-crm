@@ -1795,6 +1795,20 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // ── Consulta Assertiva por CPF a partir da caixa VeroHub (botão "🔎 Assertiva").
+    // Mesmo secret da captura. Read-only. Lógica em VerohubAPI.js#_verohubAssertiva_.
+    if (payload.action === 'verohub_assertiva') {
+      var vhSecretA = PropertiesService.getScriptProperties().getProperty('VEROHUB_CAPTURE_SECRET') || SECRET;
+      if (vhSecretA && payload.secret !== vhSecretA) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ ok: false, erro: 'verohub: secret inválido' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      return ContentService
+        .createTextOutput(JSON.stringify(_verohubAssertiva_(payload)))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // ── Captura VeroHub: extensão lê window.__SALE de hub.veronet.com.br/sales/{id} ──
     // e manda pra cá pra virar venda em "1 - Vendas". Secret próprio
     // (VEROHUB_CAPTURE_SECRET) com fallback pro webhook_secret global. Lógica em

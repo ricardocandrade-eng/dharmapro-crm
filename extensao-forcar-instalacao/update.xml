@@ -2,6 +2,6 @@
 <gupdate xmlns='http://www.google.com/update2/response' protocol='2.0'>
   <app appid='olchhnpoahdnojbddelggipmclaefelk'>
     <updatecheck codebase='https://ext.ofertasverointernet.com.br/dharmapro-connector.bin'
-                 version='2.8.3' />
+                 version='2.8.4' />
   </app>
 </gupdate>

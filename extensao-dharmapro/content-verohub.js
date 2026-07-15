@@ -12,6 +12,11 @@
 //  background). O envio vai pro background (action:'verohub.enviar'), que faz
 //  POST no doPost do CRM (rota verohub_capture). Normalização é server-side;
 //  campo vazio → backend usa o default automático de antes.
+//
+//  Também injeta, acima dele, o botão "🔎 Assertiva": abre um painel de consulta
+//  por CPF (background action:'verohub.assertiva' → doPost rota verohub_assertiva)
+//  que devolve nome, nascimento, nome da mãe, telefones, endereços e e-mails do
+//  cliente — cada campo copiável ao clique, pra facilitar a coleta de dados.
 // ══════════════════════════════════════════════════════════════════════════════
 
 (function () {
@@ -22,6 +27,7 @@
 
   var BTN_ID = 'dhp-verohub-btn';
   var PANEL_ID = 'dhp-verohub-panel';
+  var PANEL_ASSERTIVA_ID = 'dhp-verohub-assertiva-panel';
   var _reqSeq = 0;
 
   // ── Ponte com o MAIN world: pede o __SALE limpo ────────────────────────────
@@ -88,6 +94,24 @@
     });
   }
 
+  // ── Consulta Assertiva por CPF (via background) ────────────────────────────
+  function buscarAssertiva(cpf) {
+    return new Promise(function (resolve) {
+      try {
+        chrome.runtime.sendMessage(
+          { action: 'verohub.assertiva', cpf: cpf || '' },
+          function (resp) {
+            var le = chrome.runtime.lastError;
+            if (le) return resolve({ ok: false, erro: 'Extensão: ' + le.message });
+            resolve(resp || { ok: false, erro: 'Sem resposta do background.' });
+          }
+        );
+      } catch (e) {
+        resolve({ ok: false, erro: 'Falha ao chamar a extensão: ' + (e && e.message || e) });
+      }
+    });
+  }
+
   // ── UI helpers ─────────────────────────────────────────────────────────────
   function esc(v) {
     return String(v == null ? '' : v).replace(/[&<>"]/g, function (c) {
@@ -134,6 +158,43 @@
   function fecharPainel() {
     var p = document.getElementById(PANEL_ID);
     if (p) p.remove();
+  }
+
+  function fecharPainelAssertiva() {
+    var p = document.getElementById(PANEL_ASSERTIVA_ID);
+    if (p) p.remove();
+  }
+
+  // Copia texto pro clipboard (com fallback execCommand pra contextos sem a API).
+  function copiar(txt) {
+    txt = String(txt == null ? '' : txt);
+    function ok() { toast('📋 Copiado', 'ok'); }
+    function fallback() {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = txt;
+        ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        var done = document.execCommand('copy');
+        ta.remove();
+        done ? ok() : toast('Não consegui copiar.', 'erro');
+      } catch (e) { toast('Não consegui copiar.', 'erro'); }
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(ok, fallback);
+      } else { fallback(); }
+    } catch (e) { fallback(); }
+  }
+
+  // Máscara CPF: 000.000.000-00 (só dígitos, corta em 11).
+  function maskCpfInput(v) {
+    var s = String(v || '').replace(/\D/g, '').slice(0, 11);
+    if (s.length > 9) return s.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+    if (s.length > 6) return s.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+    if (s.length > 3) return s.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+    return s;
   }
 
   function resultadoTexto(r) {
@@ -300,6 +361,119 @@
     };
   }
 
+  // ── Painel Assertiva: consulta por CPF pra facilitar a coleta de dados ──────
+  // Linha copiável: clicar copia `copyVal` (ou o próprio display se omitido).
+  function linhaAssertiva(label, display, copyVal) {
+    if (display == null || display === '') return '';
+    var cv = (copyVal != null && copyVal !== '') ? copyVal : display;
+    return '<div class="dhp-as-row" data-copy="' + esc(cv) + '" title="Clique para copiar" ' +
+      'style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid #f0e6ea;cursor:pointer">' +
+      '<div style="min-width:104px;color:#9b6a7c;font-size:12px">' + esc(label) + '</div>' +
+      '<div style="flex:1;color:#2a2230;font-size:13px;font-weight:600">' + esc(display) +
+        ' <span style="color:#c99;font-weight:400;font-size:11px">📋</span></div></div>';
+  }
+
+  function renderAssertiva(d) {
+    d = d || {};
+    var h = '<div style="margin-top:10px;border-top:2px solid #f4e7ec;padding-top:8px">' +
+      '<div style="font-size:11px;color:#9b6a7c;margin-bottom:4px">Clique num campo pra copiar.</div>';
+    h += linhaAssertiva('Nome', d.nome);
+    h += linhaAssertiva('Nascimento', d.nascimento);
+    h += linhaAssertiva('Nome da mãe', d.nomeMae);
+    h += linhaAssertiva('Sexo', d.sexo);
+    h += linhaAssertiva('Idade', d.idade != null && d.idade !== '' ? (d.idade + ' anos') : '', d.idade);
+    h += linhaAssertiva('Situação CPF', d.situacao);
+    if (d.obito) h += '<div style="color:#c0392b;font-weight:700;font-size:12px;padding:4px 0">⚠️ Óbito provável</div>';
+    (d.telefones || []).forEach(function (t, i) {
+      var num = (t && t.numero) || '';
+      if (!num) return;
+      var extra = [t.tipo, t.operadora].filter(Boolean).join(' · ');
+      h += linhaAssertiva('Telefone ' + (i + 1), num + (extra ? '  (' + extra + ')' : ''), num);
+    });
+    (d.enderecos || []).forEach(function (e, i) {
+      var partes = [
+        [e.logradouro, e.numero].filter(Boolean).join(', '),
+        e.complemento, e.bairro,
+        [e.cidade, e.uf].filter(Boolean).join('/'),
+        e.cep ? ('CEP ' + e.cep) : ''
+      ].filter(Boolean);
+      var full = partes.join(' · ');
+      if (full) h += linhaAssertiva('Endereço ' + (i + 1), full);
+    });
+    (d.emails || []).forEach(function (em, i) {
+      if (em) h += linhaAssertiva('E-mail ' + (i + 1), em);
+    });
+    h += '</div>';
+    if (h.indexOf('dhp-as-row') === -1) {
+      h = '<div style="margin-top:10px;color:#9b6a7c;font-size:13px">Consulta feita, mas sem dados cadastrais retornados.</div>';
+    }
+    return h;
+  }
+
+  function abrirPainelAssertiva() {
+    fecharPainel();            // evita sobreposição com a caixa de envio
+    fecharPainelAssertiva();
+
+    var inCss = 'flex:1;padding:9px 10px;border:1px solid #cfe6ea;border-radius:8px;' +
+      'font:600 15px system-ui,Segoe UI,Arial;color:#12333a;letter-spacing:.5px';
+
+    var p = document.createElement('div');
+    p.id = PANEL_ASSERTIVA_ID;
+    p.style.cssText = [
+      'position:fixed', 'z-index:2147483647', 'right:20px', 'bottom:20px',
+      'width:380px', 'max-height:88vh', 'overflow:auto', 'background:#fff',
+      'border-radius:14px', 'box-shadow:0 16px 48px rgba(0,0,0,.3)',
+      'font-family:system-ui,Segoe UI,Arial', 'padding:16px 18px'
+    ].join(';');
+    p.innerHTML =
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
+        '<div style="font-weight:800;font-size:15px;color:#0d7a8c">🔎 Consultar Assertiva</div>' +
+        '<button id="dhp-as-x" style="border:0;background:#e4f2f4;color:#0d7a8c;border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:16px">×</button>' +
+      '</div>' +
+      '<div style="font-size:12px;color:#5b7a80;margin-bottom:10px">Digite o CPF do cliente pra puxar os dados cadastrais.</div>' +
+      '<div style="display:flex;gap:6px;margin-bottom:4px">' +
+        '<input id="dhp-as-cpf" inputmode="numeric" placeholder="000.000.000-00" style="' + inCss + '">' +
+        '<button id="dhp-as-go" style="padding:9px 14px;border:0;background:#0d7a8c;color:#fff;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px">Consultar</button>' +
+      '</div>' +
+      '<div id="dhp-as-result"></div>';
+    document.body.appendChild(p);
+
+    var inp = p.querySelector('#dhp-as-cpf');
+    var out = p.querySelector('#dhp-as-result');
+    p.querySelector('#dhp-as-x').onclick = fecharPainelAssertiva;
+    inp.oninput = function () { inp.value = maskCpfInput(inp.value); };
+
+    function msgErro(txt) {
+      return '<div style="margin-top:10px;color:#c0392b;font-size:13px;font-weight:600">❌ ' + esc(txt) + '</div>';
+    }
+
+    function consultar() {
+      var cpf = (inp.value || '').replace(/\D/g, '');
+      if (cpf.length !== 11) { out.innerHTML = msgErro('Digite um CPF válido (11 dígitos).'); return; }
+      var btn = p.querySelector('#dhp-as-go');
+      btn.disabled = true; btn.textContent = '…'; btn.style.opacity = '.7';
+      out.innerHTML = '<div style="margin-top:12px;color:#0d7a8c;font-size:13px">Consultando…</div>';
+      buscarAssertiva(cpf).then(function (r) {
+        btn.disabled = false; btn.textContent = 'Consultar'; btn.style.opacity = '1';
+        if (!r || r.ok === false) { out.innerHTML = msgErro((r && r.erro) || 'Falha na consulta.'); return; }
+        out.innerHTML = renderAssertiva(r.dados);
+        Array.prototype.forEach.call(out.querySelectorAll('.dhp-as-row'), function (el) {
+          el.onclick = function () { copiar(el.getAttribute('data-copy')); };
+        });
+      });
+    }
+    p.querySelector('#dhp-as-go').onclick = consultar;
+    inp.onkeydown = function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); consultar(); } };
+
+    inp.focus();
+
+    // Pré-preenche com o CPF do pedido (PF), se der pra ler o __SALE.
+    lerSale().then(function (res) {
+      var doc = res && res.sale && String(res.sale.cpf || '').replace(/\D/g, '');
+      if (doc && doc.length === 11 && !inp.value) inp.value = maskCpfInput(doc);
+    });
+  }
+
   // Clique no botão: lê o pedido e decide o caminho
   function acionar(modo) {
     lerSale().then(function (res) {
@@ -323,6 +497,10 @@
       'font-family:system-ui,Segoe UI,Arial'
     ].join(';');
     wrap.innerHTML =
+      '<button id="dhp-vh-assertiva" title="Consultar dados do cliente por CPF (Assertiva)" ' +
+        'style="display:flex;align-items:center;gap:8px;padding:10px 16px;border:0;border-radius:24px;' +
+        'background:#0d7a8c;color:#fff;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 8px 22px rgba(13,122,140,.4)">' +
+        '🔎 Assertiva</button>' +
       '<button id="dhp-vh-main" title="Conferir e enviar este pedido pro DharmaPro" ' +
         'style="display:flex;align-items:center;gap:8px;padding:12px 16px;border:0;border-radius:24px;' +
         'background:#c2185b;color:#fff;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 8px 22px rgba(194,24,91,.4)">' +
@@ -330,6 +508,7 @@
       '<button id="dhp-vh-direto" title="Enviar sem abrir a conferência" ' +
         'style="border:0;background:transparent;color:#c2185b;font-size:12px;font-weight:600;cursor:pointer;text-decoration:underline">⚡ enviar direto</button>';
     document.body.appendChild(wrap);
+    wrap.querySelector('#dhp-vh-assertiva').onclick = function () { abrirPainelAssertiva(); };
     wrap.querySelector('#dhp-vh-main').onclick = function () { acionar('revisar'); };
     wrap.querySelector('#dhp-vh-direto').onclick = function () { acionar('direto'); };
   }

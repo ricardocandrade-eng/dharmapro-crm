@@ -284,3 +284,56 @@ function _verohubFormOptions_(payload) {
     }
   };
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  _verohubAssertiva_ — consulta Assertiva por CPF a partir do VeroHub
+//
+//  O botão "🔎 Assertiva" da caixa (content-verohub.js, acima do "Enviar pro CRM")
+//  manda { action:'verohub_assertiva', secret, cpf } pro doPost (mesmo secret da
+//  captura). Aqui reusamos consultarAssertivaCPF(cpf) — a mesma consulta paga da
+//  Nova Venda / portal PAP — e devolvemos um shape enxuto pra caixa exibir e o
+//  operador copiar campo a campo (nome, nascimento, nome da mãe, telefones etc).
+//
+//  É read-only: NÃO grava venda, NÃO passa pelos limites de custo do PAP
+//  (consultarAssertivaGAS) — o uso aqui é interno do BKO durante a conferência do
+//  pedido. Se controle de custo virar necessário, plugar auditoria depois.
+// ══════════════════════════════════════════════════════════════════════════════
+function _verohubAssertiva_(payload) {
+  payload = payload || {};
+  var cpf = String(payload.cpf || '').replace(/\D/g, '');
+  if (cpf.length !== 11) return { ok: false, erro: 'CPF deve ter 11 dígitos.' };
+
+  var res;
+  try {
+    res = consultarAssertivaCPF(cpf);
+  } catch (e) {
+    return { ok: false, erro: 'Erro na consulta Assertiva: ' + (e && e.message || e) };
+  }
+  if (!res || res.erro) return { ok: false, erro: (res && res.mensagem) || 'Falha na consulta Assertiva.' };
+
+  var d = res.dados || {};
+  var nasc = '';
+  if (d.dataNascimento) {
+    nasc = (typeof _formatarDataNascimento === 'function')
+      ? (_formatarDataNascimento(d.dataNascimento, 'dd/MM/yyyy') || String(d.dataNascimento))
+      : String(d.dataNascimento);
+  }
+
+  return {
+    ok: true,
+    protocolo: res.protocolo || '',
+    dados: {
+      cpf:        d.cpf || cpf,
+      nome:       d.nome || '',
+      sexo:       d.sexo || '',
+      nascimento: nasc,
+      idade:      d.idade || '',
+      nomeMae:    d.nomeMae || '',
+      situacao:   d.situacaoCadastral || '',
+      obito:      !!d.obitoProvavel,
+      telefones:  Array.isArray(d.telefones) ? d.telefones : [],
+      enderecos:  Array.isArray(d.enderecos) ? d.enderecos : [],
+      emails:     Array.isArray(d.emails)    ? d.emails    : []
+    }
+  };
+}
