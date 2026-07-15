@@ -626,6 +626,88 @@ preservado no JSON. Atualizar manualmente quando preços móvel mudarem.
 
 ---
 
+## Extensão Chrome (DharmaPro Connector) — força-instalação
+
+A extensão `extensao-dharmapro` (DharmaPro Connector) conecta o CRM aos sistemas da Vero
+(Adapter, NG Billing, PinG/viabilidade, VeroHub). Até 13/07/2026 ela era carregada "sem
+compactação" (modo desenvolvedor) em cada máquina BKO — o que fazia o Chrome removê-la/
+desativá-la sozinho, exigindo recarregar todo dia.
+
+**Solução implementada (13/07/2026): força-instalação por política**, hospedando a extensão
+própria (self-hosted, fora da Web Store) e fixando-a via `ExtensionInstallForcelist`. Assim
+a extensão fica travada (não pode ser removida/desativada), reinstala sozinha e **atualiza
+sozinha** nas máquinas.
+
+### Identidade e assinatura (NÃO mudar)
+
+- **ID fixo:** `olchhnpoahdnojbddelggipmclaefelk` — derivado da chave de assinatura, e também
+  fixado no campo `key` do `manifest.json` (mesmo ID inclusive em carga "sem compactação").
+- **Chave de assinatura:** `extensao-dharmapro/.keys/dharma_ext_key.pem` (RSA 2048, já no
+  repo). **Sempre reusar esta chave** ao reempacotar — se trocar, o ID muda e a
+  força-instalação para de casar. Guardar fora de repo público.
+- `manifest.json` tem `key` + `update_url` (`https://ext.ofertasverointernet.com.br/update.xml`).
+
+### Hospedagem (Cloudflare)
+
+Conta Cloudflare `Ricardocandrade@gmail.com` (ID `b80b110d40ead1943379737a25763924`):
+- **Worker de static assets** `lingering-flower-c902` + **custom domain**
+  `ext.ofertasverointernet.com.br` (zona `ofertasverointernet.com.br`).
+- Arquivos servidos:
+  - `https://ext.ofertasverointernet.com.br/update.xml` — manifesto de update (gupdate 2.0).
+  - `https://ext.ofertasverointernet.com.br/dharmapro-connector.bin` — o CRX3 assinado,
+    servido com **nome neutro `.bin`** (o Chrome não exige `.crx` no `codebase`; valida pela
+    assinatura CRX3). Nome neutro adotado por precaução; o `codebase` do `update.xml` aponta
+    pra ele.
+- Deploy dos arquivos: Worker `lingering-flower-c902` → **New deployment** → *Upload static
+  files* → arrastar `dharmapro-connector.bin` + `update.xml` → **Deploy**.
+
+### Aplicação nas máquinas BKO (uma vez por PC)
+
+Rodar como **administrador** (Prompt de Comando admin, ou o `.bat` como admin). Chrome e Edge
+usam a mesma política, só muda o caminho do registro:
+
+```
+reg add "HKLM\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist" /v 1 /t REG_SZ /d "olchhnpoahdnojbddelggipmclaefelk;https://ext.ofertasverointernet.com.br/update.xml" /f
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist" /v 1 /t REG_SZ /d "olchhnpoahdnojbddelggipmclaefelk;https://ext.ofertasverointernet.com.br/update.xml" /f
+```
+
+Depois fechar e reabrir o navegador. Confirmar em `chrome://policy`/`edge://policy`
+(`ExtensionInstallForcelist` = OK) e no card da extensão ("Instalada pela sua organização").
+Em domínio, dá pra empurrar por GPO (mesmo valor). Arquivos prontos em
+`extensao-forcar-instalacao/` (runbook, `.reg`, `.bat`, `update.xml`).
+
+### ⚠️ Como PUBLICAR uma atualização da extensão
+
+Desde 15/07/2026 a publicação é **automática via GitHub Action** (`.github/workflows/deploy-extensao.yml`).
+O fluxo manual só é fallback. As máquinas BKO não precisam de nada — Chrome/Edge puxam o novo
+`update.xml` sozinhos (algumas horas / no próximo restart; dá pra forçar via `chrome://extensions`
+→ Modo do desenvolvedor → **Atualizar**, e às vezes precisa fechar todo `chrome.exe` e reabrir).
+
+**Fluxo automático (o normal):**
+
+1. Incrementar `"version"` no `manifest.json` **e** em `extensao-forcar-instalacao/update.xml`
+   (mesmo número — este é o passo esquecível que já deixou a v2.8.3 órfã). **Obrigatório** — sem
+   versão maior, o navegador não atualiza.
+2. `git commit` + `git push origin main` tocando `extensao-dharmapro/**` (ou `update.xml`).
+   A Action `Publicar extensão (Cloudflare)` roda `build-crx.mjs` (gera+assina o CRX3, aborta se
+   o ID não bater), monta `dist-ext/` (`.bin` + `update.xml`) e publica no Cloudflare — auto-detecta
+   Pages vs Worker de assets (o `lingering-flower-c902` é **Pages**; publica na production branch real).
+
+**Pré-req (feito uma vez em 15/07/2026):** 2 secrets no repo GitHub —
+`CLOUDFLARE_API_TOKEN` (escopo Cloudflare Pages: Edit [+ Workers Scripts: Edit], conta `b80b110d…`)
+e `EXT_SIGNING_KEY_B64` (a `.keys/dharma_ext_key.pem` em base64, pois a chave é gitignored).
+Sem os secrets, o run falha no passo "Restaurar chave".
+
+**Build local do CRX3 (fallback / conferência):** `node extensao-forcar-instalacao/build-crx.mjs`
+(Node puro, sem deps) gera `dharmapro-connector.bin` assinado com a chave certa. Fallback manual
+de upload: Worker `lingering-flower-c902` → New deployment → Upload static files → `.bin` + `update.xml`.
+Após propagar, testar `update.xml` **sem query string** (é o que o Chrome busca; deve trazer
+`version='...'` nova) e o `.bin` (200, magia `Cr24`).
+
+Detalhes e troubleshooting completos: `extensao-forcar-instalacao/RUNBOOK_FORCAR_INSTALACAO_EXTENSAO.md`.
+
+---
+
 ## Credenciais e Propriedades do Script
 
 Ver [../INFRA.md](../INFRA.md) para credenciais compartilhadas (Supabase, Meta Ads, Chatwoot).
@@ -781,6 +863,7 @@ AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw
 
 | Data/hora | Versão GAS | O que mudou |
 |---|---|---|
+| 15/07/2026 18:38 | (via Action) | **feat(verohub): botão "🔎 Assertiva" na caixa de captura + CI de publicação automática da extensão no Cloudflare.** Duas frentes. **(1) Botão Assertiva** (pedido do Ricardo): na página do pedido VeroHub (`hub.veronet.com.br/sales/{id}`), acima do "📥 Enviar pro CRM", um botão novo abre um painel de consulta por CPF pra facilitar a coleta de dados. Pré-preenche o CPF do pedido (PF), consulta e mostra nome/nascimento/nome da mãe/sexo/idade/situação do CPF/telefones/endereços/e-mails — **cada campo copiável ao clique** (telefone copia só o número; aviso de óbito provável). **Backend:** `VerohubAPI.js#_verohubAssertiva_` valida CPF e reusa `consultarAssertivaCPF` (mesma consulta paga da Nova Venda/PAP); rota `verohub_assertiva` no `doPost` (mesmo secret `VEROHUB_CAPTURE_SECRET`). **Read-only, sem os limites de custo do PAP** (`consultarAssertivaGAS` — 5 pagas/dia + cache 30d): uso interno BKO na conferência; cada consulta aqui é uma consulta paga na Assertiva (plugar controle depois se virar dor). **Extensão 2.8.3→2.8.4:** `background.js` handler `verohub.assertiva` (POST text/plain, sem preflight); `content-verohub.js` botão + painel + `copiar()` (clipboard c/ fallback execCommand) + máscara CPF. **(2) CI de publicação da extensão** (pedido do Ricardo — "subir sozinho a cada atualização"): script `extensao-forcar-instalacao/build-crx.mjs` (empacota+assina o CRX3 em **Node puro**, sem deps; aborta se o ID != `olchhnpoahdnojbddelggipmclaefelk`) + workflow `.github/workflows/deploy-extensao.yml` que, a cada push tocando `extensao-dharmapro/**`/`update.xml`, builda e publica no Cloudflare (auto-detecta Pages vs Worker de assets; o `lingering-flower-c902` é **Pages** — publica na production branch real via API). Secrets cadastrados uma vez (`CLOUDFLARE_API_TOKEN` Pages:Edit + Workers Scripts:Edit; `EXT_SIGNING_KEY_B64` = a chave gitignored em base64). **Validado E2E** (via CinC): run da Action **Success**; `update.xml` hospedado (URL puro, que é o que o Chrome busca) = `version='2.8.4'`; `.bin` servido 200 + magia `Cr24` + CRX v3; extensão atualizou nas máquinas força-instaladas (via `chrome://extensions` → Atualizar). Validação de código: `node --check` nos 5 arquivos + assinatura/zip do `.bin` verificados. **Não testado na UI** do VeroHub (GAS + extensão; preview estático não exercita). Arquivos: `VerohubAPI.js`, `Code.js` (doPost), `Config.js` (DEPLOY_DATE), `extensao-dharmapro/{content-verohub.js,background.js,manifest.json}`, `extensao-forcar-instalacao/{update.xml,dharmapro-connector.bin,build-crx.mjs}`, `.github/workflows/deploy-extensao.yml`. |
 | 10/07/2026 21:40 | (via Action) | **fix(pap-mascara): Logradouro editável em CEP único + campo "Número a ser portado" na portabilidade.** Dois ajustes na Máscara de Venda do portal do parceiro (`Parceiros.html` = `pap.mobilefibra.com.br`). **(1) CEP único**: o campo Logradouro (`pv-rua`) era `readonly` fixo — em cidades de CEP único o CEP volta com cidade mas sem rua/bairro específicos, deixando os campos em branco e travados (e o submit exige rua **e** bairro, inviabilizando a venda). Novo helper `_pvSetEndereco(id,valor,tipo)`: se o CEP trouxe o valor → mantém `readonly` (fonte da verdade = CEP); se veio vazio → libera digitação (`readOnly=false`) com placeholder "CEP único — digite o logradouro/bairro". Aplicado a rua **e** bairro em `carregarPlanos`; `resetPreVenda` re-trava ambos (o loop de limpeza pula `[readonly]`). Segue o padrão da Nova Venda do CRM, onde `nv-rua` já é sempre editável. **(2) Número portado**: ao marcar "Portabilidade" no tipo de linha móvel, `setPill` revela um input novo `pv-num-portado` ("Número a ser portado"); submit exige o número quando é portabilidade e envia `numeroPortado` no payload. Backend (`ParceirosAPI.js`): nova coluna 29 "Número Portado" na aba `Pré-Vendas` (header auto-adicionado em sheets antigas, mesmo mecanismo das cols 27/28 da Assertiva); `salvarPreVenda` grava no índice 28; `aprovarPreVenda` leva o número para a coluna **LINHA_MOVEL** da venda (antes recebia `'SIM'` — ruído; agora o número real, ou vazio em Número Novo) + `Nº portado: …` na observação. `PORTABILIDADE` da venda segue com "Portabilidade"/"Número Novo". Validação: `node --check` em `ParceirosAPI.js` + parse do `<script>` de `Parceiros.html`. **Não testado na UI** (GAS + fetch/doPost; preview estático não exercita). Arquivos: `Parceiros.html`, `ParceirosAPI.js`, `Config.js` (DEPLOY_DATE). |
 | 10/07/2026 12:58 | (pendente — aguardando push) | **feat(verohub): caixa "Enviar pro CRM" ganha 7 campos selecionáveis (opcionais) + carrega o PJ fix v2.8.2 órfão.** A caixa de captura do VeroHub (`content-verohub.js`) deixou de ser só conferência read-only e passou a oferecer, antes de gravar, **7 dropdowns opcionais** que já entram na venda: **Canal de Venda** (PAP/META ADS/INDICAÇÃO/ATIVO/GOOGLE ADS; vazio → backend cai em VEROHUB), **Vendedor** (`getResponsaveis()`, mesma lista da Nova Venda; pré-seleciona o `sale.seller` se casar), **Pré-Status** (enum da Nova Venda; default EM NEGOCIAÇÃO), **Tipo de Plano** (Fibra Alone/Combo/Móvel Alone; default = inferido do `mvno`), **Plano** (`getPlanosPorCidadeProduto(cidade,produto)` — troca client-side ao mudar o tipo; pré-seleciona pelo nome do `plans_svas`), **Forma de Pagamento** (Boleto/Cartão), **Data + Turno de Agendamento** (data prefill de `sale.scheduling_date` + turno Manhã/Tarde). **Decisão Ricardo:** o **valor** gravado é sempre o `total_price` real do pedido VeroHub — Plano/Forma escolhidos são metadados (colunas PLANO/FORMA_PAGAMENTO), **não** recalculam preço. Campo vazio → backend usa o default automático de antes (zero regressão no "⚡ enviar direto", que manda sem escolhas). **Arquitetura:** a extensão não fala `google.script.run`; novo endpoint `verohub_form_options` no `doPost` (mesmo secret `VEROHUB_CAPTURE_SECRET`) resolve cidade pelo CEP do pedido e devolve num tiro só vendedores + planos por produto (com código/valor) + enums (espelham `Nova_venda.html`/`_TURNOS_VALIDOS_`), reusando caches de `_getTabela`/`_getCidades`/`getResponsaveis` (leitura barata); `VerohubAPI.js#_verohubFormOptions_`. `background.js` ganha o handler `verohub.options` e passa as `escolhas` no topo do payload da captura. `_verohubCapturarVenda_` aceita os overrides `canal/resp/preStatus/produto/plano/codPlano/formaPagamento/agenda/turno` (cada um opcional; produto override desliga a criação do Móvel quando != Fibra Combo; agenda/turno só gravam as colunas — venda continua nascendo em `1- Conferencia/Ativação`, não move pra Aguardando Instalação). **Carrega junto o PJ fix v2.8.2 que estava órfão no disco** (nunca commitado): `verohub-main-world.js` whitelista `company_name/fantasy_name/cnpj/state_registration/city_registration/foundation_date/activity_kind` (o backend já lia esses campos desde 02/07). Extensão 2.8.1→**2.8.3**. Validação: `node --check` nos 5 JS; teste Node do `norm()` (strip de acento, match de vendedor/pré-status/produto case+acento-insensitive). **Não testado na UI** (GAS + extensão na página do VeroHub; preview estático não exercita). **Setup pós-deploy:** nenhuma property nova (reusa `VEROHUB_CAPTURE_SECRET`); **recarregar a extensão v2.8.3** em cada máquina BKO. Arquivos: `VerohubAPI.js`, `Code.js` (doPost), `Config.js` (DEPLOY_DATE), `extensao-dharmapro/{content-verohub.js,background.js,verohub-main-world.js,manifest.json}`. |
 | 08/07/2026 15:30 | (via Action) | **feat(config): painel "Status dos Serviços" (downdetector) na página Configurações.** A página `config` deixou de ser só cards de credencial e ganhou no topo um painel de status ao vivo (🟢 operando / 🟡 atenção / 🔴 queda / ⚪ desconhecido); os 3 cards de credencial (VeroHub/Adapter/NG) desceram pra uma seção "Integrações & Credenciais". **Sem menu/permissão nova** — `config` já estava fiado nos 3 perfis. **Arquitetura em 2 grupos:** (a) **Infra global** — checável do servidor via novo `StatusAPI.js#getStatusServicos(forcar)`: probe **isolado por serviço** (try/catch individual — **não** usa `UrlFetchApp.fetchAll`, que lança pro batch todo quando um host está fora, justamente o que o downdetector precisa detectar), cache 60s. Cobre Renata IA (composta: workflow `/renata/i` ativo no n8n + Supabase respondendo), WA Campanha (Evolution `connectionState` por chip de `WA Instâncias`, X/Y conectados), Tabela de Ofertas (`_getTabela()[0][0]` + `DriveApp...getLastUpdated()`, amarelo se >`STATUS_OFERTAS_STALE_DIAS`=30d), WABA (Supabase `v_waba_health_current.current_quality`: GREEN/YELLOW/**RED=risco de suspensão**), Meta Ads ×2 contas (`_metaApiGet_('/{acc}?fields=account_status,disable_reason')` → **faturamento**: 1 ativa / 3 pagamento pendente / 9 carência / 2·100·101 fora), Claude API (POST `/v1/messages` haiku `max_tokens:1`: 200 ok / 429 sem créditos / 402 faturamento / 401 chave), n8n (`/api/v1/workflows?active=true`), Supabase (`v_metricas_gerais`), Chatwoot (reachability de `CHATWOOT_BASE_URL`, default `app.chatwoot.com`), VeroHub (host `hub.veronet.com.br`), VPS/Vultr (derivado da reachability de evolution.* + n8n.*). Reusa constantes/chaves já existentes (`CFG_DISPAROS`/`SUPABASE_SERVICE_ROLE`, `CFG_META`/`META_ACCESS_TOKEN`/`_metaApiGet_`, `CLAUDE_API_KEY`, `CFG_ALERTAS_OP`/`N8N_API_KEY`, `CFG_WA_PESSOAL`/`_waSheet_`/`_evolutionConfig_`, `_getTabela`) — nenhuma property nova obrigatória (só a opcional `CHATWOOT_BASE_URL`). (b) **Sua estação** — VPN/NG/Adapter/PinG/Extensão Chrome, resolvidos **no frontend** reusando o widget de conexões já existente (`_healthSendMsg` → `health.check` + `viabilidade.health`); esses serviços ficam atrás da VPN da Vero e são inalcançáveis do servidor, então refletem o navegador **do operador** (a UI avisa que "fora" pode ser só a VPN/extensão daquela máquina, não queda geral). **Frontend** (`JS.html`): `_statusServicosCarregar(forcar)` (grupo global), `_statusEstacaoCarregar` (grupo estação), `_svPintarRow`/`_svDotClasse` (reusam as classes `.health-dot--ok/--warn/--erro`), auto-refresh 60s enquanto `pageConfig` ativa (`_statusIniciarPoll`/`_statusPararPoll`, parado no topo de `navegar`), botão `↻ Atualizar` força bypass do cache. Sinais de **falha de pagamento** pedidos pelo Ricardo embutidos nos cards Claude/Meta/WABA. Validação: `node --check` em `StatusAPI.js` + no `<script>` extraído de `JS.html`. **Não testado na UI** (GAS + extensão; preview estático não exercita `google.script.run`). Arquivos: `StatusAPI.js` (novo), `Index.html` (reforma `pageConfig`), `JS.html`, `Config.js`. |
