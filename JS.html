@@ -418,7 +418,10 @@ function _pifPopularInputs(v) {
   if (!v) return;
   _filtrarStatusPorProduto(v.produto || '', v.status || '');
   _pifSetSelect('pif-preStatus', v.preStatus || '');
-  _pifSetSelect('pif-canal',     v.canal     || '');
+  // Canal via legado: preserva valores fora do enum (ex.: VEROHUB, canais
+  // antigos) como opção em vez de resetar em branco e apagar no save.
+  _pifSetSelectComLegado('pif-canal', v.canal || '',
+    ['PAP', 'META ADS', 'INDICAÇÃO', 'ATIVO', 'GOOGLE ADS', 'VEROHUB']);
   _pifSet('pif-cliente',    v.cliente    || '');
   _pifSet('pif-cpf',        v.cpf        || '');
   _pifSet('pif-whats',      v.whats      || '');
@@ -635,6 +638,12 @@ function _pifAplicarModoLeitura() {
   // Sprint 3.3: limpa opacity herdado da edição (preStatus etc)
   var elPre = document.getElementById('pif-preStatus');
   if (elPre) elPre.style.opacity = '';
+  // Em leitura, esconde chips vazios (mesma regra do _pifPopularHero)
+  var vLeit = AppState.get('vendaSelecionada');
+  var chipCanalLe = document.getElementById('pifChipCanal');
+  if (chipCanalLe) chipCanalLe.style.display = (vLeit && vLeit.canal) ? '' : 'none';
+  var chipRespLe = document.getElementById('pifChipResp');
+  if (chipRespLe) chipRespLe.style.display = (vLeit && vLeit.resp) ? '' : 'none';
 }
 
 function _pifAplicarModoEdicao() {
@@ -645,6 +654,13 @@ function _pifAplicarModoEdicao() {
   // expõe os selects no band e nos chips do hero (Status/PréStatus/Canal/Resp)
   var painel = document.getElementById('painelConteudo');
   if (painel) painel.classList.add('modo-edicao');
+  // Em edição, expõe sempre os chips de Canal e Responsável mesmo vazios —
+  // senão não há como preencher um canal/responsável ausente (bug: venda
+  // sem canal não mostrava o campo pra editar).
+  var chipCanalEd = document.getElementById('pifChipCanal');
+  if (chipCanalEd) chipCanalEd.style.display = '';
+  var chipRespEd = document.getElementById('pifChipResp');
+  if (chipRespEd) chipRespEd.style.display = '';
   var scope = painel || form;
   scope.querySelectorAll('input, select, textarea').forEach(function(el) {
     // Inputs marcados como sempre readonly (ex: pif-valor calculado) mantêm
