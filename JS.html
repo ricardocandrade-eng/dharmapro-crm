@@ -8101,6 +8101,19 @@ function _veroHubPedidoVelho(dtHora) {
 
 function _veroHubPedidoHtml(v, index) {
   var temPedido = !!v.verohubPedido;
+
+  // Venda com pedido VeroHub já criado (status 1): mostra SÓ o número do
+  // pedido (link pro Hub), sem bolinha/data/label nem botão Refazer —
+  // pedido do Ricardo em 14/07/2026 pra limpar a linha da Lista de Vendas.
+  if (temPedido) {
+    return '<div class="vi-row-vhub-pedido-wrap" id="vhub-wrap-' + index + '" ' +
+      'onclick="event.stopPropagation()" title="Pedido no VeroHub">' +
+      '<a class="vhub-ped-num" href="https://hub.veronet.com.br/sales/' + esc(v.verohubPedido) +
+        '" target="_blank" onclick="event.stopPropagation()">#' + esc(v.verohubPedido) + '</a>' +
+    '</div>';
+  }
+
+  // Sem pedido ainda: mantém o fluxo de criação (bolinha/data + Criar Pedido).
   var vencido   = _veroHubVencido(v.verohub);
   var semData   = !v.verohub;
   var piscar    = vencido || semData;
@@ -8116,14 +8129,10 @@ function _veroHubPedidoHtml(v, index) {
     'title="Data VeroHub (col AP)" ' +
     'onchange="_salvarVeroHubPedidoManual(' + v.linha + ',this,' + index + ')">' +
     '<span class="vhub-edit-hora"></span>' +
-    (temPedido
-      ? '<a class="vhub-ped-num" href="https://hub.veronet.com.br/sales/' + esc(v.verohubPedido) +
-          '" target="_blank" onclick="event.stopPropagation()">#' + esc(v.verohubPedido) + '</a>'
-      : '') +
     '<button class="vhub-novo-btn" type="button" ' +
       'onclick="event.stopPropagation();_novoPedidoVeroHub(' + index + ');" ' +
-      'title="' + (temPedido ? 'Refazer pedido no VeroHub' : 'Criar novo pedido no VeroHub') + '">' +
-      '🟠 ' + (temPedido ? 'Refazer' : 'Criar Pedido') +
+      'title="Criar novo pedido no VeroHub">' +
+      '🟠 Criar Pedido' +
     '</button>' +
   '</div>';
 }
