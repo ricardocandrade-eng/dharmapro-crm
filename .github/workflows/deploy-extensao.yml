@@ -1,0 +1,102 @@
+# ══════════════════════════════════════════════════════════════════════════════
+#  Publicar extensão (Cloudflare) — build + assinatura + publish automáticos
+#
+#  Dispara a cada push na main que mexa nos arquivos da extensão. Faz:
+#    1. Restaura a chave de assinatura (secret EXT_SIGNING_KEY_B64) em disco.
+#    2. Roda build-crx.mjs → gera o CRX3 assinado (dharmapro-connector.bin).
+#    3. Monta dist-ext/ com o .bin + update.xml.
+#    4. Publica no Cloudflare — AUTO-DETECTA Pages vs Worker de assets:
+#         • Pages  → wrangler pages deploy na production branch REAL do projeto
+#                    (lida da API, pra não cair como preview e o domínio não pegar).
+#         • Worker → wrangler deploy com [assets] apontando pra dist-ext.
+#       O custom domain ext.ofertasverointernet.com.br fica preservado em qualquer caso.
+#    5. Apaga a chave do runner (sempre).
+#
+#  Secrets necessários no repo (Settings → Secrets and variables → Actions):
+#    - CLOUDFLARE_API_TOKEN : token de API. Recomendado escopo DUPLO (o auto-detect
+#        usa os dois caminhos): Account → "Cloudflare Pages: Edit" E "Workers Scripts:
+#        Edit", limitado à conta b80b110d40ead1943379737a25763924.
+#    - EXT_SIGNING_KEY_B64  : a chave .keys/dharma_ext_key.pem em base64 (linha única).
+#        Git Bash:  base64 -w0 extensao-dharmapro/.keys/dharma_ext_key.pem
+#        PowerShell: [Convert]::ToBase64String([IO.File]::ReadAllBytes("extensao-dharmapro\.keys\dharma_ext_key.pem"))
+#
+#  A chave é gitignored (não vai pro repo) — por isso vem por secret. É a MESMA
+#  chave do ID fixo olchhnpoahdnojbddelggipmclaefelk; o build aborta se o ID não bater.
+# ══════════════════════════════════════════════════════════════════════════════
+name: Publicar extensão (Cloudflare)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'extensao-dharmapro/**'
+      - 'extensao-forcar-instalacao/update.xml'
+      - 'extensao-forcar-instalacao/build-crx.mjs'
+      - '.github/workflows/deploy-extensao.yml'
+  workflow_dispatch: {}   # permite disparo manual pela aba Actions
+
+concurrency:
+  group: publicar-extensao
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: b80b110d40ead1943379737a25763924
+      PAGES_PROJECT: lingering-flower-c902
+      WRANGLER: wrangler@3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Restaurar chave de assinatura
+        run: |
+          mkdir -p extensao-dharmapro/.keys
+          printf '%s' "${{ secrets.EXT_SIGNING_KEY_B64 }}" | base64 -d > extensao-dharmapro/.keys/dharma_ext_key.pem
+          test -s extensao-dharmapro/.keys/dharma_ext_key.pem || { echo "::error::EXT_SIGNING_KEY_B64 vazio ou inválido"; exit 1; }
+
+      - name: Build CRX3 (assina; aborta se o ID não bater)
+        run: node extensao-forcar-instalacao/build-crx.mjs
+
+      - name: Montar pasta de publicação
+        run: |
+          rm -rf dist-ext && mkdir -p dist-ext
+          cp extensao-forcar-instalacao/dharmapro-connector.bin dist-ext/
+          cp extensao-forcar-instalacao/update.xml dist-ext/
+          echo "Conteúdo de dist-ext:"; ls -l dist-ext
+
+      - name: Publicar no Cloudflare (auto-detecta Pages vs Worker)
+        run: |
+          set -e
+          ACC="$CLOUDFLARE_ACCOUNT_ID"
+          echo "Verificando se '$PAGES_PROJECT' é um projeto Pages..."
+          RESP=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$ACC/pages/projects/$PAGES_PROJECT" || true)
+          PROD_BRANCH=$(printf '%s' "$RESP" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(j.success&&j.result?(j.result.production_branch||""):"")}catch(e){process.stdout.write("")}})')
+
+          if [ -n "$PROD_BRANCH" ]; then
+            echo "→ Pages detectado. Publicando deployment de PRODUÇÃO (branch='$PROD_BRANCH')."
+            npx --yes $WRANGLER pages deploy dist-ext \
+              --project-name="$PAGES_PROJECT" \
+              --branch="$PROD_BRANCH" \
+              --commit-dirty=true
+          else
+            echo "→ Não é Pages (ou o token não tem permissão Pages). Tratando como Worker de assets."
+            {
+              echo "name = \"$PAGES_PROJECT\""
+              echo "compatibility_date = \"2024-11-01\""
+              echo "[assets]"
+              echo "directory = \"./dist-ext\""
+            } > wrangler.toml
+            echo "wrangler.toml gerado:"; cat wrangler.toml
+            npx --yes $WRANGLER deploy
+          fi
+
+      - name: Remover chave do runner (sempre)
+        if: always()
+        run: rm -f extensao-dharmapro/.keys/dharma_ext_key.pem
