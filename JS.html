@@ -8896,6 +8896,11 @@ function _confirmarExclusao() {
         mostrarToast('✅ Venda arquivada com sucesso.', 'success');
         AppState.set('vendaSelecionada', null);
         fecharPainel();
+        // 14/07/2026: arquivar faz deleteRow no backend — a linha some E todas
+        // as linhas abaixo mudam de número. O cache local fica inteiro inválido
+        // (mostrava a venda arquivada e, pior, linha errada pra quem está
+        // abaixo dela). Reload obrigatório do servidor.
+        _listaNeedsReload = true;
         carregarVendas(1, '');
       } else {
         mostrarToast('❌ ' + (res.mensagem || 'Erro ao excluir.'), 'error');
