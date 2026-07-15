@@ -5357,6 +5357,33 @@ function getVendasPaginadas(pagina, filtro, opcoes) {
   }
 }
 
+// ─── CACHE-ONLY (Performance 14/07/2026) ───────────────────────────────────
+// Retorna a Lista direto do cache chunked do servidor, SEM nenhuma leitura da
+// planilha. HIT típico ~0,5s com as 500 vendas — o cache fica quente 30min e
+// os saves o mantêm atualizado via update fino (Fase 5b). MISS retorna
+// {miss:true} e o frontend cai no pipeline Lite/Full tradicional.
+// Usado como ETAPA 0 do carregamento da Lista (cache-first).
+function getVendasPaginadasCacheOnly() {
+  try {
+    var cached = _cacheGetChunked(CONFIG.CACHE_PREFIX + 'lista_v5');
+    if (cached && Array.isArray(cached.dados) && cached.dados.length > 0) {
+      _incCounter_('lista_cacheonly_hit');
+      return {
+        dados:      cached.dados,
+        total:      cached.dados.length,
+        totalGeral: cached.totalGeral || cached.dados.length,
+        pagina:     1,
+        temMais:    !!(cached.temMais)
+      };
+    }
+    _incCounter_('lista_cacheonly_miss');
+    return { miss: true };
+  } catch (e) {
+    Logger.log('getVendasPaginadasCacheOnly erro: ' + e);
+    return { miss: true, erro: e.message };
+  }
+}
+
 // ─── LITE (Performance 19/05/2026) ─────────────────────────────────────────
 // Versão rápida do getVendasPaginadas, processa apenas o `limite` solicitado
 // (default 50) e NÃO cacheia. Usado pelo frontend em pipeline:

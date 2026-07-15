@@ -1032,14 +1032,20 @@ function pifSalvar() {
       }
       mostrarToast('✅ ' + res.mensagem, 'success');
 
-      // Se foi arquivada, fecha painel e recarrega lista (a linha sai da
-      // lista — não dá pra resolver com patch local, precisa do servidor)
+      // Se foi arquivada, fecha painel e atualiza a lista (a linha some e as
+      // linhas abaixo mudam de número — deleteRow no backend)
       if (dados.preStatus === 'ARQUIVAR VENDA') {
-        _listaNeedsReload = true;
         _pifModoEdicao = false;
         AppState.set('vendaSelecionada', null);
         fecharPainel();
-        carregarVendas(1, '');
+        // 14/07/2026: remove do cache local + renumera (render instantâneo).
+        // Sem cache local, cai no reload obrigatório do servidor.
+        if (_removerVendaDoCacheLocal(v.linha)) {
+          carregarVendas(AppState.get('paginaAtual') || 1, AppState.get('filtroAtual') || '');
+        } else {
+          _listaNeedsReload = true;
+          carregarVendas(1, '');
+        }
         return;
       }
 
@@ -7293,6 +7299,64 @@ function _patchVendaNoCacheLocal(linha, campos) {
   return false;
 }
 
+// Arquivar rápido (14/07/2026): remove a venda do cache local e renumera as
+// linhas abaixo — arquivarVenda faz deleteRow no backend, então toda linha
+// maior que a excluída desce 1. Renumera também as referências de linha
+// aninhadas nas decorações de combo (vendaMovelLinha / vendaMaeLinha /
+// resumos), e desfaz o vínculo visual quando a arquivada era mãe ou filha
+// (espelha o _reindexarVinculosAposDelete_ do backend). Com isto o card some
+// da Lista instantaneamente, sem pipeline de reload de ~7s; o cache do
+// servidor foi invalidado pelo backend e reconstrói no próximo MISS.
+function _removerVendaDoCacheLocal(linhaExcluida) {
+  if (!_dadosListaCache || !_dadosListaCache.length) return false;
+  var L = parseInt(linhaExcluida, 10);
+  if (!L || isNaN(L) || L < 3) return false;
+  function _shift(n) {
+    var x = parseInt(n, 10);
+    if (!x || isNaN(x)) return n;
+    return x > L ? x - 1 : x;
+  }
+  var novo = [];
+  for (var i = 0; i < _dadosListaCache.length; i++) {
+    var v = _dadosListaCache[i];
+    if (!v) continue;
+    if (parseInt(v.linha, 10) === L) continue; // a arquivada sai da lista
+    v.linha = _shift(v.linha);
+    // Filha Móvel arquivada → mãe perde o vínculo visual (vira "combo sem móvel")
+    var lMv = parseInt(v.vendaMovelLinha, 10);
+    if (lMv === L) {
+      v.vendaMovelLinha = '';
+      v.vendaMovelResumo = null;
+      v.temVendaMovelVinculada = false;
+      v.comboMovelPendente = /FIBRA\s*COMBO/i.test(
+        String(v.produto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+    } else if (v.vendaMovelLinha) {
+      v.vendaMovelLinha = _shift(v.vendaMovelLinha);
+      if (v.vendaMovelResumo && v.vendaMovelResumo.linha) {
+        v.vendaMovelResumo.linha = _shift(v.vendaMovelResumo.linha);
+      }
+    }
+    // Mãe arquivada → filha aparece standalone (sem vínculo com a mãe)
+    var lMae = parseInt(v.vendaMaeLinha, 10);
+    if (lMae === L) {
+      v.vendaMaeLinha = '';
+      v.vendaMaeResumo = null;
+    } else if (v.vendaMaeLinha) {
+      v.vendaMaeLinha = _shift(v.vendaMaeLinha);
+      if (v.vendaMaeResumo && v.vendaMaeResumo.linha) {
+        v.vendaMaeResumo.linha = _shift(v.vendaMaeResumo.linha);
+      }
+    }
+    novo.push(v);
+  }
+  _dadosListaCache     = novo;
+  _dadosListaTotal     = novo.length;
+  if (_dadosTotalServidor > 0) _dadosTotalServidor--;
+  _dadosListaTimestamp = Date.now();
+  _listaCacheSalvarSS();
+  return true;
+}
+
 // ── Filtra _dadosListaCache localmente (sem chamada ao servidor) ──────────
 function _filtrarLocalmente(dados, filtro, opcoes) {
   filtro = String(filtro || '').trim().toLowerCase();
@@ -7490,47 +7554,75 @@ function carregarVendas(pagina, filtro) {
       .getVendasPaginadas(1, '', JSON.stringify({ limite: 500, offset: 0 }));
   }
 
-  // ETAPA 1 — Lite (50)
+  // Pipeline tradicional (MISS do cache do servidor): Lite (50) render rápido
+  // + Full (500) em background populando o cache pra próximas cargas.
+  function _pipelineLiteFull() {
+    // ETAPA 1 — Lite (50)
+    google.script.run
+      .withSuccessHandler(function(resLite) {
+        var liteOk = resLite && !resLite.erro && resLite.dados && resLite.dados.length > 0;
+        if (liteOk) {
+          _dadosListaCache     = resLite.dados;
+          _dadosListaTotal     = resLite.dados.length;
+          _dadosTotalServidor  = resLite.totalGeral || resLite.dados.length;
+          _dadosListaTimestamp = Date.now(); // Fase 5b
+          _listaCacheSalvarSS();
+          _renderListaCacheLocal();
+
+          // ETAPA 2 — Full em background. Atualiza cache local e re-renderiza
+          // silenciosamente. Se o usuário já tiver paginado/filtrado, mantém estado.
+          google.script.run
+            .withSuccessHandler(function(resFull) {
+              if (!resFull || resFull.erro) return;
+              // >= (14/07/2026): com > estrito, um Full do mesmo tamanho do cache
+              // era descartado e o dado fresco se perdia. O >= ainda protege o
+              // caso do usuário ter paginado além (cache maior que o Full).
+              if (resFull.dados && resFull.dados.length >= (_dadosListaCache ? _dadosListaCache.length : 0)) {
+                _dadosListaCache     = resFull.dados;
+                _dadosListaTotal     = resFull.dados.length;
+                _dadosTotalServidor  = resFull.totalGeral || resFull.dados.length;
+                _dadosListaTimestamp = Date.now(); // Fase 5b
+                _listaCacheSalvarSS();
+                _renderListaCacheLocal();
+              }
+            })
+            .withFailureHandler(function() { /* silencioso — Lite já renderizou */ })
+            .getVendasPaginadas(1, '', JSON.stringify({ limite: 500, offset: 0 }));
+        } else {
+          // Lite vazio/erro → cai direto pro Full
+          _carregarVendasFull();
+        }
+      })
+      .withFailureHandler(function() {
+        // Lite indisponível (deploy antigo sem getVendasPaginadasLite) → Full direto
+        _carregarVendasFull();
+      })
+      .getVendasPaginadasLite(50, 0);
+  }
+
+  // ETAPA 0 — cache-first (14/07/2026): pergunta primeiro ao cache chunked do
+  // servidor. HIT típico ~0,5-1s já com as 500 vendas (o cache fica quente
+  // 30min e os saves o mantêm atualizado — Fase 5b). Antes desta etapa, todo
+  // carregamento pagava o Lite (~7s de leitura direta da planilha) mesmo com
+  // o dado rápido disponível. Só no MISS cai no pipeline tradicional.
   google.script.run
-    .withSuccessHandler(function(resLite) {
-      var liteOk = resLite && !resLite.erro && resLite.dados && resLite.dados.length > 0;
-      if (liteOk) {
-        _dadosListaCache     = resLite.dados;
-        _dadosListaTotal     = resLite.dados.length;
-        _dadosTotalServidor  = resLite.totalGeral || resLite.dados.length;
-        _dadosListaTimestamp = Date.now(); // Fase 5b
+    .withSuccessHandler(function(resCache) {
+      if (resCache && !resCache.miss && !resCache.erro && resCache.dados && resCache.dados.length > 0) {
+        _dadosListaCache     = resCache.dados;
+        _dadosListaTotal     = resCache.dados.length;
+        _dadosTotalServidor  = resCache.totalGeral || resCache.dados.length;
+        _dadosListaTimestamp = Date.now();
         _listaCacheSalvarSS();
         _renderListaCacheLocal();
-
-        // ETAPA 2 — Full em background. Atualiza cache local e re-renderiza
-        // silenciosamente. Se o usuário já tiver paginado/filtrado, mantém estado.
-        google.script.run
-          .withSuccessHandler(function(resFull) {
-            if (!resFull || resFull.erro) return;
-            // >= (14/07/2026): com > estrito, um Full do mesmo tamanho do cache
-            // era descartado e o dado fresco se perdia. O >= ainda protege o
-            // caso do usuário ter paginado além (cache maior que o Full).
-            if (resFull.dados && resFull.dados.length >= (_dadosListaCache ? _dadosListaCache.length : 0)) {
-              _dadosListaCache     = resFull.dados;
-              _dadosListaTotal     = resFull.dados.length;
-              _dadosTotalServidor  = resFull.totalGeral || resFull.dados.length;
-              _dadosListaTimestamp = Date.now(); // Fase 5b
-              _listaCacheSalvarSS();
-              _renderListaCacheLocal();
-            }
-          })
-          .withFailureHandler(function() { /* silencioso — Lite já renderizou */ })
-          .getVendasPaginadas(1, '', JSON.stringify({ limite: 500, offset: 0 }));
       } else {
-        // Lite vazio/erro → cai direto pro Full
-        _carregarVendasFull();
+        _pipelineLiteFull();
       }
     })
     .withFailureHandler(function() {
-      // Lite indisponível (deploy antigo sem getVendasPaginadasLite) → Full direto
-      _carregarVendasFull();
+      // Deploy antigo sem getVendasPaginadasCacheOnly → pipeline tradicional
+      _pipelineLiteFull();
     })
-    .getVendasPaginadasLite(50, 0);
+    .getVendasPaginadasCacheOnly();
 }
 
 // ── Busca mais registros do servidor e adiciona ao cache local ──────────────
@@ -8894,14 +8986,19 @@ function _confirmarExclusao() {
       _fecharModalExcluir();
       if (res.sucesso) {
         mostrarToast('✅ Venda arquivada com sucesso.', 'success');
+        var _linhaArq = v.linha;
         AppState.set('vendaSelecionada', null);
         fecharPainel();
         // 14/07/2026: arquivar faz deleteRow no backend — a linha some E todas
-        // as linhas abaixo mudam de número. O cache local fica inteiro inválido
-        // (mostrava a venda arquivada e, pior, linha errada pra quem está
-        // abaixo dela). Reload obrigatório do servidor.
-        _listaNeedsReload = true;
-        carregarVendas(1, '');
+        // as linhas abaixo mudam de número. Remove do cache local + renumera
+        // (render instantâneo, sem reload de ~7s). Sem cache local, cai no
+        // reload obrigatório do servidor.
+        if (_removerVendaDoCacheLocal(_linhaArq)) {
+          carregarVendas(AppState.get('paginaAtual') || 1, AppState.get('filtroAtual') || '');
+        } else {
+          _listaNeedsReload = true;
+          carregarVendas(1, '');
+        }
       } else {
         mostrarToast('❌ ' + (res.mensagem || 'Erro ao excluir.'), 'error');
       }
