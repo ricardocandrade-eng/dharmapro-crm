@@ -132,33 +132,85 @@
     return null;
   }
 
+  // ── Controllers FANTASMA do Wing (causa raiz do "traz dado de outro contrato") ──
+  // O Wing mantém no mapa várias instâncias do MESMO tipo: além da que está na
+  // tela, sobram fantasmas — presentes no DOM, porém não renderizadas (0x0,
+  // offsetParent null). `findCtrlByType` devolve a PRIMEIRA, que em geral é uma
+  // fantasma. Provado no NG real (16/07/2026, NUBIA SOUZA DE JESUS, 2 contratos):
+  //
+  //   Caso: 11=203099214 (0x0)  15=203091203 (0x0, OUTRO CONTRATO)  34=203099214 (389x226, real)
+  //   Taxa: 12="aplicada em 14/07"  16="aplicada em 10/07" (OUTRO CONTRATO)  ...
+  //   OS:   14="Despachada" (0x0)  18="Criada automaticamente" (0x0)  37="Despachada" (20x21, real)
+  //
+  // Ler a fantasma entrega status/data de outro contrato — e é intermitente,
+  // porque só dá errado quando a 1ª do mapa por acaso é de outro contrato.
+  // Pior: CLICAR numa fantasma faz o servidor recusar o evento
+  // ("Invalid Content state (invisible)") e derrubar a sessão do NG.
+  // `item.visible` do Wing NÃO serve pra distinguir (vem true nas três) —
+  // só a geometria diz a verdade.
+  function itemRenderizado(item) {
+    try {
+      if (!item || !item.element) return false;
+      if (!item.element.offsetParent) return false;          // fora do fluxo de layout
+      var r = item.element.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    } catch (e) { return false; }
+  }
+
+  function ctrlRenderizado(ctrl) {
+    if (!ctrl || !ctrl.items) return false;
+    for (var k in ctrl.items) { if (itemRenderizado(ctrl.items[k])) return true; }
+    return false;
+  }
+
+  // Igual ao findCtrlByType, mas devolve a instância REALMENTE na tela.
+  // Se nenhuma renderiza (ex: card recolhido), cai na primeira e marca
+  // `fantasma: true` — leitura ainda é útil, mas NUNCA clicar numa fantasma.
+  function findCtrlVivo(instances, typeFragment) {
+    var primeira = null;
+    for (var id in instances) {
+      var ctrl = instances[id];
+      if (!ctrl || !ctrl.type || ctrl.type.indexOf(typeFragment) < 0) continue;
+      if (!primeira) primeira = { id: parseInt(id), ctrl: ctrl, fantasma: true };
+      if (ctrlRenderizado(ctrl)) return { id: parseInt(id), ctrl: ctrl, fantasma: false };
+    }
+    return primeira;
+  }
+
   // Em multi-contrato, ha um Atend360ContratoTipoFisicoCardWComp por card lateral.
   // findCtrlByType pegaria o primeiro (top do painel) — pode nao ser o nosso.
+  // Casa pelo número e, havendo empate (fantasma + real), prefere a renderizada.
   function findContratoCardByNumero(instances, numero) {
     var alvo = String(numero || '').trim();
     if (!alvo) return null;
+    var candidata = null;
     for (var id in instances) {
       var ctrl = instances[id];
       if (!ctrl || !ctrl.type) continue;
       if (ctrl.type.indexOf('Atend360ContratoTipoFisicoCardWComp') < 0) continue;
       var n = '';
       try { n = lerItemTexto(ctrl.items && ctrl.items.numeroContratoST); } catch(e) {}
-      if (String(n).trim() === alvo) {
-        return { id: parseInt(id), ctrl: ctrl };
-      }
+      if (String(n).trim() !== alvo) continue;
+      if (ctrlRenderizado(ctrl)) return { id: parseInt(id), ctrl: ctrl };
+      if (!candidata) candidata = { id: parseInt(id), ctrl: ctrl };
     }
-    return null;
+    return candidata;
   }
 
-  // Quantos cards de contrato existem no painel lateral = quantos contratos a
-  // pessoa tem. 0 ou 1 => nao ha ambiguidade possivel entre contratos.
+  // Quantos contratos a pessoa tem. Conta NÚMEROS distintos, não instâncias de
+  // controller: o mapa do Wing repete o mesmo contrato em fantasmas (ver
+  // findCtrlVivo), e contar instâncias inflaria o total. 0 ou 1 => não há
+  // ambiguidade possível entre contratos.
   function contarCardsContrato(instances) {
-    var n = 0;
+    var vistos = {};
     for (var id in instances) {
       var ctrl = instances[id];
-      if (ctrl && ctrl.type && ctrl.type.indexOf('Atend360ContratoTipoFisicoCardWComp') > -1) n++;
+      if (!ctrl || !ctrl.type || ctrl.type.indexOf('Atend360ContratoTipoFisicoCardWComp') < 0) continue;
+      var n = '';
+      try { n = lerItemTexto(ctrl.items && ctrl.items.numeroContratoST); } catch(e) {}
+      if (n) vistos[String(n).trim()] = true;
     }
-    return n;
+    return Object.keys(vistos).length;
   }
 
   // Verifica se há um campo de senha *visível* (visibilidade efetiva, não só DOM)
@@ -174,6 +226,37 @@
       return f;
     }
     return null;
+  }
+
+  // Abre o detalhe da OS Externa pra ler a data REAL de agendamento.
+  // DESLIGADO até fechar a investigação: clicar o botão do olho por JS derruba a
+  // sessão do NG ("Invalid Content state (invisible)") — ver enriquecerAgendamento.
+  // Com a flag desligada, o resumo reporta o estado da OS e manda conferir no NG,
+  // que é honesto; ligada, ele traz "Agendada para DD/MM/YYYY às HH:MM".
+  var _OS_DETALHE_ATIVO = false;
+
+  // Converte data do Wing pra DD/MM/YYYY. O NG mistura dois formatos:
+  //   "Despachada em 16/07/2026"      → já vem DD/MM/YYYY (labels dos checks)
+  //   "17 Jul 2026 8:00"              → mês abreviado (campo de agendamento da OS)
+  // htmlLang é pt-BR, mas aceita abreviação EN por segurança (não há colisão).
+  var _MESES_ABREV = {
+    jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
+    jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12,
+    feb: 2, apr: 4, may: 5, aug: 8, sep: 9, oct: 10, dec: 12
+  };
+  function parseDataWing(txt) {
+    var s = String(txt || '').trim();
+    if (!s) return null;
+    var m0 = s.match(/(\d{2}\/\d{2}\/\d{4})(?:\s+(\d{1,2}:\d{2}))?/);
+    if (m0) return { data: m0[1], hora: m0[2] || '' };
+    var m = s.match(/(\d{1,2})\s+([A-Za-zÀ-ú]{3,})\.?\s+(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+    if (!m) return null;
+    var mes = _MESES_ABREV[m[2].toLowerCase().substring(0, 3)];
+    if (!mes) return null;
+    return {
+      data: ('0' + m[1]).slice(-2) + '/' + ('0' + mes).slice(-2) + '/' + m[3],
+      hora: m[4] ? ('0' + m[4]).slice(-2) + ':' + m[5] : ''
+    };
   }
 
   // Lê texto de um item Wing (via value, text ou DOM element)
@@ -256,6 +339,22 @@
 
       // 7. Ler dados dos controllers
       var resultado = lerResultados();
+
+      // 8. Se a OS está viva mas sem data de agendamento no label, abre o
+      // detalhe da OS pra pegar a data real. Só nesse caso — instalada já tem
+      // a data, e sem OS não há o que abrir (não paga o round-trip à toa).
+      if (_OS_DETALHE_ATIVO &&
+          !resultado.instalada && !resultado.dataAgendamento && resultado.aguardando &&
+          resultado.debug && resultado.debug.osExternaCtrlId != null) {
+        try {
+          await enriquecerAgendamento(resultado);
+        } catch (agErr) {
+          // Enriquecimento é bônus: nunca derruba a consulta.
+          resultado.debug.osEnriquecimentoErro = agErr && (agErr.message || String(agErr));
+          console.warn('[DHP-NG] Enriquecimento do agendamento falhou:', resultado.debug.osEnriquecimentoErro);
+        }
+      }
+
       console.log('[DHP-NG] ✔ Resultado final:', JSON.stringify(resultado));
       enviar(resultado);
 
@@ -767,16 +866,17 @@
     }
 
     // ── Caso de Criação (define de QUAL contrato falam OS Externa e Taxa) ──
-    // Os controllers Caso* NAO sao por contrato: findCtrlByType devolve a
-    // primeira instancia do tipo, seja de qual contrato for. Em cliente com N
-    // contratos, isso fazia a OS Externa de OUTRO contrato sobrescrever a data
-    // do card certo (status/data errados na venda). O numero do contrato do Caso
-    // ja era lido (r.debug.contrato) mas nunca usado como guarda — e agora e.
-    var criacaoCtrl = findCtrlByType(instances, 'CasoCriacaoDeContratoWComp');
+    // Os controllers Caso* NAO sao por contrato, e o mapa do Wing tem fantasmas
+    // de outros contratos (ver findCtrlVivo). Duas defesas em série:
+    //   1. findCtrlVivo pega a instancia RENDERIZADA (a da tela), nao a 1a;
+    //   2. casoConfere cruza o numero declarado com o contrato buscado.
+    // A 1a resolve o caso comum; a 2a segura se a geometria enganar.
+    var criacaoCtrl = findCtrlVivo(instances, 'CasoCriacaoDeContratoWComp');
     var casoContrato = '';
     if (criacaoCtrl && criacaoCtrl.ctrl.items) {
       casoContrato = lerItemTexto(criacaoCtrl.ctrl.items.contratoST);
       if (casoContrato) r.debug.contrato = casoContrato;
+      r.debug.casoFantasma = !!criacaoCtrl.fantasma;
     }
 
     var nCards = contarCardsContrato(instances);
@@ -831,23 +931,41 @@
     // ── OS Externa de Habilitação (status da instalação) ──
     // Só entra quando `casoConfere` — senão a data de instalação/agendamento
     // lida aqui seria de outro contrato e sobrescreveria a do card certo.
-    var osCtrl = casoConfere ? findCtrlByType(instances, 'CasoCriacaoCheckOSExternaDeHabilitacaoWComp') : null;
+    var osCtrl = casoConfere ? findCtrlVivo(instances, 'CasoCriacaoCheckOSExternaDeHabilitacaoWComp') : null;
     if (osCtrl && osCtrl.ctrl.items) {
       var detalheOS = lerItemTexto(osCtrl.ctrl.items.checkDetalheSL);
       r.debug.osExterna = detalheOS;
+      r.debug.osFantasma = !!osCtrl.fantasma;
+      // Só guarda o id pra clicar se for a instância RENDERIZADA — clicar numa
+      // fantasma derruba a sessão do NG (Invalid Content state (invisible)).
+      if (!osCtrl.fantasma) r.debug.osExternaCtrlId = osCtrl.id;
 
       if (detalheOS) {
         var detalheUp = detalheOS.toUpperCase();
+        // Enumerar estado por estado foi o que criou o buraco: "Despachada em
+        // 16/07/2026" (OS despachada pro time de campo) não casava com nenhum
+        // dos três estados conhecidos, a OS era ignorada em silêncio e o resumo
+        // caía na taxa de habilitação. Agora a lógica é invertida: BAIXADA é
+        // instalada, CANCELADA é terminal, e QUALQUER outro estado com OS viva
+        // significa aguardando — estado novo da Vero entra por aqui sem sumir.
         if (detalheUp.indexOf('BAIXADA') > -1) {
           r.instalada = true;
           var m1 = detalheOS.match(/(\d{2}\/\d{2}\/\d{4})/);
           if (m1) r.dataInstalacao = m1[1];
-        } else if (detalheUp.indexOf('AGENDADA') > -1 || detalheUp.indexOf('AGENDA') > -1) {
+        } else if (detalheUp.indexOf('CANCELAD') > -1) {
+          r.debug.osCancelada = true;
+        } else {
           r.aguardando = true;
-          var m2 = detalheOS.match(/(\d{2}\/\d{2}\/\d{4})/);
-          if (m2) r.dataAgendamento = m2[1];
-        } else if (detalheUp.indexOf('AGUARDANDO') > -1 || detalheUp.indexOf('PENDENTE') > -1) {
-          r.aguardando = true;
+          // Se o próprio texto já traz a data (ex: "Agendada em DD/MM/YYYY"),
+          // aproveita. Senão fica pro enriquecimento via detalhe da OS, que é
+          // onde a data REAL de agendamento mora (ver enriquecerAgendamento).
+          if (detalheUp.indexOf('AGENDAD') > -1) {
+            var m2 = detalheOS.match(/(\d{2}\/\d{2}\/\d{4})/);
+            if (m2) r.dataAgendamento = m2[1];
+          }
+          if (!/BAIXADA|AGENDAD|AGUARDANDO|PENDENTE|DESPACHADA/.test(detalheUp)) {
+            r.debug.osEstadoDesconhecido = detalheOS;   // aparece no debug pra revisão
+          }
         }
       }
     }
@@ -872,7 +990,7 @@
     // ── Taxa de Habilitação ──
     // Mesma guarda da OS Externa: alimenta o resumo de pré-instalação, então
     // não pode vir de um Caso de outro contrato.
-    var taxaCtrl = casoConfere ? findCtrlByType(instances, 'CasoCriacaoCheckTaxaDeHabilitacaoWComp') : null;
+    var taxaCtrl = casoConfere ? findCtrlVivo(instances, 'CasoCriacaoCheckTaxaDeHabilitacaoWComp') : null;
     if (taxaCtrl && taxaCtrl.ctrl.items) {
       r.debug.taxaHabilitacao = lerItemTexto(taxaCtrl.ctrl.items.checkDetalheSL);
     }
@@ -880,7 +998,7 @@
     // ── Análise de Crédito ──
     // Só debug (não entra em status/data), mas segue a mesma guarda pra não
     // reportar a análise de outro contrato.
-    var creditoCtrl = casoConfere ? findCtrlByType(instances, 'CasoCriacaoCheckAnaliseCreditoWComp') : null;
+    var creditoCtrl = casoConfere ? findCtrlVivo(instances, 'CasoCriacaoCheckAnaliseCreditoWComp') : null;
     if (creditoCtrl && creditoCtrl.ctrl.items) {
       r.debug.analiseCredito = lerItemTexto(creditoCtrl.ctrl.items.checkDetalheSL);
     }
@@ -907,11 +1025,23 @@
       }
     }
 
-    // ── Montar resumo ──
+    montarResumo(r);
+    return r;
+  }
+
+  // Monta o resumo a partir do estado já lido. Extraído de lerResultados pra
+  // poder ser recalculado depois do enriquecimento do agendamento.
+  function montarResumo(r) {
     if (r.instalada) {
       r.resumo = 'Instalada' + (r.dataInstalacao ? ' em ' + r.dataInstalacao : '');
     } else if (r.dataAgendamento) {
-      r.resumo = 'Agendada para ' + r.dataAgendamento;
+      r.resumo = 'Agendada para ' + r.dataAgendamento + (r.horaAgendamento ? ' às ' + r.horaAgendamento : '');
+    } else if (r.aguardando && r.debug.osExterna) {
+      // OS viva, mas sem data no label do check. NÃO dizer "sem agendamento" —
+      // pode existir agendamento e a data mora só no detalhe da OS (ex: OS
+      // "Despachada em 16/07" cuja instalação está agendada pra 17/07). Reporta
+      // o estado real da OS e manda conferir, em vez de afirmar o que não sabe.
+      r.resumo = 'Aguardando instalação (OS ' + r.debug.osExterna.replace(/^OS\s+/i, '') + ' — confira o agendamento no NG)';
     } else if (r.aguardando) {
       r.resumo = 'Aguardando Instalação (sem agendamento)';
     } else if (r.contratos && r.contratos.length > 0 && r.debug.taxaHabilitacao && !r.debug.contratoCancelado) {
@@ -932,6 +1062,78 @@
     }
 
     return r;
+  }
+
+  // ── Enriquecimento: data REAL de agendamento (detalhe da OS Externa) ──────
+  // Descoberto inspecionando o Wing ao vivo (16/07/2026, contrato 203099214):
+  // o label do check só entrega o ESTADO da OS ("Despachada em 16/07/2026" = a
+  // data do despacho, não da instalação). A data de agendamento existe em UM
+  // único lugar no Wing inteiro — `OSExternaXWingModuleController.
+  // osAgendamentoDataHoraInicioEf` ("17 Jul 2026 8:00") — e esse controller só
+  // nasce depois de clicar no olho (`checkDetalhesB`) do check. Não há fonte
+  // mais barata: varredura por todos os controllers achou a data só aí.
+  //
+  // ⚠️ O modal da OS tem botões destrutivos ("Executar operação", "Iniciar
+  // Execução", cancelar agendamento). Por isso: só lê, fecha SEMPRE pelo botão
+  // NOMEADO `moduleCancelB` (cancelar = descarta, não salva) e nunca por
+  // coordenada. Falhar aqui nunca derruba a consulta — degrada pro resumo antes.
+  async function enriquecerAgendamento(r) {
+    var instances = Wing.session.controllerManager.instances;
+    var osCtrl = r.debug.osExternaCtrlId != null ? instances[r.debug.osExternaCtrlId] : null;
+    var btn = osCtrl && osCtrl.items && osCtrl.items.checkDetalhesB;
+    if (!btn || !btn.element) { r.debug.osDetalheIndisponivel = true; return; }
+
+    // Guarda dupla: só clica no que está REALMENTE na tela. Clicar num botão de
+    // controller fantasma faz o servidor recusar o evento e derrubar a sessão:
+    //   objective.wing.WingRuntimeException: Invalid Content state (invisible).
+    //   Content: wingComponentItem188240, Controller: Atend360WMC, id: 1
+    // (reproduzido no NG real em 16/07/2026 — o id escolhido era 0x0). O
+    // osExternaCtrlId já só é gravado pra instância renderizada; isto aqui é
+    // cinto e suspensório, porque o custo de errar é a sessão do BKO cair.
+    if (!itemRenderizado(btn)) {
+      r.debug.osDetalheFantasma = true;
+      console.warn('[DHP-NG] Botão do detalhe da OS não está renderizado — não vou clicar.');
+      return;
+    }
+    console.log('[DHP-NG] Abrindo detalhe da OS Externa pra ler o agendamento...');
+    clicarCompleto(btn.element);
+
+    var mod = null;
+    try {
+      await aguardar(function() {
+        mod = findCtrlByType(Wing.session.controllerManager.instances, 'OSExternaXWingModuleController');
+        return mod && mod.ctrl.items && mod.ctrl.items.osAgendamentoDataHoraInicioEf;
+      }, 20000, 300, 'Modal OS Externa');
+    } catch (e) {
+      r.debug.osModalTimeout = true;
+      console.warn('[DHP-NG] Detalhe da OS não abriu — mantendo resumo sem agendamento.');
+      return;
+    }
+
+    try {
+      var bruto = lerItemTexto(mod.ctrl.items.osAgendamentoDataHoraInicioEf);
+      r.debug.osAgendamentoBruto = bruto;
+      var p = parseDataWing(bruto);
+      if (p && p.data) {
+        r.dataAgendamento = p.data;      // DD/MM/YYYY — vai pra coluna AGENDA do CRM
+        r.horaAgendamento = p.hora || '';
+        r.aguardando = true;
+        console.log('[DHP-NG] Agendamento lido: ' + p.data + (p.hora ? ' ' + p.hora : ''));
+      } else if (bruto) {
+        r.debug.osAgendamentoNaoParseado = bruto;
+      }
+    } finally {
+      // Fecha SEMPRE, mesmo se a leitura explodir — não deixa modal preso na
+      // sessão (a aba do NG é reusada entre consultas na Varredura).
+      try {
+        var cancel = mod.ctrl.items.moduleCancelB;
+        if (cancel && cancel.element) cancel.element.click();
+      } catch (e) {
+        console.warn('[DHP-NG] Falha ao fechar o detalhe da OS:', e && e.message);
+      }
+    }
+
+    montarResumo(r);
   }
 
   // ── Fallback: ler dados diretamente do DOM ────────────────────────────
