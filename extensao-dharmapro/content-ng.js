@@ -150,6 +150,17 @@
     return null;
   }
 
+  // Quantos cards de contrato existem no painel lateral = quantos contratos a
+  // pessoa tem. 0 ou 1 => nao ha ambiguidade possivel entre contratos.
+  function contarCardsContrato(instances) {
+    var n = 0;
+    for (var id in instances) {
+      var ctrl = instances[id];
+      if (ctrl && ctrl.type && ctrl.type.indexOf('Atend360ContratoTipoFisicoCardWComp') > -1) n++;
+    }
+    return n;
+  }
+
   // Verifica se há um campo de senha *visível* (visibilidade efetiva, não só DOM)
   function temCampoSenhaVisivel() {
     var pwFields = document.querySelectorAll('input[type="password"]');
@@ -755,6 +766,37 @@
       }
     }
 
+    // ── Caso de Criação (define de QUAL contrato falam OS Externa e Taxa) ──
+    // Os controllers Caso* NAO sao por contrato: findCtrlByType devolve a
+    // primeira instancia do tipo, seja de qual contrato for. Em cliente com N
+    // contratos, isso fazia a OS Externa de OUTRO contrato sobrescrever a data
+    // do card certo (status/data errados na venda). O numero do contrato do Caso
+    // ja era lido (r.debug.contrato) mas nunca usado como guarda — e agora e.
+    var criacaoCtrl = findCtrlByType(instances, 'CasoCriacaoDeContratoWComp');
+    var casoContrato = '';
+    if (criacaoCtrl && criacaoCtrl.ctrl.items) {
+      casoContrato = lerItemTexto(criacaoCtrl.ctrl.items.contratoST);
+      if (casoContrato) r.debug.contrato = casoContrato;
+    }
+
+    var nCards = contarCardsContrato(instances);
+    r.debug.cardsContrato = nCards;
+
+    // So confia em OS Externa / Taxa quando da pra provar que sao do contrato
+    // buscado: ou o Caso declara o mesmo numero, ou a pessoa tem no maximo 1
+    // contrato (sem ambiguidade possivel). Na duvida, nao usa — dado errado e
+    // pior que dado ausente numa venda.
+    var casoConfere = casoContrato
+      ? (String(casoContrato).trim() === String(contrato).trim())
+      : (nCards <= 1);
+    r.debug.casoContrato = casoContrato;
+    r.debug.casoConfere  = casoConfere;
+    if (!casoConfere) {
+      console.warn('[DHP-NG] Caso de Criação é do contrato "' + casoContrato +
+                   '" (buscado: ' + contrato + ', cards: ' + nCards +
+                   ') — ignorando OS Externa/Taxa. Fonte da verdade: card lateral.');
+    }
+
     // ── Dados do contrato (Wing) ──
     // Fix multi-contrato: filtra pelo numeroContratoST igual ao contrato buscado.
     // Sem isso, com cliente de N contratos, o card do TOPO da lista vencia mesmo
@@ -763,7 +805,7 @@
     if (!contratoCard) {
       r.debug.cardLateralSkip = true;
       console.warn('[DHP-NG] Nenhum card lateral casou com contrato ' + contrato +
-                   ' — pulando leitura do card. Fonte da verdade: OS Externa + Taxa.');
+                   ' — pulando leitura do card.');
     }
     if (contratoCard && contratoCard.ctrl.items) {
       var items = contratoCard.ctrl.items;
@@ -787,7 +829,9 @@
     }
 
     // ── OS Externa de Habilitação (status da instalação) ──
-    var osCtrl = findCtrlByType(instances, 'CasoCriacaoCheckOSExternaDeHabilitacaoWComp');
+    // Só entra quando `casoConfere` — senão a data de instalação/agendamento
+    // lida aqui seria de outro contrato e sobrescreveria a do card certo.
+    var osCtrl = casoConfere ? findCtrlByType(instances, 'CasoCriacaoCheckOSExternaDeHabilitacaoWComp') : null;
     if (osCtrl && osCtrl.ctrl.items) {
       var detalheOS = lerItemTexto(osCtrl.ctrl.items.checkDetalheSL);
       r.debug.osExterna = detalheOS;
@@ -808,37 +852,35 @@
       }
     }
 
-    // ── Contrato criação ──
-    var criacaoCtrl = findCtrlByType(instances, 'CasoCriacaoDeContratoWComp');
-    if (criacaoCtrl && criacaoCtrl.ctrl.items) {
-      var numContr = lerItemTexto(criacaoCtrl.ctrl.items.contratoST);
-      if (numContr) {
-        r.debug.contrato = numContr;
-        // Em multi-contrato, o card lateral do nosso contrato pode nao estar
-        // exposto (o filtro de findContratoCardByNumero pula). Mas criacaoCtrl
-        // e atrelado a aba ativa — se ele bate, garante presenca em r.contratos
-        // pra branch de pre-instalacao do resumo ("taxa aplicada em ...") rodar.
-        if (r.contratos.length === 0 && String(numContr).trim() === String(contrato).trim()) {
-          r.contratos.push({
-            numero: numContr,
-            tipo: '',
-            dataInstalacao: '',
-            endereco: '',
-            bairro: ''
-          });
-          r.debug.contratoStubFromCriacao = true;
-        }
-      }
+    // ── Contrato criação (stub) ──
+    // Em multi-contrato, o card lateral do nosso contrato pode nao estar exposto
+    // (findContratoCardByNumero pula). Se o Caso declara o NOSSO contrato, garante
+    // presenca em r.contratos pra branch de pre-instalacao do resumo ("taxa
+    // aplicada em ...") rodar. So com casoConfere provado por numero.
+    if (r.contratos.length === 0 && casoContrato &&
+        String(casoContrato).trim() === String(contrato).trim()) {
+      r.contratos.push({
+        numero: casoContrato,
+        tipo: '',
+        dataInstalacao: '',
+        endereco: '',
+        bairro: ''
+      });
+      r.debug.contratoStubFromCriacao = true;
     }
 
     // ── Taxa de Habilitação ──
-    var taxaCtrl = findCtrlByType(instances, 'CasoCriacaoCheckTaxaDeHabilitacaoWComp');
+    // Mesma guarda da OS Externa: alimenta o resumo de pré-instalação, então
+    // não pode vir de um Caso de outro contrato.
+    var taxaCtrl = casoConfere ? findCtrlByType(instances, 'CasoCriacaoCheckTaxaDeHabilitacaoWComp') : null;
     if (taxaCtrl && taxaCtrl.ctrl.items) {
       r.debug.taxaHabilitacao = lerItemTexto(taxaCtrl.ctrl.items.checkDetalheSL);
     }
 
     // ── Análise de Crédito ──
-    var creditoCtrl = findCtrlByType(instances, 'CasoCriacaoCheckAnaliseCreditoWComp');
+    // Só debug (não entra em status/data), mas segue a mesma guarda pra não
+    // reportar a análise de outro contrato.
+    var creditoCtrl = casoConfere ? findCtrlByType(instances, 'CasoCriacaoCheckAnaliseCreditoWComp') : null;
     if (creditoCtrl && creditoCtrl.ctrl.items) {
       r.debug.analiseCredito = lerItemTexto(creditoCtrl.ctrl.items.checkDetalheSL);
     }

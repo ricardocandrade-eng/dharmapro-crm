@@ -12,6 +12,41 @@ function fmtData(val) {
   return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
 }
 
+function esperarAdapter(ms) {
+  return new Promise(function (res) { setTimeout(res, ms); });
+}
+
+function loginAdapter(user, pass) {
+  return fetch(BASE + '/auth/login', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'login=' + encodeURIComponent(user) + '&senha=' + encodeURIComponent(pass)
+  });
+}
+
+// GET do contrato normalizado em { status, dados, corpoInvalido }.
+// `corpoInvalido` = HTTP 200 cujo corpo não é JSON de objeto — na prática a
+// página de login devolvida quando a sessão não vale. Espelha content-adapter.js.
+async function buscarContratoAdapter(contratoLimpo) {
+  var resp = await fetch(BASE + '/comercial/contratos/' + encodeURIComponent(contratoLimpo), {
+    credentials: 'include'
+  });
+  var out = { status: resp.status, dados: null, corpoInvalido: false };
+  if (resp.status === 200) {
+    var txt = '';
+    try { txt = await resp.text(); } catch (x) {}
+    try {
+      var j = JSON.parse(txt);
+      if (j && typeof j === 'object') out.dados = j;
+      else out.corpoInvalido = true;
+    } catch (x) {
+      out.corpoInvalido = true;
+    }
+  }
+  return out;
+}
+
 async function consultarAdapter(cpf, user, pass) {
   try {
     // 1. Login
@@ -137,12 +172,7 @@ async function consultarAdapter(cpf, user, pass) {
 async function consultarAdapterContrato(contrato, user, pass) {
   try {
     // 1. Login (credentials:'include' — grava a sessão no cookie jar)
-    var loginResp = await fetch(BASE + '/auth/login', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'login=' + encodeURIComponent(user) + '&senha=' + encodeURIComponent(pass)
-    });
+    var loginResp = await loginAdapter(user, pass);
     if (!loginResp.ok) {
       var errBody = '';
       try { errBody = await loginResp.text(); } catch (x) {}
@@ -152,18 +182,30 @@ async function consultarAdapterContrato(contrato, user, pass) {
     // 2. Buscar o contrato direto pelo ID (só GET /comercial/contratos/{id}
     //    funciona; os padrões /novo/{id}, ?id= e datatables retornam HTTP 500).
     var contratoLimpo = String(contrato).replace(/\D/g, '');
-    var contratoResp = await fetch(BASE + '/comercial/contratos/' + encodeURIComponent(contratoLimpo), {
-      credentials: 'include'
-    });
+    var res = await buscarContratoAdapter(contratoLimpo);
+
+    // HTTP 500 é AMBÍGUO no Adapter: contrato inexistente OU sessão que ainda
+    // não estabeleceu. Refaz login e repete UMA vez antes de concluir que não
+    // existe — sem isso, sessão fria virava "contrato não encontrado" vermelho
+    // e o operador precisava consultar 2x. Espelha content-adapter.js.
+    if (res.status === 500 || res.corpoInvalido) {
+      await esperarAdapter(1200);
+      var relogin = await loginAdapter(user, pass);
+      if (relogin.ok) res = await buscarContratoAdapter(contratoLimpo);
+    }
 
     var c;
-    if (contratoResp.status === 200) {
-      c = await contratoResp.json();
-    } else if (contratoResp.status === 404 || contratoResp.status === 500) {
-      // 500 = padrão do Adapter quando o contrato não existe (testado em produção)
+    if (res.status === 200 && res.dados) {
+      c = res.dados;
+    } else if (res.corpoInvalido) {
+      // Não-JSON mesmo após re-login → sessão não estabelece. Reportado como
+      // 5xx pra cair no retry transparente do CRM.
+      return { erro: 'Erro ao buscar contrato (HTTP 500 — sessão do Adapter não estabeleceu)' };
+    } else if (res.status === 404 || res.status === 500) {
+      // Confirmado após re-login: o contrato realmente não existe.
       return { erro: 'contrato_nao_encontrado' };
     } else {
-      return { erro: 'Erro ao buscar contrato (HTTP ' + contratoResp.status + ')' };
+      return { erro: 'Erro ao buscar contrato (HTTP ' + res.status + ')' };
     }
 
     // 3. Processar o contrato consultado (sem loop — é exatamente um)
