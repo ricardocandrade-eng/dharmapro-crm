@@ -2590,6 +2590,29 @@
     .vhub-novo-btn:hover  { background: rgba(223,95,48,.22); }
     .vhub-novo-btn:active { transform: scale(.96); }
     .vi-status-band .vhub-novo-btn { font-size: 9px; padding: 1px 7px; }
+    /* Link "💬 Conversa" — abre a conversa no Chatwoot. Mesmo formato de chip do
+       VeroHub, em azul Chatwoot pra não competir com o laranja do pedido.
+       Só aparece quando o telefone da venda casa com uma conversa (ChatwootAPI). */
+    .cw-link {
+      display: inline-block;
+      background: rgba(31,147,255,.12);
+      border: 1px solid rgba(31,147,255,.4);
+      color: #1f93ff;
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 9px;
+      border-radius: 12px;
+      cursor: pointer;
+      letter-spacing: .5px;
+      white-space: nowrap;
+      text-decoration: none;
+      transition: background .15s, transform .08s;
+      line-height: 1.4;
+    }
+    .cw-link:hover  { background: rgba(31,147,255,.22); }
+    .cw-link:active { transform: scale(.96); }
+    .vi-status-band .cw-link { font-size: 9px; padding: 1px 7px; }
     .agenda-input { background: transparent; border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-family: 'DM Mono', monospace; font-size: 10px; padding: 2px 4px; width: 115px; cursor: pointer; }
     .agenda-input:focus { outline: none; border-color: var(--accent); }
     .agenda-input::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }

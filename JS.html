@@ -7698,6 +7698,11 @@ function _renderizarLista(res) {
   }
   container.innerHTML = html;
 
+  // Chatwoot: preenche os slots com o mapa já em memória (troca de página/filtro)
+  // ou dispara a carga na 1ª vez. Fora do caminho crítico do render.
+  _chatwootPreencherSlots();
+  _chatwootCarregarMapa();
+
   // Paginação
   var temPag = res.total > CONFIG_JS.MAX_RESULTS || res.pagina > 1;
   document.getElementById('paginacao').style.display  = temPag ? 'flex' : 'none';
@@ -7712,6 +7717,91 @@ var CONFIG_JS = { MAX_RESULTS: 50 };
 
 // ─── PAINEL LATERAL ──��─────────────────────────────────────────────────────
 
+
+// ─── CHATWOOT — link "abrir conversa" no card da Lista ──────────────────────
+// Backend: getMapaConversasChatwoot() (ChatwootAPI.js) devolve telefone → id da
+// conversa. O mapa NÃO entra no pipeline de getVendasPaginadas de propósito: ele
+// é carregado à parte e injetado nos cards depois do render, pra poder expirar e
+// revalidar sozinho sem invalidar o cache da Lista (Fase 5b).
+//
+// Como o mapa pode chegar depois do render, cada card imprime um slot vazio e
+// _chatwootPreencherSlots() preenche quem casar — nas duas ordens possíveis.
+
+var _cwMapa = null;         // { '32988306393': '1120' }
+var _cwCfg  = null;         // { baseUrl, accountId }
+var _cwCarregando = false;
+var CW_SS_KEY = 'dharmapro_chatwoot_v1';
+var CW_SS_TTL = 300000;     // 5 min, igual ao cache do servidor
+
+// Mesma normalização do backend (_cwNormPhone_): DDD + 8 dígitos.
+function _cwNormPhoneJS(p) {
+  var d = String(p == null ? '' : p).replace(/\D/g, '');
+  if (d.length >= 12 && d.substr(0, 2) === '55') d = d.substr(2);
+  if (d.length === 11 && d.charAt(2) === '9')    d = d.substr(0, 2) + d.substr(3);
+  return d;
+}
+
+function _chatwootCarregarMapa() {
+  if (_cwCarregando) return;
+
+  // sessionStorage: sobrevive à troca de aba dentro da sessão.
+  try {
+    var raw = sessionStorage.getItem(CW_SS_KEY);
+    if (raw) {
+      var ss = JSON.parse(raw);
+      if (ss && ss.ts && (Date.now() - ss.ts) < CW_SS_TTL && ss.mapa) {
+        _cwMapa = ss.mapa;
+        _cwCfg  = ss.cfg;
+        _chatwootPreencherSlots();
+        return;
+      }
+    }
+  } catch (e) { /* SS indisponível/corrompido — busca no servidor */ }
+
+  _cwCarregando = true;
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _cwCarregando = false;
+      if (!res || !res.ok || !res.mapa) return;   // sem mapa: card fica sem botão
+      _cwMapa = res.mapa;
+      _cwCfg  = { baseUrl: res.baseUrl, accountId: res.accountId };
+      try {
+        sessionStorage.setItem(CW_SS_KEY, JSON.stringify({
+          ts: Date.now(), mapa: _cwMapa, cfg: _cwCfg
+        }));
+      } catch (e) { /* quota estourada — segue só em memória */ }
+      _chatwootPreencherSlots();
+    })
+    .withFailureHandler(function(err) {
+      _cwCarregando = false;
+      console.warn('Chatwoot: mapa de conversas indisponível —', err && err.message ? err.message : err);
+    })
+    .getMapaConversasChatwoot();
+}
+
+// Slot vazio no card. Preenchido por _chatwootPreencherSlots quando o mapa chega.
+function _chatwootSlotHtml(v, index) {
+  var ph = _cwNormPhoneJS(v && (v.whats || v.tel));
+  if (ph.length < 10) return '';
+  return '<span class="cw-slot" id="cw-slot-' + index + '" data-cwphone="' + ph + '"></span>';
+}
+
+function _chatwootPreencherSlots() {
+  if (!_cwMapa || !_cwCfg || !_cwCfg.accountId) return;
+  var slots = document.querySelectorAll('.cw-slot');
+  for (var i = 0; i < slots.length; i++) {
+    var el = slots[i];
+    if (el.dataset.cwDone === '1') continue;
+    var conv = _cwMapa[el.dataset.cwphone];
+    if (!conv) continue;
+    var url = _cwCfg.baseUrl + '/app/accounts/' + _cwCfg.accountId + '/conversations/' + conv;
+    // stopPropagation: o card inteiro tem onclick=selecionarVenda.
+    el.innerHTML = '<a class="cw-link" href="' + esc(url) + '" target="_blank" rel="noopener"' +
+                   ' onclick="event.stopPropagation()"' +
+                   ' title="Abrir conversa no Chatwoot">💬 Conversa</a>';
+    el.dataset.cwDone = '1';
+  }
+}
 
 // ─── VEROHUB ───────────────────────────────────────────────────────────────
 function _veroHubVencido(verohub) {
@@ -8574,11 +8664,12 @@ function _criarItemVenda(v, index) {
     datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
   }
 
-  // Extra inline na band: VeroHub (status 1) + Viabilidade badge
+  // Extra inline na band: VeroHub (status 1) + Chatwoot + Viabilidade badge
   var bandExtra = '';
   if (v.status === '1- Conferencia/Ativação') {
     bandExtra += _veroHubPedidoHtml(v, index);
   }
+  bandExtra += _chatwootSlotHtml(v, index);
   if (v.viabilidade) {
     bandExtra += '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>';
   } else {
@@ -10839,6 +10930,7 @@ function _dhpCriarItemVendaAgrupada(v, index) {
   if (v.status === '1- Conferencia/Ativação') {
     sideHtml += _veroHubPedidoHtml(v, index);
   }
+  sideHtml += _chatwootSlotHtml(v, index);
   if (v.viabilidade) {
     sideHtml += '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>';
   }
@@ -11067,11 +11159,12 @@ function _dhpCriarItemVendaAgrupadaV3(v, index) {
     datasHtml += '<span class="vi-ditem"><span class="vi-dlbl">Inst.</span><span class="vi-dval ok">' + esc(_fmtData(v.instal).substring(0,5)) + '</span></span>';
   }
 
-  // Extra inline na band: VeroHub + Viabilidade badge
+  // Extra inline na band: VeroHub + Chatwoot + Viabilidade badge
   var bandExtra = '';
   if (statusNorm === '1- CONFERENCIA/ATIVACAO') {
     bandExtra += _veroHubPedidoHtml(v, index);
   }
+  bandExtra += _chatwootSlotHtml(v, index);
   if (v.viabilidade) {
     bandExtra += '<div id="viab-badge-' + index + '" class="vi-viab-badge vi-viab-' + (v.viabilidade.indexOf('Aprovada') !== -1 ? 'ok' : 'nok') + '">' + esc(v.viabilidade) + '</div>';
   } else {
