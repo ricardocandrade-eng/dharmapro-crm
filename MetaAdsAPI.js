@@ -2974,7 +2974,7 @@ function enviarResumoTrafegoAgora() {
     '📣 Campanhas ativas (' + campanhas.length + '): ' + (campanhas.join(' · ') || '—') + '\n' +
     '🏦 Contas: ' + ((meta.contas || []).join(' + ') || '—');
 
-  var ok = enviarParaGrupoWhatsApp(msg, 'ricardo');
+  var ok = enviarParaGrupoWhatsApp(msg); // default (Mobile Fibra) — grupo "Tráfego Pago" foi desativado 17/07/2026
   Logger.log('enviarResumoTrafegoAgora: ' + (ok ? 'ENVIADO' : 'FALHOU') + '\n' + msg);
   return { ok: ok, mensagem: msg };
 }
