@@ -718,6 +718,86 @@ function _lmaFiltrar() {
 
   if (_lmaView === 'kanban') _lmaRenderKanban(lista);
   else _lmaRenderizarTabela(lista);
+
+  // Chatwoot: injeta o link "💬 Conversa" nos leads que casam por telefone.
+  // Fora do caminho de render — preenche o que já tem em mãos e carrega o mapa
+  // na 1ª vez (mesma chave de sessionStorage da Lista de Vendas: mapa é 1 só).
+  _cwPreencherSlots();
+  _cwCarregarMapa();
+}
+
+// ─── CHATWOOT — link "abrir conversa" no lead ──────────────────────────────
+// Espelha o mecanismo da Lista de Vendas (JS.html): getMapaConversasChatwoot()
+// devolve telefone → id da conversa; cada slot é preenchido depois do render.
+// Escopo: só conversas que passam pela Renata (número WABA) — lead cujo telefone
+// não casa simplesmente não mostra o botão.
+var _cwMapa = null;         // { '32988306393': '1120' }
+var _cwCfg  = null;         // { baseUrl, accountId }
+var _cwCarregando = false;
+var CW_SS_KEY = 'dharmapro_chatwoot_v1';   // MESMA chave da Lista — cache único
+var CW_SS_TTL = 300000;                    // 5 min
+
+// Normalização canônica DDD+8 (igual ao backend _cwNormPhone_). NÃO é o
+// _lmaNormTel, que para em DDD+9 — as chaves do mapa são DDD+8.
+function _cwNormPhone(p) {
+  var d = String(p == null ? '' : p).replace(/\D/g, '');
+  if (d.length >= 12 && d.substr(0, 2) === '55') d = d.substr(2);
+  if (d.length === 11 && d.charAt(2) === '9')    d = d.substr(0, 2) + d.substr(3);
+  return d;
+}
+
+// Slot vazio na célula do telefone; preenchido por _cwPreencherSlots.
+function _cwSlot(l) {
+  var ph = _cwNormPhone(l && l.telefone);
+  if (ph.length < 10) return '';
+  return '<span class="cw-slot" data-cwphone="' + ph + '"></span>';
+}
+
+function _cwPreencherSlots() {
+  if (!_cwMapa || !_cwCfg || !_cwCfg.accountId) return;
+  var slots = document.querySelectorAll('.cw-slot');
+  for (var i = 0; i < slots.length; i++) {
+    var el = slots[i];
+    if (el.dataset.cwDone === '1') continue;
+    var conv = _cwMapa[el.dataset.cwphone];
+    if (!conv) continue;
+    var url = _cwCfg.baseUrl + '/app/accounts/' + _cwCfg.accountId + '/conversations/' + conv;
+    // stopPropagation: no kanban o card é arrastável / clicável.
+    el.innerHTML = '<a class="cw-link" href="' + _esc(url) + '" target="_blank" rel="noopener"' +
+                   ' onclick="event.stopPropagation()" title="Abrir conversa no Chatwoot">💬 Conversa</a>';
+    el.dataset.cwDone = '1';
+  }
+}
+
+function _cwCarregarMapa() {
+  if (_cwCarregando) return;
+  try {
+    var raw = sessionStorage.getItem(CW_SS_KEY);
+    if (raw) {
+      var ss = JSON.parse(raw);
+      if (ss && ss.ts && (Date.now() - ss.ts) < CW_SS_TTL && ss.mapa) {
+        _cwMapa = ss.mapa; _cwCfg = ss.cfg;
+        _cwPreencherSlots();
+        return;
+      }
+    }
+  } catch (e) { /* SS indisponível — busca no servidor */ }
+
+  _cwCarregando = true;
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _cwCarregando = false;
+      if (!res || !res.ok || !res.mapa) return;
+      _cwMapa = res.mapa;
+      _cwCfg  = { baseUrl: res.baseUrl, accountId: res.accountId };
+      try { sessionStorage.setItem(CW_SS_KEY, JSON.stringify({ ts: Date.now(), mapa: _cwMapa, cfg: _cwCfg })); } catch (e) {}
+      _cwPreencherSlots();
+    })
+    .withFailureHandler(function(err) {
+      _cwCarregando = false;
+      console.warn('Chatwoot: mapa indisponível —', err && err.message ? err.message : err);
+    })
+    .getMapaConversasChatwoot();
 }
 
 function _lmaPeriodoLabel() {
@@ -964,7 +1044,7 @@ function _lmaRenderizarTabela(lista) {
       '<td><span class="lma-mono">' + _esc(dataEntrada) + '</span></td>' +
       '<td>' +
         '<div class="lma-nome">' + _esc(l.nome || '—') + '</div>' +
-        '<div class="lma-sub">' + telCell + _lmaOrigemChip(l.origem) + '</div>' +
+        '<div class="lma-sub">' + telCell + _lmaOrigemChip(l.origem) + _cwSlot(l) + '</div>' +
       '</td>' +
       '<td class="lma-mono" id="lmaCidadeCell_' + l.linha + '">' + _lmaCidadeInner(l) + '</td>' +
       '<td>' + campChip + '</td>' +
@@ -1571,7 +1651,7 @@ function _lmaKanbanCard(l) {
   var motivo = (LMA_STATUS_PERDIDOS.indexOf(_lmaStatusLow(l)) !== -1 && l.motivo_desq) ? '<span class="lma-chip-motivo">' + _esc(l.motivo_desq) + '</span>' : '';
   return '<div class="' + cls + '" draggable="true" data-linha="' + l.linha + '" ondragstart="_lmaDragStart(event,' + l.linha + ')">' +
     '<div class="lma-kcard-nome">' + _esc(l.nome || '—') + '</div>' +
-    '<div class="lma-kcard-tel">' + telHtml + '</div>' +
+    '<div class="lma-kcard-tel">' + telHtml + _cwSlot(l) + '</div>' +
     cidadeHtml +
     '<div class="lma-kcard-tags">' + camp + motivo + '</div>' +
   '</div>';
