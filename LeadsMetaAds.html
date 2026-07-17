@@ -131,6 +131,13 @@
 }
 
 .lma-nome     { font-weight: 700; font-size: 12px; }
+/* Nome editável inline (mesmo padrão da cidade) */
+.lma-nome-edit  { cursor: pointer; border-bottom: 1px dashed transparent; }
+.lma-nome-edit:hover { border-bottom-color: var(--muted); }
+.lma-nome-input { width: 100%; max-width: 180px; box-sizing: border-box;
+  font-family: inherit; font-weight: 700; font-size: 12px; padding: 2px 4px; }
+/* Slot "💬 Conversa" abaixo da Data de entrada */
+.lma-cw-row { margin-top: 5px; }
 .lma-sub      { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
 .lma-mono     { font-family: 'DM Mono', monospace; font-size: 11px; white-space: nowrap; }
 .lma-utmcell  { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted);
@@ -1040,11 +1047,13 @@ function _lmaRenderizarTabela(lista) {
         _lmaMotivoSelect(l.linha, l.motivo_desq) +
       '</div>' +
     '</div>';
+    var cwCell = _cwSlot(l);
     return '<tr' + trClass + '>' +
-      '<td><span class="lma-mono">' + _esc(dataEntrada) + '</span></td>' +
+      '<td><span class="lma-mono">' + _esc(dataEntrada) + '</span>' +
+        (cwCell ? '<div class="lma-cw-row">' + cwCell + '</div>' : '') + '</td>' +
       '<td>' +
-        '<div class="lma-nome">' + _esc(l.nome || '—') + '</div>' +
-        '<div class="lma-sub">' + telCell + _lmaOrigemChip(l.origem) + _cwSlot(l) + '</div>' +
+        '<div class="lma-nome" id="lmaNomeCell_' + l.linha + '">' + _lmaNomeInner(l) + '</div>' +
+        '<div class="lma-sub">' + telCell + _lmaOrigemChip(l.origem) + '</div>' +
       '</td>' +
       '<td class="lma-mono" id="lmaCidadeCell_' + l.linha + '">' + _lmaCidadeInner(l) + '</td>' +
       '<td>' + campChip + '</td>' +
@@ -1355,6 +1364,56 @@ function _lmaSalvarCidade(linha, valor) {
       mostrarToast('Erro ao salvar cidade: ' + (e && e.message ? e.message : String(e)), 'error');
     })
     .atualizarCidadeLeadMetaAds(linha, valor);
+}
+
+// ─── Nome editável inline (mesmo padrão da cidade) ─────────────────────────
+function _lmaNomeInner(l) {
+  return '<span class="lma-nome-edit" title="Clique para editar o nome" onclick="_lmaEditarNome(' + l.linha + ')">' +
+         _esc(l.nome || '—') + '</span>';
+}
+
+function _lmaRenderNomeCell(linha) {
+  var cell = document.getElementById('lmaNomeCell_' + linha);
+  var lead = _lmaDados.find(function(l) { return l.linha === linha; });
+  if (cell && lead) cell.innerHTML = _lmaNomeInner(lead);
+}
+
+function _lmaEditarNome(linha) {
+  var cell = document.getElementById('lmaNomeCell_' + linha);
+  var lead = _lmaDados.find(function(l) { return l.linha === linha; });
+  if (!cell || !lead) return;
+  cell.innerHTML = '<input type="text" class="lma-nome-input" id="lmaNomeInput_' + linha + '" value="' + _esc(lead.nome || '') + '">';
+  var inp = document.getElementById('lmaNomeInput_' + linha);
+  if (!inp) return;
+  inp.focus(); inp.select();
+  var feito = false;
+  function commit()   { if (feito) return; feito = true; _lmaSalvarNome(linha, inp.value); }
+  function cancelar() { if (feito) return; feito = true; _lmaRenderNomeCell(linha); }
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelar(); }
+  });
+  inp.addEventListener('blur', commit);
+}
+
+function _lmaSalvarNome(linha, valor) {
+  valor = String(valor || '').trim();
+  var lead = _lmaDados.find(function(l) { return l.linha === linha; });
+  var atual = lead ? String(lead.nome || '').trim() : '';
+  if (valor === atual) { _lmaRenderNomeCell(linha); return; } // nada mudou
+  var cell = document.getElementById('lmaNomeCell_' + linha);
+  if (cell) cell.innerHTML = '<span class="lma-sub">⏳</span>';
+  google.script.run
+    .withSuccessHandler(function() {
+      if (lead) lead.nome = valor;
+      _lmaRenderNomeCell(linha);
+      mostrarToast(valor ? ('Nome salvo: ' + valor) : 'Nome limpo', 'success');
+    })
+    .withFailureHandler(function(e) {
+      _lmaRenderNomeCell(linha);
+      mostrarToast('Erro ao salvar nome: ' + (e && e.message ? e.message : String(e)), 'error');
+    })
+    .atualizarNomeLeadMetaAds(linha, valor);
 }
 
 // ─── Registro Manual de Lead ───────────────────────────────────────────────

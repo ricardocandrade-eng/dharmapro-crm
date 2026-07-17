@@ -681,6 +681,26 @@ function atualizarCidadeLeadMetaAds(linha, cidade) {
 
 
 /**
+ * Edição inline do nome do lead na tela Leads Meta Ads.
+ * Espelha atualizarCidadeLeadMetaAds — grava na coluna B (nome).
+ *
+ * @param {number} linha  Linha na planilha (>= 2)
+ * @param {string} nome   Novo nome
+ */
+function atualizarNomeLeadMetaAds(linha, nome) {
+  var ss  = _getSpreadsheet_();
+  var aba = ss.getSheetByName(CFG_META.ABA_LEADS_META);
+  if (!aba) throw new Error('Aba "' + CFG_META.ABA_LEADS_META + '" não encontrada.');
+  if (!linha || linha < 2) throw new Error('Linha inválida: ' + linha);
+  if (linha > aba.getLastRow()) throw new Error('Linha ' + linha + ' não existe.');
+
+  aba.getRange(linha, 2).setValue(String(nome || '').trim()); // col B: nome
+  Logger.log('atualizarNomeLeadMetaAds: linha ' + linha + ' → ' + (nome || 'vazio'));
+  return { ok: true, linha: linha, nome: nome };
+}
+
+
+/**
  * Remove TODAS as regras de validação de dados da aba "Leads Meta Ads".
  * O frontend (LeadsMetaAds.html) é a fonte única de verdade para opções.
  * Idempotente.
