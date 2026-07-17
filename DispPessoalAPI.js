@@ -452,7 +452,8 @@ function getMinhaInstancia(usuario, usuarioAlvo, instanceAliasOrName) {
       try {
         var all = _evolutionFetch_('GET', '/instance/fetchInstances?instanceName=' + encodeURIComponent(instance));
         var item = Array.isArray(all) ? all[0] : null;
-        var owner = item && item.instance && item.instance.owner;
+        // Evolution v1 aninha em item.instance.owner; v2 é achatado em item.ownerJid.
+        var owner = item && ((item.instance && item.instance.owner) || item.ownerJid);
         if (owner) {
           var ownerPhone = String(owner).replace(/@.*$/, '');
           if (ownerPhone) {

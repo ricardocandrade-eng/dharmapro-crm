@@ -1077,8 +1077,8 @@ function _papEnviarMensagemEvolution_(whatsapp, mensagem) {
       headers            : { 'apikey': key },
       payload            : JSON.stringify({
         number      : numero,
-        options     : { delay: 800, presence: 'composing' },
-        textMessage : { text: String(mensagem == null ? '' : mensagem) }
+        text        : String(mensagem == null ? '' : mensagem),
+        delay       : 800
       }),
       muteHttpExceptions : true
     });
