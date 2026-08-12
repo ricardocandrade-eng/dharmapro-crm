@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DharmaPro Connector — configuração por política",
+  "description": "Valores empurrados por política de grupo/registro para o chrome.storage.managed da extensão. Evita o passo manual de chrome.storage.local.set em cada máquina/perfil de BKO. Windows: HKLM\\SOFTWARE\\Policies\\Google\\Chrome\\3rdparty\\extensions\\olchhnpoahdnojbddelggipmclaefelk\\policy (idem para Microsoft\\Edge).",
+  "type": "object",
+  "properties": {
+    "verohub_crm_secret": {
+      "title": "Secret da rota verohub_capture do CRM",
+      "description": "Mesmo valor da Script Property VEROHUB_CAPTURE_SECRET no Apps Script. Habilita a caixa do VeroHub: Enviar pro CRM, consulta Assertiva e carregamento dos dropdowns.",
+      "type": "string"
+    },
+    "verohub_crm_url": {
+      "title": "URL do Web App do CRM (doPost)",
+      "description": "Opcional. Se ausente, a extensão usa o deployment padrão embutido no background.js.",
+      "type": "string"
+    }
+  }
+}

@@ -10,10 +10,21 @@ dharmapro-cfe49b568d24.json
 *-credentials.json
 *-service-account.json
 
+# Arquivos que carregam o VEROHUB_CAPTURE_SECRET em texto puro.
+# Este repositório é PÚBLICO — um `git add -A` distraído publicaria o secret que
+# libera as rotas verohub_capture / verohub_assertiva (consulta Assertiva é PAGA).
+# Ficam só no disco/Drive do Ricardo e são aplicados por política nas máquinas BKO.
+RUNBOOK_VEROHUB_EXTENSAO.md
+extensao-forcar-instalacao/forcar-dharmapro-connector.reg
+extensao-forcar-instalacao/forcar-dharmapro-connector.bat
+
 # Chave RSA privada da extensão Chrome (pareada com `key` pública do manifest)
 # A pública pode ir no manifest (deriva o ID), a privada FICA OFFLINE
 *.pem
 **/.keys/
+
+# Config de MCP local — caminhos absolutos da máquina, não vai pro repo compartilhado
+.mcp.json
 
 # Arquivos de trabalho / rascunhos
 prompt-refatoracao.md

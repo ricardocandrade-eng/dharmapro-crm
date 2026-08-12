@@ -31,6 +31,9 @@ const EXPECTED_ID = 'olchhnpoahdnojbddelggipmclaefelk';
 // Arquivos de runtime que entram no pacote (exclui .keys/, fixtures/, test-ping.html).
 const FILES = [
   'manifest.json',
+  // Referenciado por manifest.storage.managed_schema — se faltar no pacote, o
+  // Chrome recusa a extensão inteira ao carregar. Não remover.
+  'managed_schema.json',
   'background.js',
   'content-adapter.js',
   'content-bridge.js',

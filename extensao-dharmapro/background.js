@@ -313,31 +313,55 @@ async function handleAdapterConsulta(msg) {
 // ══════════════════════════════════════════════════════════════════════════════
 //  Captura VeroHub → CRM
 //  content-verohub.js manda o pedido lido de window.__SALE; aqui fazemos o POST
-//  no doPost do CRM (rota verohub_capture). URL/secret vêm do chrome.storage.local
-//  (keys verohub_crm_url / verohub_crm_secret) com fallback pra URL de deploy.
+//  no doPost do CRM (rota verohub_capture). URL/secret vêm de duas fontes, nesta
+//  ordem: (1) chrome.storage.managed — empurrado por POLÍTICA (registro/GPO), a
+//  forma padrão desde a v2.8.6; (2) chrome.storage.local — o antigo passo manual
+//  `chrome.storage.local.set(...)` no console do service worker, mantido como
+//  fallback pras máquinas que já estavam configuradas assim. A política ganha de
+//  propósito: permite rotacionar o secret centralmente sem visitar máquina com
+//  valor local velho. URL cai no deployment padrão quando nenhuma fonte define.
 //  Content-Type text/plain evita preflight OPTIONS (que o Apps Script não trata).
 // ══════════════════════════════════════════════════════════════════════════════
 var VEROHUB_CRM_URL_DEFAULT =
   'https://script.google.com/macros/s/AKfycbyOB1HP_wIn0Haxw14npDgY7imWJL7wCEDvrnrVvU8WiXyDwXWa36PAo7Kd06sxEoMTKw/exec';
 
-function _vhGetConfig() {
+var VEROHUB_CFG_KEYS = ['verohub_crm_url', 'verohub_crm_secret'];
+
+// Lê uma área do chrome.storage sem nunca rejeitar: área inexistente (managed não
+// existe se a política nunca foi aplicada), lastError ou throw viram {}.
+function _vhStorageGet(area) {
   return new Promise(function (resolve) {
     try {
-      chrome.storage.local.get(['verohub_crm_url', 'verohub_crm_secret'], function (o) {
-        if (chrome.runtime.lastError) return resolve({ url: VEROHUB_CRM_URL_DEFAULT, secret: '' });
-        resolve({
-          url: (o && o.verohub_crm_url) || VEROHUB_CRM_URL_DEFAULT,
-          secret: (o && o.verohub_crm_secret) || ''
-        });
+      if (!chrome.storage || !chrome.storage[area]) return resolve({});
+      chrome.storage[area].get(VEROHUB_CFG_KEYS, function (o) {
+        if (chrome.runtime.lastError) return resolve({});
+        resolve(o || {});
       });
-    } catch (e) { resolve({ url: VEROHUB_CRM_URL_DEFAULT, secret: '' }); }
+    } catch (e) { resolve({}); }
   });
 }
+
+async function _vhGetConfig() {
+  var pol = await _vhStorageGet('managed');
+  var loc = await _vhStorageGet('local');
+  var secret = (pol && pol.verohub_crm_secret) || (loc && loc.verohub_crm_secret) || '';
+  return {
+    url: (pol && pol.verohub_crm_url) || (loc && loc.verohub_crm_url) || VEROHUB_CRM_URL_DEFAULT,
+    secret: secret,
+    // Só pra diagnóstico na mensagem de erro — não vaza o valor do secret.
+    fonte: (pol && pol.verohub_crm_secret) ? 'politica' : (secret ? 'local' : 'nenhuma')
+  };
+}
+
+// Mensagem única de "sem secret" — a política é o caminho recomendado desde 2.8.6.
+var VEROHUB_ERRO_SEM_SECRET =
+  'Secret não configurado nesta máquina. Rode o forcar-dharmapro-connector.bat como ' +
+  'administrador e reinicie o navegador (a política aplica o secret sozinha).';
 
 async function enviarVerohubCapture(msg) {
   var cfg = await _vhGetConfig();
   if (!cfg.secret) {
-    return { ok: false, erro: 'Secret não configurado na extensão. Rode chrome.storage.local.set({verohub_crm_secret:"…"}).' };
+    return { ok: false, erro: VEROHUB_ERRO_SEM_SECRET };
   }
   // Overrides opcionais escolhidos na caixa (canal, resp, preStatus, produto,
   // plano, codPlano, formaPagamento, agenda, turno) vão no topo do payload.
@@ -367,7 +391,7 @@ async function enviarVerohubCapture(msg) {
 async function buscarVerohubAssertiva(msg) {
   var cfg = await _vhGetConfig();
   if (!cfg.secret) {
-    return { ok: false, erro: 'Secret não configurado na extensão.' };
+    return { ok: false, erro: VEROHUB_ERRO_SEM_SECRET };
   }
   var body = JSON.stringify({
     action: 'verohub_assertiva',
@@ -394,7 +418,7 @@ async function buscarVerohubAssertiva(msg) {
 async function buscarVerohubOptions(msg) {
   var cfg = await _vhGetConfig();
   if (!cfg.secret) {
-    return { ok: false, erro: 'Secret não configurado na extensão.' };
+    return { ok: false, erro: VEROHUB_ERRO_SEM_SECRET };
   }
   var body = JSON.stringify({
     action: 'verohub_form_options',
