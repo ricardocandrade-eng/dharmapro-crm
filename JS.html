@@ -4468,6 +4468,12 @@ function _selecionarCidade(cidade) {
 // Se a Vero adicionar/remover um plano deste conjunto curado, atualizar esta
 // lista manualmente (planos ausentes no res são pulados em silêncio).
 var _OFERTAS_WHATS_TEMPLATE_ = [
+  { titulo: '🌱 *VERO ESSENCIAL*', itens: [
+    { emoji: '🟢', nome: 'VERO ESSENCIAL 420MB', label: 'VERO ESSENCIAL 420 Mega' },
+    { emoji: '📺', nome: 'VERO ESSENCIAL 420MB + GLOBOPLAY ADS', label: 'VERO ESSENCIAL 420 Mega + Globoplay Ads' },
+    { emoji: '📱', nome: 'VERO ESSENCIAL 420MB + MÓVEL 20GB', label: 'VERO ESSENCIAL 420 Mega + 20GB' },
+    { emoji: '📱', nome: 'VERO ESSENCIAL 550MB + MÓVEL 30GB', label: 'VERO ESSENCIAL 550 Mega + 30GB' }
+  ]},
   { titulo: '🏠 *FIBRA*', itens: [
     { emoji: '🟣', nome: 'VERO FAST 550MB', label: 'VERO FAST 550 Mega' },
     { emoji: '🟣', nome: 'VERO FAST 700MB', label: 'VERO FAST 700 Mega' },
@@ -4531,13 +4537,20 @@ function _montarTextoOfertasWhatsApp_(res) {
   linhas.push('');
 
   _OFERTAS_WHATS_TEMPLATE_.forEach(function(secao) {
-    linhas.push(secao.titulo);
-    linhas.push('');
+    // Monta os itens ANTES do título: seção cujos planos não existem na cidade
+    // é omitida inteira (senão sobraria um cabeçalho órfão). Rev15 (13/08/2026)
+    // — a seção VERO ESSENCIAL só tem preço nas cidades de segmentação
+    // ESSENCIAL, então em Juiz de Fora e nas demais ela simplesmente não sai.
+    var itens = [];
     secao.itens.forEach(function(item) {
       var v = precoPorNome[item.nome];
       if (!v) return; // plano não publicado/sem preço na cidade — pula em silêncio
-      linhas.push(item.emoji + ' ' + item.label + ' — 💳 *R$ ' + v + '*');
+      itens.push(item.emoji + ' ' + item.label + ' — 💳 *R$ ' + v + '*');
     });
+    if (!itens.length) return;
+    linhas.push(secao.titulo);
+    linhas.push('');
+    itens.forEach(function(l) { linhas.push(l); });
     linhas.push('');
   });
 

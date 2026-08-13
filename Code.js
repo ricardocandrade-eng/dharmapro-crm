@@ -4490,6 +4490,15 @@ function _serveActionPlanos_(cidade, produto, forma) {
 
       var tipo  = String(dadosTab[ti][1] || '').trim();
       var precoBoletoRaw = dadosTab[ti][colBoleto];
+
+      // Rev15 (13/08/2026): plano sem preço para ESTA segmentação fica fora do
+      // endpoint. Necessário porque a categoria VERO ESSENCIAL só tem preço na
+      // segmentação ESSENCIAL ("NÃO CONTÉM" nas demais → célula vazia no JSON);
+      // sem esta guarda a LP/Renata de uma cidade PADRÃO listaria esses planos
+      // com preco:"". Só descarta célula VAZIA — valores não-numéricos
+      // intencionais (ex.: STARLINK com "-") continuam sendo servidos.
+      if (precoBoletoRaw === '' || precoBoletoRaw === null || precoBoletoRaw === undefined) continue;
+
       var precoRecRaw;
       if (colRec > -1) {
         precoRecRaw = dadosTab[ti][colRec];
