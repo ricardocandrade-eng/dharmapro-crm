@@ -1,6 +1,6 @@
 [
   [
-    "Última atualização: 13/08/2026 — Rev15: tabela Vero 11/08/2026 (MAPA DE OFERTAS B2C 2.0). Nova categoria VERO ESSENCIAL (420MB/550MB) + nova segmentação ESSENCIAL (cols 15/16, 18 cidades SP/GO/DF). VERO FAST PLUS DISNEY+ ADS 147,99→139,99 (preço do PROMO virou oficial). Demais preços inalterados.",
+    "Última atualização: 13/08/2026 — Rev16: DISNEY+ ADS publicado na linha oficial (VeroHub 5726) e linha \"PROMO\" (5201) aposentada — mesmo preço 139,99, sem mudança para o cliente. + Móvel Combo 100GB (R$100, espelha VERO CONTROLE MAIS 100GB) destravando a criação automática do Móvel nos 3 combos PRO MAX de 100GB. Base: Rev15 (tabela Vero 11/08/2026, VERO ESSENCIAL + segmentação ESSENCIAL).",
     "",
     "NG / ADAPTER",
     "NG / ADAPTER",
@@ -802,6 +802,25 @@
     80
   ],
   [
+    "100GB | MAIS CONECTADO | COMBO",
+    "MÓVEL COMBO",
+    100,
+    100,
+    100,
+    100,
+    "",
+    "",
+    false,
+    100,
+    100,
+    100,
+    100,
+    "MOVEL_COMBO",
+    "",
+    100,
+    100
+  ],
+  [
     "VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU/TV BOX + MÓVEL 30GB",
     "VERO MAIS",
     169.99,
@@ -1076,7 +1095,7 @@
     139.99,
     "Vero Fast Plus",
     "Disney+ com Anúncios | 30GB Celular | Wi-Fi 6 | Pequenos Leitores | Estuda Mais | Instalação Grátis",
-    false,
+    true,
     "129.99",
     "129.99",
     "129.99",
@@ -1095,7 +1114,7 @@
     139.99,
     "Vero Fast Plus",
     "Disney+ com Anúncios | 30GB Celular | Wi-Fi 6 | Pequenos Leitores | Estuda Mais | Instalação Grátis",
-    true,
+    false,
     "129.99",
     "129.99",
     "129.99",

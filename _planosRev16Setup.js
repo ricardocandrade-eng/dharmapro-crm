@@ -1,63 +1,48 @@
 /**
- * _planosRev15Setup.js - ONE-SHOT (rodar no editor Apps Script e depois remover).
+ * _planosRev16Setup.js - ONE-SHOT (rodar no editor Apps Script e depois remover).
+ * Substitui o _planosRev15Setup.js (ja executado). Contem a FASE 2 pendente.
  *
- * Rev15 do `planos_vero.json` + nova segmentacao ESSENCIAL nas cidades.
- * Origem: `260811_TABELA_DE_PRECOS_PORTFOLIO_B2C.xlsx` + `260811_MAPA_OFERTAS_
- * VERO_PORTFOLIO_B2C_2.0.pdf` (tabela Vero de 11/08/2026).
+ * O QUE A REV16 MUDA SOBRE A REV15 (decisoes do Ricardo, 13/08/2026)
+ *   1. DISNEY+ ADS - a linha oficial `VERO FAST PLUS 800MB + DISNEY+ ADS +
+ *      MOVEL 30GB` (VeroHub 5726) passa a PUBLICAR=true e a linha
+ *      `... 30GB PROMO` (VeroHub 5201) vai para PUBLICAR=false. As duas ja
+ *      estavam a 139,99 desde a Rev15, entao **o preco visto pelo cliente nao
+ *      muda** - o que muda e o codigo que vai pro VeroHub nas vendas novas
+ *      (5201 -> 5726) e o rotulo, que deixa de dizer "PROMO".
+ *      >>> CONFERIR no VeroHub que o 5726 esta ativo a 139,99 antes de vender.
+ *   2. MOVEL COMBO 100GB - linha nova `100GB | MAIS CONECTADO | COMBO` a R$100,
+ *      seguindo a mesma regra dos outros combos (espelham o avulso: 10/20/30/60
+ *      = 30/40/50/80; 100GB = VERO CONTROLE MAIS 100GB = 100). Destrava a
+ *      criacao automatica do Movel vinculado nos 3 combos PRO MAX de 100GB
+ *      (FAMILY, VIP, VIP PREMIUM), que desde a Rev11 caiam no modal manual.
  *
- * O QUE MUDA
- *   1. Categoria nova VERO ESSENCIAL (4 planos, 420MB/550MB) - preco so na
- *      segmentacao nova ESSENCIAL; nas demais o campo fica VAZIO de proposito
- *      (a Vero marca "NAO CONTEM"), o que ja exclui o plano dos dropdowns e,
- *      com a guarda nova em `_serveActionPlanos_`, tambem do endpoint publico.
- *   2. Colunas 15 (`ESSENCIAL`) e 16 (`ESSENCIAL_REC`) APENDADAS no fim - os
- *      indices fixos usados no codigo (0 nome, 1 TIPO, 2 ESPECIAIS, 6 NOME_LP,
- *      7 FEATURES) continuam validos. Para todo plano pre-existente, ESSENCIAL
- *      = ESPECIAIS (conferido celula a celula contra a tabela nova), entao
- *      cidade ESSENCIAL mantem Fibra legada + todo o Movel.
- *   3. `VERO FAST PLUS 800MB + DISNEY+ ADS + MOVEL 30GB`: 147,99 -> 139,99
- *      (rec 137,99 -> 129,99). O preco do PROMO virou o preco de tabela.
- *      DECISAO PENDENTE: a linha publicada hoje continua sendo a "... PROMO"
- *      (VeroHub 5201) e a linha normal (5726) segue PUBLICAR=false. Se o 5726
- *      estiver ativo a 139,99 no VeroHub, inverter as duas flags e aposentar
- *      o rotulo "PROMO".
- *   4. 18 cidades passam a SEGMENTACAO = ESSENCIAL (15 vinham de ESPECIAIS,
- *      2 de PRATA - Brasilia e Catalao - e 1 de OURO - Xanxere). Nenhuma em
- *      MG/JF: a operacao de Juiz de Fora nao muda nada.
+ * ORDEM DE EXECUCAO (no editor):
+ *   1) _rev16DryRun()                  -> confere o diff, nao grava nada
+ *   2) _atualizarPlanosVeroJsonRev16() -> grava o JSON no Drive
  *
- * ============================ ATENCAO: 2 FASES ============================
- * As duas metades sao INDEPENDENTES de proposito. Rodar a FASE 2 sozinha nao
- * quebra nada, mas rodar a FASE 2 antes de acertar a Renata quebra.
- *
- * FASE 1 - so o JSON (SEGURA, pode rodar sozinha):
- *   1) _rev15DryRun()                  -> confere o diff, nao grava nada
- *   2) _atualizarPlanosVeroJsonRev15() -> grava o JSON no Drive
- *   Efeito: ZERO mudanca de comportamento em qualquer cidade. Enquanto nenhuma
- *   cidade estiver marcada como ESSENCIAL, a coluna 15 nunca e lida e os 4
- *   planos VERO ESSENCIAL ficam dormentes. So o preco do DISNEY+ ADS (linha
- *   despublicada) muda no arquivo.
- *
- * FASE 2 - virar as 18 cidades (COORDENADA, exige mexer na Renata ANTES):
- *   3) _rev15SegmentacaoDryRun()             -> confere as 18 cidades
- *   4) _atualizarSegmentacaoEssencialRev15() -> grava CIDADES + cidades_vero.json
- *
- *   PRE-REQUISITO OBRIGATORIO da FASE 2 (`agente-ia-vero`): a Renata guarda os
- *   planos em cache com chave = SEGMENTACAO (`no5_montar_payload:227`) mas
- *   busca por CIDADE (`:238`), e le a segmentacao do SUPABASE, nao do DharmaPro.
- *   Se as 18 cidades virarem ESSENCIAL aqui e continuarem ESPECIAIS/PRATA/OURO
- *   no `cidades_seed.sql`, a primeira dessas cidades a popular o cache faz TODA
- *   cidade da mesma segmentacao antiga receber a lista ESSENCIAL - a Renata
- *   passa a cotar VERO ESSENCIAL R$69,99 em cidade que nao tem o plano.
- *   Antes da FASE 2: reseed das 18 cidades no Supabase + incluir ESSENCIAL nos
- *   DOIS marcadores `[INJETAR: ... (PADRAO, PRATA, OURO ou ESPECIAIS) ...]`
- *   (`no5` linhas 327 e 910), que precisam ficar byte-identicos entre si.
- * ==========================================================================
+ *   ---- FASE 2 (as 18 cidades) ----
+ *   PRE-REQUISITO: rodar antes o UPDATE das 18 cidades no Supabase
+ *   (`supabase/seed/cidades_seed.sql` do agente-ia-vero ja esta atualizado;
+ *   o UPDATE equivalente esta no fim deste comentario). Sem isso a Renata
+ *   cacheia planos por SEGMENTACAO (`no5_montar_payload:227`) mas busca por
+ *   CIDADE (`:238`) lendo a segmentacao do SUPABASE - e a divergencia faz uma
+ *   cidade receber a lista de planos de outra.
+ *   3) _rev16SegmentacaoDryRun()             -> confere as 18 cidades
+ *   4) _atualizarSegmentacaoEssencialRev16() -> grava CIDADES + cidades_vero.json
  *
  *   5) avisar o Claude Code p/ remover este arquivo no push seguinte
+ *
+ * SQL do pre-requisito (rodar no SQL editor do Supabase):
+ *   UPDATE cidades SET segmentacao = 'ESSENCIAL' WHERE cidade IN (
+ *     'ARUJA','BRASILIA','CATALAO','CRUZEIRO','FERNANDOPOLIS','JALES','LEME',
+ *     'LORENA','PIEDADE','PINDAMONHANGABA','PORANGATU','SANTA FE DO SUL',
+ *     'SAO JOSE DO RIO PRETO','SAO JOSE DOS CAMPOS','TATUI','UBERLANDIA',
+ *     'VENANCIO AIRES','XANXERE');
+ *   (os nomes com acento vao corretos no arquivo .sql do agente-ia-vero)
  */
 
 // Cidades que passam a ter segmentacao ESSENCIAL (tabela Vero 11/08/2026).
-var _REV15_CIDADES_ESSENCIAL = [
+var _REV16_CIDADES_ESSENCIAL = [
     "ARUJA",
     "BRASÍLIA",
     "CATALAO",
@@ -78,8 +63,8 @@ var _REV15_CIDADES_ESSENCIAL = [
     "XANXERÊ"
 ];
 
-var _REV15_PLANOS = [
-    ["Última atualização: 13/08/2026 — Rev15: tabela Vero 11/08/2026 (MAPA DE OFERTAS B2C 2.0). Nova categoria VERO ESSENCIAL (420MB/550MB) + nova segmentação ESSENCIAL (cols 15/16, 18 cidades SP/GO/DF). VERO FAST PLUS DISNEY+ ADS 147,99→139,99 (preço do PROMO virou oficial). Demais preços inalterados.", "", "NG / ADAPTER", "NG / ADAPTER", "NG / ADAPTER", "NG / ADAPTER", "LANDING PAGE", "", "", "", "", "", "", "", "NOME_VERO (sweep canônico)", "SEGMENTAÇÃO NOVA 11/08/2026", ""],
+var _REV16_PLANOS = [
+    ["Última atualização: 13/08/2026 — Rev16: DISNEY+ ADS publicado na linha oficial (VeroHub 5726) e linha \"PROMO\" (5201) aposentada — mesmo preço 139,99, sem mudança para o cliente. + Móvel Combo 100GB (R$100, espelha VERO CONTROLE MAIS 100GB) destravando a criação automática do Móvel nos 3 combos PRO MAX de 100GB. Base: Rev15 (tabela Vero 11/08/2026, VERO ESSENCIAL + segmentação ESSENCIAL).", "", "NG / ADAPTER", "NG / ADAPTER", "NG / ADAPTER", "NG / ADAPTER", "LANDING PAGE", "", "", "", "", "", "", "", "NOME_VERO (sweep canônico)", "SEGMENTAÇÃO NOVA 11/08/2026", ""],
     ["Valores para pagamento via boleto", "TIPO", "ESPECIAIS", "OURO", "PRATA", "PADRÃO", "NOME_LP", "FEATURES", "PUBLICAR", "ESPECIAIS_REC", "OURO_REC", "PRATA_REC", "PADRÃO_REC", "PRODUTO_TIPO", "NOME_VERO", "ESSENCIAL", "ESSENCIAL_REC"],
     ["VERO MAIS 550MB + MÓVEL 20GB", "VERO MAIS", 112.9, 112.9, 112.9, 112.9, "Vero Mais", "20GB Celular | Wi-Fi 6 | Kiddle | Estuda Mais | Instalação Grátis", false, "102.9", "102.9", "102.9", "102.9", "FIBRA_COMBO", "VERO MAIS 550MB + MAIS CONECTADO 20GB", 112.9, "102.9"],
     ["VERO MAIS 800MB + GLP PREMIUM + MÓVEL 20GB", "VERO MAIS", 149.9, 149.9, 149.9, 149.9, "Vero Mais", "Globo Play Premium | 20GB Celular | Wi-Fi 6 | Instalação Grátis", false, "139.9", "139.9", "139.9", "139.9", "FIBRA_COMBO", "VERO MAIS 800MB + GLOBOPLAY PREMIUM + MAIS CONECTADO 20GB", 149.9, "139.9"],
@@ -121,6 +106,7 @@ var _REV15_PLANOS = [
     ["20GB | MAIS CONECTADO | COMBO", "MÓVEL COMBO", 40, 40, 40, 40, "", "", false, 40, 40, 40, 40, "MOVEL_COMBO", "", 40, 40],
     ["30GB | MAIS CONECTADO | COMBO", "MÓVEL COMBO", 50, 50, 50, 50, "", "", false, 50, 50, 50, 50, "MOVEL_COMBO", "", 50, 50],
     ["60GB | MAIS CONECTADO | COMBO", "MÓVEL COMBO", 80, 80, 80, 80, "", "", false, 80, 80, 80, 80, "MOVEL_COMBO", "", 80, 80],
+    ["100GB | MAIS CONECTADO | COMBO", "MÓVEL COMBO", 100, 100, 100, 100, "", "", false, 100, 100, 100, 100, "MOVEL_COMBO", "", 100, 100],
     ["VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU/TV BOX + MÓVEL 30GB", "VERO MAIS", 169.99, 169.99, 169.99, 169.99, "Vero Mais", "Esportes Futebol | YouTube Premium | ROKU/TV Box | 30GB Celular | Wi-Fi 6 | Instalação Grátis", true, "159.99", "159.99", "159.99", "159.99", "FIBRA_COMBO", "4688 - VERO MAIS 800MB + ESPORTES FUTEBOL + YOUTUBE PREMIUM + ROKU + MAIS CONECTADO 30GB", 169.99, "159.99"],
     ["VERO B2B IP FIXO 550MB", "B2B", 178, 178, 178, 178, "Vero B2B", "IP Fixo | 24 meses | Empresarial | Instalação Grátis", true, "", "", "", "", "FIBRA_ALONE", "", 178, ""],
     ["VERO B2B COMBO 750MB + 1 LINHA", "B2B", 99, 99, 99, 99, "Vero B2B", "750MB | 1 Linha Empresarial | 24 meses | Instalação Grátis", true, "", "", "", "", "FIBRA_ALONE", "", 99, ""],
@@ -135,8 +121,8 @@ var _REV15_PLANOS = [
     ["VERO FAST 700MB + MÓVEL 20GB", "VERO FAST", 123.99, 124.99, 128.99, 129.99, "Vero Fast", "20GB Celular | Wi-Fi 6 | Pequenos Leitores | Estuda Mais | Instalação Grátis", true, "113.99", "114.99", "118.99", "119.99", "FIBRA_COMBO", "VERO FAST 700MB + MAIS CONECTADO 20GB", 123.99, "113.99"],
     ["VERO FAST 700MB + MEDIQUO + MÓVEL 20GB", "VERO FAST", 128.99, 129.99, 133.99, 134.99, "Vero Fast", "20GB Celular | Mediquo | Wi-Fi 6 | Estuda Mais | UBOOK GO | Instalação Grátis", true, "118.99", "119.99", "123.99", "124.99", "FIBRA_COMBO", "VERO FAST 700MB + MEDIQUO + MAIS CONECTADO 20GB", 128.99, "118.99"],
     ["VERO FAST 700MB + ASSISTÊNCIA RESIDENCIAL + MÓVEL 20GB", "VERO FAST", 128.99, 129.99, 133.99, 134.99, "Vero Fast", "20GB Celular | Assistência Residencial | Wi-Fi 6 | Estuda Mais | Instalação Grátis | Exceto PR", true, "118.99", "119.99", "123.99", "124.99", "FIBRA_COMBO", "VERO FAST 700MB + ASSISTÊNCIA RESIDENCIAL + MAIS CONECTADO 20GB", 128.99, "118.99"],
-    ["VERO FAST PLUS 800MB + DISNEY+ ADS + MÓVEL 30GB", "VERO FAST PLUS", 139.99, 139.99, 139.99, 139.99, "Vero Fast Plus", "Disney+ com Anúncios | 30GB Celular | Wi-Fi 6 | Pequenos Leitores | Estuda Mais | Instalação Grátis", false, "129.99", "129.99", "129.99", "129.99", "FIBRA_COMBO", "VERO FAST MAIS 800MB + DISNEY+ COM ANÚNCIOS + MAIS CONECTADO 30GB", 139.99, "129.99"],
-    ["VERO FAST PLUS 800MB + DISNEY+ ADS + MÓVEL 30GB PROMO", "VERO FAST PLUS", 139.99, 139.99, 139.99, 139.99, "Vero Fast Plus", "Disney+ com Anúncios | 30GB Celular | Wi-Fi 6 | Pequenos Leitores | Estuda Mais | Instalação Grátis", true, "129.99", "129.99", "129.99", "129.99", "FIBRA_COMBO", "VERO FAST PLUS 800MB + DISNEY+ COM ANÚNCIOS + MAIS CONECTADO 30GB PROMO", 139.99, "129.99"],
+    ["VERO FAST PLUS 800MB + DISNEY+ ADS + MÓVEL 30GB", "VERO FAST PLUS", 139.99, 139.99, 139.99, 139.99, "Vero Fast Plus", "Disney+ com Anúncios | 30GB Celular | Wi-Fi 6 | Pequenos Leitores | Estuda Mais | Instalação Grátis", true, "129.99", "129.99", "129.99", "129.99", "FIBRA_COMBO", "VERO FAST MAIS 800MB + DISNEY+ COM ANÚNCIOS + MAIS CONECTADO 30GB", 139.99, "129.99"],
+    ["VERO FAST PLUS 800MB + DISNEY+ ADS + MÓVEL 30GB PROMO", "VERO FAST PLUS", 139.99, 139.99, 139.99, 139.99, "Vero Fast Plus", "Disney+ com Anúncios | 30GB Celular | Wi-Fi 6 | Pequenos Leitores | Estuda Mais | Instalação Grátis", false, "129.99", "129.99", "129.99", "129.99", "FIBRA_COMBO", "VERO FAST PLUS 800MB + DISNEY+ COM ANÚNCIOS + MAIS CONECTADO 30GB PROMO", 139.99, "129.99"],
     ["VERO FAST PLUS 800MB + HBO MAX ADS + MÓVEL 30GB", "VERO FAST PLUS", 147.99, 147.99, 147.99, 147.99, "Vero Fast Plus", "HBO Max com Anúncios | 30GB Celular | Wi-Fi 6 | Pequenos Leitores | Kiddle | Instalação Grátis", true, "137.99", "137.99", "137.99", "137.99", "FIBRA_COMBO", "VERO FAST MAIS 800MB + HBO MAX COM ANÚNCIOS + MAIS CONECTADO 30GB", 147.99, "137.99"],
     ["VERO FAST PLUS 800MB + GLOBOPLAY ADS + MÓVEL 30GB", "VERO FAST PLUS", 147.99, 147.99, 147.99, 147.99, "Vero Fast Plus", "Globoplay com Anúncios | 30GB Celular | Wi-Fi 6 | Pequenos Leitores | UBOOK GO | Instalação Grátis", true, "137.99", "137.99", "137.99", "137.99", "FIBRA_COMBO", "VERO FAST MAIS 800MB + GLOBOPLAY COM ANÚNCIOS + MAIS CONECTADO 30GB", 147.99, "137.99"],
     ["VERO FAST PLUS 800MB + DISNEY+ PADRÃO + MÓVEL 30GB", "VERO FAST PLUS", 149.99, 149.99, 149.99, 149.99, "Vero Fast Plus", "Disney+ Padrão | 30GB Celular | Wi-Fi 6 | Pequenos Leitores | Instalação Grátis", true, "139.99", "139.99", "139.99", "139.99", "FIBRA_COMBO", "VERO FAST MAIS 800MB + DISNEY+ PADRÃO + MAIS CONECTADO 30GB", 149.99, "139.99"],
@@ -165,79 +151,82 @@ var _REV15_PLANOS = [
 ];
 
 /** Normalizacao igual a do Code.js (sem acento, upper, espacos colapsados). */
-function _rev15Norm_(s) {
+function _rev16Norm_(s) {
   return String(s == null ? '' : s)
            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
            .toUpperCase().replace(/\s+/g, ' ').trim();
 }
 
-/** (1) Dry-run do JSON: compara o que esta no Drive com a Rev15. */
-function _rev15DryRun() {
+/** (1) Dry-run do JSON: compara o que esta no Drive com a Rev16. */
+function _rev16DryRun() {
   var atual = JSON.parse(DriveApp.getFileById(CONFIG.TABELA_JSON_FILE_ID)
                                  .getBlob().getDataAsString());
-  var novo  = _REV15_PLANOS;
+  var novo = _REV16_PLANOS;
   Logger.log('Drive atual: ' + atual.length + ' linhas x ' + atual[1].length + ' cols');
-  Logger.log('Rev15      : ' + novo.length  + ' linhas x ' + novo[1].length  + ' cols');
+  Logger.log('Rev16      : ' + novo.length + ' linhas x ' + novo[1].length + ' cols');
 
   var mapA = {}, i;
-  for (i = 2; i < atual.length; i++) mapA[_rev15Norm_(atual[i][0])] = atual[i];
-  var novos = [], alterados = [];
+  for (i = 2; i < atual.length; i++) mapA[_rev16Norm_(atual[i][0])] = atual[i];
+  var novos = [], precos = [], flags = [];
   for (i = 2; i < novo.length; i++) {
-    var r = novo[i], k = _rev15Norm_(r[0]), a = mapA[k];
+    var r = novo[i], k = _rev16Norm_(r[0]), a = mapA[k];
     if (!a) { novos.push(r[0]); continue; }
     if (String(a[2]) !== String(r[2]) || String(a[9]) !== String(r[9])) {
-      alterados.push(r[0] + ': boleto ' + a[2] + '->' + r[2] + ' | rec ' + a[9] + '->' + r[9]);
+      precos.push(r[0] + ': boleto ' + a[2] + '->' + r[2] + ' | rec ' + a[9] + '->' + r[9]);
+    }
+    if (String(a[8]) !== String(r[8])) {
+      flags.push(r[0] + ': PUBLICAR ' + a[8] + '->' + r[8]);
     }
     delete mapA[k];
   }
   var removidos = Object.keys(mapA);
   Logger.log('PLANOS NOVOS (' + novos.length + '): ' + JSON.stringify(novos));
-  Logger.log('PRECOS ALTERADOS (' + alterados.length + '): ' + JSON.stringify(alterados));
+  Logger.log('PRECOS ALTERADOS (' + precos.length + '): ' + JSON.stringify(precos));
+  Logger.log('PUBLICAR ALTERADO (' + flags.length + '): ' + JSON.stringify(flags));
   Logger.log('SUMIRAM (' + removidos.length + '): ' + JSON.stringify(removidos));
-  Logger.log('Esperado: 4 novos (VERO ESSENCIAL), 1 alterado (DISNEY+ ADS), 0 sumidos.');
-  return { novos: novos, alterados: alterados, removidos: removidos };
+  Logger.log('Esperado: 1 novo (100GB combo), 0 precos, 2 PUBLICAR (Disney normal true / PROMO false), 0 sumidos.');
+  return { novos: novos, precos: precos, flags: flags, removidos: removidos };
 }
 
-/** (2) Grava a Rev15 no Drive e invalida o cache do _getTabela(). */
-function _atualizarPlanosVeroJsonRev15() {
-  var conteudo = JSON.stringify(_REV15_PLANOS, null, 2);
+/** (2) Grava a Rev16 no Drive e invalida o cache do _getTabela(). */
+function _atualizarPlanosVeroJsonRev16() {
+  var conteudo = JSON.stringify(_REV16_PLANOS, null, 2);
   DriveApp.getFileById(CONFIG.TABELA_JSON_FILE_ID).setContent(conteudo);
   try { CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + 'tabela_v1'); } catch (e) {}
-  var msg = 'OK Rev15 - ' + _REV15_PLANOS.length + ' linhas, ' +
-            conteudo.length + ' bytes. Cache invalidado.';
+  var msg = 'OK Rev16 - ' + _REV16_PLANOS.length + ' linhas, ' +
+            conteudo.length + ' chars. Cache invalidado.';
   Logger.log(msg);
   return msg;
 }
 
-/** (3) Dry-run da segmentacao: mostra a segmentacao atual das 18 cidades. */
-function _rev15SegmentacaoDryRun() {
-  return _rev15AplicarSegmentacao_(true);
+/** (3) FASE 2 dry-run: mostra a segmentacao atual das 18 cidades. */
+function _rev16SegmentacaoDryRun() {
+  return _rev16AplicarSegmentacao_(true);
 }
 
-/** (4) Grava SEGMENTACAO = ESSENCIAL na aba CIDADES e no cidades_vero.json. */
-function _atualizarSegmentacaoEssencialRev15() {
-  return _rev15AplicarSegmentacao_(false);
+/** (4) FASE 2: grava SEGMENTACAO = ESSENCIAL na aba CIDADES e no cidades_vero.json. */
+function _atualizarSegmentacaoEssencialRev16() {
+  return _rev16AplicarSegmentacao_(false);
 }
 
-function _rev15AplicarSegmentacao_(dryRun) {
+function _rev16AplicarSegmentacao_(dryRun) {
   var alvo = {};
-  for (var i = 0; i < _REV15_CIDADES_ESSENCIAL.length; i++) {
-    alvo[_rev15Norm_(_REV15_CIDADES_ESSENCIAL[i])] = true;
+  for (var i = 0; i < _REV16_CIDADES_ESSENCIAL.length; i++) {
+    alvo[_rev16Norm_(_REV16_CIDADES_ESSENCIAL[i])] = true;
   }
 
   // -- a) aba CIDADES (fonte de getOfertasCidade / getValorPlano / dropdown) --
-  // Layout: col 2 SISTEMA, col 3 SEGMENTACAO, col 6 CIDADE (0-based), igual ao
-  // que getOfertasCidade ja le hoje.
-  var sh   = _getSpreadsheet_().getSheetByName('CIDADES');
+  // Layout: col 2 SISTEMA, col 3 SEGMENTACAO, col 6 CIDADE (0-based).
+  var sh = _getSpreadsheet_().getSheetByName('CIDADES');
   var vals = sh.getDataRange().getValues();
   var achadas = [], naoAchadas = [], jaOk = [];
   var vistos = {};
   for (var r = 0; r < vals.length; r++) {
-    var nome = _rev15Norm_(vals[r][6]);
+    var nome = _rev16Norm_(vals[r][6]);
     if (!nome || !alvo[nome]) continue;
     vistos[nome] = true;
     var atualSeg = String(vals[r][3] || '').trim();
-    if (_rev15Norm_(atualSeg) === 'ESSENCIAL') { jaOk.push(vals[r][6]); continue; }
+    if (_rev16Norm_(atualSeg) === 'ESSENCIAL') { jaOk.push(vals[r][6]); continue; }
     achadas.push({ linha: r + 1, cidade: vals[r][6], de: atualSeg, para: 'ESSENCIAL' });
     if (!dryRun) sh.getRange(r + 1, 4).setValue('ESSENCIAL'); // col D = indice 3
   }
@@ -256,10 +245,10 @@ function _rev15AplicarSegmentacao_(dryRun) {
     var lista = data.cidades || [], mudou = 0, faltando = [];
     var vistos2 = {};
     for (var j = 0; j < lista.length; j++) {
-      var n2 = _rev15Norm_(lista[j].nome);
+      var n2 = _rev16Norm_(lista[j].nome);
       if (!alvo[n2]) continue;
       vistos2[n2] = true;
-      if (_rev15Norm_(lista[j].segmentacao) === 'ESSENCIAL') continue;
+      if (_rev16Norm_(lista[j].segmentacao) === 'ESSENCIAL') continue;
       if (!dryRun) lista[j].segmentacao = 'ESSENCIAL';
       mudou++;
     }
