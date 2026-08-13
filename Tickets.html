@@ -353,19 +353,11 @@ function _tktCarregarPessoas() {
 }
 
 // Reconstrói os 4 selects de pessoa preservando a seleção atual.
-// Nomes que aparecem em tickets existentes mas não estão mais na lista de
-// usuários ativos entram como "(inativo)" — senão o filtro deixaria de achá-los
-// e o modal de edição apagaria o campo em silêncio ao salvar.
+// Lista APENAS usuários ativos — quem saiu da empresa não aparece, mesmo que
+// ainda conste em tickets antigos. A preservação de nome desligado é pontual:
+// acontece só no modal de edição, via _tktGarantirOpcao, para aquele ticket.
 function _tktPopularSelectsPessoas() {
   var ativos = (_tktPessoas || []).slice();
-  var legado = [];
-  (_tktDados || []).forEach(function(t) {
-    [t.criador, t.atribuido].forEach(function(n) {
-      n = String(n || '').trim();
-      if (n && ativos.indexOf(n) === -1 && legado.indexOf(n) === -1) legado.push(n);
-    });
-  });
-  legado.sort(function(a, b) { return a.localeCompare(b, 'pt-BR'); });
 
   [
     { id: 'tktFiltroCriador',   sentinela: '<option value="">Criador: Todos</option>' },
@@ -380,15 +372,16 @@ function _tktPopularSelectsPessoas() {
     ativos.forEach(function(n) {
       html += '<option value="' + esc(n) + '">' + esc(n) + '</option>';
     });
-    legado.forEach(function(n) {
-      html += '<option value="' + esc(n) + '">' + esc(n) + ' (inativo)</option>';
-    });
     sel.innerHTML = html;
-    if (anterior) _tktGarantirOpcao(sel, anterior);
+    // Só repõe a seleção anterior se ela ainda for um usuário ativo — assim um
+    // filtro não ressuscita nome desligado ao repopular.
+    if (anterior && ativos.indexOf(anterior) !== -1) sel.value = anterior;
   });
 }
 
 // Garante que `valor` exista como opção do select e o deixa selecionado.
+// Usado só no modal (Novo/Editar), para não perder o nome já gravado num
+// ticket antigo de alguém que não está mais ativo.
 function _tktGarantirOpcao(sel, valor) {
   if (!sel) return;
   valor = String(valor || '');
