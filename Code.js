@@ -9531,6 +9531,62 @@ function salvarTickets(json) {
   }
 }
 
+// Chave de cache dos nomes de usuários ativos (usada por getUsuariosAtivosNomes
+// e invalidada pelos writes do módulo Gerenciar Usuários).
+var CACHE_KEY_USUARIOS_NOMES = 'usuarios_ativos_nomes_v1';
+
+function _limparCacheUsuariosNomes_() {
+  try {
+    CacheService.getScriptCache().remove(CONFIG.CACHE_PREFIX + CACHE_KEY_USUARIOS_NOMES);
+  } catch(e) { /* cache indisponível — próxima leitura reconstrói */ }
+}
+
+/** Nomes dos usuários ATIVOS do CRM, para popular selects de pessoas
+ *  (hoje: Criador / Atribuído dos Tickets).
+ *
+ *  Fonte: aba `Usuarios` (col C = nome, col F = ativo). Se a aba estiver vazia
+ *  ou inacessível, cai no array `USUARIOS` do Config.js — mesmo fallback do
+ *  `validarLogin`. Não exige admin: a página Tickets é aberta a todos os perfis
+ *  e o retorno traz apenas o nome (sem senhaHash, perfil, login ou foto). */
+function getUsuariosAtivosNomes() {
+  try {
+    var cache    = CacheService.getScriptCache();
+    var cacheKey = CONFIG.CACHE_PREFIX + CACHE_KEY_USUARIOS_NOMES;
+    try {
+      var cached = cache.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch(ce) {}
+
+    var fonte = 'sheet';
+    var lista = _getUsuariosSheet_();
+    if (!lista || lista.length === 0) {
+      fonte = 'config';
+      lista = (typeof USUARIOS !== 'undefined' ? USUARIOS : []).map(function(u) {
+        return { nome: u.nome, ativo: true };
+      });
+    }
+
+    var nomes = [];
+    lista.forEach(function(u) {
+      if (u.ativo === false) return;
+      var nome = String(u.nome || '').trim();
+      if (nome && nomes.indexOf(nome) === -1) nomes.push(nome);
+    });
+    nomes.sort(function(a, b) { return a.localeCompare(b, 'pt-BR'); });
+
+    // `fonte: 'config'` significa aba `Usuarios` vazia/inacessível — nesse estado
+    // desativar alguém pelo Gerenciar Usuários não tem efeito (rodar
+    // migrarUsuariosParaSheet() uma vez para popular a aba).
+    Logger.log('getUsuariosAtivosNomes: ' + nomes.length + ' nome(s), fonte=' + fonte);
+    var retorno = { ok: true, fonte: fonte, nomes: nomes };
+    try { cache.put(cacheKey, JSON.stringify(retorno), 300); } catch(ce) {}
+    return retorno;
+  } catch(e) {
+    Logger.log('getUsuariosAtivosNomes erro: ' + e.message);
+    return { ok: false, mensagem: e.message, nomes: [] };
+  }
+}
+
 // ── TICKETS — Upload de print para Google Drive ─────────────────────────
 var TICKETS_PRINTS_FOLDER = 'DharmaPro_Tickets_Prints';
 
@@ -10085,9 +10141,11 @@ function salvarUsuario(adminUsuario, dados) {
 
     if (existingRow > 0) {
       sheet.getRange(existingRow, 1, 1, 6).setValues([rowData]);
+      _limparCacheUsuariosNomes_();
       return { ok: true, mensagem: 'Usuário atualizado com sucesso.' };
     } else {
       sheet.appendRow(rowData);
+      _limparCacheUsuariosNomes_();
       return { ok: true, mensagem: 'Usuário criado com sucesso.' };
     }
   } catch(e) {
@@ -10112,6 +10170,7 @@ function toggleAtivoUsuario(adminUsuario, usuarioAlvo, ativo) {
     for (var i = 0; i < colA.length; i++) {
       if (String(colA[i][0]).trim().toLowerCase() === uKey) {
         sheet.getRange(i + 2, 6).setValue(ativo === true);
+        _limparCacheUsuariosNomes_();
         return { ok: true, mensagem: 'Status atualizado.' };
       }
     }
@@ -10171,6 +10230,7 @@ function excluirUsuario(adminUsuario, usuarioAlvo) {
     for (var i = 0; i < colA.length; i++) {
       if (String(colA[i][0]).trim().toLowerCase() === uAlvo) {
         sheet.deleteRow(i + 2);
+        _limparCacheUsuariosNomes_();
         return { ok: true, mensagem: 'Usuário excluído.' };
       }
     }

@@ -174,15 +174,12 @@
     <span class="tkt-toolbar-sep">·</span>
     <span id="tktTotalCount" style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;">—</span>
     <div class="tkt-filters">
+      <!-- Opções populadas por _tktPopularSelectsPessoas() a partir da aba Usuarios -->
       <select class="tkt-select" id="tktFiltroCriador" onchange="tktAplicarFiltros()">
         <option value="">Criador: Todos</option>
-        <option>Joysse Coelho</option><option>Ricardo Andrade</option>
-        <option>Tuany Rodrigues</option><option>Vanessa Andrade</option>
       </select>
       <select class="tkt-select" id="tktFiltroAtribuido" onchange="tktAplicarFiltros()">
         <option value="">Atribuído: Todos</option>
-        <option>Joysse Coelho</option><option>Ricardo Andrade</option>
-        <option>Tuany Rodrigues</option><option>Vanessa Andrade</option>
       </select>
       <select class="tkt-select" id="tktFiltroPri" onchange="tktAplicarFiltros()">
         <option value="">Prioridade: Todas</option>
@@ -245,11 +242,12 @@
         </div>
       </div>
       <div class="tkt-campo-row">
+        <!-- Opções populadas por _tktPopularSelectsPessoas() a partir da aba Usuarios -->
         <div class="tkt-campo"><label>Criado por</label>
-          <select id="tktF_criador"><option>Joysse Coelho</option><option>Ricardo Andrade</option><option>Tuany Rodrigues</option><option>Vanessa Andrade</option></select>
+          <select id="tktF_criador"></select>
         </div>
         <div class="tkt-campo"><label>Atribuído a</label>
-          <select id="tktF_atribuido"><option value="">Ninguém</option><option>Joysse Coelho</option><option>Ricardo Andrade</option><option>Tuany Rodrigues</option><option>Vanessa Andrade</option></select>
+          <select id="tktF_atribuido"><option value="">Ninguém</option></select>
         </div>
       </div>
       <!-- Prints / Anexos -->
@@ -306,19 +304,23 @@ var _tktDados     = [];
 var _tktFiltrado  = [];
 var _tktDragId    = null;
 var _tktDetalheId = null;
+var _tktPessoas   = [];   // nomes dos usuários ATIVOS (aba Usuarios, via getUsuariosAtivosNomes)
 
 // ── INICIALIZAÇÃO ──────────────────────────────────────────────
 function carregarTickets() {
+  _tktCarregarPessoas();
   if (typeof google !== 'undefined' && google.script) {
     google.script.run
       .withSuccessHandler(function(json) {
         try { _tktDados = JSON.parse(json) || []; } catch(e) { _tktDados = []; }
+        _tktPopularSelectsPessoas();
         tktAplicarFiltros();
         tktAtualizarBadge();
         _tktIniciarShakePeriodico(); // ← shake a cada 2h
       })
       .withFailureHandler(function() {
         if (!_tktDados.length && typeof TICKETS !== 'undefined') _tktDados = TICKETS.slice();
+        _tktPopularSelectsPessoas();
         tktAplicarFiltros();
         tktAtualizarBadge();
         _tktIniciarShakePeriodico();
@@ -326,10 +328,79 @@ function carregarTickets() {
       .getTickets();
   } else {
     if (typeof TICKETS !== 'undefined') _tktDados = TICKETS.slice();
+    _tktPopularSelectsPessoas();
     tktAplicarFiltros();
     tktAtualizarBadge();
     _tktIniciarShakePeriodico();
   }
+}
+
+// ── PESSOAS (Criador / Atribuído) ──────────────────────────────
+// Fonte única: usuários ATIVOS cadastrados no CRM (aba `Usuarios`).
+// Antes esta lista era hardcoded no HTML e mantinha atendentes desligados.
+function _tktCarregarPessoas() {
+  if (typeof google === 'undefined' || !google.script) { _tktPopularSelectsPessoas(); return; }
+  google.script.run
+    .withSuccessHandler(function(res) {
+      _tktPessoas = (res && res.nomes) ? res.nomes : [];
+      _tktPopularSelectsPessoas();
+    })
+    .withFailureHandler(function() {
+      // Sem backend: os selects ficam só com os nomes já presentes nos tickets.
+      _tktPopularSelectsPessoas();
+    })
+    .getUsuariosAtivosNomes();
+}
+
+// Reconstrói os 4 selects de pessoa preservando a seleção atual.
+// Nomes que aparecem em tickets existentes mas não estão mais na lista de
+// usuários ativos entram como "(inativo)" — senão o filtro deixaria de achá-los
+// e o modal de edição apagaria o campo em silêncio ao salvar.
+function _tktPopularSelectsPessoas() {
+  var ativos = (_tktPessoas || []).slice();
+  var legado = [];
+  (_tktDados || []).forEach(function(t) {
+    [t.criador, t.atribuido].forEach(function(n) {
+      n = String(n || '').trim();
+      if (n && ativos.indexOf(n) === -1 && legado.indexOf(n) === -1) legado.push(n);
+    });
+  });
+  legado.sort(function(a, b) { return a.localeCompare(b, 'pt-BR'); });
+
+  [
+    { id: 'tktFiltroCriador',   sentinela: '<option value="">Criador: Todos</option>' },
+    { id: 'tktFiltroAtribuido', sentinela: '<option value="">Atribuído: Todos</option>' },
+    { id: 'tktF_criador',       sentinela: '' },
+    { id: 'tktF_atribuido',     sentinela: '<option value="">Ninguém</option>' }
+  ].forEach(function(cfg) {
+    var sel = document.getElementById(cfg.id);
+    if (!sel) return;
+    var anterior = sel.value;
+    var html = cfg.sentinela;
+    ativos.forEach(function(n) {
+      html += '<option value="' + esc(n) + '">' + esc(n) + '</option>';
+    });
+    legado.forEach(function(n) {
+      html += '<option value="' + esc(n) + '">' + esc(n) + ' (inativo)</option>';
+    });
+    sel.innerHTML = html;
+    if (anterior) _tktGarantirOpcao(sel, anterior);
+  });
+}
+
+// Garante que `valor` exista como opção do select e o deixa selecionado.
+function _tktGarantirOpcao(sel, valor) {
+  if (!sel) return;
+  valor = String(valor || '');
+  if (!valor) { sel.value = ''; return; }
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === valor) { sel.value = valor; return; }
+  }
+  var opt = document.createElement('option');
+  opt.value = valor;
+  opt.textContent = valor + ' (inativo)';
+  sel.appendChild(opt);
+  sel.value = valor;
 }
 
 // ── FILTROS ────────────────────────────────────────────────────
@@ -421,6 +492,7 @@ function tktDrop(e, novoStatus) {
 
 // ── MODAL NOVO / EDITAR ────────────────────────────────────────
 function tktAbrirModalNovo() {
+  _tktPopularSelectsPessoas();
   document.getElementById('tktModalTitulo').textContent = '✦ Novo Ticket';
   document.getElementById('tktF_id').value        = '';
   document.getElementById('tktF_titulo').value    = '';
@@ -428,9 +500,9 @@ function tktAbrirModalNovo() {
   document.getElementById('tktF_pri').value       = 'Média';
   document.getElementById('tktF_status').value    = 'Aberto';
   document.getElementById('tktF_atribuido').value = '';
-  var nomeLogado = document.getElementById('nomeUsuario') ? document.getElementById('nomeUsuario').textContent : '';
+  var nomeLogado = document.getElementById('nomeUsuario') ? document.getElementById('nomeUsuario').textContent.trim() : '';
   var sel = document.getElementById('tktF_criador');
-  if (sel && nomeLogado) for (var i = 0; i < sel.options.length; i++) { if (sel.options[i].value === nomeLogado) { sel.value = nomeLogado; break; } }
+  if (sel && nomeLogado) _tktGarantirOpcao(sel, nomeLogado);
   // Novo ticket: botão excluir oculto
   var btnDel = document.getElementById('tktBtnDeletar');
   btnDel.style.display = 'none';
@@ -444,14 +516,16 @@ function tktAbrirModalNovo() {
 function tktAbrirModalEditar(id) {
   var ticket = _tktDados.find(function(t) { return t.id === id; });
   if (!ticket) return;
+  _tktPopularSelectsPessoas();
   document.getElementById('tktModalTitulo').textContent  = '✏️ Editar Ticket';
   document.getElementById('tktF_id').value               = ticket.id;
   document.getElementById('tktF_titulo').value           = ticket.titulo || '';
   document.getElementById('tktF_desc').value             = ticket.descricao || '';
   document.getElementById('tktF_pri').value              = ticket.prioridade || 'Média';
   document.getElementById('tktF_status').value           = ticket.status || 'Aberto';
-  document.getElementById('tktF_criador').value          = ticket.criador || '';
-  document.getElementById('tktF_atribuido').value        = ticket.atribuido || '';
+  // Preserva o nome gravado no ticket mesmo se o usuário não estiver mais ativo.
+  _tktGarantirOpcao(document.getElementById('tktF_criador'),   ticket.criador   || '');
+  _tktGarantirOpcao(document.getElementById('tktF_atribuido'), ticket.atribuido || '');
 
   // Carrega prints existentes
   _tktPrintsTemp = (ticket.prints || []).slice();
