@@ -134,14 +134,14 @@ function _alertasCatalogoEstatico_() {
       cron: '0 8,14,20 * * *',
       cronHumano: 'Todo dia · 8h, 14h e 20h',
       origem: 'n8n → endpoint DharmaPro `?action=resumo_trafego`',
-      destinoApelido: 'ricardo',
-      destinoHumano: 'Grupo "Tráfego Pago | Vero Fibra Ricardo" (repurposed 28/05/2026)',
+      destinoApelido: 'trafego',
+      destinoHumano: 'Grupo "Ads | Mobile 🤝🏻 Simone" (desde 16/08/2026)',
       idempotencia: '—',
       n8nWorkflowId: 'rZi4ZpL1Sj8tvcMz',
       amostraFn: '_amostraAlertaTrafego',
       podeDisparar: true,
       disparoFn: '_disparoAlerta7TrafegoAgora',
-      disparoConfirma: 'Vai mandar o resumo de Tráfego AGORA no grupo "Tráfego Pago | Vero Fibra Ricardo". Confirma?'
+      disparoConfirma: 'Vai mandar o resumo de Tráfego AGORA no grupo "Ads | Mobile 🤝🏻 Simone". Confirma?'
     },
     {
       id: 'alerta8_leads_meta_digest',
@@ -191,8 +191,8 @@ function _alertasCatalogoEstatico_() {
       gatilho: 'Função `enviarResumoTrafegoAgora` (sem botão UI hoje — só via editor ou pela própria página Alertas Op)',
       gatilhoHumano: 'Sob demanda — mesmo conteúdo do alerta 7 em qualquer hora',
       origem: 'DharmaPro — `enviarResumoTrafegoAgora` em MetaAdsAPI.js',
-      destinoApelido: 'ricardo',
-      destinoHumano: 'Grupo "Tráfego Pago | Vero Fibra Ricardo" (mesmo do alerta 7)',
+      destinoApelido: 'trafego',
+      destinoHumano: 'Grupo "Ads | Mobile 🤝🏻 Simone" (mesmo do alerta 7)',
       idempotencia: '—',
       ativoCodigo: true,
       n8nWorkflowId: null,
@@ -200,7 +200,7 @@ function _alertasCatalogoEstatico_() {
       amostraFn: '_amostraAlertaTrafego',
       podeDisparar: true,
       disparoFn: '_disparoAlerta7TrafegoAgora',
-      disparoConfirma: 'Vai mandar o resumo de Tráfego AGORA no grupo "Tráfego Pago | Vero Fibra Ricardo". Confirma?'
+      disparoConfirma: 'Vai mandar o resumo de Tráfego AGORA no grupo "Ads | Mobile 🤝🏻 Simone". Confirma?'
     }
   ];
 }
@@ -514,7 +514,7 @@ function dispararAlertaOpAgora(alertaId) {
 
 /**
  * Alerta 7 / Manual Tráfego — reusa enviarResumoTrafegoAgora.
- * Vai pro grupo "Tráfego Pago | Vero Fibra Ricardo" via apelido `ricardo`.
+ * Vai pro grupo "Ads | Mobile 🤝🏻 Simone" via apelido `trafego`.
  */
 function _disparoAlerta7TrafegoAgora() {
   if (typeof enviarResumoTrafegoAgora !== 'function') {

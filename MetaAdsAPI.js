@@ -2943,8 +2943,8 @@ function getResumoTrafegoHoje() {
 }
 
 /**
- * Dispara o resumo de tráfego (alerta 7) AGORA no WhatsApp do Ricardo (DM),
- * sob demanda — mesmo conteúdo do alerta automático (8/14/20h), via Flow 1
+ * Dispara o resumo de tráfego (alerta 7) AGORA no grupo de tráfego, sob demanda
+ * — mesmo conteúdo e mesmo destino do alerta automático (8/14/20h), via Flow 1
  * do disparo-grupo. Rodar no editor ou usar como gatilho manual.
  * @returns {{ok:boolean, mensagem:string}}
  */
@@ -2974,7 +2974,9 @@ function enviarResumoTrafegoAgora() {
     '📣 Campanhas ativas (' + campanhas.length + '): ' + (campanhas.join(' · ') || '—') + '\n' +
     '🏦 Contas: ' + ((meta.contas || []).join(' + ') || '—');
 
-  var ok = enviarParaGrupoWhatsApp(msg); // default (Mobile Fibra) — grupo "Tráfego Pago" foi desativado 17/07/2026
+  // destino 'trafego' = grupo "Ads | Mobile 🤝🏻 Simone" (120363411634593711@g.us),
+  // mesmo destino do alerta 7 automático. Apelido resolvido no Flow 1.
+  var ok = enviarParaGrupoWhatsApp(msg, 'trafego');
   Logger.log('enviarResumoTrafegoAgora: ' + (ok ? 'ENVIADO' : 'FALHOU') + '\n' + msg);
   return { ok: ok, mensagem: msg };
 }
