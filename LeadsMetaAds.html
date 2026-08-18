@@ -1,540 +1,398 @@
 <!-- ══════════════════════════════════════════════════════════════════════════
-     Módulo: Leads Meta Ads | DharmaPro v2.0 | Abril/2026
+     Módulo: Leads Meta Ads | DharmaPro | redesign Agosto/2026
+     Visual "Sistema B" (mesma linguagem de Dashboard.html / Relatorios.html).
      ══════════════════════════════════════════════════════════════════════════ -->
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Instrument+Serif:ital@0;1&family=Martian+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
 
 <style>
-/* ── PÁGINA LEADS META ADS ─────────────────────────────────────────────── */
+/* ═══ LEADS META ADS ═══════════════════════════════════════════════════════
+   O conteúdo vive isolado em #lmaContainer (all:initial + reset universal).
+   Os 2 modais ficam FORA dele, como irmãos: usam as classes globais do
+   Index (.modal-overlay/.modal-box) e o reset daqui zeraria os paddings.   */
 #pageLeadsMetaAds.ativa {
-  display: flex !important;
-  flex-direction: column;
-  position: fixed;
-  top: 49px; left: 230px; right: 0; bottom: 0;
+  display: block !important;
+  position: fixed; top: 49px; left: 230px; right: 0; bottom: 0;
   overflow: hidden; z-index: 10;
 }
-#pageLeadsMetaAds.ativa .lma-body {
-  flex: 1;
-  overflow: auto;
-  background: var(--bg);
-  min-height: 0;
-}
-#pageLeadsMetaAds.ativa .lma-body::-webkit-scrollbar { width: 4px; height: 6px; }
-#pageLeadsMetaAds.ativa .lma-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+#lmaContainer{all:initial;display:block;width:100%;height:100%;overflow-y:auto;background:#08090e;color:#dde2f0;font-family:'DM Sans',sans-serif;position:relative}
+#lmaContainer *,#lmaContainer *::before,#lmaContainer *::after{box-sizing:border-box;margin:0;padding:0}
+#lmaContainer{--bg:#08090e;--s1:#0e1018;--s2:#131620;--s3:#191d2c;--rim:rgba(255,255,255,.06);--rim2:rgba(255,255,255,.12);--txt:#dde2f0;--dim:#5a6080;--dim2:#8490b8;--em:#f0f4ff;--g1:#c8ff5e;--g2:#00d4ff;--g3:#ff4570;--g4:#ffaa00;--g5:#a78bfa;--mono:'Martian Mono',monospace;--r:14px}
+#lmaContainer::-webkit-scrollbar{width:4px;height:8px}
+#lmaContainer::-webkit-scrollbar-track{background:transparent}
+#lmaContainer::-webkit-scrollbar-thumb{background:var(--rim2);border-radius:2px}
 
-/* ── TOOLBAR ── */
-.lma-toolbar {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 24px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0; flex-wrap: wrap;
-}
-.lma-toolbar h2 { font-size: 16px; font-weight: 800; flex: 1; }
+/* ── Header sticky (absorve total, novos hoje, perdidos e o dot de reconciliação) ── */
+#lmaContainer .lma-top{position:sticky;top:0;z-index:100;height:52px;padding:0 24px;display:flex;align-items:center;gap:14px;background:rgba(8,9,14,.92);backdrop-filter:blur(24px);border-bottom:1px solid var(--rim)}
+#lmaContainer .lma-title{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.2em;color:var(--dim2);text-transform:uppercase;white-space:nowrap}
+#lmaContainer .lma-sub{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.06em;margin-top:4px;white-space:nowrap}
+#lmaContainer .lma-sub b{color:var(--dim2);font-weight:500}
+#lmaContainer .lma-sub .warn{color:var(--g4)}
+#lmaContainer .lma-sub .good{color:var(--g1)}
+#lmaContainer .lma-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--g1);margin-right:5px;vertical-align:middle}
+#lmaContainer .lma-dot.warn{background:var(--g4)}
+#lmaContainer .lma-dot.off{background:var(--dim)}
+#lmaContainer .lma-top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
 
-.lma-btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 8px 16px;
-  background: var(--surface2); color: var(--text);
-  border: 1px solid var(--border); border-radius: 8px;
-  font-size: 12px; font-weight: 700; font-family: 'Sora', sans-serif;
-  cursor: pointer; transition: background .2s;
-}
-.lma-btn:hover { background: var(--border); }
+#lmaContainer .lma-btn{padding:7px 12px;border-radius:8px;background:var(--s2);border:1px solid var(--rim);color:var(--dim2);font-size:11px;font-weight:600;cursor:pointer;font-family:var(--mono);letter-spacing:.05em;transition:all .15s;white-space:nowrap}
+#lmaContainer .lma-btn:hover{background:var(--s3);color:var(--em);border-color:var(--rim2)}
+#lmaContainer .lma-btn.ico{padding:7px 10px;font-size:12px}
+#lmaContainer .lma-btn.accent{background:rgba(0,212,255,.08);border-color:rgba(0,212,255,.22);color:var(--g2)}
+#lmaContainer .lma-btn.accent:hover{background:rgba(0,212,255,.16)}
 
-/* ── CARDS RESUMO ── */
-.lma-resumo {
-  display: flex; gap: 12px; padding: 18px 24px 18px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto; flex-shrink: 0;
-}
-.lma-resumo::-webkit-scrollbar { height: 3px; }
-.lma-resumo::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+#lmaContainer .lma-seg{display:inline-flex;border:1px solid var(--rim);border-radius:8px;overflow:hidden}
+#lmaContainer .lma-seg-b{padding:7px 12px;background:var(--s2);border:none;color:var(--dim);font-size:11px;font-family:var(--mono);letter-spacing:.05em;cursor:pointer}
+#lmaContainer .lma-seg-b:hover{color:var(--em)}
+#lmaContainer .lma-seg-b.on{background:var(--s3);color:var(--em)}
 
-.lma-card {
-  flex: 1; min-width: 0;                 /* divide a largura igualmente entre os 6 */
-  background: var(--surface2); border: 1px solid var(--border);
-  border-top-width: 2px;                  /* faixa de cor no topo (identidade) */
-  border-radius: 9px; padding: 5px 12px;
-}
-.lma-card.c-novos    { border-top-color: rgba(130,130,255,.7); }
-.lma-card.c-pend     { border-top-color: rgba(230,180,62,.8); }
-.lma-card.c-nego     { border-top-color: rgba(62,130,230,.8); }
-.lma-card.c-conv     { border-top-color: rgba(62,230,130,.8); }
-.lma-card.c-desq     { border-top-color: rgba(230,62,62,.8); }
-.lma-card-label { font-size: 9px; font-weight: 700; color: var(--muted);
-  text-transform: uppercase; letter-spacing: .5px; margin-bottom: 1px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lma-card-valor { font-size: 16px; font-weight: 800; font-family: 'DM Mono', monospace; color: var(--text); line-height: 1.1; }
-.lma-card-sub   { font-size: 9px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 1px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#lmaContainer .lma-tag{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;background:transparent;border:1px solid var(--rim);color:var(--dim);font-family:var(--mono);font-size:10px;letter-spacing:.08em;cursor:pointer}
+#lmaContainer .lma-tag:hover{border-color:var(--rim2)}
+#lmaContainer .lma-tag.on{color:var(--g1);border-color:rgba(200,255,94,.24)}
+#lmaContainer .lma-tag-dot{width:6px;height:6px;border-radius:50%;background:var(--dim);display:inline-block}
+#lmaContainer .lma-tag.on .lma-tag-dot{background:var(--g1)}
+#lmaContainer .lma-tag-dot.girando{animation:lmapulse .9s ease}
+@keyframes lmapulse{0%{transform:scale(1);opacity:1}50%{transform:scale(2.2);opacity:.3}100%{transform:scale(1);opacity:1}}
 
-/* ── FILTROS ── */
-.lma-filtro-wrap {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 24px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0; flex-wrap: wrap;
-}
-.lma-filtro-wrap label { font-size: 11px; font-weight: 700; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; }
-.lma-select {
-  padding: 5px 8px;
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 7px; color: var(--text);
-  font-size: 12px; font-family: 'Sora', sans-serif;
-  cursor: pointer; min-width: 120px;
-}
-.lma-select:focus { outline: none; border-color: var(--accent); }
-.lma-input-busca {
-  padding: 5px 9px;
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 7px; color: var(--text);
-  font-size: 12px; font-family: 'Sora', sans-serif;
-  min-width: 170px;
-}
-.lma-input-busca:focus { outline: none; border-color: var(--accent); }
-.lma-count { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--muted); margin-left: auto; }
+/* ── Faixa de aviso: só aparece quando há divergência real (severidade=aviso) ── */
+#lmaContainer .lma-aviso{display:none;align-items:center;gap:10px;padding:8px 24px;background:rgba(255,170,0,.07);border-bottom:1px solid rgba(255,170,0,.18);color:var(--g4);font-family:var(--mono);font-size:10px;letter-spacing:.04em}
+#lmaContainer .lma-aviso.on{display:flex}
+#lmaContainer .lma-aviso-txt{flex:1;min-width:0}
+#lmaContainer .lma-aviso-x{background:none;border:none;color:inherit;cursor:pointer;font-size:12px;opacity:.7;padding:0 2px}
+#lmaContainer .lma-aviso-x:hover{opacity:1}
 
-/* ── TABELA ── */
-.lma-scroll { padding: 0 0 40px; }
-.lma-table {
-  width: 100%; min-width: 1280px;
-  border-collapse: collapse;
-  font-size: 12px;
+/* ── Canvas + KPIs ── */
+#lmaContainer .lma-canvas{padding:16px 24px 90px}
+/* KPIs e filtros dividem a mesma faixa: empilhados, custavam ~90px de altura à toa */
+#lmaContainer .lma-controles{display:flex;gap:12px;align-items:stretch;margin-bottom:14px}
+#lmaContainer .lma-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,172px));gap:12px;flex-shrink:0}
+@media(max-width:1180px){
+  #lmaContainer .lma-controles{flex-direction:column}
+  #lmaContainer .lma-kpis{grid-template-columns:repeat(3,1fr)}
 }
-.lma-table thead {
-  position: sticky; top: 0; z-index: 5;
-  background: var(--surface2);
-}
-.lma-table th {
-  padding: 10px 14px; text-align: left;
-  font-size: 10px; font-weight: 700; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 1px;
-  border-bottom: 1px solid var(--border); white-space: nowrap;
-}
-.lma-table td {
-  padding: 7px 14px; border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-.lma-table tbody tr:hover { background: var(--surface); }
-.lma-table tbody tr:hover td.lma-acao-cell { background: var(--surface); }
-/* Coluna Ação fica fixa à direita (sticky) — botão 🗑 sempre visível */
-.lma-table th:last-child,
-.lma-table td.lma-acao-cell {
-  position: sticky; right: 0; z-index: 4;
-  background: var(--bg);
-  border-left: 1px solid var(--border);
-}
-.lma-table thead th:last-child {
-  background: var(--surface2); z-index: 6;
-}
+#lmaContainer .kpi{background:var(--s1);border:1px solid var(--rim);border-radius:var(--r);padding:13px 15px}
+#lmaContainer .kpi-t{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+#lmaContainer .kpi-v{font-size:24px;font-weight:700;color:var(--em);line-height:1}
+#lmaContainer .kpi-d{font-family:var(--mono);font-size:10px;margin-top:8px;letter-spacing:.04em;color:var(--dim)}
+#lmaContainer .kpi-d.warn{color:var(--g4)}
+#lmaContainer .kpi-d.good{color:var(--g1)}
 
-.lma-nome     { font-weight: 700; font-size: 12px; }
-/* Nome editável inline (mesmo padrão da cidade) */
-.lma-nome-edit  { cursor: pointer; border-bottom: 1px dashed transparent; }
-.lma-nome-edit:hover { border-bottom-color: var(--muted); }
-.lma-nome-input { width: 100%; max-width: 180px; box-sizing: border-box;
-  font-family: inherit; font-weight: 700; font-size: 12px; padding: 2px 4px; }
-/* Slot "💬 Conversa" abaixo da Data de entrada */
-.lma-cw-row { margin-top: 5px; }
-.lma-sub      { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
-.lma-mono     { font-family: 'DM Mono', monospace; font-size: 11px; white-space: nowrap; }
-.lma-utmcell  { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted);
-  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ── Barra de filtros ── */
+#lmaContainer .lma-filtros{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;align-content:center;gap:8px;padding:10px 12px;background:var(--s1);border:1px solid var(--rim);border-radius:var(--r)}
+#lmaContainer .lma-fgroup{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#lmaContainer .lma-flabel{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-right:2px}
+#lmaContainer .lma-fspacer{flex:1}
+#lmaContainer .chip{padding:5px 11px;border-radius:7px;background:var(--s2);border:1px solid var(--rim);color:var(--dim2);font-size:11px;font-weight:500;cursor:pointer;font-family:var(--mono);letter-spacing:.03em;transition:all .12s;white-space:nowrap}
+#lmaContainer .chip:hover{background:var(--s3);color:var(--em)}
+#lmaContainer .chip.on{background:rgba(200,255,94,.1);border-color:rgba(200,255,94,.3);color:var(--g1)}
+#lmaContainer .lma-busca{background:var(--s2);border:1px solid var(--rim);color:var(--txt);border-radius:7px;padding:6px 10px;font-size:11px;font-family:var(--mono);min-width:220px}
+#lmaContainer .lma-busca:focus{outline:none;border-color:var(--rim2)}
+#lmaContainer .lma-busca::placeholder{color:var(--dim)}
+#lmaContainer input[type=date]{background:var(--s2);border:1px solid var(--rim);color:var(--txt);border-radius:7px;padding:5px 8px;font-size:11px;font-family:var(--mono);color-scheme:dark}
+#lmaContainer .lma-fcount{font-family:var(--mono);font-size:9px;background:rgba(0,212,255,.18);color:var(--g2);border-radius:20px;padding:1px 6px;margin-left:2px}
+#lmaContainer .lma-flink{background:none;border:none;color:var(--dim);font-size:11px;font-family:var(--mono);cursor:pointer;text-decoration:underline;padding:4px 2px}
+#lmaContainer .lma-flink:hover{color:var(--dim2)}
+#lmaContainer .lma-fpanel{display:none;flex-basis:100%;gap:8px;flex-wrap:wrap;align-items:center;padding-top:10px;border-top:1px solid var(--rim)}
+#lmaContainer .lma-fpanel.aberto{display:flex}
+#lmaContainer select.lma-select{background:var(--s2);border:1px solid var(--rim);color:var(--txt);border-radius:7px;padding:5px 8px;font-size:11px;font-family:var(--mono);cursor:pointer;min-width:152px}
+#lmaContainer select.lma-select:focus{outline:none;border-color:var(--rim2)}
+/* <option> herda o tema claro do SO se não pintar explicitamente (ver CLAUDE.md) */
+#lmaContainer select option{background:#131620;color:#dde2f0}
 
-/* Cidade editável (sugestão por DDD) */
-.lma-cidade-edit  { cursor: pointer; border-bottom: 1px dashed transparent; }
-.lma-cidade-edit:hover { border-bottom-color: var(--muted); }
-.lma-cidade-sug   { color: var(--muted); font-style: italic; }
-.lma-cidade-vazia { color: var(--muted); opacity: .7; }
-.lma-cidade-input { width: 110px; box-sizing: border-box; font-family: 'DM Mono', monospace;
-  font-size: 11px; padding: 2px 4px; }
+/* ── Tabela ── */
+#lmaContainer table.lma-tbl{width:100%;border-collapse:collapse;font-size:12px}
+#lmaContainer table.lma-tbl thead th{position:sticky;top:52px;z-index:20;text-align:left;font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);padding:9px 14px;background:#08090e;border-bottom:1px solid var(--rim);white-space:nowrap}
+#lmaContainer table.lma-tbl td{padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.035);color:var(--txt);vertical-align:middle}
+#lmaContainer table.lma-tbl tbody tr:hover td{background:rgba(255,255,255,.022)}
+#lmaContainer table.lma-tbl tr.lma-tr-conv td:first-child{box-shadow:inset 2px 0 0 var(--g1)}
+#lmaContainer table.lma-tbl tr.lma-tr-risco td:first-child{box-shadow:inset 2px 0 0 var(--g4)}
+#lmaContainer .lma-th-sort{cursor:pointer;user-select:none}
+#lmaContainer .lma-th-sort:hover{color:var(--dim2)}
+#lmaContainer .lma-sort-ind{font-size:8px;color:var(--g2)}
 
-/* Status badges */
-.lma-badge {
-  display: inline-block; padding: 3px 10px; border-radius: 20px;
-  font-size: 10px; font-weight: 700; font-family: 'DM Mono', monospace;
-  white-space: nowrap;
-}
-.lma-badge.converteu    { background: rgba(62,230,130,.15); color: #2ea854; }
-.lma-badge.desqualificado { background: rgba(230,62,62,.12); color: #c04040; }
-.lma-badge.negociacao   { background: rgba(62,130,230,.12); color: #3070c0; }
-.lma-badge.sem-contato  { background: rgba(200,170,62,.12); color: #997a20; }
-.lma-badge.pendente     { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+#lmaContainer .lma-mono{font-family:var(--mono);font-size:10px;letter-spacing:.02em;white-space:nowrap;color:var(--dim2)}
+#lmaContainer .lma-ago{font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:3px;letter-spacing:.04em;white-space:nowrap}
+#lmaContainer .lma-nome{font-size:12.5px;font-weight:600;color:var(--em)}
+#lmaContainer .lma-nome-edit{cursor:pointer;border-bottom:1px dashed transparent}
+#lmaContainer .lma-nome-edit:hover{border-bottom-color:var(--dim)}
+#lmaContainer .lma-linha2{display:flex;align-items:center;gap:7px;margin-top:4px;flex-wrap:wrap}
+#lmaContainer .lma-tel{font-family:var(--mono);font-size:10px;color:var(--dim2);letter-spacing:.02em}
+#lmaContainer .lma-nome-input,#lmaContainer .lma-cidade-input{background:var(--s2);border:1px solid var(--rim2);color:var(--em);border-radius:6px;padding:3px 6px;font-family:var(--mono);font-size:11px;width:100%;max-width:190px}
+#lmaContainer .lma-nome-input:focus,#lmaContainer .lma-cidade-input:focus{outline:none;border-color:var(--g2)}
+#lmaContainer .lma-cidade-edit{cursor:pointer;border-bottom:1px dashed transparent;font-family:var(--mono);font-size:10.5px;color:var(--txt)}
+#lmaContainer .lma-cidade-edit:hover{border-bottom-color:var(--dim)}
+#lmaContainer .lma-cidade-sug{color:var(--dim);font-style:italic}
+#lmaContainer .lma-cidade-vazia{color:var(--dim)}
 
-/* Ações inline */
-.lma-table td.lma-acao-cell { min-width: 230px; }
-.lma-acao-wrap {
-  display: flex; flex-direction: column; gap: 5px;
-  width: 220px;
-}
-.lma-acao-row {
-  display: flex; align-items: center; gap: 5px;
-}
-.lma-acao-sel {
-  flex: 1; min-width: 0;
-  padding: 4px 7px; font-size: 11px; font-family: 'DM Mono', monospace;
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 6px; color: var(--text); cursor: pointer;
-}
-.lma-acao-sel:focus { outline: none; border-color: var(--accent); }
-.lma-acao-motivo {
-  width: 100%; box-sizing: border-box;
-  padding: 4px 7px; font-size: 11px; font-family: 'DM Mono', monospace;
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 6px; color: var(--text); cursor: pointer;
-}
-.lma-acao-motivo:focus { outline: none; border-color: var(--accent); }
-.lma-acao-btn {
-  flex-shrink: 0;
-  padding: 4px 9px; font-size: 11px; font-weight: 700;
-  border-radius: 6px; border: none; cursor: pointer;
-  background: var(--accent); color: #fff; font-family: 'Sora', sans-serif;
-  transition: opacity .15s, background .15s; white-space: nowrap;
-}
-.lma-acao-btn:hover { opacity: .85; }
-.lma-acao-btn:disabled { opacity: .4; cursor: default; }
-.lma-acao-btn.salvando { opacity: .5; }
-.lma-acao-btn-del {
-  background: var(--surface2); color: #c04040;
-  border: 1px solid rgba(230,62,62,.4);
-}
-.lma-acao-btn-del:hover { background: rgba(230,62,62,.15); opacity: 1; }
+#lmaContainer .lma-chip-camp{display:inline-block;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;padding:2px 8px;border-radius:6px;font-size:10px;font-family:var(--mono);border:1px solid;letter-spacing:.02em}
+#lmaContainer .lma-anun{font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:4px;letter-spacing:.04em;white-space:nowrap}
+#lmaContainer .lma-origem-chip{padding:1px 6px;border-radius:5px;font-size:9px;font-family:var(--mono);white-space:nowrap;border:1px solid var(--rim)}
+#lmaContainer .lma-origem-chip.og-webhook{background:var(--s2);color:var(--dim)}
+#lmaContainer .lma-origem-chip.og-manual{background:rgba(0,212,255,.1);color:var(--g2);border-color:rgba(0,212,255,.22)}
+#lmaContainer .lma-origem-chip.og-renata{background:rgba(167,139,250,.12);color:var(--g5);border-color:rgba(167,139,250,.24)}
+#lmaContainer .lma-copy{background:none;border:1px solid var(--rim);color:var(--dim);border-radius:5px;padding:1px 6px;font-size:9px;font-family:var(--mono);cursor:pointer;line-height:1.5}
+#lmaContainer .lma-copy:hover{color:var(--em);border-color:var(--rim2)}
+#lmaContainer .cw-link{display:inline-block;padding:1px 7px;border-radius:5px;font-family:var(--mono);font-size:9px;text-decoration:none;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.22);color:var(--g2);white-space:nowrap}
+#lmaContainer .cw-link:hover{background:rgba(0,212,255,.18)}
 
-.lma-btn-primary {
-  background: var(--accent); color: #fff; border-color: var(--accent);
-}
-.lma-btn-primary:hover { background: var(--accent); opacity: .85; }
+#lmaContainer .lma-badge{display:inline-block;padding:3px 9px;border-radius:6px;font-size:10px;font-family:var(--mono);white-space:nowrap;border:1px solid;letter-spacing:.02em}
+#lmaContainer .lma-badge.pendente{background:var(--s2);border-color:var(--rim);color:var(--dim2)}
+#lmaContainer .lma-badge.converteu{background:rgba(200,255,94,.1);border-color:rgba(200,255,94,.28);color:var(--g1)}
+#lmaContainer .lma-badge.desqualificado{background:rgba(255,69,112,.1);border-color:rgba(255,69,112,.26);color:var(--g3)}
+#lmaContainer .lma-badge.negociacao{background:rgba(0,212,255,.1);border-color:rgba(0,212,255,.26);color:var(--g2)}
+#lmaContainer .lma-badge.sem-contato{background:rgba(255,170,0,.1);border-color:rgba(255,170,0,.26);color:var(--g4)}
+#lmaContainer .lma-badge-motivo{display:block;font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:4px;letter-spacing:.04em}
 
-.lma-form-label {
-  display: block; font-size: 10px; font-weight: 700; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;
-}
-.lma-form-row { display: flex; flex-direction: column; gap: 14px; }
-#mlStatus { margin: 10px 0 0; font-size: 11px; font-family: 'DM Mono', monospace;
-  text-align: center; min-height: 16px; color: var(--muted); }
+/* ── Coluna Ação: select que salva no change + menu ⋯ ── */
+#lmaContainer td.lma-acao-cell{position:relative;width:1%;white-space:nowrap}
+#lmaContainer .lma-acao-row{display:flex;align-items:center;gap:6px}
+#lmaContainer select.lma-acao-sel{background:var(--s2);border:1px solid var(--rim);color:var(--dim2);border-radius:7px;padding:5px 8px;font-size:10px;font-family:var(--mono);cursor:pointer;width:162px}
+#lmaContainer select.lma-acao-sel:focus{outline:none;border-color:var(--g2)}
+#lmaContainer select.lma-acao-sel:disabled{opacity:.45;cursor:default}
+#lmaContainer select.lma-acao-motivo{background:var(--s2);border:1px solid rgba(255,69,112,.3);color:var(--txt);border-radius:7px;padding:5px 8px;font-size:10px;font-family:var(--mono);cursor:pointer;width:100%}
+#lmaContainer select.lma-acao-motivo:focus{outline:none;border-color:var(--g3)}
+#lmaContainer .lma-acao-motivo-row{margin-top:6px;display:none}
+#lmaContainer .lma-acao-motivo-row.on{display:block}
+#lmaContainer .lma-kebab{background:none;border:1px solid transparent;color:var(--dim);border-radius:6px;padding:2px 7px;font-size:14px;line-height:1.2;cursor:pointer}
+#lmaContainer .lma-kebab:hover{color:var(--em);border-color:var(--rim)}
+#lmaContainer .lma-menu{position:absolute;right:12px;top:calc(100% - 8px);z-index:60;background:var(--s2);border:1px solid var(--rim2);border-radius:9px;padding:5px;min-width:176px;box-shadow:0 14px 36px rgba(0,0,0,.6)}
+#lmaContainer .lma-menu button{display:block;width:100%;text-align:left;background:none;border:none;color:var(--txt);font-size:11px;font-family:var(--mono);padding:7px 9px;border-radius:6px;cursor:pointer;white-space:nowrap}
+#lmaContainer .lma-menu button:hover{background:var(--s3)}
+#lmaContainer .lma-menu button.danger{color:var(--g3)}
 
-/* ── Reformulação: toolbar / view toggle / auto-refresh ── */
-.lma-total-pill { font-size:11px; font-family:'DM Mono',monospace; color:var(--muted);
-  background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:3px 10px; }
-.lma-view-toggle { display:inline-flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
-.lma-view-btn { padding:6px 12px; background:var(--surface2); color:var(--muted); border:none;
-  cursor:pointer; font-size:12px; font-family:'Sora',sans-serif; }
-.lma-view-btn.ativo { background:var(--accent); color:#fff; }
-.lma-autorefresh { display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); cursor:pointer; }
-.lma-refresh-spin { opacity:0; transition:opacity .2s; display:inline-block; }
-.lma-refresh-spin.girando { opacity:1; animation:lmaspin 1s linear; }
-@keyframes lmaspin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
-
-/* ── KPIs — 5 cards iguais ocupando a largura toda ── */
-.lma-kpis { display:flex; gap:10px; padding:8px 24px; background:var(--surface);
-  border-bottom:1px solid var(--border); flex-shrink:0; }
-.lma-card.c-nego { cursor:help; }
-
-/* ── Filtros (2 linhas) + pills ── */
-.lma-filtros { background:var(--surface); border-bottom:1px solid var(--border);
-  padding:6px 24px; display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
-.lma-filtro-linha { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.lma-filtro-linha label { font-size:10px; font-weight:700; color:var(--muted);
-  text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; }
-.lma-period-pills { display:inline-flex; gap:4px; flex-wrap:wrap; }
-.lma-period-pills button { padding:4px 10px; background:var(--surface2); border:1px solid var(--border);
-  border-radius:20px; font-size:11px; cursor:pointer; color:var(--muted); font-family:'Sora',sans-serif; }
-.lma-period-pills button.ativo { background:var(--accent); color:#fff; border-color:var(--accent); }
-.lma-date { padding:4px 6px; background:var(--surface2); border:1px solid var(--border);
-  border-radius:6px; color:var(--text); font-size:11px; }
-.lma-fspacer { flex:1; }
-.lma-fbtn { display:inline-flex; align-items:center; gap:6px; padding:5px 11px; background:var(--surface2);
-  border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; cursor:pointer; font-family:'Sora',sans-serif; }
-.lma-fbtn.ativo { border-color:var(--accent); }
-.lma-fcount { font-size:10px; font-family:'DM Mono',monospace; background:var(--accent); color:#fff; border-radius:20px; padding:0 6px; }
-.lma-flink { font-size:11px; color:var(--muted); background:none; border:none; cursor:pointer; text-decoration:underline; font-family:'Sora',sans-serif; }
-.lma-fpanel { display:none; gap:8px; padding:8px 0 2px; margin-top:2px; flex-wrap:wrap;
-  align-items:center; border-top:1px dashed var(--border); }
-.lma-fpanel.aberto { display:flex; }
-
-/* ── Cabeçalho ordenável ── */
-.lma-th-sort { cursor:pointer; user-select:none; }
-.lma-th-sort:hover { color:var(--text); }
-.lma-sort-ind { font-size:9px; }
-
-/* ── Chips / links na lista ── */
-.lma-chip-camp { display:inline-block; max-width:160px; overflow:hidden; text-overflow:ellipsis;
-  white-space:nowrap; vertical-align:middle; padding:2px 8px; border-radius:6px; font-size:10px;
-  font-weight:600; color:#fff; font-family:'DM Mono',monospace; }
-.lma-chip-anun { display:inline-block; max-width:140px; overflow:hidden; text-overflow:ellipsis;
-  white-space:nowrap; vertical-align:middle; padding:2px 7px; border-radius:6px; font-size:10px;
-  color:var(--muted); background:var(--surface2); border:1px solid var(--border); font-family:'DM Mono',monospace; }
-.lma-chip-motivo { display:inline-block; padding:2px 8px; border-radius:6px; font-size:10px;
-  color:#c04040; background:rgba(230,62,62,.12); font-family:'DM Mono',monospace; white-space:nowrap; }
-.lma-tel-plain { color:var(--text); font-family:'DM Mono',monospace; }
-.lma-tel-wrap { display:inline-flex; align-items:center; gap:6px; }
-.lma-tel-copy { background:var(--surface2); color:var(--muted); border:1px solid var(--border);
-  border-radius:4px; padding:1px 6px; font-size:10px; cursor:pointer; line-height:1.4;
-  font-family:inherit; }
-.lma-tel-copy:hover { background:var(--border); color:var(--text); }
-.lma-table tr.lma-tr-conv td:first-child { box-shadow: inset 3px 0 0 #2ea854; }
-.lma-table tr.lma-tr-risco { background: rgba(255,170,0,.05); }
-.lma-acao-btn-copy { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
-.lma-acao-btn-copy:hover { background:var(--border); opacity:1; }
+#lmaContainer .lma-empty{padding:56px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:11.5px;letter-spacing:.04em}
+#lmaContainer .lma-erro{padding:56px;text-align:center;color:var(--g3);font-family:var(--mono);font-size:11.5px}
 
 /* ── Kanban ── */
-.lma-kanban { display:flex; gap:12px; padding:16px 24px 40px; align-items:flex-start; overflow-x:auto; height:100%; box-sizing:border-box; }
-.lma-kcol { flex:1; min-width:240px; background:var(--surface2); border:1px solid var(--border);
-  border-radius:12px; display:flex; flex-direction:column; max-height:100%; }
-.lma-kcol.k-over { border-color:var(--accent); background:var(--surface); }
-.lma-kcol-head { padding:10px 14px; font-size:12px; font-weight:700; border-bottom:1px solid var(--border);
-  display:flex; justify-content:space-between; align-items:center; }
-.lma-kcol-count { font-size:11px; font-family:'DM Mono',monospace; color:var(--muted);
-  background:var(--bg); border-radius:20px; padding:1px 8px; }
-.lma-kcol.k-pend .lma-kcol-head { color:var(--muted); }
-.lma-kcol.k-nego .lma-kcol-head { color:#3070c0; }
-.lma-kcol.k-conv .lma-kcol-head { color:#2ea854; }
-.lma-kcol.k-desq .lma-kcol-head { color:#c04040; }
-.lma-kcol-body { padding:10px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
-.lma-kcol-vazio { color:var(--muted); font-size:11px; text-align:center; padding:12px; }
-.lma-kcard { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px; cursor:grab; }
-.lma-kcard:active { cursor:grabbing; }
-.lma-kcard.kc-conv { border-left:3px solid #2ea854; }
-.lma-kcard.kc-risco { border-left:3px solid #e6a93e; }
-.lma-kcard-nome { font-weight:700; font-size:12px; margin-bottom:3px; }
-.lma-kcard-tel { font-size:11px; font-family:'DM Mono',monospace; margin-bottom:4px; }
-.lma-kcard-cidade { font-size:10px; color:var(--muted); margin-bottom:5px; }
-.lma-kcard-tags { display:flex; gap:5px; flex-wrap:wrap; }
-.lma-empty { padding:40px; text-align:center; color:var(--muted); font-size:13px; }
+#lmaContainer .lma-kanban{display:flex;gap:12px;align-items:flex-start;overflow-x:auto;padding-bottom:12px}
+#lmaContainer .lma-kanban::-webkit-scrollbar{height:6px}
+#lmaContainer .lma-kanban::-webkit-scrollbar-thumb{background:var(--rim2);border-radius:2px}
+#lmaContainer .lma-kcol{flex:1;min-width:228px;background:var(--s1);border:1px solid var(--rim);border-radius:var(--r);display:flex;flex-direction:column;max-height:calc(100vh - 300px)}
+#lmaContainer .lma-kcol.k-over{border-color:var(--rim2);background:var(--s2)}
+#lmaContainer .lma-kcol-head{padding:11px 13px;font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);border-bottom:1px solid var(--rim);display:flex;justify-content:space-between;align-items:center;gap:8px}
+#lmaContainer .lma-kcol-count{font-family:var(--mono);font-size:10px;color:var(--dim2);background:var(--s3);border-radius:20px;padding:1px 7px}
+#lmaContainer .lma-kcol.k-nego .lma-kcol-head{color:var(--g2)}
+#lmaContainer .lma-kcol.k-conv .lma-kcol-head{color:var(--g1)}
+#lmaContainer .lma-kcol.k-desq .lma-kcol-head{color:var(--g3)}
+#lmaContainer .lma-kcol-body{padding:9px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+#lmaContainer .lma-kcol-body::-webkit-scrollbar{width:3px}
+#lmaContainer .lma-kcol-body::-webkit-scrollbar-thumb{background:var(--rim2);border-radius:2px}
+#lmaContainer .lma-kcol-vazio{color:var(--dim);font-family:var(--mono);font-size:10px;text-align:center;padding:14px}
+#lmaContainer .lma-kcard{background:var(--s2);border:1px solid var(--rim);border-radius:10px;padding:10px 11px;cursor:grab}
+#lmaContainer .lma-kcard:hover{border-color:var(--rim2)}
+#lmaContainer .lma-kcard:active{cursor:grabbing}
+#lmaContainer .lma-kcard.kc-conv{box-shadow:inset 2px 0 0 var(--g1)}
+#lmaContainer .lma-kcard.kc-risco{box-shadow:inset 2px 0 0 var(--g4)}
+#lmaContainer .lma-kcard-nome{font-size:12px;font-weight:600;color:var(--em);margin-bottom:5px}
+#lmaContainer .lma-kcard-tel{font-family:var(--mono);font-size:10px;color:var(--dim2);margin-bottom:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#lmaContainer .lma-kcard-cidade{font-family:var(--mono);font-size:9px;color:var(--dim);margin-bottom:7px}
+#lmaContainer .lma-kcard-tags{display:flex;gap:5px;flex-wrap:wrap}
 
-/* ── Banner reconciliação Painel Ads ↔ CRM (discreto) ── */
-.lma-reconc { display:none; align-items:center; gap:9px; padding:6px 24px;
-  background:var(--surface); border-bottom:1px solid var(--border);
-  color:var(--muted); font-size:11px; font-family:'DM Mono',monospace; flex-shrink:0; }
-.lma-reconc.aviso { background:rgba(230,180,62,.08); color:#997a20; }
-.lma-reconc-dot { width:7px; height:7px; border-radius:50%; background:#2ea854; flex-shrink:0; }
-.lma-reconc.aviso .lma-reconc-dot { background:#e6a93e; }
-.lma-reconc-txt { flex:1; min-width:0; }
-.lma-reconc-close { cursor:pointer; background:none; border:none; color:inherit; font-size:13px; opacity:.6; padding:0 2px; }
-.lma-reconc-close:hover { opacity:1; }
-
-/* ── Chip de origem do lead (na célula Lead) ── */
-.lma-origem-chip { display:inline-block; margin-left:6px; padding:1px 6px; border-radius:5px;
-  font-size:9px; font-family:'DM Mono',monospace; vertical-align:middle; white-space:nowrap; }
-.lma-origem-chip.og-webhook { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
-.lma-origem-chip.og-manual  { background:rgba(62,130,230,.12); color:#3070c0; }
-.lma-origem-chip.og-renata  { background:rgba(130,130,255,.14); color:#6a6aff; }
-
-/* Relatório filtrado */
-.lma-relatorio-text {
-  width:100%; min-height:260px; resize:vertical; box-sizing:border-box;
-  background:var(--surface2); color:var(--text); border:1px solid var(--border);
-  border-radius:8px; padding:12px; font-size:13px; line-height:1.55;
-  font-family:'DM Mono', Consolas, monospace; white-space:pre-wrap;
-}
+/* ═══ MODAIS ═══ ficam FORA de #lmaContainer, no visual global do Index. ═══ */
+.lma-m-label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px}
+.lma-m-row{display:flex;flex-direction:column;gap:14px}
+.lma-m-input,.lma-m-select{width:100%;box-sizing:border-box;padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:12px;font-family:'Sora',sans-serif}
+.lma-m-input:focus,.lma-m-select:focus{outline:none;border-color:var(--accent)}
+.lma-m-select{cursor:pointer}
+.lma-m-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 16px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:700;font-family:'Sora',sans-serif;cursor:pointer;transition:background .2s}
+.lma-m-btn:hover{background:var(--border)}
+.lma-m-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.lma-m-btn.primary:hover{opacity:.85}
+#mlStatus{margin:10px 0 0;font-size:11px;font-family:'DM Mono',monospace;text-align:center;min-height:16px;color:var(--muted)}
+.lma-relatorio-text{width:100%;min-height:260px;resize:vertical;box-sizing:border-box;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:13px;line-height:1.55;font-family:'DM Mono',Consolas,monospace;white-space:pre-wrap}
 </style>
 
 <!-- ══ PÁGINA ══ -->
 <div id="pageLeadsMetaAds" class="page">
+ <div id="lmaContainer">
 
-  <!-- Toolbar -->
-  <div class="lma-toolbar">
-    <h2>📣 Leads Meta Ads</h2>
-    <span class="lma-total-pill" id="lmaTotalPill">—</span>
-    <div class="lma-view-toggle">
-      <button id="lmaViewLista"  class="lma-view-btn ativo" onclick="_lmaSetView('lista')">☰ Lista</button>
-      <button id="lmaViewKanban" class="lma-view-btn"       onclick="_lmaSetView('kanban')">▦ Kanban</button>
+  <!-- Header: identidade + resumo (total · novos hoje · perdidos · sync) + ações -->
+  <div class="lma-top">
+    <div>
+      <div class="lma-title">◈ Leads Meta Ads</div>
+      <div class="lma-sub" id="lmaSub">carregando…</div>
     </div>
-    <label class="lma-autorefresh" title="Atualiza os dados sozinho a cada 60s">
-      <input type="checkbox" id="lmaAutoRefresh" onchange="_lmaToggleAutoRefresh()"> auto
-      <span id="lmaRefreshSpin" class="lma-refresh-spin">🔄</span>
-    </label>
-    <button class="lma-btn" onclick="carregarLeadsMetaAds()">↺ Atualizar</button>
-    <button class="lma-btn" onclick="_lmaExportarCSV()">⬇ Exportar CSV</button>
-    <button class="lma-btn" onclick="_lmaAbrirRelatorio()">📊 Relatório</button>
-    <button class="lma-btn lma-btn-primary" onclick="abrirModalManual()">+ Registrar manualmente</button>
-  </div>
-
-  <!-- Banner: diagnóstico Painel Ads ↔ CRM do dia (discreto, dispensável) -->
-  <div class="lma-reconc" id="lmaReconc" title="Por que o Painel Ads e o CRM podem divergir: a Meta conta conversões atribuídas (com lag de até 72h) e o CRM conta linhas registradas (webhook + manuais).">
-    <span class="lma-reconc-dot"></span>
-    <span class="lma-reconc-txt" id="lmaReconcTxt">—</span>
-    <button class="lma-reconc-close" title="Ocultar" onclick="_lmaFecharReconc()">✕</button>
-  </div>
-
-  <!-- KPIs — 5 cards iguais ocupando a largura toda -->
-  <div class="lma-kpis">
-    <div class="lma-card c-novos" title="Leads que entraram hoje — o pulso diário. Ignora o filtro de período (sempre hoje).">
-      <div class="lma-card-label">🆕 Novos hoje</div>
-      <div class="lma-card-valor" id="kpiNovos">—</div>
-      <div class="lma-card-sub">entraram hoje</div>
-    </div>
-    <div class="lma-card c-pend" title="Leads sem desfecho. Aplique uma etiqueta terminal no Chatwoot pra fechar.">
-      <div class="lma-card-label">⏳ Em aberto</div>
-      <div class="lma-card-valor" id="kpiPend">—</div>
-      <div class="lma-card-sub">sem desfecho</div>
-    </div>
-    <div class="lma-card c-nego" title="Leads com etiqueta em-negociacao no Chatwoot — pipeline ativo.">
-      <div class="lma-card-label">🤝 Em negociação</div>
-      <div class="lma-card-valor" id="kpiNegoAtivo">—</div>
-      <div class="lma-card-sub">pipeline ativo</div>
-    </div>
-    <div class="lma-card c-nego" id="kpiNegoCard" title="Leads em aberto há mais de 24h sem desfecho — risco de esfriar.">
-      <div class="lma-card-label">⏰ Em risco</div>
-      <div class="lma-card-valor" id="kpiNego">—</div>
-      <div class="lma-card-sub" id="kpiNegoRisco">—</div>
-    </div>
-    <div class="lma-card c-conv" title="Leads com etiqueta venda-fechada no Chatwoot. Taxa = vendas ÷ total no filtro.">
-      <div class="lma-card-label">✅ venda-fechada</div>
-      <div class="lma-card-valor" id="kpiConv">—</div>
-      <div class="lma-card-sub" id="kpiTaxa">taxa —%</div>
-    </div>
-    <div class="lma-card c-desq" title="Leads perdidos com breakdown por etiqueta (venda-perdida, sem-viabilidade, sem-interesse, reprovado-cpf).">
-      <div class="lma-card-label">❌ Perdidos</div>
-      <div class="lma-card-valor" id="kpiDesq">—</div>
-      <div class="lma-card-sub" id="kpiDesqBreak">—</div>
-    </div>
-  </div>
-
-  <!-- Filtros: linha essencial + painel avançado colapsável -->
-  <div class="lma-filtros">
-    <div class="lma-filtro-linha">
-      <div class="lma-period-pills" id="lmaPeriodPills">
-        <button data-p="hoje"   onclick="_lmaSetPeriodo('hoje')">Hoje</button>
-        <button data-p="semana" onclick="_lmaSetPeriodo('semana')">Esta semana</button>
-        <button data-p="mes" class="ativo" onclick="_lmaSetPeriodo('mes')">Este mês</button>
-        <button data-p="30d"    onclick="_lmaSetPeriodo('30d')">30 dias</button>
-        <button data-p="custom" onclick="_lmaSetPeriodo('custom')">Personalizado</button>
-      </div>
-      <span id="lmaCustomRange" style="display:none; font-size:11px; color:var(--muted);">
-        <input type="date" id="lmaDesde" class="lma-date" onchange="_lmaFiltrar()"> a
-        <input type="date" id="lmaAte" class="lma-date" onchange="_lmaFiltrar()">
-      </span>
-      <input class="lma-input-busca" id="lmaBusca" type="text" placeholder="Buscar nome ou telefone…" oninput="_lmaFiltrar()">
-      <span class="lma-fspacer"></span>
-      <button class="lma-fbtn" id="lmaFiltrosBtn" onclick="_lmaToggleFiltros()">⚙ Filtros
-        <span class="lma-fcount" id="lmaFCount" style="display:none">0</span>
-        <span id="lmaFCaret">▾</span>
+    <div class="lma-top-right">
+      <button class="lma-tag" id="lmaAutoTag" onclick="_lmaToggleAutoRefresh()" title="Recarrega os leads sozinho a cada 60s enquanto esta página estiver aberta">
+        <span class="lma-tag-dot" id="lmaRefreshSpin"></span> auto
       </button>
-      <button class="lma-flink" onclick="_lmaLimparFiltros()">Limpar</button>
-    </div>
-    <div class="lma-fpanel" id="lmaFPanel">
-      <select class="lma-select" id="lmaFiltroEstado" onchange="_lmaFiltrar()">
-        <option value="">Estado: todos</option>
-        <option value="__cobertura">Cobertura Vero</option>
-        <option value="__fora">Fora cobertura</option>
-        <option disabled>──────────</option>
-        <option value="MG">MG</option><option value="SP">SP</option><option value="RJ">RJ</option>
-        <option value="ES">ES</option><option value="GO">GO</option><option value="DF">DF</option>
-        <option value="MS">MS</option><option value="BA">BA</option><option value="PR">PR</option>
-        <option value="SC">SC</option><option value="RS">RS</option>
-      </select>
-      <select class="lma-select" id="lmaFiltroStatus" onchange="_lmaFiltrar()">
-        <option value="">Status: todos</option>
-        <option value="__aberto">Em aberto</option>
-      </select>
-      <select class="lma-select" id="lmaFiltroCampanha" onchange="_lmaFiltrar()"><option value="">Campanha: todas</option></select>
-      <select class="lma-select" id="lmaFiltroAnuncio" onchange="_lmaFiltrar()"><option value="">Anúncio: todos</option></select>
-      <select class="lma-select" id="lmaFiltroMotivo" onchange="_lmaFiltrar()"><option value="">Motivo: todos</option></select>
-      <select class="lma-select" id="lmaFiltroOrigem" onchange="_lmaFiltrar()">
-        <option value="">Origem: todas</option>
-        <option value="webhook">🔗 Webhook</option>
-        <option value="manual">✋ Manual</option>
-        <option value="renata">🤖 Renata</option>
-      </select>
+      <div class="lma-seg">
+        <button id="lmaViewLista"  class="lma-seg-b on" onclick="_lmaSetView('lista')">Lista</button>
+        <button id="lmaViewKanban" class="lma-seg-b"    onclick="_lmaSetView('kanban')">Kanban</button>
+      </div>
+      <button class="lma-btn ico" onclick="carregarLeadsMetaAds()" title="Recarregar agora">↻</button>
+      <button class="lma-btn ico" onclick="_lmaExportarCSV()"      title="Exportar CSV (respeita os filtros)">⬇</button>
+      <button class="lma-btn ico" onclick="_lmaAbrirRelatorio()"   title="Relatório em texto dos leads filtrados">▤</button>
+      <button class="lma-btn accent" onclick="abrirModalManual()">+ Registrar lead</button>
     </div>
   </div>
 
-  <!-- Corpo: Lista (default) + Kanban -->
-  <div class="lma-body">
-    <div class="lma-scroll" id="lmaListaWrap">
-      <table class="lma-table">
+  <!-- Divergência Painel Ads ↔ CRM: só aparece quando há aviso de verdade.
+       Estando tudo certo, o estado vive no dot verde do resumo (lmaSub). -->
+  <div class="lma-aviso" id="lmaReconc" title="Painel Ads e CRM divergem porque a Meta conta conversões atribuídas (lag de até 72h) e o CRM conta linhas registradas (webhook + manuais).">
+    <span class="lma-aviso-txt" id="lmaReconcTxt">—</span>
+    <button class="lma-aviso-x" title="Ocultar" onclick="_lmaFecharReconc()">✕</button>
+  </div>
+
+  <div class="lma-canvas">
+
+   <!-- KPIs + filtros dividem a mesma faixa horizontal -->
+   <div class="lma-controles">
+
+    <!-- KPIs: o que exige ação. Novos hoje e Perdidos vivem no resumo do header. -->
+    <div class="lma-kpis">
+      <div class="kpi" title="Leads sem etiqueta terminal no Chatwoot — ainda esperando desfecho.">
+        <div class="kpi-t">Em aberto</div>
+        <div class="kpi-v" id="kpiPend">—</div>
+        <div class="kpi-d" id="kpiRisco">—</div>
+      </div>
+      <div class="kpi" title="Leads com a etiqueta em-negociacao no Chatwoot — pipeline ativo.">
+        <div class="kpi-t">Em negociação</div>
+        <div class="kpi-v" id="kpiNegoAtivo">—</div>
+        <div class="kpi-d">pipeline ativo</div>
+      </div>
+      <div class="kpi" title="Leads com a etiqueta venda-fechada. Taxa = fechadas ÷ total no filtro.">
+        <div class="kpi-t">Venda fechada</div>
+        <div class="kpi-v" id="kpiConv">—</div>
+        <div class="kpi-d" id="kpiTaxa">taxa —%</div>
+      </div>
+    </div>
+
+    <!-- Filtros: linha essencial + painel avançado colapsável -->
+    <div class="lma-filtros">
+      <div class="lma-fgroup" id="lmaPeriodPills">
+        <span class="lma-flabel">Período</span>
+        <button class="chip" data-p="hoje"   onclick="_lmaSetPeriodo('hoje')">Hoje</button>
+        <button class="chip" data-p="semana" onclick="_lmaSetPeriodo('semana')">Semana</button>
+        <button class="chip on" data-p="mes" onclick="_lmaSetPeriodo('mes')">Mês</button>
+        <button class="chip" data-p="30d"    onclick="_lmaSetPeriodo('30d')">30d</button>
+        <button class="chip" data-p="custom" onclick="_lmaSetPeriodo('custom')">Personalizado</button>
+      </div>
+      <div class="lma-fgroup" id="lmaCustomRange" style="display:none">
+        <input type="date" id="lmaDesde" onchange="_lmaFiltrar()">
+        <span class="lma-flabel">→</span>
+        <input type="date" id="lmaAte" onchange="_lmaFiltrar()">
+      </div>
+      <input class="lma-busca" id="lmaBusca" type="text" placeholder="buscar nome ou telefone…" oninput="_lmaFiltrar()">
+      <span class="lma-fspacer"></span>
+      <button class="chip" id="lmaFiltrosBtn" onclick="_lmaToggleFiltros()">⚙ Filtros<span class="lma-fcount" id="lmaFCount" style="display:none">0</span> <span id="lmaFCaret">▾</span></button>
+      <button class="lma-flink" onclick="_lmaLimparFiltros()">Limpar</button>
+
+      <div class="lma-fpanel" id="lmaFPanel">
+        <select class="lma-select" id="lmaFiltroEstado" onchange="_lmaFiltrar()">
+          <option value="">Estado: todos</option>
+          <option value="__cobertura">Cobertura Vero</option>
+          <option value="__fora">Fora da cobertura</option>
+          <option disabled>──────────</option>
+          <option value="MG">MG</option><option value="SP">SP</option><option value="RJ">RJ</option>
+          <option value="ES">ES</option><option value="GO">GO</option><option value="DF">DF</option>
+          <option value="MS">MS</option><option value="BA">BA</option><option value="PR">PR</option>
+          <option value="SC">SC</option><option value="RS">RS</option>
+        </select>
+        <select class="lma-select" id="lmaFiltroStatus" onchange="_lmaFiltrar()">
+          <option value="">Status: todos</option>
+          <option value="__aberto">Em aberto</option>
+        </select>
+        <select class="lma-select" id="lmaFiltroCampanha" onchange="_lmaFiltrar()"><option value="">Campanha: todas</option></select>
+        <select class="lma-select" id="lmaFiltroAnuncio"  onchange="_lmaFiltrar()"><option value="">Anúncio: todos</option></select>
+        <select class="lma-select" id="lmaFiltroMotivo"   onchange="_lmaFiltrar()"><option value="">Motivo: todos</option></select>
+        <select class="lma-select" id="lmaFiltroOrigem"   onchange="_lmaFiltrar()">
+          <option value="">Origem: todas</option>
+          <option value="webhook">webhook</option>
+          <option value="manual">manual</option>
+          <option value="renata">renata</option>
+        </select>
+      </div>
+    </div>
+
+   </div>
+
+    <!-- Lista (padrão) -->
+    <div id="lmaListaWrap">
+      <table class="lma-tbl">
         <thead>
           <tr>
-            <th class="lma-th-sort" onclick="_lmaSort('data_entrada')">Data entrada <span class="lma-sort-ind" id="sortInd_data_entrada"></span></th>
+            <th class="lma-th-sort" onclick="_lmaSort('data_entrada')">Entrada <span class="lma-sort-ind" id="sortInd_data_entrada"></span></th>
             <th class="lma-th-sort" onclick="_lmaSort('nome')">Lead <span class="lma-sort-ind" id="sortInd_nome"></span></th>
             <th class="lma-th-sort" onclick="_lmaSort('cidade')">Cidade <span class="lma-sort-ind" id="sortInd_cidade"></span></th>
             <th class="lma-th-sort" onclick="_lmaSort('utm_campaign')">Campanha <span class="lma-sort-ind" id="sortInd_utm_campaign"></span></th>
-            <th class="lma-th-sort" onclick="_lmaSort('utm_ad')">Anúncio <span class="lma-sort-ind" id="sortInd_utm_ad"></span></th>
             <th class="lma-th-sort" onclick="_lmaSort('status_final')">Status <span class="lma-sort-ind" id="sortInd_status_final"></span></th>
-            <th class="lma-th-sort" onclick="_lmaSort('motivo_desq')">Motivo desq. <span class="lma-sort-ind" id="sortInd_motivo_desq"></span></th>
-            <th class="lma-th-sort" onclick="_lmaSort('data_status')">Atualizado em <span class="lma-sort-ind" id="sortInd_data_status"></span></th>
             <th>Ação</th>
           </tr>
         </thead>
         <tbody id="lmaTbody">
-          <tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">Clique em Atualizar para carregar os leads.</td></tr>
+          <tr><td colspan="6" class="lma-empty">Carregando…</td></tr>
         </tbody>
       </table>
     </div>
+
+    <!-- Kanban -->
     <div class="lma-kanban" id="lmaKanbanWrap" style="display:none"></div>
   </div>
+ </div>
 
-  <!-- Modal: Registro Manual de Lead Meta Ads -->
-  <div id="modalManual" class="modal-overlay" onclick="fecharModalManual()">
-    <div class="modal-box" style="max-width:440px" onclick="event.stopPropagation()">
+ <!-- ══ MODAIS — fora do #lmaContainer (usam as classes globais do Index) ══ -->
 
-      <div class="modal-head">
-        <h3>Registrar lead manualmente</h3>
-        <button class="modal-close" onclick="fecharModalManual()">✕</button>
-      </div>
+ <div id="modalManual" class="modal-overlay" onclick="fecharModalManual()">
+   <div class="modal-box" style="max-width:440px" onclick="event.stopPropagation()">
+     <div class="modal-head">
+       <h3>Registrar lead manualmente</h3>
+       <button class="modal-close" onclick="fecharModalManual()">✕</button>
+     </div>
+     <div class="modal-body">
+       <p style="font-size:11px; color:var(--muted); margin:0 0 16px;">
+         Use para leads que chegaram sem rastreamento automático (ex: criativo A1).
+       </p>
+       <div class="lma-m-row">
+         <div>
+           <label class="lma-m-label">Nome *</label>
+           <input id="mlNome" type="text" placeholder="Nome do lead" class="lma-m-input">
+         </div>
+         <div>
+           <label class="lma-m-label">Telefone *</label>
+           <input id="mlTelefone" type="text" placeholder="55319XXXXXXXX" class="lma-m-input">
+         </div>
+         <div>
+           <label class="lma-m-label">Cidade</label>
+           <input id="mlCidade" type="text" placeholder="Juiz de Fora" class="lma-m-input">
+         </div>
+         <div>
+           <label class="lma-m-label">Campanha *</label>
+           <select id="mlCampanha" class="lma-m-select" onchange="atualizarOpcoesCriativo()">
+             <option value="">Carregando campanhas…</option>
+           </select>
+           <button type="button" id="mlCampanhaRetry" onclick="_lmaCarregarCampanhasDropdown()"
+             style="display:none; margin-top:6px; font-size:11px; cursor:pointer; background:none; border:none; color:var(--blue); text-decoration:underline; padding:0;">↻ Tentar carregar de novo</button>
+         </div>
+         <div>
+           <label class="lma-m-label">Criativo / Conjunto</label>
+           <select id="mlCriativo" class="lma-m-select">
+             <option value="">Selecione a campanha primeiro</option>
+           </select>
+         </div>
+       </div>
+       <p id="mlStatus"></p>
+     </div>
+     <div class="modal-foot">
+       <button class="lma-m-btn" onclick="fecharModalManual()">Cancelar</button>
+       <button id="btnSalvarManual" class="lma-m-btn primary" onclick="salvarLeadManual()">Registrar lead</button>
+     </div>
+   </div>
+ </div>
 
-      <div class="modal-body">
-        <p style="font-size:11px; color:var(--muted); margin:0 0 16px;">
-          Use para leads que chegaram sem rastreamento automático (ex: criativo A1).
-        </p>
-        <div class="lma-form-row">
-          <div>
-            <label class="lma-form-label">Nome *</label>
-            <input id="mlNome" type="text" placeholder="Nome do lead" class="lma-input-busca" style="width:100%; box-sizing:border-box;">
-          </div>
-          <div>
-            <label class="lma-form-label">Telefone *</label>
-            <input id="mlTelefone" type="text" placeholder="55319XXXXXXXX" class="lma-input-busca" style="width:100%; box-sizing:border-box;">
-          </div>
-          <div>
-            <label class="lma-form-label">Cidade</label>
-            <input id="mlCidade" type="text" placeholder="Juiz de Fora" class="lma-input-busca" style="width:100%; box-sizing:border-box;">
-          </div>
-          <div>
-            <label class="lma-form-label">Campanha *</label>
-            <select id="mlCampanha" class="lma-select" style="width:100%;" onchange="atualizarOpcoesCriativo()">
-              <option value="">Carregando campanhas…</option>
-            </select>
-            <button type="button" id="mlCampanhaRetry" onclick="_lmaCarregarCampanhasDropdown()"
-              style="display:none; margin-top:6px; font-size:11px; cursor:pointer; background:none; border:none; color:var(--g2); text-decoration:underline; padding:0;">↻ Tentar carregar de novo</button>
-          </div>
-          <div>
-            <label class="lma-form-label">Criativo / Conjunto</label>
-            <select id="mlCriativo" class="lma-select" style="width:100%;">
-              <option value="">Selecione a campanha primeiro</option>
-            </select>
-          </div>
-        </div>
-        <p id="mlStatus"></p>
-      </div>
-
-      <div class="modal-foot">
-        <button class="lma-btn" onclick="fecharModalManual()">Cancelar</button>
-        <button id="btnSalvarManual" class="lma-btn lma-btn-primary" onclick="salvarLeadManual()">Registrar lead</button>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- Modal: Relatório dos filtros atuais -->
-  <div id="modalRelatorioLeads" class="modal-overlay" onclick="_lmaFecharRelatorio()">
-    <div class="modal-box" style="max-width:560px" onclick="event.stopPropagation()">
-      <div class="modal-head">
-        <h3>Relatório dos leads filtrados</h3>
-        <button class="modal-close" onclick="_lmaFecharRelatorio()">✕</button>
-      </div>
-      <div class="modal-body">
-        <textarea id="lmaRelatorioTexto" class="lma-relatorio-text" readonly></textarea>
-      </div>
-      <div class="modal-foot">
-        <button class="lma-btn" onclick="_lmaFecharRelatorio()">Fechar</button>
-        <button class="lma-btn lma-btn-primary" onclick="_lmaCopiarRelatorio()">Copiar</button>
-      </div>
-    </div>
-  </div>
+ <div id="modalRelatorioLeads" class="modal-overlay" onclick="_lmaFecharRelatorio()">
+   <div class="modal-box" style="max-width:560px" onclick="event.stopPropagation()">
+     <div class="modal-head">
+       <h3>Relatório dos leads filtrados</h3>
+       <button class="modal-close" onclick="_lmaFecharRelatorio()">✕</button>
+     </div>
+     <div class="modal-body">
+       <textarea id="lmaRelatorioTexto" class="lma-relatorio-text" readonly></textarea>
+     </div>
+     <div class="modal-foot">
+       <button class="lma-m-btn" onclick="_lmaFecharRelatorio()">Fechar</button>
+       <button class="lma-m-btn primary" onclick="_lmaCopiarRelatorio()">Copiar</button>
+     </div>
+   </div>
+ </div>
 
 </div>
 
@@ -549,29 +407,11 @@ var _lmaSortCol = 'data_entrada';
 var _lmaSortDir = 'desc';    // 'asc' | 'desc' | '' (sem ordenação)
 var _lmaPeriodo = 'mes';     // hoje | semana | mes | 30d | custom
 
-var MOTIVOS_DESQ = [
-  'Preço alto',
-  'Sem cobertura',
-  'Já tem internet',
-  'Base Vero',
-  'Sem interesse',
-  'Não atendeu',
-  'Outro'
-];
-
-function _lmaMotivoSelect(linha, atual) {
-  var opts = '<option value="">— motivo —</option>';
-  var encontrado = false;
-  MOTIVOS_DESQ.forEach(function(m) {
-    var sel = (m === atual) ? ' selected' : '';
-    if (sel) encontrado = true;
-    opts += '<option value="' + _esc(m) + '"' + sel + '>' + _esc(m) + '</option>';
-  });
-  if (atual && !encontrado) {
-    opts += '<option value="' + _esc(atual) + '" selected>' + _esc(atual) + ' (legado)</option>';
-  }
-  return '<select class="lma-acao-motivo" id="lmaAcaoMotivo_' + linha + '">' + opts + '</select>';
-}
+// MOTIVO DESQUALIFICAÇÃO (col J): read-only desde a migração pra taxonomia do
+// Chatwoot — a própria etiqueta descreve o desfecho (sem-viabilidade,
+// sem-interesse, reprovado-cpf…), então nada grava esse campo há tempos. O
+// valor legado continua visível no badge de Status e filtrável no painel
+// avançado; o <select> de motivo por linha era markup morto e saiu.
 
 function carregarLeadsMetaAds() {
   var tbody = document.getElementById('lmaTbody');
@@ -580,36 +420,28 @@ function carregarLeadsMetaAds() {
     return;
   }
 
-  tbody.innerHTML =
-    '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">⏳ Carregando…</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="6" class="lma-empty">Carregando…</td></tr>';
+
+  function falha(msg) {
+    tbody.innerHTML = '<tr><td colspan="6" class="lma-erro">' + _esc(msg) + '</td></tr>';
+  }
 
   try {
     google.script.run
       .withSuccessHandler(function(res) {
         try {
-          if (!res || res.erro) {
-            tbody.innerHTML =
-              '<tr><td colspan="9" style="text-align:center;padding:40px;color:#c04040">Erro: ' + (res && res.erro ? res.erro : 'resposta inválida') + '</td></tr>';
-            return;
-          }
+          if (!res || res.erro) { falha('Erro: ' + (res && res.erro ? res.erro : 'resposta inválida')); return; }
           _lmaDados = res.leads || [];
           _lmaPopularFiltros();
           _lmaFiltrar();
           _lmaCarregarReconc();
-        } catch(e) {
-          tbody.innerHTML =
-            '<tr><td colspan="9" style="text-align:center;padding:40px;color:#c04040">Erro ao renderizar: ' + e.message + '</td></tr>';
-        }
+        } catch(e) { falha('Erro ao renderizar: ' + e.message); }
       })
       .withFailureHandler(function(err) {
-        tbody.innerHTML =
-          '<tr><td colspan="9" style="text-align:center;padding:40px;color:#c04040">Erro ao carregar: ' + (err && err.message ? err.message : String(err)) + '</td></tr>';
+        falha('Erro ao carregar: ' + (err && err.message ? err.message : String(err)));
       })
       .getLeadsMetaAds();
-  } catch(e) {
-    tbody.innerHTML =
-      '<tr><td colspan="9" style="text-align:center;padding:40px;color:#c04040">Erro: ' + e.message + '</td></tr>';
-  }
+  } catch(e) { falha('Erro: ' + e.message); }
 }
 
 // ── Parsers / helpers ──
@@ -716,10 +548,8 @@ function _lmaFiltrar() {
   var lista = _lmaOrdenar(_lmaDados.filter(function(l) { return _lmaMatch(l, {}); }));
   _lmaListaFiltrada = lista;
 
-  var pill = document.getElementById('lmaTotalPill');
-  if (pill) pill.textContent = lista.length + ' lead' + (lista.length !== 1 ? 's' : '') + ' no período';
-
-  _lmaAtualizarKPIs(lista);
+  _lmaFecharMenu();          // um re-render invalida qualquer menu ⋯ aberto
+  _lmaAtualizarKPIs(lista);  // escreve os 3 KPIs E o resumo do header
   _lmaAtualizarSortInd();
   _lmaContarFiltrosAtivos();
 
@@ -971,31 +801,73 @@ function _lmaAtualizarKPIs(lista) {
 
   var negoAtivo = _lmaContarStatus(lista, 'em-negociacao');
 
-  document.getElementById('kpiNovos').textContent = novos;
-  document.getElementById('kpiPend').textContent  = abertos.length;
+  // ── 3 cards: só o que exige ação ──
+  document.getElementById('kpiPend').textContent      = abertos.length;
   document.getElementById('kpiNegoAtivo').textContent = negoAtivo;
-  document.getElementById('kpiNego').textContent  = emRisco;
-  document.getElementById('kpiNegoRisco').textContent = emRisco > 0 ? 'em aberto >24h' : 'tudo em dia';
-  document.getElementById('kpiConv').textContent  = conv;
-  document.getElementById('kpiTaxa').textContent  = 'taxa ' + taxa + '%';
-  document.getElementById('kpiDesq').textContent  = perdidosList.length;
+  document.getElementById('kpiConv').textContent      = conv;
 
-  var card = document.getElementById('kpiNegoCard');
-  if (card) card.title = 'Leads em aberto há mais de 24h sem desfecho (' + emRisco + ').';
+  var elRisco = document.getElementById('kpiRisco');
+  elRisco.textContent = emRisco > 0 ? (emRisco + ' em risco >24h') : 'nenhum parado >24h';
+  elRisco.className   = 'kpi-d' + (emRisco > 0 ? ' warn' : '');
 
-  // Breakdown dos perdidos pela própria etiqueta (sem coluna de motivo).
+  var elTaxa = document.getElementById('kpiTaxa');
+  elTaxa.textContent = 'taxa ' + taxa + '%';
+  elTaxa.className   = 'kpi-d' + (conv > 0 ? ' good' : '');
+
+  // ── Resumo do header: total, novos hoje e perdidos (com breakdown no title) ──
   var mc = {};
   perdidosList.forEach(function(l) {
     var s = String(l.status_final || '').toLowerCase();
     mc[s] = (mc[s] || 0) + 1;
   });
-  var top = Object.keys(mc).sort(function(a, b) { return mc[b] - mc[a]; }).slice(0, 4)
-    .map(function(m) { return _esc(_lmaStatusLabel(m)) + ': ' + mc[m]; });
-  document.getElementById('kpiDesqBreak').innerHTML = top.length ? top.join(' · ') : 'nenhum';
+  var breakdown = Object.keys(mc).sort(function(a, b) { return mc[b] - mc[a]; })
+    .map(function(m) { return _lmaStatusLabel(m) + ': ' + mc[m]; }).join(' · ');
+
+  _lmaSetResumo({
+    total:    total,
+    novos:    novos,
+    perdidos: perdidosList.length,
+    breakdown: breakdown
+  });
+}
+
+// Escreve a linha de resumo do header, preservando o dot de reconciliação
+// (que é gravado por _lmaCarregarReconc e sobrevive a cada re-render).
+var _lmaReconcDot = { classe: 'off', title: 'Reconciliação Painel Ads ↔ CRM ainda não consultada.' };
+
+function _lmaSetResumo(r) {
+  var el = document.getElementById('lmaSub');
+  if (!el) return;
+  if (r) _lmaSetResumo._ultimo = r;
+  var d = _lmaSetResumo._ultimo;
+  if (!d) return;
+  var partes = [
+    '<b>' + d.total + '</b> no período',
+    '<b>' + d.novos + '</b> ' + (d.novos === 1 ? 'novo' : 'novos') + ' hoje'
+  ];
+  if (d.perdidos > 0) partes.push('<span class="warn">' + d.perdidos + '</span> perdidos');
+  el.innerHTML = '<span class="lma-dot ' + _lmaReconcDot.classe + '" title="' + _esc(_lmaReconcDot.title) + '"></span>' +
+                 partes.join(' · ');
+  el.title = d.breakdown ? ('Perdidos — ' + d.breakdown) : '';
+}
+
+// "agora" / "há 12min" / "há 2h" / "há 3d" — substitui a coluna "Atualizado em".
+function _lmaTempoRelativo(dt) {
+  if (!dt) return '';
+  var seg = Math.floor((Date.now() - dt.getTime()) / 1000);
+  if (seg < 0)    return 'agendado';
+  if (seg < 90)   return 'agora';
+  var min = Math.floor(seg / 60);
+  if (min < 60)   return 'há ' + min + 'min';
+  var h = Math.floor(min / 60);
+  if (h < 24)     return 'há ' + h + 'h';
+  var d = Math.floor(h / 24);
+  if (d < 30)     return 'há ' + d + 'd';
+  return 'há ' + Math.floor(d / 30) + 'mes';
 }
 
 function _lmaAtualizarSortInd() {
-  ['data_entrada','nome','cidade','utm_campaign','utm_ad','status_final','motivo_desq','data_status'].forEach(function(c) {
+  ['data_entrada','nome','cidade','utm_campaign','status_final'].forEach(function(c) {
     var el = document.getElementById('sortInd_' + c);
     if (el) el.textContent = (_lmaSortDir && _lmaSortCol === c) ? (_lmaSortDir === 'asc' ? '▲' : '▼') : '';
   });
@@ -1004,68 +876,105 @@ function _lmaAtualizarSortInd() {
 function _lmaRenderizarTabela(lista) {
   if (!lista.length) {
     document.getElementById('lmaTbody').innerHTML =
-      '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--muted)">Nenhum lead encontrado.</td></tr>';
+      '<tr><td colspan="6" class="lma-empty">Nenhum lead nesse filtro. Amplie o período ou limpe os filtros.</td></tr>';
     return;
   }
 
   var html = lista.map(function(l) {
-    var badge = _lmaBadge(l.status_final);
-    var dataEntrada = l.data_entrada ? _lmaFmtData(l.data_entrada) : '—';
-    var dataStatus  = l.data_status  ? _lmaFmtData(l.data_status)  : '—';
     var statusLow = String(l.status_final || '').toLowerCase();
-    var isDesq = LMA_STATUS_PERDIDOS.indexOf(statusLow) !== -1;
-    var risco = _lmaEmRisco(l);
+    var risco   = _lmaEmRisco(l);
     var trClass = statusLow === LMA_STATUS_FECHADA ? ' class="lma-tr-conv"' : (risco ? ' class="lma-tr-risco"' : '');
-    var tel = _esc(l.telefone || '');
-    var telNorm = _lmaNormTel(l.telefone);
-    var telCell = telNorm
-      ? '<span class="lma-tel-wrap"><span class="lma-tel-plain">' + tel + '</span>' +
-        '<button class="lma-tel-copy" title="Copiar telefone" onclick="_lmaCopiarTelefone(\'' + telNorm + '\')">Copiar</button></span>'
-      : '<span class="lma-sub">' + tel + '</span>';
-    var campChip = l.utm_campaign
-      ? '<span class="lma-chip-camp" style="background:' + _lmaCampanhaCor(l.utm_campaign) + '" title="' + _esc(l.utm_campaign) + '">' + _esc(l.utm_campaign) + '</span>'
-      : '<span class="lma-sub">—</span>';
-    var anunChip = l.utm_ad
-      ? '<span class="lma-chip-anun" title="' + _esc(l.utm_ad) + '">' + _esc(l.utm_ad) + '</span>'
-      : '<span class="lma-sub">—</span>';
-    var motivoChip = (isDesq && l.motivo_desq)
-      ? '<span class="lma-chip-motivo">' + _esc(l.motivo_desq) + '</span>'
-      : '<span class="lma-sub">—</span>';
 
-    var statusAtualLow = String(l.status_final || '').toLowerCase();
-    var acaoHtml = '<div class="lma-acao-wrap">' +
+    // ── Entrada: data curta + tempo relativo (absorve a coluna "Atualizado em") ──
+    var dtEntrada = _lmaParseBR(l.data_entrada);
+    var dataCurta = dtEntrada ? _lmaFmtCurta(dtEntrada) : (l.data_entrada || '—');
+    var dtStatus  = _lmaParseBR(l.data_status);
+    var ago       = _lmaTempoRelativo(dtStatus || dtEntrada);
+    var agoTitle  = (dtStatus ? 'Status atualizado em ' + l.data_status : 'Entrou em ' + (l.data_entrada || '—'));
+
+    // ── Lead: nome editável + telefone + origem + conversa ──
+    var telNorm = _lmaNormTel(l.telefone);
+    var telHtml = '<span class="lma-tel">' + _esc(l.telefone || '—') + '</span>' +
+      (telNorm ? '<button class="lma-copy" title="Copiar telefone" onclick="_lmaCopiarTelefone(\'' + telNorm + '\')">copiar</button>' : '');
+
+    // ── Campanha: chip + anúncio como subtítulo (absorve a coluna "Anúncio") ──
+    var campCell = _lmaChipCampanha(l.utm_campaign) +
+      (l.utm_ad ? '<div class="lma-anun" title="Anúncio / criativo">' + _esc(l.utm_ad) + '</div>' : '');
+
+    // ── Ação: select que salva no change + menu ⋯ ──
+    var acaoHtml =
       '<div class="lma-acao-row">' +
         '<select class="lma-acao-sel" id="lmaAcaoSel_' + l.linha + '" onchange="_lmaOnStatusChange(' + l.linha + ')">' +
-          '<option value="">— status —</option>' +
-          _lmaStatusOptionsHtml(statusAtualLow) +
+          '<option value="">— sem etiqueta —</option>' +
+          _lmaStatusOptionsHtml(statusLow) +
         '</select>' +
-        '<button class="lma-acao-btn" id="lmaAcaoBtn_' + l.linha + '" title="Salvar status" onclick="_lmaSalvarAcao(' + l.linha + ')">✓</button>' +
-        '<button class="lma-acao-btn lma-acao-btn-copy" title="Copiar telefone" onclick="_lmaCopiarTelefone(\'' + telNorm + '\')">📋</button>' +
-        '<button class="lma-acao-btn lma-acao-btn-del" title="Excluir lead" onclick="_lmaExcluir(' + l.linha + ')">🗑</button>' +
-      '</div>' +
-      '<div class="lma-acao-row" id="lmaAcaoMotivoRow_' + l.linha + '" style="display:none">' +
-        _lmaMotivoSelect(l.linha, l.motivo_desq) +
-      '</div>' +
-    '</div>';
-    var cwCell = _cwSlot(l);
+        '<button class="lma-kebab" title="Mais ações" onclick="_lmaAbrirMenu(event,' + l.linha + ')">⋯</button>' +
+      '</div>';
+
     return '<tr' + trClass + '>' +
-      '<td><span class="lma-mono">' + _esc(dataEntrada) + '</span>' +
-        (cwCell ? '<div class="lma-cw-row">' + cwCell + '</div>' : '') + '</td>' +
+      '<td>' +
+        '<span class="lma-mono" title="' + _esc(l.data_entrada || '') + '">' + _esc(dataCurta) + '</span>' +
+        (ago ? '<div class="lma-ago" title="' + _esc(agoTitle) + '">' + _esc(ago) + '</div>' : '') +
+      '</td>' +
       '<td>' +
         '<div class="lma-nome" id="lmaNomeCell_' + l.linha + '">' + _lmaNomeInner(l) + '</div>' +
-        '<div class="lma-sub">' + telCell + _lmaOrigemChip(l.origem) + '</div>' +
+        '<div class="lma-linha2">' + telHtml + _lmaOrigemChip(l.origem) + _cwSlot(l) + '</div>' +
       '</td>' +
-      '<td class="lma-mono" id="lmaCidadeCell_' + l.linha + '">' + _lmaCidadeInner(l) + '</td>' +
-      '<td>' + campChip + '</td>' +
-      '<td>' + anunChip + '</td>' +
-      '<td>' + badge + '</td>' +
-      '<td>' + motivoChip + '</td>' +
-      '<td><span class="lma-mono">' + _esc(dataStatus) + '</span></td>' +
+      '<td id="lmaCidadeCell_' + l.linha + '">' + _lmaCidadeInner(l) + '</td>' +
+      '<td>' + campCell + '</td>' +
+      '<td>' + _lmaBadge(l.status_final, l.motivo_desq) + '</td>' +
       '<td class="lma-acao-cell">' + acaoHtml + '</td>' +
     '</tr>';
   }).join('');
 
   document.getElementById('lmaTbody').innerHTML = html;
+}
+
+// dd/MM HH:mm — o ano fica no title, que é onde ele importa.
+function _lmaFmtCurta(dt) {
+  function p(n) { return ('0' + n).slice(-2); }
+  return p(dt.getDate()) + '/' + p(dt.getMonth() + 1) + ' ' + p(dt.getHours()) + ':' + p(dt.getMinutes());
+}
+
+// Chip de campanha com cor determinística pelo nome (matiz estável, tom sóbrio).
+function _lmaChipCampanha(nome) {
+  if (!nome) return '<span class="lma-mono">—</span>';
+  var h = _lmaCampanhaCor(nome);
+  var style = 'color:hsl(' + h + ',62%,68%);' +
+              'background:hsla(' + h + ',62%,60%,.13);' +
+              'border-color:hsla(' + h + ',62%,62%,.32)';
+  return '<span class="lma-chip-camp" style="' + style + '" title="' + _esc(nome) + '">' + _esc(nome) + '</span>';
+}
+
+// ── Menu ⋯ da coluna Ação (copiar telefone / excluir) ──
+var _lmaMenuAberto = null;
+
+function _lmaFecharMenu() {
+  if (_lmaMenuAberto && _lmaMenuAberto.parentNode) _lmaMenuAberto.parentNode.removeChild(_lmaMenuAberto);
+  _lmaMenuAberto = null;
+}
+
+function _lmaAbrirMenu(ev, linha) {
+  ev.stopPropagation();
+  var jaEra = _lmaMenuAberto && _lmaMenuAberto.dataset.linha === String(linha);
+  _lmaFecharMenu();
+  if (jaEra) return;                       // 2º clique no mesmo ⋯ fecha
+
+  var cell = ev.currentTarget.closest('td');
+  if (!cell) return;
+  var lead = _lmaDados.find(function(l) { return l.linha === linha; });
+  var telNorm = lead ? _lmaNormTel(lead.telefone) : '';
+
+  var menu = document.createElement('div');
+  menu.className = 'lma-menu';
+  menu.dataset.linha = String(linha);
+  menu.innerHTML =
+    (telNorm ? '<button onclick="_lmaFecharMenu();_lmaCopiarTelefone(\'' + telNorm + '\')">Copiar telefone</button>' : '') +
+    '<button class="danger" onclick="_lmaFecharMenu();_lmaExcluir(' + linha + ')">Excluir lead</button>';
+  menu.onclick = function(e) { e.stopPropagation(); };
+  cell.appendChild(menu);
+  _lmaMenuAberto = menu;
+  setTimeout(function() { document.addEventListener('click', _lmaFecharMenu, { once: true }); }, 0);
 }
 
 // Lead em aberto há mais de 24h sem desfecho (sinal de risco).
@@ -1075,12 +984,14 @@ function _lmaEmRisco(l) {
   return !!ref && (Date.now() - ref.getTime()) > 864e5;
 }
 
-// Cor determinística por nome de campanha (paleta fixa).
+// Matiz determinística por nome de campanha — 12 tons espaçados. Retorna só o
+// hue; saturação/luminosidade ficam fixas em _lmaChipCampanha, pro chip nunca
+// competir em peso visual com os badges de status.
 function _lmaCampanhaCor(nome) {
-  var paleta = ['#3a5bbf','#1f8a5b','#a85a1f','#7a3aa8','#1f7a8a','#a83a5b','#5b7a1f','#8a6a1f'];
+  var hues = [190, 95, 265, 40, 340, 160, 220, 15, 285, 130, 55, 310];
   var h = 0, s = String(nome || '');
   for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return paleta[h % paleta.length];
+  return hues[h % hues.length];
 }
 
 function _lmaCopiarTelefone(tel) {
@@ -1099,11 +1010,21 @@ function _lmaCopiarFallback(tel) {
   document.body.removeChild(ta);
 }
 
-function _lmaBadge(status) {
-  if (!status) return '<span class="lma-badge pendente">Em aberto</span>';
+// Rótulo sem o emoji do LMA_STATUS_OPCOES (que fica reservado pros selects).
+function _lmaLabelLimpo(status) {
+  return String(_lmaStatusLabel(status) || '').replace(/^[^A-Za-zÀ-ÿ0-9]+/, '').trim();
+}
+
+// O motivo legado (col J) entra embaixo do badge — absorve a antiga coluna
+// "Motivo desq.", que ficava vazia em tudo que não era perda.
+function _lmaBadge(status, motivo) {
+  if (!status) return '<span class="lma-badge pendente">em aberto</span>';
   var cfg = _lmaStatusCfg(status);
   var cls = cfg ? cfg.badge : 'pendente';
-  return '<span class="lma-badge ' + cls + '">' + _esc(_lmaStatusLabel(status)) + '</span>';
+  var extra = (motivo && LMA_STATUS_PERDIDOS.indexOf(String(status).toLowerCase()) !== -1)
+    ? '<span class="lma-badge-motivo" title="Motivo registrado (legado)">' + _esc(motivo) + '</span>'
+    : '';
+  return '<span class="lma-badge ' + cls + '">' + _esc(_lmaLabelLimpo(status)) + '</span>' + extra;
 }
 
 function _lmaFmtData(val) {
@@ -1119,10 +1040,46 @@ function _lmaFmtData(val) {
   } catch(e) { return String(val); }
 }
 
+// Salva no próprio change do select — o antigo botão ✓ era um 2º clique
+// obrigatório em toda mudança. Update otimista + rollback, mesmo padrão que o
+// drag-and-drop do kanban (_lmaDrop) já usava.
 function _lmaOnStatusChange(linha) {
-  // Taxonomia Chatwoot: a própria etiqueta descreve o motivo, sem campo extra.
-  var row = document.getElementById('lmaAcaoMotivoRow_' + linha);
-  if (row) row.style.display = 'none';
+  var sel  = document.getElementById('lmaAcaoSel_' + linha);
+  var lead = _lmaDados.find(function(l) { return l.linha === linha; });
+  if (!sel || !lead) return;
+
+  var novoStatus = sel.value;
+  if (_lmaStatusMesmo(lead.status_final, novoStatus)) return;  // nada mudou
+
+  var anterior = lead.status_final;
+  var motivo = '';   // col J é read-only na taxonomia Chatwoot (ver nota no topo)
+
+  sel.disabled = true;
+  lead.status_final = novoStatus;
+  lead.data_status  = _lmaFmtData(new Date().toISOString());
+
+  // Repinta só a célula do badge: um _lmaFiltrar() aqui roubaria o foco do select.
+  var tr = sel.closest('tr');
+  function pintar(st, mt) { if (tr && tr.cells[4]) tr.cells[4].innerHTML = _lmaBadge(st, mt); }
+  pintar(novoStatus, motivo);
+
+  google.script.run
+    .withSuccessHandler(function() {
+      sel.disabled = false;
+      mostrarToast('Status: ' + (novoStatus ? _lmaLabelLimpo(novoStatus) : 'em aberto'), 'success');
+      _lmaAtualizarKPIs(_lmaListaFiltrada);
+      var pendentes = _lmaDados.filter(function(l) { return !l.status_final; }).length;
+      if (typeof _lmaAtualizarBadge === 'function') _lmaAtualizarBadge(pendentes);
+    })
+    .withFailureHandler(function(e) {
+      sel.disabled = false;
+      lead.status_final = anterior;               // reverte
+      var cfgAnt = _lmaStatusCfg(anterior);
+      sel.value = cfgAnt ? cfgAnt.value : '';
+      pintar(anterior, lead.motivo_desq);
+      mostrarToast('Erro ao salvar: ' + (e && e.message ? e.message : String(e)), 'error');
+    })
+    .atualizarStatusLeadMetaAds(linha, novoStatus, motivo);
 }
 
 function _lmaExcluir(linha) {
@@ -1149,64 +1106,37 @@ function _lmaExcluir(linha) {
     .excluirLeadMetaAds(linha);
 }
 
-function _lmaSalvarAcao(linha) {
-  var sel    = document.getElementById('lmaAcaoSel_'    + linha);
-  var btn    = document.getElementById('lmaAcaoBtn_'    + linha);
-  var mInput = document.getElementById('lmaAcaoMotivo_' + linha);
-  if (!sel || !btn) return;
-  var novoStatus = sel.value;
-  if (!novoStatus) { mostrarToast('Selecione um status antes de salvar.', 'warning'); return; }
-
-  // Motivo legado (col J) — não preenchido pela nova taxonomia Chatwoot.
-  var motivo = '';
-
-  btn.disabled = true;
-  btn.textContent = '⏳';
-
-  google.script.run
-    .withSuccessHandler(function(res) {
-      btn.disabled = false;
-      btn.textContent = '✓';
-      mostrarToast('Status atualizado: ' + _lmaStatusLabel(novoStatus), 'success');
-      var row = btn.closest('tr');
-      if (row) {
-        var badgeCell = row.cells[5];
-        if (badgeCell) badgeCell.innerHTML = _lmaBadge(novoStatus);
-        var motivoCell = row.cells[6];
-        if (motivoCell) motivoCell.textContent = motivo || '—';
-      }
-      var lead = _lmaDados.find(function(l) { return l.linha === linha; });
-      if (lead) { lead.status_final = novoStatus; lead.motivo_desq = motivo; }
-      var pendentes = _lmaDados.filter(function(l) { return !l.status_final; }).length;
-      if (typeof _lmaAtualizarBadge === 'function') _lmaAtualizarBadge(pendentes);
-    })
-    .withFailureHandler(function(e) {
-      btn.disabled = false;
-      btn.textContent = '✓';
-      mostrarToast('Erro ao salvar: ' + (e && e.message ? e.message : String(e)), 'error');
-    })
-    .atualizarStatusLeadMetaAds(linha, novoStatus, motivo);
-}
-
-// ─── Banner reconciliação Painel Ads ↔ CRM ─────────────────────────────────
+// ─── Reconciliação Painel Ads ↔ CRM ────────────────────────────────────────
+// Estando tudo certo, o estado cabe no dot verde do resumo do header — a faixa
+// só aparece quando há divergência a explicar (severidade 'aviso').
 function _lmaCarregarReconc() {
   var bar = document.getElementById('lmaReconc');
   if (!bar) return;
-  if (sessionStorage.getItem('leads_meta_ads_reconc_oculto') === '1') { bar.style.display = 'none'; return; }
   google.script.run
     .withSuccessHandler(function(r) {
-      if (!r || !r.ok || !r.resumo) { bar.style.display = 'none'; return; }
-      var txt = document.getElementById('lmaReconcTxt');
-      bar.classList.toggle('aviso', r.severidade === 'aviso');
-      if (txt) txt.textContent = '📊 ' + r.resumo;
-      bar.style.display = 'flex';
+      if (!r || !r.ok || !r.resumo) {
+        _lmaReconcDot = { classe: 'off', title: 'Reconciliação Painel Ads ↔ CRM indisponível.' };
+        bar.classList.remove('on');
+      } else if (r.severidade === 'aviso') {
+        _lmaReconcDot = { classe: 'warn', title: r.resumo };
+        document.getElementById('lmaReconcTxt').textContent = r.resumo;
+        if (sessionStorage.getItem('leads_meta_ads_reconc_oculto') !== '1') bar.classList.add('on');
+      } else {
+        _lmaReconcDot = { classe: '', title: r.resumo };
+        bar.classList.remove('on');
+      }
+      _lmaSetResumo(null);   // repinta o dot sem recalcular os números
     })
-    .withFailureHandler(function() { bar.style.display = 'none'; })
+    .withFailureHandler(function() {
+      _lmaReconcDot = { classe: 'off', title: 'Reconciliação Painel Ads ↔ CRM indisponível.' };
+      bar.classList.remove('on');
+      _lmaSetResumo(null);
+    })
     .getDiagnosticoReconciliacaoMeta();
 }
 function _lmaFecharReconc() {
   var bar = document.getElementById('lmaReconc');
-  if (bar) bar.style.display = 'none';
+  if (bar) bar.classList.remove('on');
   try { sessionStorage.setItem('leads_meta_ads_reconc_oculto', '1'); } catch (e) {}
 }
 
@@ -1214,12 +1144,12 @@ function _lmaFecharReconc() {
 function _lmaOrigemChip(origem) {
   var o = String(origem || 'webhook').toLowerCase();
   var map = {
-    webhook: { ic: '🔗', lbl: 'webhook', cls: 'og-webhook' },
-    manual:  { ic: '✋', lbl: 'manual',  cls: 'og-manual'  },
-    renata:  { ic: '🤖', lbl: 'renata',  cls: 'og-renata'  }
+    webhook: { lbl: 'webhook', cls: 'og-webhook', t: 'Chegou pelo webhook do Botconversa' },
+    manual:  { lbl: 'manual',  cls: 'og-manual',  t: 'Registrado à mão no CRM' },
+    renata:  { lbl: 'renata',  cls: 'og-renata',  t: 'Veio do atendimento da Renata IA' }
   };
   var m = map[o] || map.webhook;
-  return '<span class="lma-origem-chip ' + m.cls + '" title="Origem: ' + m.lbl + '">' + m.ic + ' ' + m.lbl + '</span>';
+  return '<span class="lma-origem-chip ' + m.cls + '" title="' + m.t + '">' + m.lbl + '</span>';
 }
 
 function _esc(s) {
@@ -1352,7 +1282,7 @@ function _lmaSalvarCidade(linha, valor) {
   var atualReal = lead ? _lmaCidadeReal(lead) : '';
   if (valor === atualReal) { _lmaRenderCidadeCell(linha); return; } // nada mudou
   var cell = document.getElementById('lmaCidadeCell_' + linha);
-  if (cell) cell.innerHTML = '<span class="lma-cidade-vazia">⏳</span>';
+  if (cell) cell.innerHTML = '<span class="lma-cidade-vazia">salvando…</span>';
   google.script.run
     .withSuccessHandler(function() {
       if (lead) lead.cidade = valor;
@@ -1402,7 +1332,7 @@ function _lmaSalvarNome(linha, valor) {
   var atual = lead ? String(lead.nome || '').trim() : '';
   if (valor === atual) { _lmaRenderNomeCell(linha); return; } // nada mudou
   var cell = document.getElementById('lmaNomeCell_' + linha);
-  if (cell) cell.innerHTML = '<span class="lma-sub">⏳</span>';
+  if (cell) cell.innerHTML = '<span class="lma-cidade-vazia">salvando…</span>';
   google.script.run
     .withSuccessHandler(function() {
       if (lead) lead.nome = valor;
@@ -1545,8 +1475,8 @@ function _lmaSort(col) {
 function _lmaSetPeriodo(p) {
   _lmaPeriodo = p;
   var pills = document.querySelectorAll('#lmaPeriodPills button');
-  for (var i = 0; i < pills.length; i++) pills[i].classList.toggle('ativo', pills[i].getAttribute('data-p') === p);
-  document.getElementById('lmaCustomRange').style.display = (p === 'custom') ? 'inline' : 'none';
+  for (var i = 0; i < pills.length; i++) pills[i].classList.toggle('on', pills[i].getAttribute('data-p') === p);
+  document.getElementById('lmaCustomRange').style.display = (p === 'custom') ? 'flex' : 'none';
   _lmaFiltrar();
 }
 
@@ -1580,25 +1510,35 @@ function _lmaContarFiltrosAtivos() {
   var badge = document.getElementById('lmaFCount');
   var btn = document.getElementById('lmaFiltrosBtn');
   if (badge) { badge.textContent = n; badge.style.display = n ? 'inline-block' : 'none'; }
-  if (btn) btn.classList.toggle('ativo', n > 0);
+  if (btn) btn.classList.toggle('on', n > 0);
 }
 
 // ─── Toggle de visualização Lista | Kanban ──────────────────────────────────
 function _lmaSetView(v) {
   _lmaView = v;
   try { localStorage.setItem('leads_meta_ads_view', v); } catch (e) {}
-  document.getElementById('lmaViewLista').classList.toggle('ativo', v === 'lista');
-  document.getElementById('lmaViewKanban').classList.toggle('ativo', v === 'kanban');
+  document.getElementById('lmaViewLista').classList.toggle('on', v === 'lista');
+  document.getElementById('lmaViewKanban').classList.toggle('on', v === 'kanban');
   document.getElementById('lmaListaWrap').style.display  = (v === 'lista') ? '' : 'none';
   document.getElementById('lmaKanbanWrap').style.display = (v === 'kanban') ? '' : 'none';
   _lmaFiltrar();
 }
 
 // ─── Auto-refresh (60s) ─────────────────────────────────────────────────────
+// O checkbox virou uma tag clicável no header (padrão .sync-tag do Dashboard).
 function _lmaToggleAutoRefresh() {
-  _lmaAutoOn = document.getElementById('lmaAutoRefresh').checked;
+  _lmaAutoOn = !_lmaAutoOn;
+  _lmaPintarAutoTag();
   try { localStorage.setItem('leads_meta_ads_autorefresh', _lmaAutoOn ? '1' : '0'); } catch (e) {}
   _lmaAgendarAutoRefresh();
+}
+function _lmaPintarAutoTag() {
+  var tag = document.getElementById('lmaAutoTag');
+  if (!tag) return;
+  tag.classList.toggle('on', _lmaAutoOn);
+  tag.title = _lmaAutoOn
+    ? 'Recarregando sozinho a cada 60s. Clique para desligar.'
+    : 'Auto-refresh desligado. Clique para ligar (recarrega a cada 60s).';
 }
 function _lmaAgendarAutoRefresh() {
   if (_lmaTimer) { clearInterval(_lmaTimer); _lmaTimer = null; }
@@ -1686,7 +1626,9 @@ function _lmaRenderKanban(lista) {
     var cards = lista.filter(col.match);
     html += '<div class="lma-kcol ' + col.classe + '" data-col="' + col.id + '" ' +
       'ondragover="_lmaDragOver(event)" ondragleave="_lmaDragLeave(event)" ondrop="_lmaDrop(event,\'' + col.id + '\')">';
-    html += '<div class="lma-kcol-head">' + col.titulo + ' <span class="lma-kcol-count">' + cards.length + '</span></div>';
+    var titulo = String(col.titulo || '').replace(/^[^A-Za-zÀ-ÿ0-9]+/, '').trim();
+    html += '<div class="lma-kcol-head"><span>' + _esc(titulo) + '</span>' +
+            '<span class="lma-kcol-count">' + cards.length + '</span></div>';
     html += '<div class="lma-kcol-body">';
     cards.forEach(function(l) { html += _lmaKanbanCard(l); });
     if (!cards.length) html += '<div class="lma-kcol-vazio">—</div>';
@@ -1701,13 +1643,12 @@ function _lmaKanbanCard(l) {
   var cls = 'lma-kcard' + (conv ? ' kc-conv' : (risco ? ' kc-risco' : ''));
   var telNorm = _lmaNormTel(l.telefone);
   var cidade = _lmaCidadeReal(l) || inferirCidadePorDDD(l.telefone);
-  var cidadeHtml = cidade ? '<div class="lma-kcard-cidade">📍 ' + (_lmaCidadeReal(l) ? '' : '≈ ') + _esc(cidade) + '</div>' : '';
-  var telHtml = telNorm
-    ? '<span class="lma-tel-wrap"><span class="lma-tel-plain">' + _esc(l.telefone || '') + '</span>' +
-      '<button class="lma-tel-copy" title="Copiar telefone" onclick="event.stopPropagation();_lmaCopiarTelefone(\'' + telNorm + '\')">Copiar</button></span>'
-    : _esc(l.telefone || '');
-  var camp = l.utm_campaign ? '<span class="lma-chip-camp" style="background:' + _lmaCampanhaCor(l.utm_campaign) + '">' + _esc(l.utm_campaign) + '</span>' : '';
-  var motivo = (LMA_STATUS_PERDIDOS.indexOf(_lmaStatusLow(l)) !== -1 && l.motivo_desq) ? '<span class="lma-chip-motivo">' + _esc(l.motivo_desq) + '</span>' : '';
+  var cidadeHtml = cidade ? '<div class="lma-kcard-cidade">' + (_lmaCidadeReal(l) ? '' : '≈ ') + _esc(cidade) + '</div>' : '';
+  var telHtml = _esc(l.telefone || '') +
+    (telNorm ? '<button class="lma-copy" title="Copiar telefone" onclick="event.stopPropagation();_lmaCopiarTelefone(\'' + telNorm + '\')">copiar</button>' : '');
+  var camp = _lmaChipCampanha(l.utm_campaign);
+  var motivo = (LMA_STATUS_PERDIDOS.indexOf(_lmaStatusLow(l)) !== -1 && l.motivo_desq)
+    ? '<span class="lma-origem-chip">' + _esc(l.motivo_desq) + '</span>' : '';
   return '<div class="' + cls + '" draggable="true" data-linha="' + l.linha + '" ondragstart="_lmaDragStart(event,' + l.linha + ')">' +
     '<div class="lma-kcard-nome">' + _esc(l.nome || '—') + '</div>' +
     '<div class="lma-kcard-tel">' + telHtml + _cwSlot(l) + '</div>' +
@@ -1762,14 +1703,14 @@ function _lmaDrop(ev, colId) {
     var ar = localStorage.getItem('leads_meta_ads_autorefresh');
     _lmaAutoOn = (ar === null) ? true : (ar === '1'); // default ligado
   } catch (e) {}
-  var cb = document.getElementById('lmaAutoRefresh'); if (cb) cb.checked = _lmaAutoOn;
+  _lmaPintarAutoTag();
   // restaura estado do painel de filtros avançados (default: fechado)
   try { _lmaToggleFiltros(localStorage.getItem('leads_meta_ads_filtros_abertos') === '1'); } catch (e) {}
   // aplica a view salva (atualiza botões + visibilidade)
   var bl = document.getElementById('lmaViewLista'), bk = document.getElementById('lmaViewKanban');
   if (bl && bk) {
-    bl.classList.toggle('ativo', _lmaView === 'lista');
-    bk.classList.toggle('ativo', _lmaView === 'kanban');
+    bl.classList.toggle('on', _lmaView === 'lista');
+    bk.classList.toggle('on', _lmaView === 'kanban');
     document.getElementById('lmaListaWrap').style.display  = (_lmaView === 'lista') ? '' : 'none';
     document.getElementById('lmaKanbanWrap').style.display = (_lmaView === 'kanban') ? '' : 'none';
   }
